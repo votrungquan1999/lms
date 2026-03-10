@@ -1,0 +1,25 @@
+services:
+  mongodb:
+    image: mongo:7
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
+
+  app:
+    image: node:22-alpine
+    working_dir: /app
+    ports:
+      - '3000:3000'
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+    depends_on:
+      - mongodb
+    env_file:
+      - .env.local
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
+
+volumes:
+  mongodb_data:
+  app_node_modules:
