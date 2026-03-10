@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "agent": "antigravity",
+  "categories": [
+    "component-architecture",
+    "database-patterns",
+    "meta-rules",
+    "react-hooks",
+    "react-server-components",
+    "styling-tailwind",
+    "testing-guidelines",
+    "typescript-conventions",
+    "url-state-management"
+  ],
+  "skills": [
+    "bdd-design",
+    "code-refactoring",
+    "context7",
+    "create-implementation-plan",
+    "tdd-design",
+    "test-quality-reviewer",
+    "web-search"
+  ],
+  "workflows": [
+    "commit-plan",
+    "feature-development",
+    "repo-knowledge",
+    "review-changes",
+    "structured-brainstorming"
+  ]
+}
