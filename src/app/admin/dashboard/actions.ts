@@ -47,10 +47,11 @@ export async function createStudentAction(
   }
 
   try {
-    const student = await authService.createStudent({
+    const student = await authService.registerStudent({
       name,
       username,
       password,
+      createdBy: "admin",
     });
     return {
       success: true,

@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { getAuthService } from "src/lib/auth-singleton";
-import type { AdminSession } from "src/lib/session";
+import Link from "next/link";
+import { Card, CardHeader, CardTitle } from "src/components/ui/card";
+import { getPageGuard } from "src/lib/services-singleton";
 import { CreateStudentForm } from "./create-student-form";
 
 export const metadata = {
@@ -10,15 +9,8 @@ export const metadata = {
 };
 
 export default async function AdminDashboardPage() {
-  const requestHeaders = await headers();
-  const authService = await getAuthService();
-
-  let adminSession: AdminSession;
-  try {
-    adminSession = await authService.requireAdminSession(requestHeaders);
-  } catch {
-    redirect("/admin/login");
-  }
+  const guard = await getPageGuard();
+  const adminSession = await guard.requireAdminLogin();
 
   return (
     <main className="flex min-h-screen flex-col items-center p-8">
@@ -28,6 +20,16 @@ export default async function AdminDashboardPage() {
           {adminSession.email}
         </p>
       </header>
+
+      <nav className="mb-8 w-full max-w-md">
+        <Link href="/admin/courses" className="block">
+          <Card className="transition-colors hover:bg-accent/50">
+            <CardHeader>
+              <CardTitle className="text-lg">Manage Courses →</CardTitle>
+            </CardHeader>
+          </Card>
+        </Link>
+      </nav>
 
       <section className="w-full max-w-md">
         <CreateStudentForm />
