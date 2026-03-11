@@ -1,5 +1,6 @@
 import { createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
+import { StudentService } from "src/lib/student-service";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -19,18 +20,21 @@ const testConfig: AppConfig = {
   authUrl: "http://localhost:3000",
   google: { clientId: "test-client-id", clientSecret: "test-client-secret" },
   adminEmails: [],
+  trustedOrigins: [],
 };
 
 describe("Feature: Auth Service", () => {
   dbIt(
     "admin can create a student account with the student role",
     async ({ db }) => {
-      const authService = createAuthService(db, testConfig);
+      const studentService = new StudentService(db);
+      const authService = createAuthService(db, testConfig, studentService);
 
-      const student = await authService.createStudent({
+      const student = await authService.registerStudent({
         name: "Alice",
         username: "alice",
         password: "student-pass-123",
+        createdBy: "admin-test",
       });
 
       expect(student.username).toBe("alice");
@@ -43,19 +47,22 @@ describe("Feature: Auth Service", () => {
   dbIt(
     "creating a student with a duplicate username throws an error",
     async ({ db }) => {
-      const authService = createAuthService(db, testConfig);
+      const studentService = new StudentService(db);
+      const authService = createAuthService(db, testConfig, studentService);
 
-      await authService.createStudent({
+      await authService.registerStudent({
         name: "Alice",
         username: "alice",
         password: "student-pass-123",
+        createdBy: "admin-test",
       });
 
       await expect(
-        authService.createStudent({
+        authService.registerStudent({
           name: "Alice Duplicate",
           username: "alice",
           password: "another-pass-456",
+          createdBy: "admin-test",
         }),
       ).rejects.toThrow("Username already exists");
     },
@@ -64,12 +71,14 @@ describe("Feature: Auth Service", () => {
   dbIt(
     "student can sign in with username and password created by admin",
     async ({ db }) => {
-      const authService = createAuthService(db, testConfig);
+      const studentService = new StudentService(db);
+      const authService = createAuthService(db, testConfig, studentService);
 
-      await authService.createStudent({
+      await authService.registerStudent({
         name: "Bob",
         username: "bob",
         password: "bob-pass-123",
+        createdBy: "admin-test",
       });
 
       const session = await authService.signInStudent({
@@ -83,12 +92,14 @@ describe("Feature: Auth Service", () => {
   );
 
   dbIt("sign-in with wrong password throws an error", async ({ db }) => {
-    const authService = createAuthService(db, testConfig);
+    const studentService = new StudentService(db);
+    const authService = createAuthService(db, testConfig, studentService);
 
-    await authService.createStudent({
+    await authService.registerStudent({
       name: "Carol",
       username: "carol",
       password: "carol-pass-123",
+      createdBy: "admin-test",
     });
 
     await expect(
@@ -100,7 +111,8 @@ describe("Feature: Auth Service", () => {
   });
 
   dbIt("sign-in with non-existent username throws an error", async ({ db }) => {
-    const authService = createAuthService(db, testConfig);
+    const studentService = new StudentService(db);
+    const authService = createAuthService(db, testConfig, studentService);
 
     await expect(
       authService.signInStudent({

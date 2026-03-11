@@ -41,10 +41,13 @@ export class AdminSession extends Session {
 export class StudentSession extends Session {
   readonly role = "student" as const;
   readonly username: string;
+  /** Domain student document ID (from the `student` collection). */
+  readonly studentId: string;
 
-  constructor(input: { userId: string; username: string }) {
+  constructor(input: { userId: string; username: string; studentId: string }) {
     super(input.userId);
     this.username = input.username;
+    this.studentId = input.studentId;
   }
 }
 

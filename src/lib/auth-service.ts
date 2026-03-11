@@ -1,34 +1,18 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
-import type { Collection, Db } from "mongodb";
+import type { Db } from "mongodb";
 import type { AppConfig } from "./config";
 import { AdminSession, type Session, StudentSession } from "./session";
+import type { StudentService } from "./student-service";
 
 /**
- * Input for creating a new student account.
+ * Input for registering a student (auth signup + domain doc).
  */
-interface CreateStudentInput {
+interface RegisterStudentInput {
   name: string;
   username: string;
   password: string;
-}
-
-/**
- * Student document stored in our `student` collection.
- */
-interface StudentDocument {
-  /** Our domain ID. */
-  id: string;
-  /** Foreign key to Better Auth's user table. */
-  authUserId: string;
-  /** Student's login username. */
-  username: string;
-  /** Student's display name. */
-  name: string;
-  /** Role in the LMS system. */
-  role: "student";
-  /** Timestamp of creation. */
-  createdAt: Date;
+  createdBy: string;
 }
 
 /**
@@ -41,6 +25,7 @@ function createBetterAuth(db: Db, config: AppConfig) {
     emailAndPassword: { enabled: true },
     basePath: "/api/auth",
     secret: config.authSecret,
+    trustedOrigins: config.trustedOrigins,
     socialProviders: {
       google: {
         clientId: config.google.clientId,
@@ -61,25 +46,26 @@ export class AuthService {
   /** Better Auth instance, exposed for API route handler. */
   readonly auth: ReturnType<typeof createBetterAuth>;
 
-  private readonly students: Collection<StudentDocument>;
+  private readonly studentService: StudentService;
   private readonly adminEmails: string[];
 
   constructor(
     readonly db: Db,
     readonly config: AppConfig,
+    studentService: StudentService,
   ) {
     this.auth = createBetterAuth(db, config);
-    this.students = db.collection<StudentDocument>("student");
+    this.studentService = studentService;
     this.adminEmails = config.adminEmails;
   }
 
   /**
-   * Creates a student account.
+   * Registers a student account.
    * 1. Creates a Better Auth user (email/password for auth only)
-   * 2. Creates a student document in our collection (domain data)
+   * 2. Delegates student document creation to StudentService
    */
-  async createStudent(input: CreateStudentInput) {
-    const existing = await this.students.findOne({ username: input.username });
+  async registerStudent(input: RegisterStudentInput) {
+    const existing = await this.studentService.findByUsername(input.username);
     if (existing) {
       throw new Error("Username already exists");
     }
@@ -92,22 +78,29 @@ export class AuthService {
       },
     });
 
-    const studentDoc: StudentDocument = {
-      id: crypto.randomUUID(),
-      authUserId: authResult.user.id,
-      username: input.username,
-      name: input.name,
-      role: "student",
-      createdAt: new Date(),
-    };
-
-    await this.students.insertOne(studentDoc);
+    let student: Awaited<
+      ReturnType<StudentService["createStudentDocument"]>
+    >;
+    try {
+      student = await this.studentService.createStudentDocument({
+        authUserId: authResult.user.id,
+        username: input.username,
+        name: input.name,
+        createdBy: input.createdBy,
+      });
+    } catch (error) {
+      // Rollback: remove the orphaned Better Auth user to keep state consistent
+      await this.db
+        .collection("user")
+        .deleteOne({ id: authResult.user.id });
+      throw error;
+    }
 
     return {
-      id: studentDoc.id,
-      username: studentDoc.username,
-      name: studentDoc.name,
-      role: studentDoc.role,
+      id: student.id,
+      username: student.username,
+      name: student.name,
+      role: "student" as const,
     };
   }
 
@@ -118,7 +111,7 @@ export class AuthService {
    * 3. Signs in via Better Auth
    */
   async signInStudent(input: { username: string; password: string }) {
-    const student = await this.students.findOne({ username: input.username });
+    const student = await this.studentService.findByUsername(input.username);
     if (!student) {
       throw new Error("Invalid username or password");
     }
@@ -157,11 +150,12 @@ export class AuthService {
     }
 
     // Check if student
-    const student = await this.students.findOne({ authUserId: user.id });
+    const student = await this.studentService.findByAuthUserId(user.id);
     if (student) {
       return new StudentSession({
         userId: user.id,
         username: student.username,
+        studentId: student.id,
       });
     }
 
@@ -179,11 +173,27 @@ export class AuthService {
     }
     return session as AdminSession;
   }
+
+  /**
+   * Requires the current session to be a student.
+   * Throws if not authenticated or not a student.
+   */
+  async requireStudentSession(headers: Headers): Promise<StudentSession> {
+    const session = await this.getSession(headers);
+    if (!session || session.role !== "student") {
+      throw new Error("Unauthorized: student access required");
+    }
+    return session as StudentSession;
+  }
 }
 
 /**
- * Creates an AuthService instance from config.
+ * Creates an AuthService instance from config and student service.
  */
-export function createAuthService(db: Db, config: AppConfig): AuthService {
-  return new AuthService(db, config);
+export function createAuthService(
+  db: Db,
+  config: AppConfig,
+  studentService: StudentService,
+): AuthService {
+  return new AuthService(db, config, studentService);
 }

@@ -1,14 +1,14 @@
-import { MongoClient } from "mongodb";
 import { AuthService } from "./auth-service";
 import { loadConfig } from "./config";
+import { getDatabase } from "./database";
+import { StudentService } from "./student-service";
 
 /**
- * Lazy singleton: one AuthService + MongoClient per server process.
- * Used by API routes, server actions, and proxy.
+ * Lazy singleton for AuthService.
+ * Uses the shared database connection from database.ts.
  */
 
 let authService: AuthService | null = null;
-let mongoClient: MongoClient | null = null;
 
 export async function getAuthService(): Promise<AuthService> {
   if (authService) {
@@ -16,18 +16,9 @@ export async function getAuthService(): Promise<AuthService> {
   }
 
   const config = loadConfig();
-  mongoClient = new MongoClient(config.mongodbUri);
-  await mongoClient.connect();
-
-  const db = mongoClient.db();
-  authService = new AuthService(db, config);
+  const db = await getDatabase();
+  const studentService = new StudentService(db);
+  authService = new AuthService(db, config, studentService);
 
   return authService;
-}
-
-/**
- * Returns the raw MongoDB client for cleanup/shutdown.
- */
-export function getMongoClient(): MongoClient | null {
-  return mongoClient;
 }
