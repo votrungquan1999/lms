@@ -31,8 +31,8 @@ export default function Home() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button asChild className="w-full" disabled>
-                <span>Student Login (Coming Soon)</span>
+              <Button asChild className="w-full">
+                <Link href="/student/login">Student Login</Link>
               </Button>
             </CardContent>
           </Card>
