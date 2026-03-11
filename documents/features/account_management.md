@@ -17,9 +17,9 @@ Admin-managed student account lifecycle using **Better Auth** with **Google OAut
 ### Authentication
 - [x] Better Auth is configured with Google OAuth provider
 - [x] Admin can login via Google account
-- [ ] Student can login with username and password created by admin
-- [ ] Invalid credentials show an error message
-- [ ] Successful login redirects to the appropriate dashboard (admin or student)
+- [x] Student can login with username and password created by admin
+- [x] Invalid credentials show an error message
+- [x] Successful login redirects to the appropriate dashboard (admin or student)
 
 ### Admin — Create Student Account
 - [x] Admin can create a new student account with username and password

@@ -8,13 +8,15 @@ A web-based Learning Management System that enables students to login, take test
 
 - **Admin Login** — Admin signs in via Google OAuth (whitelisted emails only)
 - **Student Account Creation** — Admin creates student accounts with username and password
+- **Course Management** — Create courses, enroll students, manage tests
+- **Test Question Management** — Add questions with markdown content, import from JSON
+- **Student Course Browsing** — Students view enrolled courses, navigate to tests
+- **Test Taking** — Students view questions and submit free-text answers per question (append-only history)
 
 ### Planned
 
-- **Student Login** — Students authenticate with admin-provided credentials
-- **Test/Quiz Taking** — Students submit test solutions; teachers input correct answers; diff-based comparison view
+- **Diff-Based Answer Comparison** — Side-by-side diff view of student answers vs correct solutions
 - **Lesson File Downloads** — Students download lesson materials (PDFs, documents, etc.)
-- **Course Management** — Organize lessons and tests into courses
 
 ## Tech Stack
 
@@ -56,9 +58,10 @@ Open [http://localhost:3000](http://localhost:3000) to view the app.
 ```
 src/
   app/            # Next.js App Router pages and layouts
-    admin/        # Admin login and dashboard pages
+    admin/        # Admin login, dashboard, and course management
+      courses/    # Course list, detail, test and question management
     api/auth/     # Better Auth API route handler
-  lib/            # Auth service, session, config, utilities
+  lib/            # Domain services, auth, session, config
   components/ui/  # shadcn UI components
 documents/
   features/       # Feature specifications and acceptance criteria

@@ -11,18 +11,28 @@ Students take tests by submitting their solutions. Teachers input the correct/ex
 
 ## Acceptance Criteria
 
-### Teacher — Manage Test Solutions
+### Teacher — Manage Tests
 
-- [ ] Teacher can create a test with a title and description
+- [x] Teacher can create a test with a title and description
 - [ ] Teacher can input the correct/expected solution for a test
 - [ ] Teacher can update the correct solution
 
+### Admin — Manage Questions
+
+- [x] Admin can add a question with title and markdown content
+- [x] Admin can import questions from a JSON file
+- [x] Admin can view a list of questions for a test
+- [ ] Admin can preview/review questions with rendered markdown (planned)
+- [ ] Admin can edit existing questions
+- [ ] Admin can reorder questions
+- [ ] Admin can delete questions
+
 ### Student — Submit Solution
 
-- [ ] Student can view available tests for their courses
-- [ ] Student can write and submit their solution for a test
-- [ ] Student can update their submission before a deadline (if applicable)
-- [ ] Student receives confirmation after successful submission
+- [x] Student can view available tests for their courses
+- [x] Student can write and submit their solution for a test
+- [x] Student can update their submission before a deadline (if applicable)
+- [x] Student receives confirmation after successful submission
 
 ### Student — View Diff Comparison
 
@@ -32,5 +42,5 @@ Students take tests by submitting their solutions. Teachers input the correct/ex
 
 ### Test Association
 
-- [ ] Tests are associated with a specific course/lesson
-- [ ] Only enrolled students can access and submit tests
+- [x] Tests are associated with a specific course
+- [x] Only enrolled students can access and submit tests
