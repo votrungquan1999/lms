@@ -17,6 +17,8 @@ export interface AppConfig {
   };
   /** List of email addresses recognized as admin. */
   adminEmails: string[];
+  /** Trusted origins for Better Auth CORS. */
+  trustedOrigins: string[];
 }
 
 /**
@@ -39,6 +41,10 @@ export function loadConfig(): AppConfig {
     authUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
     google: { clientId: googleClientId, clientSecret: googleClientSecret },
     adminEmails: (process.env.ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean),
+    trustedOrigins: (process.env.TRUSTED_ORIGINS ?? "")
       .split(",")
       .map((e) => e.trim())
       .filter(Boolean),
