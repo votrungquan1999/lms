@@ -74,14 +74,13 @@ export function EnrollStudentDialog({
           {students.length > 0 ? (
             <div className="space-y-3">
               {students.map((student) => (
-                // biome-ignore lint/a11y/useKeyWithClickEvents: Checkbox inside handles keyboard
-                // biome-ignore lint/a11y/noStaticElementInteractions: Checkbox is the interactive element
-                <div
+                <label
                   key={student.id}
-                  onClick={() => toggleStudent(student.id)}
+                  htmlFor={`enroll-${student.id}`}
                   className="flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors hover:bg-accent/50 cursor-pointer"
                 >
                   <Checkbox
+                    id={`enroll-${student.id}`}
                     checked={selected.has(student.id)}
                     onCheckedChange={() => toggleStudent(student.id)}
                   />
@@ -91,7 +90,7 @@ export function EnrollStudentDialog({
                       @{student.username}
                     </p>
                   </div>
-                </div>
+                </label>
               ))}
             </div>
           ) : (

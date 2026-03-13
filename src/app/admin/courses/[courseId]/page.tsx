@@ -4,16 +4,27 @@ import { Card, CardHeader, CardTitle } from "src/components/ui/card";
 import { Separator } from "src/components/ui/separator";
 import {
   getCourseService,
+  getEnrollmentService,
   getPageGuard,
+  getQuestionService,
   getStudentService,
   getTestService,
+  getTestStatusService,
 } from "src/lib/services-singleton";
+import { TestStatus } from "src/lib/test-status-service";
 import { CreateTestForm } from "./create-test-form";
 import { EnrollStudentDialog } from "./enroll-student-form";
 
 export const metadata = {
   title: "Course Detail — LMS Admin",
   description: "Manage course enrollments and tests",
+};
+
+const statusLabels: Record<TestStatus, string> = {
+  [TestStatus.NotStarted]: "Not Started",
+  [TestStatus.InProgress]: "In Progress",
+  [TestStatus.Submitted]: "Submitted",
+  [TestStatus.Graded]: "Graded",
 };
 
 export default async function CourseDetailPage({
@@ -39,6 +50,41 @@ export default async function CourseDetailPage({
   const studentService = await getStudentService();
   const students = await studentService.listStudents();
 
+  const enrollmentService = await getEnrollmentService();
+  const enrolledStudentIds =
+    await enrollmentService.listEnrollmentsByCourse(courseId);
+
+  const questionService = await getQuestionService();
+  const testStatusService = await getTestStatusService();
+
+  // Compute per-test status summary for enrolled students
+  const testsWithSummary = await Promise.all(
+    tests.map(async (test) => {
+      const questions = await questionService.listQuestions(test.id);
+      const statusCounts: Record<TestStatus, number> = {
+        [TestStatus.NotStarted]: 0,
+        [TestStatus.InProgress]: 0,
+        [TestStatus.Submitted]: 0,
+        [TestStatus.Graded]: 0,
+      };
+
+      for (const studentId of enrolledStudentIds) {
+        const status = await testStatusService.getStatus(
+          test.id,
+          studentId,
+          questions.length,
+        );
+        statusCounts[status]++;
+      }
+
+      return {
+        ...test,
+        statusCounts,
+        totalStudents: enrolledStudentIds.length,
+      };
+    }),
+  );
+
   return (
     <main className="flex min-h-screen flex-col items-center p-8">
       <header className="mb-8 w-full max-w-2xl">
@@ -62,10 +108,10 @@ export default async function CourseDetailPage({
 
         <CreateTestForm courseId={courseId} />
 
-        {tests.length > 0 && (
+        {testsWithSummary.length > 0 && (
           <div className="space-y-3">
             <h2 className="text-xl font-semibold">Tests</h2>
-            {tests.map((test) => (
+            {testsWithSummary.map((test) => (
               <Link
                 key={test.id}
                 href={`/admin/courses/${courseId}/tests/${test.id}`}
@@ -73,11 +119,33 @@ export default async function CourseDetailPage({
               >
                 <Card className="transition-colors hover:bg-accent/50">
                   <CardHeader>
-                    <CardTitle className="text-lg">{test.title}</CardTitle>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">{test.title}</CardTitle>
+                      {test.totalStudents > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {test.statusCounts[TestStatus.Graded]}/
+                          {test.totalStudents} graded
+                        </span>
+                      )}
+                    </div>
                     {test.description && (
                       <p className="text-sm text-muted-foreground">
                         {test.description}
                       </p>
+                    )}
+                    {test.totalStudents > 0 && (
+                      <div className="flex gap-2 mt-1">
+                        {Object.entries(test.statusCounts)
+                          .filter(([, count]) => count > 0)
+                          .map(([status, count]) => (
+                            <span
+                              key={status}
+                              className="text-xs text-muted-foreground"
+                            >
+                              {count} {statusLabels[status as TestStatus]}
+                            </span>
+                          ))}
+                      </div>
                     )}
                   </CardHeader>
                 </Card>

@@ -40,6 +40,15 @@ export default async function TestDetailPage({
 
         <ImportQuestionsForm testId={testId} courseId={courseId} />
 
+        <div>
+          <Link
+            href={`/admin/courses/${courseId}/tests/${testId}/grading`}
+            className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Grade Students →
+          </Link>
+        </div>
+
         <Separator />
 
         <QuestionList questions={questions} />
