@@ -7,6 +7,7 @@ import type { StudentSession } from "src/lib/session";
 import {
   getAnswerService,
   getEnrollmentService,
+  getTestSubmissionService,
 } from "src/lib/services-singleton";
 import { z } from "zod";
 
@@ -84,5 +85,59 @@ export async function submitAnswerAction(
     const message =
       error instanceof Error ? error.message : "Failed to submit answer";
     return { success: false, message };
+  }
+}
+
+export interface SubmitTestState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: explicitly submits a test for grading.
+ * Allows partial submissions — student doesn't need to answer all questions.
+ */
+export async function submitTestAction(
+  _prevState: SubmitTestState | null,
+  formData: FormData,
+): Promise<SubmitTestState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let studentId: string;
+  try {
+    const session = await authService.requireStudentSession(requestHeaders);
+    studentId = (session as StudentSession).studentId;
+  } catch {
+    return { success: false, message: "Unauthorized: student access required" };
+  }
+
+  const testId = formData.get("testId")?.toString() ?? "";
+  const courseId = formData.get("courseId")?.toString() ?? "";
+
+  if (!testId || !courseId) {
+    return { success: false, message: "Missing test or course ID" };
+  }
+
+  const enrollmentService = await getEnrollmentService();
+  const enrolled = await enrollmentService.isEnrolled(courseId, studentId);
+  if (!enrolled) {
+    return { success: false, message: "You are not enrolled in this course" };
+  }
+
+  try {
+    const testSubmissionService = await getTestSubmissionService();
+    await testSubmissionService.submitTest(testId, studentId);
+
+    revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
+    revalidatePath(`/student/courses/${courseId}`);
+
+    return { success: true, message: "Test submitted for grading" };
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Failed to submit test",
+    };
   }
 }
