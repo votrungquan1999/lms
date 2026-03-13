@@ -12,10 +12,13 @@ A web-based Learning Management System that enables students to login, take test
 - **Test Question Management** — Add questions with markdown content, import from JSON
 - **Student Course Browsing** — Students view enrolled courses, navigate to tests
 - **Test Taking** — Students view questions and submit free-text answers per question (append-only history)
+- **Test Grading** — Teacher grades each question (0–100 score, feedback, optional per-student solution); auto-averaged test total
+- **Test Status** — Derived status per student: not started, in progress, submitted, graded
+
+- **Diff-Based Answer Comparison** — GitHub-style side-by-side diff of student answers vs provided solutions (`react-diff-viewer-continued`)
 
 ### Planned
 
-- **Diff-Based Answer Comparison** — Side-by-side diff view of student answers vs correct solutions
 - **Lesson File Downloads** — Students download lesson materials (PDFs, documents, etc.)
 
 ## Tech Stack
