@@ -2,10 +2,14 @@ import { AnswerService } from "./answer-service";
 import { CourseService } from "./course-service";
 import { getDatabase } from "./database";
 import { EnrollmentService } from "./enrollment-service";
+import { GradeService } from "./grade-service";
 import { PageGuard } from "./page-guard";
 import { QuestionService } from "./question-service";
 import { StudentService } from "./student-service";
+import { TestFeedbackService } from "./test-feedback-service";
 import { TestService } from "./test-service";
+import { TestStatusService } from "./test-status-service";
+import { TestSubmissionService } from "./test-submission-service";
 
 /**
  * Lazy singletons for domain services.
@@ -15,7 +19,11 @@ import { TestService } from "./test-service";
 let answerService: AnswerService | null = null;
 let courseService: CourseService | null = null;
 let enrollmentService: EnrollmentService | null = null;
+let gradeService: GradeService | null = null;
 let testService: TestService | null = null;
+let testFeedbackService: TestFeedbackService | null = null;
+let testStatusService: TestStatusService | null = null;
+let testSubmissionService: TestSubmissionService | null = null;
 let questionService: QuestionService | null = null;
 let studentService: StudentService | null = null;
 let pageGuard: PageGuard | null = null;
@@ -52,12 +60,46 @@ export async function getEnrollmentService(): Promise<EnrollmentService> {
   return enrollmentService;
 }
 
+export async function getGradeService(): Promise<GradeService> {
+  if (!gradeService) {
+    const db = await getDatabase();
+    gradeService = new GradeService(db);
+  }
+  return gradeService;
+}
+
 export async function getTestService(): Promise<TestService> {
   if (!testService) {
     const db = await getDatabase();
     testService = new TestService(db);
   }
   return testService;
+}
+
+export async function getTestFeedbackService(): Promise<TestFeedbackService> {
+  if (!testFeedbackService) {
+    const db = await getDatabase();
+    testFeedbackService = new TestFeedbackService(db);
+  }
+  return testFeedbackService;
+}
+
+export async function getTestSubmissionService(): Promise<TestSubmissionService> {
+  if (!testSubmissionService) {
+    const db = await getDatabase();
+    testSubmissionService = new TestSubmissionService(db);
+  }
+  return testSubmissionService;
+}
+
+export async function getTestStatusService(): Promise<TestStatusService> {
+  if (!testStatusService) {
+    const answers = await getAnswerService();
+    const submissions = await getTestSubmissionService();
+    const grades = await getGradeService();
+    testStatusService = new TestStatusService(answers, submissions, grades);
+  }
+  return testStatusService;
 }
 
 export async function getQuestionService(): Promise<QuestionService> {

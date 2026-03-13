@@ -110,6 +110,18 @@ export class EnrollmentService {
   }
 
   /**
+   * Lists all student IDs enrolled in a specific course.
+   */
+  async listEnrollmentsByCourse(courseId: string): Promise<string[]> {
+    const docs = await this.enrollments
+      .find({ courseId })
+      .sort({ enrolledAt: -1 })
+      .toArray();
+
+    return docs.map((doc) => doc.studentId);
+  }
+
+  /**
    * Checks whether a student is enrolled in a specific course.
    */
   async isEnrolled(courseId: string, studentId: string): Promise<boolean> {

@@ -102,6 +102,15 @@ export class StudentService {
   }
 
   /**
+   * Finds multiple students by their domain IDs.
+   */
+  async findByIds(ids: string[]): Promise<Student[]> {
+    if (ids.length === 0) return [];
+    const docs = await this.students.find({ id: { $in: ids } }).toArray();
+    return docs.map((doc) => ({ id: doc.id, username: doc.username, name: doc.name }));
+  }
+
+  /**
    * Lists all students.
    */
   async listStudents(): Promise<Student[]> {
