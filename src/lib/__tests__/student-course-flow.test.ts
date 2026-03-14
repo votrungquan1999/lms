@@ -17,44 +17,33 @@ const dbIt = withTestDb(it);
 
 describe("Feature: Student Course & Test Taking Flow", () => {
   describe("Scenario: Student views enrolled courses", () => {
-    dbIt(
-      "should list all courses a student is enrolled in",
-      async ({ db }) => {
-        // Setup
-        const courseService = new CourseService(db);
-        const enrollmentService = new EnrollmentService(db);
-        const courseA = await courseService.createCourse({
-          title: "Course A",
-          description: "",
-          createdBy: "admin-1",
-        });
-        const courseB = await courseService.createCourse({
-          title: "Course B",
-          description: "",
-          createdBy: "admin-1",
-        });
-        await enrollmentService.enrollStudent(
-          courseA.id,
-          "student-1",
-          "admin-1",
-        );
-        await enrollmentService.enrollStudent(
-          courseB.id,
-          "student-1",
-          "admin-1",
-        );
+    dbIt("should list all courses a student is enrolled in", async ({ db }) => {
+      // Setup
+      const courseService = new CourseService(db);
+      const enrollmentService = new EnrollmentService(db);
+      const courseA = await courseService.createCourse({
+        title: "Course A",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const courseB = await courseService.createCourse({
+        title: "Course B",
+        description: "",
+        createdBy: "admin-1",
+      });
+      await enrollmentService.enrollStudent(courseA.id, "student-1", "admin-1");
+      await enrollmentService.enrollStudent(courseB.id, "student-1", "admin-1");
 
-        // Action
-        const enrollments =
-          await enrollmentService.listEnrollmentsByStudent("student-1");
+      // Action
+      const enrollments =
+        await enrollmentService.listEnrollmentsByStudent("student-1");
 
-        // Assert
-        expect(enrollments).toHaveLength(2);
-        const courseIds = enrollments.map((e) => e.courseId);
-        expect(courseIds).toContain(courseA.id);
-        expect(courseIds).toContain(courseB.id);
-      },
-    );
+      // Assert
+      expect(enrollments).toHaveLength(2);
+      const courseIds = enrollments.map((e) => e.courseId);
+      expect(courseIds).toContain(courseA.id);
+      expect(courseIds).toContain(courseB.id);
+    });
 
     dbIt(
       "should return empty array for student with no enrollments",
@@ -114,36 +103,26 @@ describe("Feature: Student Course & Test Taking Flow", () => {
   });
 
   describe("Scenario: Enrollment check", () => {
-    dbIt(
-      "should return true when student is enrolled",
-      async ({ db }) => {
-        // Setup
-        const enrollmentService = new EnrollmentService(db);
-        await enrollmentService.enrollStudent(
-          "course-1",
-          "student-1",
-          "admin-1",
-        );
+    dbIt("should return true when student is enrolled", async ({ db }) => {
+      // Setup
+      const enrollmentService = new EnrollmentService(db);
+      await enrollmentService.enrollStudent("course-1", "student-1", "admin-1");
 
-        // Action & Assert
-        expect(
-          await enrollmentService.isEnrolled("course-1", "student-1"),
-        ).toBe(true);
-      },
-    );
+      // Action & Assert
+      expect(await enrollmentService.isEnrolled("course-1", "student-1")).toBe(
+        true,
+      );
+    });
 
-    dbIt(
-      "should return false when student is not enrolled",
-      async ({ db }) => {
-        // Setup
-        const enrollmentService = new EnrollmentService(db);
+    dbIt("should return false when student is not enrolled", async ({ db }) => {
+      // Setup
+      const enrollmentService = new EnrollmentService(db);
 
-        // Action & Assert
-        expect(
-          await enrollmentService.isEnrolled("course-1", "student-1"),
-        ).toBe(false);
-      },
-    );
+      // Action & Assert
+      expect(await enrollmentService.isEnrolled("course-1", "student-1")).toBe(
+        false,
+      );
+    });
   });
 
   describe("Scenario: Get test by ID", () => {
@@ -178,29 +157,26 @@ describe("Feature: Student Course & Test Taking Flow", () => {
   });
 
   describe("Scenario: Student submits answers", () => {
-    dbIt(
-      "should create a new answer record for a question",
-      async ({ db }) => {
-        // Setup
-        const answerService = new AnswerService(db);
+    dbIt("should create a new answer record for a question", async ({ db }) => {
+      // Setup
+      const answerService = new AnswerService(db);
 
-        // Action
-        const answer = await answerService.submitAnswer({
-          testId: "test-1",
-          questionId: "q-1",
-          studentId: "student-1",
-          answer: "My answer to question 1",
-        });
+      // Action
+      const answer = await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        answer: "My answer to question 1",
+      });
 
-        // Assert
-        expect(answer.id).toBeDefined();
-        expect(answer.testId).toBe("test-1");
-        expect(answer.questionId).toBe("q-1");
-        expect(answer.studentId).toBe("student-1");
-        expect(answer.answer).toBe("My answer to question 1");
-        expect(answer.submittedAt).toBeInstanceOf(Date);
-      },
-    );
+      // Assert
+      expect(answer.id).toBeDefined();
+      expect(answer.testId).toBe("test-1");
+      expect(answer.questionId).toBe("q-1");
+      expect(answer.studentId).toBe("student-1");
+      expect(answer.answer).toBe("My answer to question 1");
+      expect(answer.submittedAt).toBeInstanceOf(Date);
+    });
 
     dbIt(
       "should preserve answer history (append-only model)",
@@ -295,22 +271,19 @@ describe("Feature: Student Course & Test Taking Flow", () => {
       },
     );
 
-    dbIt(
-      "should return empty array when no answers exist",
-      async ({ db }) => {
-        // Setup
-        const answerService = new AnswerService(db);
+    dbIt("should return empty array when no answers exist", async ({ db }) => {
+      // Setup
+      const answerService = new AnswerService(db);
 
-        // Action
-        const latest = await answerService.getLatestAnswers(
-          "test-1",
-          "student-1",
-        );
+      // Action
+      const latest = await answerService.getLatestAnswers(
+        "test-1",
+        "student-1",
+      );
 
-        // Assert
-        expect(latest).toHaveLength(0);
-      },
-    );
+      // Assert
+      expect(latest).toHaveLength(0);
+    });
   });
 
   describe("Scenario: Full student test-taking flow", () => {
@@ -354,9 +327,9 @@ describe("Feature: Student Course & Test Taking Flow", () => {
         );
 
         // Student checks enrollment
-        expect(
-          await enrollmentService.isEnrolled(course.id, "student-1"),
-        ).toBe(true);
+        expect(await enrollmentService.isEnrolled(course.id, "student-1")).toBe(
+          true,
+        );
 
         // Student views tests
         const tests = await testService.listTests(course.id);

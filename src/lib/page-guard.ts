@@ -1,9 +1,8 @@
-import { forbidden, redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { forbidden, redirect } from "next/navigation";
 import { getAuthService } from "src/lib/auth-singleton";
-import type { AdminSession } from "src/lib/session";
-import type { StudentSession } from "src/lib/session";
 import type { EnrollmentService } from "src/lib/enrollment-service";
+import type { AdminSession, StudentSession } from "src/lib/session";
 
 /**
  * PageGuard — auth and authorization guards for server-rendered pages.
@@ -58,10 +57,7 @@ export class PageGuard {
    * Requires a student to be enrolled in the specified course.
    * Calls forbidden() if not enrolled.
    */
-  async requireEnrollment(
-    courseId: string,
-    studentId: string,
-  ): Promise<void> {
+  async requireEnrollment(courseId: string, studentId: string): Promise<void> {
     const enrolled = await this.enrollmentService.isEnrolled(
       courseId,
       studentId,

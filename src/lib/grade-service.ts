@@ -119,9 +119,7 @@ export class GradeService {
     studentId: string,
     totalQuestions: number,
   ): Promise<number | null> {
-    const grades = await this.grades
-      .find({ testId, studentId })
-      .toArray();
+    const grades = await this.grades.find({ testId, studentId }).toArray();
 
     if (grades.length < totalQuestions) {
       return null;

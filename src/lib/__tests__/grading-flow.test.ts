@@ -84,42 +84,37 @@ describe("Feature: Teacher Grades Student Answers", () => {
         });
 
         // Assert
-        expect(grade.solution).toBe(
-          "The correct answer is O(n) = linear time",
-        );
+        expect(grade.solution).toBe("The correct answer is O(n) = linear time");
         expect(grade.score).toBe(90);
       },
     );
 
-    dbIt(
-      "should update score and feedback when re-grading",
-      async ({ db }) => {
-        // Setup
-        const gradeService = new GradeService(db);
-        await gradeService.gradeQuestion({
-          testId: "test-1",
-          questionId: "q-1",
-          studentId: "student-1",
-          score: 60,
-          feedback: "Needs improvement",
-          gradedBy: "admin-1",
-        });
+    dbIt("should update score and feedback when re-grading", async ({ db }) => {
+      // Setup
+      const gradeService = new GradeService(db);
+      await gradeService.gradeQuestion({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        score: 60,
+        feedback: "Needs improvement",
+        gradedBy: "admin-1",
+      });
 
-        // Action
-        const updated = await gradeService.gradeQuestion({
-          testId: "test-1",
-          questionId: "q-1",
-          studentId: "student-1",
-          score: 80,
-          feedback: "Much better after discussion",
-          gradedBy: "admin-1",
-        });
+      // Action
+      const updated = await gradeService.gradeQuestion({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        score: 80,
+        feedback: "Much better after discussion",
+        gradedBy: "admin-1",
+      });
 
-        // Assert
-        expect(updated.score).toBe(80);
-        expect(updated.feedback).toBe("Much better after discussion");
-      },
-    );
+      // Assert
+      expect(updated.score).toBe(80);
+      expect(updated.feedback).toBe("Much better after discussion");
+    });
   });
 
   describe("Scenario: Overall test feedback and average score", () => {

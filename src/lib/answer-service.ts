@@ -85,10 +85,7 @@ export class AnswerService {
    * for a specific student. Uses aggregation to group by questionId
    * and pick the latest submittedAt.
    */
-  async getLatestAnswers(
-    testId: string,
-    studentId: string,
-  ): Promise<Answer[]> {
+  async getLatestAnswers(testId: string, studentId: string): Promise<Answer[]> {
     const pipeline = [
       { $match: { testId, studentId } },
       { $sort: { submittedAt: -1 as const } },

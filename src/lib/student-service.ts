@@ -107,7 +107,11 @@ export class StudentService {
   async findByIds(ids: string[]): Promise<Student[]> {
     if (ids.length === 0) return [];
     const docs = await this.students.find({ id: { $in: ids } }).toArray();
-    return docs.map((doc) => ({ id: doc.id, username: doc.username, name: doc.name }));
+    return docs.map((doc) => ({
+      id: doc.id,
+      username: doc.username,
+      name: doc.name,
+    }));
   }
 
   /**

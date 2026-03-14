@@ -160,50 +160,47 @@ describe("Feature: Test Status and Submissions View", () => {
       },
     );
 
-    dbIt(
-      "should return 'submitted' when partially graded",
-      async ({ db }) => {
-        // Setup
-        const answerService = new AnswerService(db);
-        const gradeService = new GradeService(db);
-        const testStatusService = new TestStatusService(
-          answerService,
-          new TestSubmissionService(db),
-          gradeService,
-        );
+    dbIt("should return 'submitted' when partially graded", async ({ db }) => {
+      // Setup
+      const answerService = new AnswerService(db);
+      const gradeService = new GradeService(db);
+      const testStatusService = new TestStatusService(
+        answerService,
+        new TestSubmissionService(db),
+        gradeService,
+      );
 
-        await answerService.submitAnswer({
-          testId: "test-1",
-          questionId: "q-1",
-          studentId: "student-1",
-          answer: "Answer 1",
-        });
-        await answerService.submitAnswer({
-          testId: "test-1",
-          questionId: "q-2",
-          studentId: "student-1",
-          answer: "Answer 2",
-        });
-        await gradeService.gradeQuestion({
-          testId: "test-1",
-          questionId: "q-1",
-          studentId: "student-1",
-          score: 80,
-          feedback: "",
-          gradedBy: "admin-1",
-        });
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        answer: "Answer 1",
+      });
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-2",
+        studentId: "student-1",
+        answer: "Answer 2",
+      });
+      await gradeService.gradeQuestion({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        score: 80,
+        feedback: "",
+        gradedBy: "admin-1",
+      });
 
-        // Action — 2 total, 2 answered, only 1 graded
-        const status = await testStatusService.getStatus(
-          "test-1",
-          "student-1",
-          2,
-        );
+      // Action — 2 total, 2 answered, only 1 graded
+      const status = await testStatusService.getStatus(
+        "test-1",
+        "student-1",
+        2,
+      );
 
-        // Assert
-        expect(status).toBe("submitted");
-      },
-    );
+      // Assert
+      expect(status).toBe("submitted");
+    });
   });
 });
 
@@ -245,16 +242,12 @@ describe("Feature: Full Grading Flow", () => {
         content: "Explain merge sort",
         createdBy: "admin-1",
       });
-      await enrollmentService.enrollStudent(
-        course.id,
-        "student-1",
-        "admin-1",
-      );
+      await enrollmentService.enrollStudent(course.id, "student-1", "admin-1");
 
       // Initially: not_started
-      expect(
-        await testStatusService.getStatus(test.id, "student-1", 2),
-      ).toBe("not_started");
+      expect(await testStatusService.getStatus(test.id, "student-1", 2)).toBe(
+        "not_started",
+      );
 
       // Student submits one answer: in_progress
       await answerService.submitAnswer({
@@ -263,9 +256,9 @@ describe("Feature: Full Grading Flow", () => {
         studentId: "student-1",
         answer: "Linear time",
       });
-      expect(
-        await testStatusService.getStatus(test.id, "student-1", 2),
-      ).toBe("in_progress");
+      expect(await testStatusService.getStatus(test.id, "student-1", 2)).toBe(
+        "in_progress",
+      );
 
       // Student submits second answer: submitted
       await answerService.submitAnswer({
@@ -274,9 +267,9 @@ describe("Feature: Full Grading Flow", () => {
         studentId: "student-1",
         answer: "Divide and conquer",
       });
-      expect(
-        await testStatusService.getStatus(test.id, "student-1", 2),
-      ).toBe("submitted");
+      expect(await testStatusService.getStatus(test.id, "student-1", 2)).toBe(
+        "submitted",
+      );
 
       // Teacher grades with solutions
       await gradeService.gradeQuestion({
@@ -308,9 +301,9 @@ describe("Feature: Full Grading Flow", () => {
       });
 
       // Status: graded
-      expect(
-        await testStatusService.getStatus(test.id, "student-1", 2),
-      ).toBe("graded");
+      expect(await testStatusService.getStatus(test.id, "student-1", 2)).toBe(
+        "graded",
+      );
 
       // Verify grades retrievable
       const grades = await gradeService.getGrades(test.id, "student-1");

@@ -78,9 +78,7 @@ export class AuthService {
       },
     });
 
-    let student: Awaited<
-      ReturnType<StudentService["createStudentDocument"]>
-    >;
+    let student: Awaited<ReturnType<StudentService["createStudentDocument"]>>;
     try {
       student = await this.studentService.createStudentDocument({
         authUserId: authResult.user.id,
@@ -90,9 +88,7 @@ export class AuthService {
       });
     } catch (error) {
       // Rollback: remove the orphaned Better Auth user to keep state consistent
-      await this.db
-        .collection("user")
-        .deleteOne({ id: authResult.user.id });
+      await this.db.collection("user").deleteOne({ id: authResult.user.id });
       throw error;
     }
 
