@@ -2,10 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "src/components/ui/button";
-import {
-  submitTestAction,
-  type SubmitTestState,
-} from "./actions";
+import { type SubmitTestState, submitTestAction } from "./actions";
 
 interface SubmitTestButtonProps {
   testId: string;

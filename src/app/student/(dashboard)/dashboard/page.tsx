@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Card, CardHeader, CardTitle } from "src/components/ui/card";
-import { getCourseService, getEnrollmentService, getPageGuard } from "src/lib/services-singleton";
+import {
+  getCourseService,
+  getEnrollmentService,
+  getPageGuard,
+} from "src/lib/services-singleton";
 
 export const metadata = {
   title: "My Courses — LMS",

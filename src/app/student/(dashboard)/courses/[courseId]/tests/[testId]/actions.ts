@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
-import type { StudentSession } from "src/lib/session";
 import {
   getAnswerService,
   getEnrollmentService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
+import type { StudentSession } from "src/lib/session";
 import { z } from "zod";
 
 const submitAnswerSchema = z.object({
