@@ -128,4 +128,48 @@ export class EnrollmentService {
     const doc = await this.enrollments.findOne({ courseId, studentId });
     return doc !== null;
   }
+
+  /**
+   * Idempotent batch update: sets the enrolled students for a course
+   * to exactly the provided list. Enrolls new students, removes
+   * students no longer in the list. Like a PUT operation.
+   */
+  async setEnrolledStudents(
+    courseId: string,
+    desiredStudentIds: string[],
+    updatedBy: string,
+  ): Promise<void> {
+    const currentStudentIds = await this.listEnrollmentsByCourse(courseId);
+
+    const desiredSet = new Set(desiredStudentIds);
+    const currentSet = new Set(currentStudentIds);
+
+    // Students to add (in desired but not in current)
+    const toAdd = desiredStudentIds.filter((id) => !currentSet.has(id));
+
+    // Students to remove (in current but not in desired)
+    const toRemove = currentStudentIds.filter((id) => !desiredSet.has(id));
+
+    // Enroll new students
+    if (toAdd.length > 0) {
+      const docs: EnrollmentDocument[] = toAdd.map((studentId) => ({
+        id: crypto.randomUUID(),
+        courseId,
+        studentId,
+        enrolledAt: new Date(),
+        createdBy: updatedBy,
+        updatedAt: null,
+        updatedBy: null,
+      }));
+      await this.enrollments.insertMany(docs);
+    }
+
+    // Remove unenrolled students
+    if (toRemove.length > 0) {
+      await this.enrollments.deleteMany({
+        courseId,
+        studentId: { $in: toRemove },
+      });
+    }
+  }
 }
