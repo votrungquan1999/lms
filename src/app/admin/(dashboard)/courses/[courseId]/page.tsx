@@ -5,15 +5,14 @@ import { Separator } from "src/components/ui/separator";
 import {
   getCourseService,
   getEnrollmentService,
-  getPageGuard,
   getQuestionService,
   getStudentService,
   getTestService,
   getTestStatusService,
 } from "src/lib/services-singleton";
 import { TestStatus } from "src/lib/test-status-service";
-import { CreateTestForm } from "./create-test-form";
-import { EnrollStudentDialog } from "./enroll-student-form";
+import { CreateTestDialog } from "./create-test-form";
+import { ManageEnrollmentsDialog } from "./enroll-student-form";
 
 export const metadata = {
   title: "Course Detail — LMS Admin",
@@ -33,9 +32,6 @@ export default async function CourseDetailPage({
   params: Promise<{ courseId: string }>;
 }) {
   const { courseId } = await params;
-
-  const guard = await getPageGuard();
-  await guard.requireAdminLogin();
 
   const courseService = await getCourseService();
   const course = await courseService.getCourse(courseId);
@@ -86,13 +82,8 @@ export default async function CourseDetailPage({
   );
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-8">
-      <header className="mb-8 w-full max-w-2xl">
-        <nav className="mb-4 text-sm text-muted-foreground">
-          <Link href="/admin/courses" className="hover:underline">
-            ← Courses
-          </Link>
-        </nav>
+    <div className="flex flex-1 flex-col gap-6 p-6">
+      <header className="w-full max-w-2xl">
         <h1 className="text-3xl font-bold tracking-tight">{course.title}</h1>
         {course.description && (
           <p className="mt-1 text-sm text-muted-foreground">
@@ -102,11 +93,45 @@ export default async function CourseDetailPage({
       </header>
 
       <section className="w-full max-w-2xl space-y-6">
-        <EnrollStudentDialog courseId={courseId} students={students} />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">
+              Enrolled Students ({enrolledStudentIds.length})
+            </h2>
+            <ManageEnrollmentsDialog
+              courseId={courseId}
+              students={students}
+              enrolledStudentIds={enrolledStudentIds}
+            />
+          </div>
+          {enrolledStudentIds.length > 0 ? (
+            <div className="space-y-2">
+              {students
+                .filter((s) => enrolledStudentIds.includes(s.id))
+                .map((student) => (
+                  <div
+                    key={student.id}
+                    className="flex items-center gap-2 rounded-md border p-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{student.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        @{student.username}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No students enrolled yet.
+            </p>
+          )}
+        </div>
 
         <Separator />
 
-        <CreateTestForm courseId={courseId} />
+        <CreateTestDialog courseId={courseId} />
 
         {testsWithSummary.length > 0 && (
           <div className="space-y-3">
@@ -160,6 +185,6 @@ export default async function CourseDetailPage({
           </p>
         )}
       </section>
-    </main>
+    </div>
   );
 }

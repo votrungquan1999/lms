@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "src/components/ui/dialog";
-import { type EnrollStudentsState, enrollStudentsAction } from "./actions";
+import { type SetEnrollmentsState, setEnrollmentsAction } from "./actions";
 
 interface StudentItem {
   id: string;
@@ -20,22 +20,27 @@ interface StudentItem {
 }
 
 /**
- * Client component: dialog for enrolling students in a course.
- * Shows all students with checkboxes for selection.
+ * Client component: manage enrollments dialog.
+ * Pre-ticks currently enrolled students. Unticking = unenroll on submit.
+ * Uses idempotent setEnrollmentsAction (PUT semantics).
  */
-export function EnrollStudentDialog({
+export function ManageEnrollmentsDialog({
   courseId,
   students,
+  enrolledStudentIds,
 }: {
   courseId: string;
   students: StudentItem[];
+  enrolledStudentIds: string[];
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(enrolledStudentIds),
+  );
   const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState<
-    EnrollStudentsState | null,
+    SetEnrollmentsState | null,
     FormData
-  >(enrollStudentsAction, null);
+  >(setEnrollmentsAction, null);
 
   function toggleStudent(studentId: string) {
     setSelected((prev) => {
@@ -49,27 +54,32 @@ export function EnrollStudentDialog({
     });
   }
 
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    // Reset selection to enrolled state when reopening
+    if (nextOpen) {
+      setSelected(new Set(enrolledStudentIds));
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full">
-          Enroll Students
-        </Button>
+        <Button variant="outline">Manage Enrollments</Button>
       </DialogTrigger>
       <DialogContent className="max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Enroll Students</DialogTitle>
+          <DialogTitle>Manage Enrollments</DialogTitle>
           <DialogDescription>
-            Select students to enroll in this course.
+            Tick students to enroll. Untick to unenroll.
           </DialogDescription>
         </DialogHeader>
 
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="courseId" value={courseId} />
-          {selected.size > 0 &&
-            Array.from(selected).map((id) => (
-              <input key={id} type="hidden" name="studentIds" value={id} />
-            ))}
+          {Array.from(selected).map((id) => (
+            <input key={id} type="hidden" name="studentIds" value={id} />
+          ))}
 
           {students.length > 0 ? (
             <div className="space-y-3">
@@ -77,7 +87,7 @@ export function EnrollStudentDialog({
                 <label
                   key={student.id}
                   htmlFor={`enroll-${student.id}`}
-                  className="flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors hover:bg-accent/50 cursor-pointer"
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-md border p-3 text-left transition-colors hover:bg-accent/50"
                 >
                   <Checkbox
                     id={`enroll-${student.id}`}
@@ -94,19 +104,13 @@ export function EnrollStudentDialog({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">
+            <p className="py-4 text-center text-sm text-muted-foreground">
               No students found. Create student accounts first.
             </p>
           )}
 
-          <Button
-            type="submit"
-            disabled={isPending || selected.size === 0}
-            className="w-full"
-          >
-            {isPending
-              ? "Enrolling…"
-              : `Enroll ${selected.size} Student${selected.size !== 1 ? "s" : ""}`}
+          <Button type="submit" disabled={isPending} className="w-full">
+            {isPending ? "Updating…" : "Confirm Enrollments"}
           </Button>
         </form>
 

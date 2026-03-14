@@ -9,34 +9,24 @@ import {
 } from "src/lib/services-singleton";
 import { z } from "zod";
 
-const enrollStudentsSchema = z.object({
+const setEnrollmentsSchema = z.object({
   courseId: z.string().min(1, "Course ID is missing"),
-  studentIds: z.array(z.string()).min(1, "Select at least one student"),
+  studentIds: z.array(z.string()),
 });
 
-const createTestSchema = z.object({
-  courseId: z.string().min(1, "Course ID is missing"),
-  title: z.string().trim().min(1, "Test title is required"),
-  description: z.string().trim().default(""),
-});
-
-export interface EnrollStudentsState {
-  success: boolean;
-  message: string;
-}
-
-export interface CreateTestState {
+export interface SetEnrollmentsState {
   success: boolean;
   message: string;
 }
 
 /**
- * Server action: enrolls selected students in a course.
+ * Server action: sets the enrolled students for a course (idempotent).
+ * Replaces the current enrollment list with the provided student IDs.
  */
-export async function enrollStudentsAction(
-  _prevState: EnrollStudentsState | null,
+export async function setEnrollmentsAction(
+  _prevState: SetEnrollmentsState | null,
   formData: FormData,
-): Promise<EnrollStudentsState> {
+): Promise<SetEnrollmentsState> {
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
@@ -48,7 +38,7 @@ export async function enrollStudentsAction(
     return { success: false, message: "Unauthorized: admin access required" };
   }
 
-  const parsed = enrollStudentsSchema.safeParse({
+  const parsed = setEnrollmentsSchema.safeParse({
     courseId: formData.get("courseId"),
     studentIds: formData.getAll("studentIds"),
   });
@@ -59,28 +49,34 @@ export async function enrollStudentsAction(
 
   try {
     const enrollmentService = await getEnrollmentService();
-    const result = await enrollmentService.enrollStudents(
+    await enrollmentService.setEnrolledStudents(
       parsed.data.courseId,
       parsed.data.studentIds,
       adminUserId,
     );
 
     revalidatePath(`/admin/courses/${parsed.data.courseId}`);
-
-    const parts: string[] = [];
-    if (result.enrolled > 0) {
-      parts.push(`${result.enrolled} student(s) enrolled`);
-    }
-    if (result.skipped > 0) {
-      parts.push(`${result.skipped} already enrolled`);
-    }
-    return { success: true, message: parts.join(", ") };
+    return {
+      success: true,
+      message: `Enrollments updated (${parsed.data.studentIds.length} student${parsed.data.studentIds.length !== 1 ? "s" : ""})`,
+    };
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =
-      error instanceof Error ? error.message : "Failed to enroll students";
+      error instanceof Error ? error.message : "Failed to update enrollments";
     return { success: false, message };
   }
+}
+
+const createTestSchema = z.object({
+  courseId: z.string().min(1, "Course ID is missing"),
+  title: z.string().trim().min(1, "Test title is required"),
+  description: z.string().trim().default(""),
+});
+
+export interface CreateTestState {
+  success: boolean;
+  message: string;
 }
 
 /**
