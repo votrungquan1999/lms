@@ -1,23 +1,21 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Separator } from "src/components/ui/separator";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "src/components/ui/card";
+import { Separator } from "src/components/ui/separator";
 import {
   getAnswerService,
   getEnrollmentService,
   getGradeService,
-  getPageGuard,
   getQuestionService,
   getStudentService,
   getTestFeedbackService,
   getTestService,
 } from "src/lib/services-singleton";
-import { QuestionGradeForm, OverallFeedbackForm } from "./grading-forms";
+import { OverallFeedbackForm, QuestionGradeForm } from "./grading-forms";
 
 export const metadata = {
   title: "Grade Test — LMS Admin",
@@ -30,9 +28,6 @@ export default async function GradingPage({
   params: Promise<{ courseId: string; testId: string }>;
 }) {
   const { courseId, testId } = await params;
-
-  const guard = await getPageGuard();
-  await guard.requireAdminLogin();
 
   const testService = await getTestService();
   const test = await testService.getTest(testId);
@@ -72,21 +67,19 @@ export default async function GradingPage({
         student.id,
       );
 
-      return { student, answerMap, gradeMap, testFeedback, hasAnswers: latestAnswers.length > 0 };
+      return {
+        student,
+        answerMap,
+        gradeMap,
+        testFeedback,
+        hasAnswers: latestAnswers.length > 0,
+      };
     }),
   );
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-8">
-      <header className="mb-8 w-full max-w-3xl">
-        <nav className="mb-4 text-sm text-muted-foreground">
-          <Link
-            href={`/admin/courses/${courseId}/tests/${testId}`}
-            className="hover:underline"
-          >
-            ← Test Questions
-          </Link>
-        </nav>
+    <div className="flex flex-1 flex-col gap-6 p-6">
+      <header className="w-full max-w-3xl">
         <h1 className="text-3xl font-bold tracking-tight">
           Grade: {test.title}
         </h1>
@@ -149,6 +142,6 @@ export default async function GradingPage({
           ),
         )}
       </section>
-    </main>
+    </div>
   );
 }

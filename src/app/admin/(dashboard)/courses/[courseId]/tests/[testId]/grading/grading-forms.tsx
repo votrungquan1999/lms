@@ -5,9 +5,9 @@ import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
 import {
+  type GradeQuestionState,
   gradeQuestionAction,
   setTestFeedbackAction,
-  type GradeQuestionState,
   type TestFeedbackState,
 } from "./actions";
 
@@ -66,7 +66,10 @@ export function QuestionGradeForm({
             <input type="hidden" name="studentId" value={studentId} />
 
             <div className="flex items-center gap-3">
-              <label htmlFor={`score-${questionId}`} className="text-sm font-medium">
+              <label
+                htmlFor={`score-${questionId}`}
+                className="text-sm font-medium"
+              >
                 Score (0–100):
               </label>
               <Input

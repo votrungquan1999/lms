@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { Separator } from "src/components/ui/separator";
-import { getPageGuard, getQuestionService } from "src/lib/services-singleton";
+import { getQuestionService, getTestService } from "src/lib/services-singleton";
 import { AddQuestionForm } from "./add-question-form";
 import { ImportQuestionsForm } from "./import-questions-form";
 import { QuestionList } from "./question-list";
@@ -17,22 +18,24 @@ export default async function TestDetailPage({
 }) {
   const { courseId, testId } = await params;
 
-  const guard = await getPageGuard();
-  await guard.requireAdminLogin();
+  const testService = await getTestService();
+  const test = await testService.getTest(testId);
+  if (!test || test.courseId !== courseId) {
+    notFound();
+  }
 
   const questionService = await getQuestionService();
   const questions = await questionService.listQuestions(testId);
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-8">
-      <header className="mb-8 w-full max-w-2xl">
-        <nav className="mb-4 text-sm text-muted-foreground">
-          <Link href={`/admin/courses/${courseId}`} className="hover:underline">
-            ← Course
-          </Link>
-        </nav>
-        <h1 className="text-3xl font-bold tracking-tight">Test Questions</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Test ID: {testId}</p>
+    <div className="flex flex-1 flex-col gap-6 p-6">
+      <header className="w-full max-w-2xl">
+        <h1 className="text-3xl font-bold tracking-tight">{test.title}</h1>
+        {test.description && (
+          <p className="mt-1 text-sm text-muted-foreground">
+            {test.description}
+          </p>
+        )}
       </header>
 
       <section className="w-full max-w-2xl space-y-6">
@@ -53,6 +56,6 @@ export default async function TestDetailPage({
 
         <QuestionList questions={questions} />
       </section>
-    </main>
+    </div>
   );
 }
