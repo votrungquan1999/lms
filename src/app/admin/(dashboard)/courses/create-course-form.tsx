@@ -1,37 +1,43 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "src/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "src/components/ui/card";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "src/components/ui/dialog";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
 import { type CreateCourseState, createCourseAction } from "./actions";
 
 /**
- * Client component: form for admins to create a new course.
+ * Client component: dialog for admins to create a new course.
  */
-export function CreateCourseForm() {
+export function CreateCourseDialog() {
+  const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState<
     CreateCourseState | null,
     FormData
   >(createCourseAction, null);
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Create Course</CardTitle>
-        <CardDescription>
-          Add a new course to organize lessons and tests.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>Add Course</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create Course</DialogTitle>
+          <DialogDescription>
+            Add a new course to organize lessons and tests.
+          </DialogDescription>
+        </DialogHeader>
+
         <form action={formAction} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="title">Course Title</Label>
@@ -61,20 +67,20 @@ export function CreateCourseForm() {
         </form>
 
         {state?.success && (
-          <output className="mt-4 block rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
+          <output className="block rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
             {state.message}
           </output>
         )}
 
         {state && !state.success && (
           <div
-            className="mt-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+            className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             role="alert"
           >
             {state.message}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }
