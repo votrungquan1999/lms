@@ -1,3 +1,4 @@
+import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 
 const protectedRoutes = [
@@ -13,8 +14,7 @@ export default async function proxy(req: NextRequest) {
     path.startsWith(route),
   );
 
-  // Check for Better Auth session cookie
-  const sessionCookie = req.cookies.get("better-auth.session_token");
+  const sessionCookie = getSessionCookie(req);
 
   // Redirect to login if accessing protected route without session
   if (isProtectedRoute && !sessionCookie) {
