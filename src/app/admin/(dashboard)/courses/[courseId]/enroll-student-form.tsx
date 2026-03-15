@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { Button } from "src/components/ui/button";
 import { Checkbox } from "src/components/ui/checkbox";
 import {
@@ -75,7 +75,15 @@ export function ManageEnrollmentsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            startTransition(() => {
+              return formAction(new FormData(e.currentTarget));
+            });
+          }}
+          className="space-y-4"
+        >
           <input type="hidden" name="courseId" value={courseId} />
           {Array.from(selected).map((id) => (
             <input key={id} type="hidden" name="studentIds" value={id} />

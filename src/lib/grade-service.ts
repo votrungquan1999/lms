@@ -119,7 +119,10 @@ export class GradeService {
     studentId: string,
     totalQuestions: number,
   ): Promise<number | null> {
-    const grades = await this.grades.find({ testId, studentId }).toArray();
+    const grades = await this.grades
+      .find({ testId, studentId })
+      .sort({ gradedAt: -1 })
+      .toArray();
 
     if (grades.length < totalQuestions) {
       return null;
@@ -133,7 +136,10 @@ export class GradeService {
    * Gets all grades for a student on a test.
    */
   async getGrades(testId: string, studentId: string): Promise<Grade[]> {
-    const docs = await this.grades.find({ testId, studentId }).toArray();
+    const docs = await this.grades
+      .find({ testId, studentId })
+      .sort({ gradedAt: -1 })
+      .toArray();
     return docs.map(this.toGrade);
   }
 
