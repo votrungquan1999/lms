@@ -17,7 +17,7 @@ const dbIt = withTestDb(it);
 const testConfig: AppConfig = {
   mongodbUri: "unused-in-test",
   authSecret: "test-secret",
-  authUrl: "http://localhost:3000",
+  authAllowedHosts: ["localhost:3000"],
   google: { clientId: "test-client-id", clientSecret: "test-client-secret" },
   adminEmails: [],
   trustedOrigins: [],

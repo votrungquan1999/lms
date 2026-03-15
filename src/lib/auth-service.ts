@@ -25,6 +25,9 @@ function createBetterAuth(db: Db, config: AppConfig) {
     emailAndPassword: { enabled: true },
     basePath: "/api/auth",
     secret: config.authSecret,
+    baseURL: {
+      allowedHosts: config.authAllowedHosts,
+    },
     trustedOrigins: config.trustedOrigins,
     socialProviders: {
       google: {

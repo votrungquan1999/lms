@@ -8,8 +8,8 @@ export interface AppConfig {
   mongodbUri: string;
   /** Secret for Better Auth session signing. */
   authSecret: string;
-  /** Base URL of the application. */
-  authUrl: string;
+  /** Allowed hosts for dynamic base URL resolution. */
+  authAllowedHosts: string[];
   /** Google OAuth credentials (required). */
   google: {
     clientId: string;
@@ -38,7 +38,10 @@ export function loadConfig(): AppConfig {
     mongodbUri: process.env.MONGODB_URI ?? "mongodb://localhost:27017/lms",
     authSecret:
       process.env.BETTER_AUTH_SECRET ?? "dev-secret-change-in-production",
-    authUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+    authAllowedHosts: (process.env.AUTH_ALLOWED_HOSTS ?? "localhost:3000")
+      .split(",")
+      .map((h) => h.trim())
+      .filter(Boolean),
     google: { clientId: googleClientId, clientSecret: googleClientSecret },
     adminEmails: (process.env.ADMIN_EMAILS ?? "")
       .split(",")
