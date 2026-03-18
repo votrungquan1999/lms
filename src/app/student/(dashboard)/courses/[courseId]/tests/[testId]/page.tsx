@@ -21,6 +21,7 @@ import {
 } from "src/lib/services-singleton";
 import { AnswerForm } from "./answer-form";
 import { DiffViewer } from "./diff-viewer";
+import { MarkdownContent } from "src/components/markdown-content";
 import { SubmitTestButton } from "./submit-test-button";
 
 export const metadata = {
@@ -137,8 +138,8 @@ export default async function StudentTestDetailPage({
                   <h2 className="text-lg font-semibold">
                     Question {question.order}: {question.title}
                   </h2>
-                  <div className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">
-                    {question.content}
+                  <div className="mt-2">
+                    <MarkdownContent content={question.content} />
                   </div>
                 </div>
 

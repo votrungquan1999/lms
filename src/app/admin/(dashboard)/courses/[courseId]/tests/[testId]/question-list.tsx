@@ -1,3 +1,4 @@
+import { MarkdownContent } from "src/components/markdown-content";
 import {
   Card,
   CardContent,
@@ -21,23 +22,26 @@ export function QuestionList({ questions }: { questions: Question[] }) {
   return (
     <div className="space-y-3">
       <h2 className="text-xl font-semibold">Questions ({questions.length})</h2>
-      {questions.map((question) => (
-        <Card key={question.id}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">
-              <span className="text-muted-foreground">#{question.order}</span>{" "}
-              {question.title}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="whitespace-pre-wrap rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
-              {question.content.length > 200
-                ? `${question.content.slice(0, 200)}…`
-                : question.content}
-            </pre>
-          </CardContent>
-        </Card>
-      ))}
+      {questions.map((question) => {
+        const preview =
+          question.content.length > 200
+            ? `${question.content.slice(0, 200)}…`
+            : question.content;
+
+        return (
+          <Card key={question.id}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                <span className="text-muted-foreground">#{question.order}</span>{" "}
+                {question.title}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MarkdownContent content={preview} compact />
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
