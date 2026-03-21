@@ -125,37 +125,37 @@ export default async function GradingPage({
                       </span>
                     </div>
                   </CardHeader>
-                <CardContent className="space-y-4">
-                  {questions.map((question) => {
-                    const grade = gradeMap.get(question.id);
-                    return (
-                      <QuestionGradeForm
-                        key={question.id}
+                  <CardContent className="space-y-4">
+                    {questions.map((question) => {
+                      const grade = gradeMap.get(question.id);
+                      return (
+                        <QuestionGradeForm
+                          key={question.id}
+                          testId={testId}
+                          courseId={courseId}
+                          questionId={question.id}
+                          studentId={student.id}
+                          questionTitle={question.title}
+                          questionOrder={question.order}
+                          studentAnswer={answerMap.get(question.id) ?? null}
+                          existingScore={grade?.score ?? null}
+                          existingFeedback={grade?.feedback ?? null}
+                          existingSolution={grade?.solution ?? null}
+                        />
+                      );
+                    })}
+
+                    {hasAnswers && (
+                      <OverallFeedbackForm
                         testId={testId}
                         courseId={courseId}
-                        questionId={question.id}
                         studentId={student.id}
-                        questionTitle={question.title}
-                        questionOrder={question.order}
-                        studentAnswer={answerMap.get(question.id) ?? null}
-                        existingScore={grade?.score ?? null}
-                        existingFeedback={grade?.feedback ?? null}
-                        existingSolution={grade?.solution ?? null}
+                        existingFeedback={testFeedback}
                       />
-                    );
-                  })}
-
-                  {hasAnswers && (
-                    <OverallFeedbackForm
-                      testId={testId}
-                      courseId={courseId}
-                      studentId={student.id}
-                      existingFeedback={testFeedback}
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             );
           },
         )}

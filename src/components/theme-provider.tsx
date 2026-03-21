@@ -37,9 +37,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => observer.disconnect();
   }, []);
 
-  return (
-    <ThemeContext value={{ isDark }}>{children}</ThemeContext>
-  );
+  return <ThemeContext value={{ isDark }}>{children}</ThemeContext>;
 }
 
 /**

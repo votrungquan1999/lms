@@ -9,11 +9,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "src/components/ui/breadcrumb";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-} from "src/components/ui/card";
+import { Card, CardHeader, CardTitle } from "src/components/ui/card";
 import {
   getCourseService,
   getGradeService,
@@ -138,11 +134,16 @@ export default async function StudentCourseDetailPage({
                   href={`/student/courses/${courseId}/tests/${test.id}`}
                   className="block"
                 >
-                  <Card size="sm" className="transition-all hover:bg-accent/50 hover:shadow-sm">
+                  <Card
+                    size="sm"
+                    className="transition-all hover:bg-accent/50 hover:shadow-sm"
+                  >
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
-                          <CardTitle className="text-lg">{test.title}</CardTitle>
+                          <CardTitle className="text-lg">
+                            {test.title}
+                          </CardTitle>
                           <p className="text-xs text-muted-foreground">
                             {test.questionCount} question
                             {test.questionCount !== 1 ? "s" : ""}

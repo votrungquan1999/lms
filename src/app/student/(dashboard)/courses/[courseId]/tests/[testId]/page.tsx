@@ -134,7 +134,8 @@ export default async function StudentTestDetailPage({
           <div className="mt-4 space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                {answerMap.size} / {questions.length} question{questions.length !== 1 ? "s" : ""} answered
+                {answerMap.size} / {questions.length} question
+                {questions.length !== 1 ? "s" : ""} answered
               </span>
               <span className="font-medium">
                 {Math.round((answerMap.size / (questions.length || 1)) * 100)}%
