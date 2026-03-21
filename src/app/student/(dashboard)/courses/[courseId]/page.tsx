@@ -16,6 +16,7 @@ import {
 } from "src/components/ui/card";
 import {
   getCourseService,
+  getGradeService,
   getPageGuard,
   getQuestionService,
   getTestService,
@@ -77,7 +78,9 @@ export default async function StudentCourseDetailPage({
   const questionService = await getQuestionService();
   const testStatusService = await getTestStatusService();
 
-  // Compute status for each test
+  const gradeService = await getGradeService();
+
+  // Compute status and score for each test
   const testsWithStatus = await Promise.all(
     tests.map(async (test) => {
       const questions = await questionService.listQuestions(test.id);
@@ -86,7 +89,15 @@ export default async function StudentCourseDetailPage({
         session.studentId,
         questions.length,
       );
-      return { ...test, status, questionCount: questions.length };
+      const averageScore =
+        status === TestStatus.Graded
+          ? await gradeService.getAverageScore(
+              test.id,
+              session.studentId,
+              questions.length,
+            )
+          : null;
+      return { ...test, status, questionCount: questions.length, averageScore };
     }),
   );
 
@@ -147,6 +158,11 @@ export default async function StudentCourseDetailPage({
                             />
                             {config.label}
                           </span>
+                          {test.averageScore !== null && (
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {test.averageScore.toFixed(0)}/100
+                            </span>
+                          )}
                           <ChevronRight className="size-4 text-muted-foreground" />
                         </div>
                       </div>
