@@ -96,18 +96,35 @@ export default async function GradingPage({
         )}
 
         {studentData.map(
-          ({ student, answerMap, gradeMap, testFeedback, hasAnswers }, idx) => (
-            <div key={student.id}>
-              {idx > 0 && <Separator className="mb-8" />}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-xl">
-                    {student.name}{" "}
-                    <span className="text-sm font-normal text-muted-foreground">
-                      @{student.username}
-                    </span>
-                  </CardTitle>
-                </CardHeader>
+          ({ student, answerMap, gradeMap, testFeedback, hasAnswers }, idx) => {
+            const gradedCount = gradeMap.size;
+            const totalQ = questions.length;
+            const allGraded = gradedCount >= totalQ;
+            const badgeClassName = allGraded
+              ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+              : gradedCount > 0
+                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+                : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+
+            return (
+              <div key={student.id}>
+                {idx > 0 && <Separator className="mb-8" />}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-xl">
+                        {student.name}{" "}
+                        <span className="text-sm font-normal text-muted-foreground">
+                          @{student.username}
+                        </span>
+                      </CardTitle>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassName}`}
+                      >
+                        {gradedCount}/{totalQ} graded
+                      </span>
+                    </div>
+                  </CardHeader>
                 <CardContent className="space-y-4">
                   {questions.map((question) => {
                     const grade = gradeMap.get(question.id);
@@ -139,7 +156,8 @@ export default async function GradingPage({
                 </CardContent>
               </Card>
             </div>
-          ),
+            );
+          },
         )}
       </section>
     </div>
