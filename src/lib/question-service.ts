@@ -107,6 +107,32 @@ export class QuestionService {
     return docs.map(this.toQuestion);
   }
 
+  /**
+   * Batch-fetches question counts for multiple test IDs in a single aggregate.
+   * Used as the batch function for DataLoader — callers should prefer the
+   * DataLoader rather than calling this directly.
+   */
+  async countByTestIds(testIds: string[]): Promise<Map<string, number>> {
+    if (testIds.length === 0) {
+      return new Map();
+    }
+
+    const pipeline = [
+      { $match: { testId: { $in: testIds } } },
+      { $group: { _id: "$testId", count: { $sum: 1 } } },
+    ];
+
+    const results = await this.questions
+      .aggregate<{ _id: string; count: number }>(pipeline)
+      .toArray();
+
+    const counts = new Map<string, number>();
+    for (const r of results) {
+      counts.set(r._id, r.count);
+    }
+    return counts;
+  }
+
   private async getNextOrder(testId: string): Promise<number> {
     const last = await this.questions
       .find({ testId })
