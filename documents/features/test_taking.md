@@ -21,6 +21,12 @@ Students take tests by submitting their solutions. Teachers grade each question 
 - [x] Average score is automatically calculated when all questions are graded
 - [x] Teacher can view all students' latest submissions for a test
 
+### Teacher — Grading Page UX (Planned)
+
+- [ ] Grading page supports filtering students by grading status (e.g., show only ungraded)
+- [ ] Grading page shows one student at a time (tabs or accordion) to reduce scrolling
+- [ ] Grading page has sidebar for quick student navigation with grading status indicators
+
 ### Admin — Manage Questions
 
 - [x] Admin can add a question with title and markdown content
