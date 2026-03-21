@@ -10,7 +10,8 @@
     "format": "biome format --write",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "dev:e2e": "MONGODB_URI=mongodb://localhost:27017/lms_e2e AUTH_ALLOWED_HOSTS=localhost:3001 TRUSTED_ORIGINS=http://localhost:3001 next dev --port 3001"
   },
   "dependencies": {
     "better-auth": "^1.5.4",
