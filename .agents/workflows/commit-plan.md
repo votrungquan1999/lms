@@ -39,7 +39,7 @@ Use this workflow when you have uncommitted changes and want to create a clean c
 
 6. **Create Commit Plan**: For each group, create a commit with:
    - **Title**: Semantic prefix + scope (optional) + concise summary (50 chars or less)
-   - **Description**: Multi-line explanation of what changed and why (wrap at 72 chars)
+   - **Description**: Explanation of what changed and why. Do NOT hard-wrap lines to fit terminal width — let the text flow naturally as a single long line per paragraph so it renders properly on git platforms (GitHub, GitLab, etc.)
    - **Files**: List of all files to include in this commit
    
    **CRITICAL**: Each file can only appear in ONE commit (no partial staging)

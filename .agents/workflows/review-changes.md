@@ -26,10 +26,12 @@ Use this workflow when:
    - If no changes are found, state that clearly and stop
    - **Do NOT output the raw git diff or command output to the user**
 
-2. **Understand Context**:
-   - Read PR/commit description or ask the user for context
-   - Identify the goal of the changes
-   - Review related issues or requirements
+2. **Understand the Problem** (before looking at the code):
+   - Read PR/commit description, linked issues, or ask the user for context
+   - Identify the **root cause** of the problem being solved — not just the symptom
+   - Understand the **constraints** (backward compatibility, performance, existing patterns)
+   - Form your own mental model of what a correct fix would look like
+   - Ask yourself: "If I were solving this from scratch, how would I approach it?"
 
 3. **Create Changes Summary**:
    
@@ -49,10 +51,13 @@ Use this workflow when:
    - Purpose: Add OAuth support to improve user onboarding
    ```
 
-4. **High-Level Review**:
-   - Does the change solve the stated problem?
-   - Is the approach reasonable?
-   - Are there any obvious alternatives?
+4. **Approach Evaluation** (compare the PR's approach against your mental model):
+   - Does this fix the **root cause**, or just a symptom?
+   - Is this the right **layer/level** to fix at? (e.g., should this be a DB constraint vs. application logic? a CSS fix vs. a component restructure?)
+   - Are there **simpler or more robust alternatives** the author may have missed?
+   - Does the approach introduce **unnecessary complexity** or over-engineering?
+   - Are there **trade-offs** the author should be aware of? (e.g., performance vs. readability, flexibility vs. simplicity)
+   - If the approach differs from what you'd do, is the author's approach still valid? Explain why or why not.
 
 5. **Detailed Code Review** - Check for (in priority order):
    

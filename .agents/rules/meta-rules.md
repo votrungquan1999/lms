@@ -27,6 +27,7 @@ For each task, Antigravity MUST double-check:
 - MUST ask 1-2 clarifying questions before implementing (or more if user explanation >100 characters).
 - Focus on what exists in the system currently, not what could be extended unless explicitly requested by the user.
 - When user provides long explanations (>100 characters), ask additional clarifying questions to verify scope and approach before proceeding.
+- Only extract reusable components/functions when the same logic is repeated at least **3 times**. Two occurrences do not justify extraction — wait for the third to ensure a good abstraction emerges.
 
 ## Error Handling
 
@@ -40,9 +41,16 @@ For each task, Antigravity MUST double-check:
   1. Read the file again using `view_file` to understand the current state.
   2. Retry the edit with corrected parameters based on the actual file content.
   3. Repeat the verification process after each retry.
-  4. Continue this cycle until the edit succeeds or determine that manual intervention is required.
+  4. **If the edit fails twice consecutively**, split it into multiple smaller, independent edits targeting smaller sections of the file. Large edits are prone to timeouts — smaller, focused edits are more reliable.
+  5. Continue this cycle until the edit succeeds or determine that manual intervention is required.
 - NEVER assume an edit succeeded without checking the tool's response.
 - If multiple consecutive retries fail (> 3 attempts), explain the issue to the user and request guidance.
+
+## Test-First Enforcement
+
+- When doing test-first: NEVER write implementation code before running the test.
+- ONE test at a time. Run it. See the result. Then decide whether to implement.
+- The test run is a GATE — skipping it is a rule violation.
 
 ## Planning Mode
 

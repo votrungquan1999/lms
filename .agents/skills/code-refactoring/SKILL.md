@@ -34,7 +34,8 @@ Before touching any code, clearly identify:
 **CRITICAL: Never refactor without tests.**
 
 1. Check if tests exist for the code you're about to change
-2. Run all related tests to confirm they pass — this is your safety baseline
+2. **Check `package.json` scripts** for existing test commands (e.g., `npm test`, `npm run test:unit`). Use the project's defined command instead of crafting your own.
+3. Run all related tests to confirm they pass — this is your safety baseline
 3. **If tests are missing: STOP.** Inform the user that the code lacks test coverage for the area being refactored and that refactoring cannot proceed safely. Ask the user to decide:
    - Write tests first (use `@tdd-design` or `@bdd-design`), then resume refactoring
    - Proceed anyway (accepting the risk)
@@ -51,9 +52,10 @@ Apply **one refactoring at a time**. Do not combine multiple refactorings in a s
 
 ### Step 4: Verify Behavior Preserved
 
-1. Run the full related test suite
-2. Run linting to check for code quality issues
-3. Confirm no behavioral change — only structural improvement
+1. **Check `package.json` scripts** for existing test and lint commands. Use the project's defined commands.
+2. Run the full related test suite
+3. Run linting to check for code quality issues
+4. Confirm no behavioral change — only structural improvement
 
 ---
 

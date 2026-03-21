@@ -68,12 +68,12 @@ Each step is an **observable behavior** — something a user or system can obser
 
 **For each step:**
 
-1. **Write the step title** as an observable behavior
-2. **Use `@bdd-design` to write a failing test** that describes the behavior with Given/When/Then
-   - Use `@tdd-design` only for internal logic, algorithms, or utilities
-3. **Implement** the minimum code to make the test pass (skip if no production change needed)
-4. **Verify** — run all tests, confirm the behavior works
-5. **Mark the step done** and evaluate — decide what the next step should be based on what you learned
+1. **Write the test** describing the behavior (Given/When/Then)
+2. **🚫 GATE: Run the test** — check `package.json` scripts for existing test commands (e.g., `npm test`). Use the project's defined command. You MUST see the result before writing any implementation.
+   - If it **fails** → proceed to step 3
+   - If it **passes** → behavior is already covered, skip step 3, mark done
+3. **Implement** the minimum code to make the test pass, then **run the test again** to confirm
+4. **Mark the step done** and evaluate — decide what the next step should be based on what you learned
 
 ### Quality Checkpoints
 
@@ -88,37 +88,44 @@ Before writing any tests, locate the "4 Pillars of Testing" document in the proj
 
 ---
 
-## Task File Example
+## Task File
+
+**Before starting implementation, create a task file** listing all test-first behaviors. Each step tracks the full cycle: write test → run → implement → run.
+
+### Example
 
 ```markdown
-## Implementation (BDD — each step = observable behavior)
+## Implementation (each step = one test-first cycle)
 
 ### Step 1: High-engagement open markets appear as "TRENDING"
-- [x] Test → Implement → Verify
+- [x] Write test
+- [x] Run test (Red — fails as expected)
+- [x] Implement minimum code
+- [x] Run test (Green — passes)
 
 ### Step 2: Low-engagement markets are NOT trending
-- [x] Test → Verify (no production change needed)
+- [x] Write test
+- [x] Run test (Green — already covered by step 1 implementation)
 
 ### Step 3: At most sampleSize trending markets returned
-- [x] Test → Verify (no production change needed)
+- [x] Write test
+- [x] Run test (Green — already covered)
 
-### Step 4: Fewer qualifying markets than sample size returns all available
-- [x] Test → Verify (no production change needed)
+### Quality Checkpoint (after steps 1-3)
+- [x] test-quality-reviewer: reviewed 3 tests
+- [x] code-refactoring: no changes needed
 
-### Step 5: No duplicate markets between trending and regular
-- [x] Test → Verify (no production change needed)
+### Step 4: No duplicate markets between trending and regular
+- [x] Write test
+- [x] Run test (Red)
+- [x] Implement deduplication logic
+- [x] Run test (Green)
 
-### Quality Checkpoint (after steps 1-5)
-- [x] test-quality-reviewer: reviewed 5 tests, all passing 4 Pillars
-- [x] code-refactoring: extracted helper function, simplified query
-
-### Step 6: Old trending types no longer returned (cleanup)
-- [x] SQL cleaned — removed KING_OF_HILL/POPULAR_CLOSED CTEs
-- [x] Old tests removed/rewritten
-- [x] Dead helpers removed
-
-### Step 7: → 🔄 [Next observable behavior]
-- [ ] Test → Implement → Verify
+### Step 5: → 🔄 [Next observable behavior]
+- [ ] Write test
+- [ ] Run test
+- [ ] Implement (if needed)
+- [ ] Run test (if implemented)
 ```
 
 ---
@@ -131,3 +138,5 @@ Before writing any tests, locate the "4 Pillars of Testing" document in the proj
 - ❌ Creating all steps upfront — evaluate after each step
 - ❌ Skipping quality checkpoints after 2-3 steps
 - ❌ Implementing without a plan (use `@create-implementation-plan` first)
+- ❌ Writing implementation code before running the test
+- ❌ Batching multiple test-write-implement cycles without running tests between them

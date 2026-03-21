@@ -78,22 +78,27 @@ Write scenarios describing behavior using three stages:
    });
    ```
 
-### Step 2: Run the Test (Before Implementation)
+### 🚫 Step 2: GATE — Run the Test (Before Implementation)
 
-1. Run the new scenario test BEFORE writing any implementation
-2. If it **fails** → proceed to Step 3 (this is the expected path)
-3. If it **already passes** (covered by previous implementation) → this is acceptable, go back to Step 1 for the next scenario
+1. **Check `package.json` scripts** first to see if there's an existing command for running tests (e.g., `npm test`, `npm run test:unit`). Use the project's defined command instead of crafting your own.
+2. Run the new scenario test BEFORE writing any implementation
+3. If it **fails** → proceed to Step 3 (implement)
+4. If it **already passes** → behavior is already covered, skip Step 3, go back to Step 1
+
+**This gate is NON-NEGOTIABLE. Writing implementation before running the test = violation.**
 
 ### Step 3: Minimum Implementation
 
 1. Write the **minimum** code needed to make this ONE scenario pass
 2. Focus on correctness, not elegance
 
-### Step 4: Verify
+### 🚫 Step 4: GATE — Verify
 
 1. Run the test again
-2. If it **passes** → also run all previous scenario tests to ensure nothing broke, then go back to Step 1 for the next scenario
+2. If it **passes** → also run all previous scenario tests, then go back to Step 1
 3. If it **fails** → go back to Step 3 and fix the implementation
+
+**Do NOT write a second test before completing this gate.**
 
 ---
 
@@ -134,12 +139,13 @@ After all scenarios pass:
 
 - ✅ Write scenarios in domain language, not code language
 - ✅ One scenario = one behavior = one test
-- ✅ Run tests after every implementation step
+- ✅ Run the test after writing it, BEFORE writing implementation
 - ✅ Keep scenarios independent — no test ordering dependencies
 - ✅ Use descriptive scenario names that read like sentences
 - ❌ Don't write implementation-specific scenarios ("When the database query returns...")
 - ❌ Don't write multiple scenarios before implementing any
-- ❌ Don't skip running the test before writing implementation
+- ❌ Don't skip the test run — always run the test before implementing
+- ❌ Don't write implementation code before seeing the test result
 
 ---
 

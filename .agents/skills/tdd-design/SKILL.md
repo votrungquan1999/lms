@@ -26,22 +26,27 @@ Test-Driven Development: write tests before implementation, one test at a time.
 2. Use descriptive test names
 3. Follow Arrange-Act-Assert structure
 
-### Step 2: Run the Test (Before Implementation)
+### 🚫 Step 2: GATE — Run the Test (Before Implementation)
 
-1. Run the new test BEFORE writing any implementation
-2. If it **fails** → proceed to Step 3 (this is the expected path)
-3. If it **already passes** (covered by previous implementation) → this is acceptable, go back to Step 1 for the next test
+1. **Check `package.json` scripts** first to see if there's an existing command for running tests (e.g., `npm test`, `npm run test:unit`). Use the project's defined command instead of crafting your own.
+2. Run the new test BEFORE writing any implementation
+3. If it **fails** → proceed to Step 3 (implement)
+4. If it **already passes** → behavior is already covered, skip Step 3, go back to Step 1
+
+**This gate is NON-NEGOTIABLE. Writing implementation before running the test = violation.**
 
 ### Step 3: Minimum Implementation
 
 1. Write the **minimum** code needed to make this test pass
 2. Focus on correctness, not elegance or optimization
 
-### Step 4: Verify
+### 🚫 Step 4: GATE — Verify
 
 1. Run the test again
 2. If it **passes** → go back to Step 1 for the next test
 3. If it **fails** → go back to Step 3 and fix the implementation
+
+**Do NOT write a second test before completing this gate.**
 
 ---
 
@@ -66,10 +71,10 @@ Test-Driven Development: write tests before implementation, one test at a time.
 
 **Never:**
 
-- ❌ Write multiple tests before implementing
-- ❌ Write implementation before running the new test
-- ❌ Consider test passed when the test not actually run
-- ❌ Skip running the test before writing implementation
+- ❌ Write implementation code before running the test (even "obvious" code)
+- ❌ Write a second test before the current cycle completes
+- ❌ Skip a test run because you "know" the result
+- ❌ Batch multiple tests then implement them all at once
 
 ## Related Skills
 
