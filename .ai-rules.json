@@ -19,7 +19,9 @@
     "create-implementation-plan",
     "tdd-design",
     "test-quality-reviewer",
-    "web-search"
+    "web-search",
+    "create-pr",
+    "orchestrated-feature-dev"
   ],
   "workflows": [
     "commit-plan",
