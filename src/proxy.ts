@@ -10,11 +10,16 @@ const protectedRoutes = [
 
 export default async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  const sessionCookie = getSessionCookie(req);
+
+  // Redirect authenticated users from landing page to role-based redirect
+  if (path === "/" && sessionCookie) {
+    return NextResponse.redirect(new URL("/redirect", req.nextUrl));
+  }
+
   const isProtectedRoute = protectedRoutes.some((route) =>
     path.startsWith(route),
   );
-
-  const sessionCookie = getSessionCookie(req);
 
   // Redirect to login if accessing protected route without session
   if (isProtectedRoute && !sessionCookie) {
@@ -28,5 +33,5 @@ export default async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/student/:path*"],
+  matcher: ["/", "/admin/:path*", "/student/:path*"],
 };
