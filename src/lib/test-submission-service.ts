@@ -1,5 +1,7 @@
 import type { Collection, Db } from "mongodb";
 
+import type { GradeService } from "./grade-service";
+
 /**
  * Test submission document stored in the `test_submission` collection.
  * One per (testId, studentId) — marks the test as explicitly submitted.
@@ -18,17 +20,23 @@ export interface TestSubmissionDocument {
 export class TestSubmissionService {
   private readonly testSubmissions: Collection<TestSubmissionDocument>;
 
-  constructor(db: Db) {
+  constructor(
+    db: Db,
+    private readonly gradeService: GradeService,
+  ) {
     this.testSubmissions =
       db.collection<TestSubmissionDocument>("test_submission");
   }
 
   /**
-   * Explicitly submits a test for a student. Idempotent — skips if already submitted.
+   * Explicitly submits a test for a student.
+   * Throws if the test has already been submitted.
    */
   async submitTest(testId: string, studentId: string): Promise<void> {
     const existing = await this.testSubmissions.findOne({ testId, studentId });
-    if (existing) return;
+    if (existing) {
+      throw new Error("Test has already been submitted");
+    }
 
     await this.testSubmissions.insertOne({
       id: crypto.randomUUID(),
@@ -36,6 +44,9 @@ export class TestSubmissionService {
       studentId,
       submittedAt: new Date(),
     });
+
+    // Auto-grade applicable questions
+    await this.gradeService.autoGradeTest(testId, studentId);
   }
 
   /**

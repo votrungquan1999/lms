@@ -39,7 +39,8 @@ export async function getPageGuard(): Promise<PageGuard> {
 export async function getAnswerService(): Promise<AnswerService> {
   if (!answerService) {
     const db = await getDatabase();
-    answerService = new AnswerService(db);
+    const qs = await getQuestionService();
+    answerService = new AnswerService(db, qs);
   }
   return answerService;
 }
@@ -63,7 +64,10 @@ export async function getEnrollmentService(): Promise<EnrollmentService> {
 export async function getGradeService(): Promise<GradeService> {
   if (!gradeService) {
     const db = await getDatabase();
-    gradeService = new GradeService(db);
+    const questionService = await getQuestionService();
+    const answerService = await getAnswerService();
+    const testService = await getTestService();
+    gradeService = new GradeService(db, questionService, answerService, testService);
   }
   return gradeService;
 }
@@ -87,7 +91,10 @@ export async function getTestFeedbackService(): Promise<TestFeedbackService> {
 export async function getTestSubmissionService(): Promise<TestSubmissionService> {
   if (!testSubmissionService) {
     const db = await getDatabase();
-    testSubmissionService = new TestSubmissionService(db);
+    testSubmissionService = new TestSubmissionService(
+      db,
+      await getGradeService(),
+    );
   }
   return testSubmissionService;
 }
