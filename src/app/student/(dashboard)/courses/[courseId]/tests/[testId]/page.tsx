@@ -24,8 +24,10 @@ import {
   getQuestionService,
   getTestFeedbackService,
   getTestService,
+  getTestStatusService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
+import { TestStatus } from "src/lib/test-status-service";
 import { AnswerForm } from "./answer-form";
 import { DiffViewer } from "./diff-viewer";
 import { SubmitTestButton } from "./submit-test-button";
@@ -63,7 +65,10 @@ export default async function StudentTestDetailPage({
     testId,
     session.studentId,
   );
-  const answerMap = new Map(latestAnswers.map((a) => [a.questionId, a.answer]));
+  // Map questionId → StudentAnswer object
+  const answerMap = new Map(
+    latestAnswers.map((a) => [a.questionId, a.answer]),
+  );
 
   const testSubmissionService = await getTestSubmissionService();
   const isSubmitted = await testSubmissionService.isTestSubmitted(
@@ -71,15 +76,29 @@ export default async function StudentTestDetailPage({
     session.studentId,
   );
 
-  const gradeService = await getGradeService();
-  const grades = await gradeService.getGrades(testId, session.studentId);
-  const gradeMap = new Map(grades.map((g) => [g.questionId, g]));
-
-  const average = await gradeService.getAverageScore(
+  // ── Compute test status for atomic-reveal visibility checks ──────────────
+  const testStatusService = await getTestStatusService();
+  const testStatus = await testStatusService.getStatus(
     testId,
     session.studentId,
     questions.length,
   );
+
+  // ── Fetch grades via visibility-aware methods ─────────────────────────────
+  const gradeService = await getGradeService();
+  const grades = await gradeService.getStudentGrades(
+    testId,
+    session.studentId,
+    testStatus,
+  );
+  const gradeMap = new Map(grades.map((g) => [g.questionId, g]));
+
+  const average = await gradeService.getStudentAverageScore(
+    testId,
+    session.studentId,
+    testStatus,
+  );
+
   const testFeedbackService = await getTestFeedbackService();
   const overallFeedback = await testFeedbackService.getTestFeedback(
     testId,
@@ -158,6 +177,9 @@ export default async function StudentTestDetailPage({
           questions.map((question) => {
             const grade = gradeMap.get(question.id);
             const studentAnswer = answerMap.get(question.id);
+            const isMC =
+              question.type === "single_select" ||
+              question.type === "multi_select";
 
             return (
               <Card key={question.id}>
@@ -169,32 +191,76 @@ export default async function StudentTestDetailPage({
                 <CardContent className="space-y-4">
                   <MarkdownContent content={question.content} />
 
-                  {!isSubmitted && (
-                    <AnswerForm
-                      testId={testId}
-                      courseId={courseId}
-                      questionId={question.id}
-                      existingAnswer={studentAnswer ?? ""}
-                    />
-                  )}
+                  {/* ── Answer input (only when not yet submitted) ─────── */}
+                  {!isSubmitted &&
+                    (isMC ? (
+                      <AnswerForm
+                        testId={testId}
+                        courseId={courseId}
+                        questionId={question.id}
+                        questionType={question.type}
+                        options={question.options}
+                        existingSelectedIds={
+                          studentAnswer?.type === "mc"
+                            ? studentAnswer.selectedIds
+                            : []
+                        }
+                      />
+                    ) : (
+                      <AnswerForm
+                        testId={testId}
+                        courseId={courseId}
+                        questionId={question.id}
+                        questionType="free_text"
+                        existingAnswer={
+                          studentAnswer?.type === "free_text"
+                            ? studentAnswer.text
+                            : ""
+                        }
+                      />
+                    ))}
 
+                  {/* ── Submitted answer display ─────────────────────────── */}
                   {isSubmitted && studentAnswer && (
                     <div className="rounded-md border bg-muted/50 p-3">
                       <p className="text-xs font-medium text-muted-foreground mb-1">
                         Your Answer:
                       </p>
-                      <p className="whitespace-pre-wrap text-sm">
-                        {studentAnswer}
-                      </p>
+                      {studentAnswer.type === "mc" ? (
+                        // Render selected option labels for MC questions
+                        <div className="space-y-1">
+                          {isMC &&
+                            question.options
+                              .filter((opt) =>
+                                studentAnswer.selectedIds.includes(opt.id),
+                              )
+                              .map((opt) => (
+                                <p key={opt.id} className="text-sm font-medium">
+                                  {opt.text}
+                                </p>
+                              ))}
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap text-sm">
+                          {studentAnswer.text}
+                        </p>
+                      )}
                     </div>
                   )}
 
+                  {/* ── Grade display (only when atomic reveal unlocks) ──── */}
                   {grade && (
                     <div className="rounded-md border bg-muted/30 p-4 space-y-3">
                       <div className="flex items-center gap-3">
                         <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-0.5 text-sm font-semibold text-primary">
                           {grade.score}/100
                         </span>
+                        {/* For MC questions, show correct vs selected */}
+                        {isMC && testStatus === TestStatus.Graded && (
+                          <span className="text-xs text-muted-foreground">
+                            (auto-graded)
+                          </span>
+                        )}
                       </div>
                       {grade.feedback && (
                         <div>
@@ -206,13 +272,17 @@ export default async function StudentTestDetailPage({
                           </p>
                         </div>
                       )}
-                      {grade.solution && studentAnswer && (
+                      {grade.solution && studentAnswer && !isMC && (
                         <div>
                           <p className="mb-2 text-xs font-medium text-muted-foreground">
                             Diff Comparison:
                           </p>
                           <DiffViewer
-                            studentAnswer={studentAnswer}
+                            studentAnswer={
+                              studentAnswer.type === "free_text"
+                                ? studentAnswer.text
+                                : ""
+                            }
                             solution={grade.solution}
                           />
                         </div>

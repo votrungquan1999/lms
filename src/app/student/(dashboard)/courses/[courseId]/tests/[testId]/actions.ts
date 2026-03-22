@@ -15,7 +15,10 @@ const submitAnswerSchema = z.object({
   testId: z.string().min(1, "Test ID is missing"),
   courseId: z.string().min(1, "Course ID is missing"),
   questionId: z.string().min(1, "Question ID is missing"),
-  answer: z.string().min(1, "Answer cannot be empty"),
+  // For free-text, 'answer' contains the text.
+  // For MC, 'selectedIds' contains a JSON array of option IDs; 'answer' may be absent.
+  answer: z.string().optional(),
+  selectedIds: z.string().optional(), // JSON-encoded string[] for MC
 });
 
 export interface SubmitAnswerState {
@@ -46,19 +49,24 @@ export async function submitAnswerAction(
     testId: formData.get("testId"),
     courseId: formData.get("courseId"),
     questionId: formData.get("questionId"),
-    answer: formData.get("answer"),
+    answer: formData.get("answer") ?? undefined,
+    selectedIds: formData.get("selectedIds") ?? undefined,
   });
 
   if (!parsed.success) {
     return { success: false, message: parsed.error.issues[0].message };
   }
 
+  const { testId, courseId, questionId, answer, selectedIds } = parsed.data;
+
+  // Validate that at least one answer type is provided
+  if (!answer && !selectedIds) {
+    return { success: false, message: "Answer cannot be empty" };
+  }
+
   // Verify enrollment
   const enrollmentService = await getEnrollmentService();
-  const enrolled = await enrollmentService.isEnrolled(
-    parsed.data.courseId,
-    studentId,
-  );
+  const enrolled = await enrollmentService.isEnrolled(courseId, studentId);
   if (!enrolled) {
     return {
       success: false,
@@ -68,16 +76,32 @@ export async function submitAnswerAction(
 
   try {
     const answerService = await getAnswerService();
-    await answerService.submitAnswer({
-      testId: parsed.data.testId,
-      questionId: parsed.data.questionId,
-      studentId,
-      answer: parsed.data.answer,
-    });
 
-    revalidatePath(
-      `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-    );
+    if (selectedIds) {
+      // MC answer
+      let ids: string[];
+      try {
+        ids = JSON.parse(selectedIds);
+      } catch {
+        return { success: false, message: "Invalid MC selection format" };
+      }
+      await answerService.submitAnswer({
+        testId,
+        questionId,
+        studentId,
+        answer: { type: "mc", selectedIds: ids },
+      });
+    } else {
+      // Free-text answer
+      await answerService.submitAnswer({
+        testId,
+        questionId,
+        studentId,
+        answer: { type: "free_text", text: answer as string },
+      });
+    }
+
+    revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
 
     return { success: true, message: "Answer submitted successfully" };
   } catch (error) {

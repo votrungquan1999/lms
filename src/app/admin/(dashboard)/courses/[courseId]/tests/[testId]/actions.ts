@@ -6,12 +6,37 @@ import { getAuthService } from "src/lib/auth-singleton";
 import { getQuestionService } from "src/lib/services-singleton";
 import { z } from "zod";
 
-const addQuestionSchema = z.object({
-  testId: z.string().min(1, "Test ID is missing"),
-  courseId: z.string().min(1, "Course ID is missing"),
-  title: z.string().trim().min(1, "Question title is required"),
-  content: z.string().min(1, "Question content is required"),
+const optionSchema = z.object({
+  text: z.string().min(1, "Option text is required"),
+  isCorrect: z.boolean(),
 });
+
+const addQuestionSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("free_text"),
+    testId: z.string().min(1, "Test ID is missing"),
+    courseId: z.string().min(1, "Course ID is missing"),
+    title: z.string().trim().min(1, "Question title is required"),
+    content: z.string().min(1, "Question content is required"),
+  }),
+  z.object({
+    type: z.literal("single_select"),
+    testId: z.string().min(1, "Test ID is missing"),
+    courseId: z.string().min(1, "Course ID is missing"),
+    title: z.string().trim().min(1, "Question title is required"),
+    content: z.string().min(1, "Question content is required"),
+    options: z.array(optionSchema).min(2, "At least 2 options are required"),
+  }),
+  z.object({
+    type: z.literal("multi_select"),
+    testId: z.string().min(1, "Test ID is missing"),
+    courseId: z.string().min(1, "Course ID is missing"),
+    title: z.string().trim().min(1, "Question title is required"),
+    content: z.string().min(1, "Question content is required"),
+    options: z.array(optionSchema).min(2, "At least 2 options are required"),
+    mcGradingStrategy: z.enum(["all_or_nothing", "partial"]).default("all_or_nothing"),
+  }),
+]);
 
 const importQuestionsFileSchema = z.array(
   z.object({
@@ -48,11 +73,29 @@ export async function addQuestionAction(
     return { success: false, message: "Unauthorized: admin access required" };
   }
 
+  const type = (formData.get("type") ?? "free_text").toString() as
+    | "free_text"
+    | "single_select"
+    | "multi_select";
+
+  // Parse MC options if present
+  const optionsJson = formData.get("options")?.toString();
+  let options: { text: string; isCorrect: boolean }[] | undefined;
+  if (optionsJson) {
+    try {
+      options = JSON.parse(optionsJson);
+    } catch {
+      return { success: false, message: "Invalid options format" };
+    }
+  }
+
   const parsed = addQuestionSchema.safeParse({
+    type,
     testId: formData.get("testId"),
     courseId: formData.get("courseId"),
     title: formData.get("title"),
     content: formData.get("content"),
+    ...(options !== undefined && { options }),
   });
 
   if (!parsed.success) {
@@ -61,19 +104,40 @@ export async function addQuestionAction(
 
   try {
     const questionService = await getQuestionService();
-    await questionService.addQuestion(parsed.data.testId, {
-      title: parsed.data.title,
-      content: parsed.data.content,
-      createdBy: adminUserId,
-    });
+    const data = parsed.data;
+    if (data.type === "free_text") {
+      await questionService.addQuestion(data.testId, {
+        title: data.title,
+        content: data.content,
+        type: "free_text",
+        createdBy: adminUserId,
+      });
+    } else if (data.type === "single_select") {
+      await questionService.addQuestion(data.testId, {
+        title: data.title,
+        content: data.content,
+        type: "single_select",
+        options: data.options,
+        createdBy: adminUserId,
+      });
+    } else {
+      await questionService.addQuestion(data.testId, {
+        title: data.title,
+        content: data.content,
+        type: "multi_select",
+        options: data.options,
+        mcGradingStrategy: data.mcGradingStrategy,
+        createdBy: adminUserId,
+      });
+    }
 
     revalidatePath(
-      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+      `/admin/courses/${data.courseId}/tests/${data.testId}`,
     );
 
     return {
       success: true,
-      message: `Question "${parsed.data.title}" added successfully`,
+      message: `Question "${data.title}" added successfully`,
     };
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));

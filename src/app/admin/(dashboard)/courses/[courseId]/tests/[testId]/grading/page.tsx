@@ -6,6 +6,8 @@ import {
   CardTitle,
 } from "src/components/ui/card";
 import { Separator } from "src/components/ui/separator";
+import type { StudentAnswer } from "src/lib/answer-service";
+import type { Question } from "src/lib/question-service";
 import {
   getAnswerService,
   getEnrollmentService,
@@ -16,6 +18,24 @@ import {
   getTestService,
 } from "src/lib/services-singleton";
 import { OverallFeedbackForm, QuestionGradeForm } from "./grading-forms";
+
+/** Converts a StudentAnswer union to a human-readable string for the admin view. */
+function formatStudentAnswer(
+  answer: StudentAnswer | undefined,
+  question: Question,
+): string | null {
+  if (!answer) return null;
+  if (answer.type === "free_text") return answer.text;
+  // MC answer — look up option labels by id
+  if (question.type === "single_select" || question.type === "multi_select") {
+    const labels = answer.selectedIds
+      .map((id) => question.options.find((o) => o.id === id)?.text ?? id)
+      .join(", ");
+    return `[MC] ${labels}`;
+  }
+  return null;
+}
+
 
 export const metadata = {
   title: "Grade Test — LMS Admin",
@@ -54,7 +74,8 @@ export default async function GradingPage({
         testId,
         student.id,
       );
-      const answerMap = new Map(
+      // Map questionId → the raw StudentAnswer object
+      const rawAnswerMap = new Map(
         latestAnswers.map((a) => [a.questionId, a.answer]),
       );
 
@@ -69,7 +90,7 @@ export default async function GradingPage({
 
       return {
         student,
-        answerMap,
+        rawAnswerMap,
         gradeMap,
         testFeedback,
         hasAnswers: latestAnswers.length > 0,
@@ -96,7 +117,7 @@ export default async function GradingPage({
         )}
 
         {studentData.map(
-          ({ student, answerMap, gradeMap, testFeedback, hasAnswers }, idx) => {
+          ({ student, rawAnswerMap, gradeMap, testFeedback, hasAnswers }, idx) => {
             const gradedCount = gradeMap.size;
             const totalQ = questions.length;
             const allGraded = gradedCount >= totalQ;
@@ -137,7 +158,10 @@ export default async function GradingPage({
                           studentId={student.id}
                           questionTitle={question.title}
                           questionOrder={question.order}
-                          studentAnswer={answerMap.get(question.id) ?? null}
+                          studentAnswer={formatStudentAnswer(
+                            rawAnswerMap.get(question.id),
+                            question,
+                          )}
                           existingScore={grade?.score ?? null}
                           existingFeedback={grade?.feedback ?? null}
                           existingSolution={grade?.solution ?? null}
