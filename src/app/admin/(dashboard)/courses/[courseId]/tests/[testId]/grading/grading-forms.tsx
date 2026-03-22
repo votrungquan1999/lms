@@ -42,7 +42,7 @@ export function QuestionGradeForm({
   >(gradeQuestionAction, null);
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
+    <div className="rounded-lg border p-4 space-y-3" data-testid="grade-card">
       <h4 className="font-medium text-sm">
         <span className="text-muted-foreground">#{questionOrder}</span>{" "}
         {questionTitle}

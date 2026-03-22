@@ -34,8 +34,8 @@ test.describe("LMS E2E Flow", () => {
       timeout: 10000,
     });
 
-    // And after reload, the student appears in the list
-    await page.waitForTimeout(4000);
+    // Dismiss the dialog, then verify the student appears in the list
+    await page.keyboard.press("Escape");
     await page.goto("/admin/students");
     await expect(page.getByText(`@${STUDENT_USERNAME}`)).toBeVisible();
   });
@@ -410,7 +410,7 @@ test.describe("LMS E2E Flow", () => {
     await expect(page.getByText("console.log('hello world')")).toBeVisible();
 
     // Scope all interactions to the Q1 form to avoid ambiguity with the Q2 (MC) form
-    const q1Form = page.locator("div.rounded-lg.border").filter({
+    const q1Form = page.getByTestId("grade-card").filter({
       hasText: "Q1: Hello World",
     });
 

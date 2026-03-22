@@ -87,11 +87,7 @@ export default async function StudentCourseDetailPage({
       );
       const averageScore =
         status === TestStatus.Graded
-          ? await gradeService.getAverageScore(
-              test.id,
-              session.studentId,
-              questions.length,
-            )
+          ? await gradeService.getAverageScore(test.id, session.studentId)
           : null;
       return { ...test, status, questionCount: questions.length, averageScore };
     }),
