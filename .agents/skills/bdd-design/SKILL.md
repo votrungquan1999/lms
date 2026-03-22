@@ -60,23 +60,33 @@ Write scenarios describing behavior using three stages:
 ### Step 1: Write ONE Scenario Test
 
 1. Write the test for ONE scenario
-2. Use the Setup/Action/Assert structure in your test:
+2. Use the Setup/Action/Assert (Given/When/Then) structure in your test:
    ```typescript
-   describe("Feature: [name]", () => {
-     describe("Scenario: [name]", () => {
-       it("should [expected behavior]", async () => {
-         // Setup
-         const context = setupContext();
-         
-         // Action
-         const result = performAction(context);
-         
-         // Assert
-         expect(result).toEqual(expectedOutcome);
-       });
+   describe("[Feature name]", () => {
+     it("should [expected behavior]", async () => {
+       // Setup
+       const context = setupContext();
+
+       // Action
+       const result = performAction(context);
+
+       // Assert
+       expect(result).toEqual(expectedOutcome);
+     });
+
+     it("should [another behavior] when [condition]", async () => {
+       // Setup / Action / Assert
+     });
+
+     // Use nested describe only to group tests under a shared condition:
+     describe("when [specific condition]", () => {
+       it("should [outcome A]", ...);
+       it("should [outcome B]", ...);
      });
    });
    ```
+
+**`describe` is for grouping related tests — not for labeling a single test.** Never wrap a single `it()` in its own `describe` just to add a prefix.
 
 ### 🚫 Step 2: GATE — Run the Test (Before Implementation)
 
@@ -138,10 +148,12 @@ After all scenarios pass:
 ## Best Practices
 
 - ✅ Write scenarios in domain language, not code language
-- ✅ One scenario = one behavior = one test
+- ✅ One scenario = one behavior = one `it()` block
+- ✅ Use `describe` to group related tests, not to label a single test
 - ✅ Run the test after writing it, BEFORE writing implementation
 - ✅ Keep scenarios independent — no test ordering dependencies
-- ✅ Use descriptive scenario names that read like sentences
+- ✅ Use descriptive `it()` names that read like sentences
+- ❌ Don't wrap a single `it()` in its own `describe` just to add a label prefix
 - ❌ Don't write implementation-specific scenarios ("When the database query returns...")
 - ❌ Don't write multiple scenarios before implementing any
 - ❌ Don't skip the test run — always run the test before implementing

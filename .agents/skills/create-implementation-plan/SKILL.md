@@ -1,15 +1,15 @@
 ---
 name: create-implementation-plan
-description: Creates a comprehensive implementation plan with research, design, and file-by-file change breakdown before execution.
+description: Creates a focused implementation plan with technical design decisions and behavior-based test scenarios before execution.
 ---
 
 # Create Implementation Plan
 
-Structured approach to creating a detailed implementation plan for code changes before execution.
+Structured approach to creating a focused implementation plan before execution. The plan captures **what matters most**: significant design decisions and the observable behaviors to test — nothing else.
 
 ## Purpose
 
-Ensures that significant changes are well-researched, clearly documented, and reviewed before implementation begins. Prevents wasted effort from poor planning.
+Ensures significant changes are well-thought-out and reviewed before implementation begins. Prevents wasted effort from poor planning.
 
 ## When to Use This Skill
 
@@ -52,68 +52,50 @@ When researching external libraries or APIs, use `@context7` for documentation q
 
 ### Step 3: Design the Approach
 
-- Choose the implementation strategy
-- Consider alternative approaches and trade-offs
-- Identify architectural patterns to use
-- Plan data models and interfaces
-- Determine error handling strategy
+Focus only on **significant** design decisions — things that are non-obvious, introduce new concepts, or require deliberate choices. Skip general implementation details that follow naturally from existing patterns.
+
+Document:
+- Key architectural decisions and why (e.g., new data models, significant new fields, API contract changes, strategy choices)
+- Trade-offs considered for non-trivial decisions
+- Breaking changes (API, config, behavior)
+- Areas of uncertainty or risk
+
+Use GitHub alerts (`IMPORTANT`/`WARNING`/`CAUTION`) for critical decisions needing user input.
 
 For complex designs, consider using the `@structured-brainstorming` workflow to explore alternatives.
 
-### Step 4: Identify Breaking Changes & Review Requirements
+**Do NOT list every file that will change or describe every function.** Only capture decisions that a reviewer needs to understand the approach.
 
-- List any breaking changes (API, config, behavior)
-- Identify significant design decisions that need user input
-- Note areas of uncertainty or risk
-- Use GitHub alerts (`IMPORTANT`/`WARNING`/`CAUTION`) for critical items
+### Step 4: Define Observable Behaviors & Test Cases
 
-### Step 5: Create File-by-File Plan
+List the behaviors the system should exhibit, ordered by implementation priority. Each behavior becomes one TDD step — a test-first cycle.
 
-Group files by component or logical area. For each file:
-- **[NEW]** files: What will be created and why
-- **[MODIFY]** files: What changes and why
-- **[DELETE]** files: What will be removed and why
+Each behavior must be:
+- **Observable** — something a user or system can verify externally
+- **Not a code task** — describe what the system does, not how
 
-Link to files using markdown: `[filename](file:///absolute/path)`
+> ✅ `User sees trending markets at the top of the list`
+> ✅ `Markets with score below threshold are excluded from trending`
+> ❌ `Add isTrending field to Market model`
+> ❌ `Write SQL query for trending markets`
 
-**Group by component** and **order logically** (dependencies first).
-
-### Step 5b: Test-Case Plan (for TDD/BDD)
-
-When following test-first development, **also** organize the implementation by test cases, not just by files. **Create a task file** that lists each behavior as a step with explicit sub-items:
-
+For each behavior, plan the test-first cycle:
 ```markdown
-## Implementation (each step = one test-first cycle)
-
-### Step 1: [observable behavior]
+### [Observable behavior]
 - [ ] Write test
 - [ ] Run test
 - [ ] Implement (if needed)
 - [ ] Run test (if implemented)
+```
 
-### Step 2: [observable behavior]
-- [ ] Write test
-- [ ] Run test
-- [ ] Implement (if needed)
-- [ ] Run test (if implemented)
-
-### Quality Checkpoint (after every 2-3 steps)
+Group quality checkpoints after every 2-3 behaviors:
+```markdown
+### Quality Checkpoint
 - [ ] Review test quality
 - [ ] Review code for refactoring
 ```
 
-Each step = one test-first cycle. The sub-items enforce the gate: you cannot implement before running the test.
-
-### Step 6: Plan Verification
-
-**First, check `package.json` scripts** to identify existing commands for testing, linting, building, etc. Reference these project-defined commands in the verification plan instead of crafting ad-hoc commands.
-
-Document how you'll verify the changes:
-- **Automated Tests**: What tests you'll write or run (use existing `package.json` scripts)
-- **Manual Verification**: What you'll test manually
-- **Browser/UI Testing**: If applicable, what flows to test
-
-### Step 7: Write the Plan Document
+### Step 5: Write the Plan Document
 
 Write to `<appDataDir>/brain/<conversation-id>/implementation_plan.md` using this format:
 
@@ -127,30 +109,33 @@ Brief description of the problem and what the change accomplishes.
 > [!IMPORTANT]
 > [Critical decision or breaking change that needs approval]
 
-## Proposed Changes
+## Technical Design
 
-### [Component Name]
+[Only significant decisions. e.g.:]
+- **New `score` field on `Market`**: Stored as float, computed at read time from engagement stats. Not persisted — avoids write amplification.
+- **Trending threshold**: Configured via env var `TRENDING_MIN_SCORE` (default: 0.7) rather than hardcoded, to allow tuning without deploy.
+- **Strategy choice**: Using a view instead of a materialized view — latency acceptable, avoids refresh complexity.
 
-#### [MODIFY] [filename](file:///absolute/path)
-- Change 1: Description
-- Change 2: Description
+## Behaviors to Implement
 
-#### [NEW] [filename](file:///absolute/path)
-- Purpose and contents
+### Step 1: [Observable behavior]
+- [ ] Write test
+- [ ] Run test
+- [ ] Implement (if needed)
+- [ ] Run test (if implemented)
 
----
+### Step 2: [Observable behavior]
+- [ ] Write test
+- [ ] Run test
+- [ ] Implement (if needed)
+- [ ] Run test (if implemented)
 
-## Verification Plan
-
-### Automated Tests
-- Run `npm test` to verify
-- Add tests for [specific feature]
-
-### Manual Verification
-- Test user flow: [describe flow]
+### Quality Checkpoint (after every 2-3 steps)
+- [ ] Review test quality
+- [ ] Review code for refactoring
 ```
 
-### Step 8: Request Review
+### Step 6: Request Review
 
 **MUST pause for user review.** Use `notify_user` to request approval before any implementation begins.
 
@@ -158,15 +143,14 @@ Brief description of the problem and what the change accomplishes.
 
 ## Best Practices
 
-- ✅ Be specific about what changes and why
-- ✅ Group files logically by component
-- ✅ Include file links for easy navigation
-- ✅ Document verification strategy upfront
-- ✅ Highlight breaking changes and design decisions
+- ✅ Capture decisions that require deliberate thought or trade-offs
+- ✅ Write behaviors as observable outcomes, not code tasks
 - ✅ Use mermaid diagrams for complex architecture
-- ❌ Don't create vague plans without specifics
+- ✅ Highlight breaking changes and decisions needing user input
+- ❌ Don't list every file that will be touched
+- ❌ Don't describe implementation details that follow obviously from existing patterns
+- ❌ Don't add a verification plan — test-first development verifies as you go
 - ❌ Don't skip the research phase
-- ❌ Don't plan without a verification strategy
 
 ## Related Skills
 

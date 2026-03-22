@@ -1,6 +1,6 @@
 # Node: Plan
 
-Create a detailed implementation plan using research output as context.
+Create a focused implementation plan using research output as context.
 
 ## Input
 
@@ -12,9 +12,11 @@ Read the `research-output.md` artifact from the brain directory for context abou
 
 2. **Use `@create-implementation-plan`** to create the plan. When the skill asks you to research, point it to the research output artifact instead of re-reading the codebase — the research is already done.
 
-3. **Ensure the plan includes a test-case breakdown** (Step 5b from create-implementation-plan). Each step should be an observable behavior, not a code task:
-   - ✅ `User sees trending markets at the top`
-   - ❌ `Add isTrending field to database`
+3. **Ensure the plan has the two key sections:**
+   - **Technical Design**: Only significant decisions (new fields, API changes, strategy choices). Skip anything obvious.
+   - **Behaviors to Implement**: Observable behaviors as TDD steps — not code tasks:
+     - ✅ `User sees trending markets at the top`
+     - ❌ `Add isTrending field to database`
 
 4. **Write the step list** to the workflow state artifact for the TDD loop to consume.
 
