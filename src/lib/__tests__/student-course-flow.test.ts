@@ -166,7 +166,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
         testId: "test-1",
         questionId: "q-1",
         studentId: "student-1",
-        answer: "My answer to question 1",
+        answer: { type: "free_text", text: "My answer to question 1" },
       });
 
       // Assert
@@ -174,7 +174,10 @@ describe("Feature: Student Course & Test Taking Flow", () => {
       expect(answer.testId).toBe("test-1");
       expect(answer.questionId).toBe("q-1");
       expect(answer.studentId).toBe("student-1");
-      expect(answer.answer).toBe("My answer to question 1");
+      expect(answer.answer).toEqual({
+        type: "free_text",
+        text: "My answer to question 1",
+      });
       expect(answer.submittedAt).toBeInstanceOf(Date);
     });
 
@@ -187,7 +190,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
           testId: "test-1",
           questionId: "q-1",
           studentId: "student-1",
-          answer: "First attempt",
+          answer: { type: "free_text", text: "First attempt" },
         });
 
         // Action — submit again with different answer (edit)
@@ -195,12 +198,15 @@ describe("Feature: Student Course & Test Taking Flow", () => {
           testId: "test-1",
           questionId: "q-1",
           studentId: "student-1",
-          answer: "Revised answer",
+          answer: { type: "free_text", text: "Revised answer" },
         });
 
         // Assert — both records exist, different IDs
         expect(first.id).not.toBe(second.id);
-        expect(second.answer).toBe("Revised answer");
+        expect(second.answer).toEqual({
+          type: "free_text",
+          text: "Revised answer",
+        });
       },
     );
 
@@ -213,7 +219,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
           testId: "test-1",
           questionId: "q-1",
           studentId: "student-1",
-          answer: "Same answer",
+          answer: { type: "free_text", text: "Same answer" },
         });
 
         // Action & Assert — submitting the same answer should throw
@@ -222,7 +228,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
             testId: "test-1",
             questionId: "q-1",
             studentId: "student-1",
-            answer: "Same answer",
+            answer: { type: "free_text", text: "Same answer" },
           }),
         ).rejects.toThrow("Answer is unchanged");
       },
@@ -239,13 +245,13 @@ describe("Feature: Student Course & Test Taking Flow", () => {
           testId: "test-1",
           questionId: "q-1",
           studentId: "student-1",
-          answer: "First",
+          answer: { type: "free_text", text: "First" },
         });
         await answerService.submitAnswer({
           testId: "test-1",
           questionId: "q-1",
           studentId: "student-1",
-          answer: "Second",
+          answer: { type: "free_text", text: "Second" },
         });
 
         // Submit one answer for q-2
@@ -253,7 +259,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
           testId: "test-1",
           questionId: "q-2",
           studentId: "student-1",
-          answer: "Only attempt for q2",
+          answer: { type: "free_text", text: "Only attempt for q2" },
         });
 
         // Action
@@ -266,8 +272,11 @@ describe("Feature: Student Course & Test Taking Flow", () => {
         expect(latest).toHaveLength(2);
         const q1Answer = latest.find((a) => a.questionId === "q-1");
         const q2Answer = latest.find((a) => a.questionId === "q-2");
-        expect(q1Answer?.answer).toBe("Second");
-        expect(q2Answer?.answer).toBe("Only attempt for q2");
+        expect(q1Answer?.answer).toEqual({ type: "free_text", text: "Second" });
+        expect(q2Answer?.answer).toEqual({
+          type: "free_text",
+          text: "Only attempt for q2",
+        });
       },
     );
 
@@ -345,13 +354,13 @@ describe("Feature: Student Course & Test Taking Flow", () => {
           testId: test.id,
           questionId: q1.id,
           studentId: "student-1",
-          answer: "Linear time complexity",
+          answer: { type: "free_text", text: "Linear time complexity" },
         });
         await answerService.submitAnswer({
           testId: test.id,
           questionId: q2.id,
           studentId: "student-1",
-          answer: "Divide and conquer algorithm",
+          answer: { type: "free_text", text: "Divide and conquer algorithm" },
         });
 
         // Verify latest answers
