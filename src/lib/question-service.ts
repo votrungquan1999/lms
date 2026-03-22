@@ -1,45 +1,102 @@
 import type { Collection, Db } from "mongodb";
 
+export type QuestionType = "free_text" | "single_select" | "multi_select";
+export type McGradingStrategy = "all_or_nothing" | "partial";
+
+export interface McOption {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+}
+
+// ── Discriminated union for the client-facing Question type ──────────────────
+
+interface BaseQuestion {
+  id: string;
+  testId: string;
+  title: string;
+  content: string;
+  order: number;
+  createdAt: Date;
+  /** Scoring weight for weighted average (default 1). */
+  weight: number;
+}
+
+export interface FreeTextQuestion extends BaseQuestion {
+  type: "free_text";
+}
+
+export interface SingleSelectQuestion extends BaseQuestion {
+  type: "single_select";
+  options: McOption[];
+  mcGradingStrategy: McGradingStrategy;
+}
+
+export interface MultiSelectQuestion extends BaseQuestion {
+  type: "multi_select";
+  options: McOption[];
+  mcGradingStrategy: McGradingStrategy;
+}
+
+export type Question =
+  | FreeTextQuestion
+  | SingleSelectQuestion
+  | MultiSelectQuestion;
+
+// ── Input types ──────────────────────────────────────────────────────────────
+
+interface BaseAddQuestionInput {
+  title: string;
+  content: string;
+  createdBy: string;
+  weight?: number;
+}
+
+export interface AddFreeTextQuestionInput extends BaseAddQuestionInput {
+  type?: "free_text";
+}
+
+export interface AddSingleSelectQuestionInput extends BaseAddQuestionInput {
+  type: "single_select";
+  options: Omit<McOption, "id">[];
+  mcGradingStrategy?: McGradingStrategy;
+}
+
+export interface AddMultiSelectQuestionInput extends BaseAddQuestionInput {
+  type: "multi_select";
+  options: Omit<McOption, "id">[];
+  mcGradingStrategy: McGradingStrategy;
+}
+
+export type AddQuestionInput =
+  | AddFreeTextQuestionInput
+  | AddSingleSelectQuestionInput
+  | AddMultiSelectQuestionInput;
+
+// ── Document (flat, for MongoDB storage) ────────────────────────────────────
+
 /**
  * Question document stored in the `question` collection.
+ * Stored flat for simplicity; mapped to the discriminated union at read time.
  */
 export interface QuestionDocument {
   id: string;
   testId: string;
   title: string;
-  /** Raw markdown content. */
   content: string;
   order: number;
   createdAt: Date;
   createdBy: string;
   updatedAt: Date | null;
   updatedBy: string | null;
+  type: QuestionType;
+  options: McOption[] | null;
+  weight: number;
+  mcGradingStrategy: McGradingStrategy | null;
 }
 
-/**
- * Client-facing question interface.
- */
-export interface Question {
-  id: string;
-  testId: string;
-  title: string;
-  content: string;
-  order: number;
-  createdAt: Date;
-}
+// ── Service ──────────────────────────────────────────────────────────────────
 
-/**
- * Input for adding a single question.
- */
-export interface AddQuestionInput {
-  title: string;
-  content: string;
-  createdBy: string;
-}
-
-/**
- * QuestionService — manages the `question` collection.
- */
 export class QuestionService {
   private readonly questions: Collection<QuestionDocument>;
 
@@ -49,9 +106,46 @@ export class QuestionService {
 
   async addQuestion(
     testId: string,
+    input: AddSingleSelectQuestionInput,
+  ): Promise<SingleSelectQuestion>;
+  async addQuestion(
+    testId: string,
+    input: AddMultiSelectQuestionInput,
+  ): Promise<MultiSelectQuestion>;
+  async addQuestion(
+    testId: string,
+    input: AddFreeTextQuestionInput,
+  ): Promise<FreeTextQuestion>;
+  async addQuestion(
+    testId: string,
     input: AddQuestionInput,
   ): Promise<Question> {
     const nextOrder = await this.getNextOrder(testId);
+
+    const type: QuestionType = input.type ?? "free_text";
+    const options: McOption[] | null =
+      "options" in input && input.options != null
+        ? input.options.map((o) => ({ ...o, id: crypto.randomUUID() }))
+        : null;
+
+    // Validate MC options
+    if (type === "single_select") {
+      const correctCount = options?.filter((o) => o.isCorrect).length ?? 0;
+      if (correctCount !== 1) {
+        throw new Error(
+          "single_select question must have exactly one correct option",
+        );
+      }
+    }
+
+    if (type === "multi_select") {
+      const correctCount = options?.filter((o) => o.isCorrect).length ?? 0;
+      if (correctCount === 0) {
+        throw new Error(
+          "multi_select question must have at least one correct option",
+        );
+      }
+    }
 
     const doc: QuestionDocument = {
       id: crypto.randomUUID(),
@@ -63,6 +157,11 @@ export class QuestionService {
       createdBy: input.createdBy,
       updatedAt: null,
       updatedBy: null,
+      type,
+      options,
+      weight: input.weight ?? 1,
+      mcGradingStrategy:
+        "mcGradingStrategy" in input ? (input.mcGradingStrategy ?? null) : null,
     };
 
     await this.questions.insertOne(doc);
@@ -91,6 +190,10 @@ export class QuestionService {
       createdBy,
       updatedAt: null,
       updatedBy: null,
+      type: "free_text" as const,
+      options: null,
+      weight: 1,
+      mcGradingStrategy: null,
     }));
 
     await this.questions.insertMany(docs);
@@ -109,8 +212,6 @@ export class QuestionService {
 
   /**
    * Batch-fetches question counts for multiple test IDs in a single aggregate.
-   * Used as the batch function for DataLoader — callers should prefer the
-   * DataLoader rather than calling this directly.
    */
   async countByTestIds(testIds: string[]): Promise<Map<string, number>> {
     if (testIds.length === 0) {
@@ -144,13 +245,36 @@ export class QuestionService {
   }
 
   private toQuestion(doc: QuestionDocument): Question {
-    return {
+    const base: BaseQuestion = {
       id: doc.id,
       testId: doc.testId,
       title: doc.title,
       content: doc.content,
       order: doc.order,
       createdAt: doc.createdAt,
+      weight: doc.weight ?? 1,
     };
+
+    const type: QuestionType = doc.type ?? "free_text";
+
+    if (type === "single_select" && doc.options != null) {
+      return {
+        ...base,
+        type: "single_select",
+        options: doc.options,
+        mcGradingStrategy: doc.mcGradingStrategy ?? "all_or_nothing",
+      } satisfies SingleSelectQuestion;
+    }
+
+    if (type === "multi_select" && doc.options != null) {
+      return {
+        ...base,
+        type: "multi_select",
+        options: doc.options,
+        mcGradingStrategy: doc.mcGradingStrategy ?? "all_or_nothing",
+      } satisfies MultiSelectQuestion;
+    }
+
+    return { ...base, type: "free_text" } satisfies FreeTextQuestion;
   }
 }
