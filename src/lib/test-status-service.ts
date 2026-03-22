@@ -17,19 +17,11 @@ export enum TestStatus {
  * by combining data from AnswerService, TestSubmissionService, and GradeService.
  */
 export class TestStatusService {
-  private readonly answerService: AnswerService;
-  private readonly testSubmissionService: TestSubmissionService;
-  private readonly gradeService: GradeService;
-
   constructor(
-    answerService: AnswerService,
-    testSubmissionService: TestSubmissionService,
-    gradeService: GradeService,
-  ) {
-    this.answerService = answerService;
-    this.testSubmissionService = testSubmissionService;
-    this.gradeService = gradeService;
-  }
+    private readonly answerService: AnswerService,
+    private readonly testSubmissionService: TestSubmissionService,
+    private readonly gradeService: GradeService,
+  ) {}
 
   /**
    * Derives the test status for a student.

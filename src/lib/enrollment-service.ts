@@ -80,15 +80,9 @@ export class EnrollmentService {
     }
 
     // Query 2: bulk insert new enrollments
-    const docs: EnrollmentDocument[] = toEnroll.map((studentId) => ({
-      id: crypto.randomUUID(),
-      courseId,
-      studentId,
-      enrolledAt: new Date(),
-      createdBy,
-      updatedAt: null,
-      updatedBy: null,
-    }));
+    const docs = toEnroll.map((studentId) =>
+      this.makeEnrollmentDoc(courseId, studentId, createdBy),
+    );
 
     await this.enrollments.insertMany(docs);
 
@@ -152,15 +146,9 @@ export class EnrollmentService {
 
     // Enroll new students
     if (toAdd.length > 0) {
-      const docs: EnrollmentDocument[] = toAdd.map((studentId) => ({
-        id: crypto.randomUUID(),
-        courseId,
-        studentId,
-        enrolledAt: new Date(),
-        createdBy: updatedBy,
-        updatedAt: null,
-        updatedBy: null,
-      }));
+      const docs = toAdd.map((studentId) =>
+        this.makeEnrollmentDoc(courseId, studentId, updatedBy),
+      );
       await this.enrollments.insertMany(docs);
     }
 
@@ -171,5 +159,21 @@ export class EnrollmentService {
         studentId: { $in: toRemove },
       });
     }
+  }
+
+  private makeEnrollmentDoc(
+    courseId: string,
+    studentId: string,
+    createdBy: string,
+  ): EnrollmentDocument {
+    return {
+      id: crypto.randomUUID(),
+      courseId,
+      studentId,
+      enrolledAt: new Date(),
+      createdBy,
+      updatedAt: null,
+      updatedBy: null,
+    };
   }
 }

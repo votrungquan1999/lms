@@ -92,49 +92,12 @@ export class GradeService {
 
       const mcQuestion = question as SingleSelectQuestion | MultiSelectQuestion;
       const studentAnswer = answers.find((a) => a.questionId === question.id);
-      if (!studentAnswer) continue;
+      if (!studentAnswer || studentAnswer.answer.type !== "mc") continue;
 
-      let score = 0;
-      if (studentAnswer.answer.type === "mc") {
-        const correctIds = new Set(
-          mcQuestion.options.filter((o) => o.isCorrect).map((o) => o.id),
-        );
-
-        if (mcQuestion.type === "single_select") {
-          const [selectedId] = studentAnswer.answer.selectedIds;
-          score = correctIds.has(selectedId) ? 100 : 0;
-        } else if (mcQuestion.type === "multi_select") {
-          const studentIds = new Set(studentAnswer.answer.selectedIds);
-          if (mcQuestion.mcGradingStrategy === "all_or_nothing") {
-            const isExactMatch =
-              correctIds.size === studentIds.size &&
-              [...correctIds].every((id) => studentIds.has(id));
-            score = isExactMatch ? 100 : 0;
-          } else if (mcQuestion.mcGradingStrategy === "partial") {
-            const totalCorrect = correctIds.size;
-            if (totalCorrect === 0) {
-              score = 0;
-            } else {
-              let correctSelections = 0;
-              let wrongSelections = 0;
-
-              for (const id of studentIds) {
-                if (correctIds.has(id)) {
-                  correctSelections++;
-                } else {
-                  wrongSelections++;
-                }
-              }
-
-              const rawScore =
-                (correctSelections / totalCorrect) * 100 -
-                (wrongSelections / totalCorrect) * 100;
-
-              score = Math.max(0, Math.round(rawScore));
-            }
-          }
-        }
-      }
+      const score = this.calculateMcScore(
+        mcQuestion,
+        studentAnswer.answer.selectedIds,
+      );
 
       const grade = await this.gradeQuestion({
         testId,
@@ -148,6 +111,64 @@ export class GradeService {
     }
 
     return grades;
+  }
+
+  /**
+   * Calculates the score (0-100) for a single MC question.
+   */
+  private calculateMcScore(
+    question: SingleSelectQuestion | MultiSelectQuestion,
+    selectedIds: string[],
+  ): number {
+    const correctIds = new Set(
+      question.options.filter((o) => o.isCorrect).map((o) => o.id),
+    );
+
+    if (question.type === "single_select") {
+      const [selectedId] = selectedIds;
+      return correctIds.has(selectedId) ? 100 : 0;
+    }
+
+    // multi_select
+    const studentIds = new Set(selectedIds);
+    if (question.mcGradingStrategy === "all_or_nothing") {
+      const isExactMatch =
+        correctIds.size === studentIds.size &&
+        [...correctIds].every((id) => studentIds.has(id));
+      return isExactMatch ? 100 : 0;
+    }
+
+    return this.calculatePartialScore(correctIds, studentIds);
+  }
+
+  /**
+   * Calculates the partial score (0-100) for a multi_select question.
+   * Awards points for correct selections and deducts for wrong ones,
+   * floored at 0.
+   */
+  private calculatePartialScore(
+    correctIds: Set<string>,
+    studentIds: Set<string>,
+  ): number {
+    const totalCorrect = correctIds.size;
+    if (totalCorrect === 0) return 0;
+
+    let correctSelections = 0;
+    let wrongSelections = 0;
+
+    for (const id of studentIds) {
+      if (correctIds.has(id)) {
+        correctSelections++;
+      } else {
+        wrongSelections++;
+      }
+    }
+
+    const rawScore =
+      (correctSelections / totalCorrect) * 100 -
+      (wrongSelections / totalCorrect) * 100;
+
+    return Math.max(0, Math.round(rawScore));
   }
 
   /**

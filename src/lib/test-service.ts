@@ -72,35 +72,12 @@ export class TestService {
 
     await this.tests.insertOne(doc);
 
-    return {
-      id: doc.id,
-      courseId: doc.courseId,
-      title: doc.title,
-      description: doc.description,
-      showCorrectAnswerAfterSubmit: doc.showCorrectAnswerAfterSubmit,
-      showGradeAfterSubmit: doc.showGradeAfterSubmit,
-      correctAnswersReleasedAt: doc.correctAnswersReleasedAt,
-      gradesReleasedAt: doc.gradesReleasedAt,
-      createdAt: doc.createdAt,
-    };
+    return this.toTest(doc);
   }
 
   async getTest(testId: string): Promise<Test | null> {
     const doc = await this.tests.findOne({ id: testId });
-    if (!doc) {
-      return null;
-    }
-    return {
-      id: doc.id,
-      courseId: doc.courseId,
-      title: doc.title,
-      description: doc.description,
-      showCorrectAnswerAfterSubmit: doc.showCorrectAnswerAfterSubmit,
-      showGradeAfterSubmit: doc.showGradeAfterSubmit,
-      correctAnswersReleasedAt: doc.correctAnswersReleasedAt,
-      gradesReleasedAt: doc.gradesReleasedAt,
-      createdAt: doc.createdAt,
-    };
+    return doc ? this.toTest(doc) : null;
   }
 
   async listTests(courseId: string): Promise<Test[]> {
@@ -109,7 +86,11 @@ export class TestService {
       .sort({ createdAt: -1 })
       .toArray();
 
-    return docs.map((doc) => ({
+    return docs.map((doc) => this.toTest(doc));
+  }
+
+  private toTest(doc: TestDocument): Test {
+    return {
       id: doc.id,
       courseId: doc.courseId,
       title: doc.title,
@@ -119,7 +100,7 @@ export class TestService {
       correctAnswersReleasedAt: doc.correctAnswersReleasedAt,
       gradesReleasedAt: doc.gradesReleasedAt,
       createdAt: doc.createdAt,
-    }));
+    };
   }
 
   async releaseGrades(testId: string, updatedBy: string): Promise<void> {

@@ -128,24 +128,7 @@ export class QuestionService {
         ? input.options.map((o) => ({ ...o, id: crypto.randomUUID() }))
         : null;
 
-    // Validate MC options
-    if (type === "single_select") {
-      const correctCount = options?.filter((o) => o.isCorrect).length ?? 0;
-      if (correctCount !== 1) {
-        throw new Error(
-          "single_select question must have exactly one correct option",
-        );
-      }
-    }
-
-    if (type === "multi_select") {
-      const correctCount = options?.filter((o) => o.isCorrect).length ?? 0;
-      if (correctCount === 0) {
-        throw new Error(
-          "multi_select question must have at least one correct option",
-        );
-      }
-    }
+    this.validateMcOptions(type, options);
 
     const doc: QuestionDocument = {
       id: crypto.randomUUID(),
@@ -167,6 +150,35 @@ export class QuestionService {
     await this.questions.insertOne(doc);
 
     return this.toQuestion(doc);
+  }
+
+  /**
+   * Validates that MC options satisfy the rule for their question type.
+   * - single_select: exactly one correct option
+   * - multi_select: at least one correct option
+   * No-op for free_text questions.
+   */
+  private validateMcOptions(
+    type: QuestionType,
+    options: McOption[] | null,
+  ): void {
+    if (type === "single_select") {
+      const correctCount = options?.filter((o) => o.isCorrect).length ?? 0;
+      if (correctCount !== 1) {
+        throw new Error(
+          "single_select question must have exactly one correct option",
+        );
+      }
+    }
+
+    if (type === "multi_select") {
+      const correctCount = options?.filter((o) => o.isCorrect).length ?? 0;
+      if (correctCount === 0) {
+        throw new Error(
+          "multi_select question must have at least one correct option",
+        );
+      }
+    }
   }
 
   async importQuestions(
