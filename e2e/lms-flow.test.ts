@@ -1,6 +1,6 @@
-import { test, expect } from "@playwright/test";
-import path from "node:path";
 import fs from "node:fs";
+import path from "node:path";
+import { expect, test } from "@playwright/test";
 
 const STUDENT_NAME = "Test Student";
 const STUDENT_USERNAME = "e2e-student";
@@ -209,7 +209,7 @@ test.describe("LMS E2E Flow", () => {
 
   // ─── Step 11: Admin adds questions to a test ──────────────────────────────
 
-  test("admin can add a question to a test", async ({ page }) => {
+  test("admin can add a free text question to a test", async ({ page }) => {
     // Given the admin is on the course detail and clicks into the test
     await page.goto("/admin/courses");
     await page.getByText("E2E Test Course").click();
@@ -238,7 +238,103 @@ test.describe("LMS E2E Flow", () => {
     await expect(page.getByText("Q1: Hello World")).toBeVisible();
   });
 
-  // ─── Step 12: Student takes test (answer + submit) ────────────────────────
+  // ─── Step 11a: Admin also adds a MC (single-select) question ────────────────
+
+  test("admin can create a single-select MC question via sidebar UI", async ({
+    page,
+  }) => {
+    // Given the admin is on the test detail page (E2E Midterm)
+    await page.goto("/admin/courses");
+    await page.getByText("E2E Test Course").click();
+    await page.getByText("E2E Midterm").click();
+    await expect(
+      page.getByRole("heading", { name: "E2E Midterm" }),
+    ).toBeVisible();
+
+    // When the admin selects "Single Select" in the question type sidebar
+    await page.getByRole("button", { name: "Single Select" }).click();
+
+    // Then the options builder panel appears on the right
+    await expect(page.getByText("Options")).toBeVisible();
+
+    // Fill in the question title and content
+    await page.getByLabel("Question Title").fill("Q2: MC Capital of France");
+    await page
+      .getByLabel("Content (Markdown)")
+      .fill("What is the capital of France?");
+
+    // Fill options (two default options should exist)
+    const optionInputs = page.getByPlaceholder(/Option \d/);
+    await optionInputs.nth(0).fill("Berlin");
+    await optionInputs.nth(1).fill("Paris");
+
+    // Mark "Paris" (option 2) as correct via its radio button
+    await page.getByRole("radio").nth(1).check();
+
+    // Submit the question
+    await page.getByRole("button", { name: "Add Question" }).click();
+
+    // Then a success message appears
+    await expect(page.getByText("added successfully")).toBeVisible({
+      timeout: 10000,
+    });
+
+    // And after reload both questions appear in the list
+    await page.reload();
+    await expect(page.getByText("Q2: MC Capital of France")).toBeVisible();
+  });
+
+  // ─── Step 11b: Admin adds a multi-select MC question ──────────────────────
+
+  test("admin can create a multi-select MC question via sidebar UI", async ({
+    page,
+  }) => {
+    // Given the admin is on the test detail page (E2E Midterm)
+    await page.goto("/admin/courses");
+    await page.getByText("E2E Test Course").click();
+    await page.getByText("E2E Midterm").click();
+    await expect(
+      page.getByRole("heading", { name: "E2E Midterm" }),
+    ).toBeVisible();
+
+    // When the admin selects "Multi Select" in the question type sidebar
+    await page.getByRole("button", { name: "Multi Select" }).click();
+
+    // Then the options builder panel appears (label is specific to multi-select)
+    await expect(page.getByText("Options (pick all correct)")).toBeVisible();
+
+    // Fill in the question title and content
+    await page.getByLabel("Question Title").fill("Q3: MC Planets");
+    await page
+      .getByLabel("Content (Markdown)")
+      .fill("Which of the following are planets in our solar system? Select all that apply.");
+
+    // Add a third option (two default ones exist)
+    await page.getByRole("button", { name: "Add Option" }).click();
+
+    const optionInputs = page.getByPlaceholder(/Option \d/);
+    await optionInputs.nth(0).fill("Earth");
+    await optionInputs.nth(1).fill("Mars");
+    await optionInputs.nth(2).fill("Sun");
+
+    // Mark Earth and Mars as correct via their checkboxes
+    await page.getByRole("checkbox").nth(0).check();
+    await page.getByRole("checkbox").nth(1).check();
+
+    // Submit the question
+    await page.getByRole("button", { name: "Add Question" }).click();
+
+    // Then a success message appears
+    await expect(page.getByText("added successfully")).toBeVisible({
+      timeout: 10000,
+    });
+
+    // And after reload all three questions appear in the list
+    await page.reload();
+    await expect(page.getByText("Q3: MC Planets")).toBeVisible();
+  });
+
+  // ─── Step 12: Student takes test (answer Q1 free-text + Q2 MC + submit) ───
 
   test("student can answer questions and submit test", async ({ browser }) => {
     // Given the student navigates: dashboard → course → test
@@ -258,25 +354,35 @@ test.describe("LMS E2E Flow", () => {
       page.getByRole("heading", { name: "E2E Midterm" }),
     ).toBeVisible();
 
-    // When the student fills in the answer
-    await page
-      .getByPlaceholder("Type your answer here...")
-      .fill("console.log('hello world')");
-    await page.getByRole("button", { name: "Submit Answer" }).click();
+    // ── Answer Q1 (free-text) ───────────────────────────────────────
+    // Card component renders as div[data-slot="card"]
+    const q1Card = page.locator("div[data-slot='card']").filter({ hasText: "Q1: Hello World" });
+    await q1Card.getByPlaceholder("Type your answer here...").fill("console.log('hello world')");
+    await q1Card.getByRole("button", { name: "Submit Answer" }).click();
+    await expect(q1Card.getByRole("button", { name: "Edit Answer" })).toBeVisible({ timeout: 10000 });
 
-    // Wait for answer to be saved (form switches to read-only with Edit Answer button)
-    await expect(page.getByRole("button", { name: "Edit Answer" })).toBeVisible(
-      { timeout: 10000 },
-    );
+    // ── Answer Q2 (MC single-select) ─────────────────────────────────────
+    const q2Card = page.locator("div[data-slot='card']").filter({ hasText: "Q2: MC Capital of France" });
+    await q2Card.getByLabel("Paris").check();
+    await q2Card.getByRole("button", { name: "Submit Answer" }).click();
+    await expect(q2Card.getByRole("button", { name: "Edit Answer" })).toBeVisible({ timeout: 10000 });
 
-    // Then submit the test for grading
+    // ── Answer Q3 (MC multi-select) ───────────────────────────────────────
+    const q3Card = page.locator("div[data-slot='card']").filter({ hasText: "Q3: MC Planets" });
+    await q3Card.getByLabel("Earth").check();
+    await q3Card.getByLabel("Mars").check();
+    await q3Card.getByRole("button", { name: "Submit Answer" }).click();
+    await expect(q3Card.getByRole("button", { name: "Edit Answer" })).toBeVisible({ timeout: 10000 });
+
+    // ── Submit the entire test for grading ────────────────────────────────
     await page.getByRole("button", { name: "Submit Test for Grading" }).click();
     await expect(
       page.getByRole("heading", { name: "Submit test for grading?" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Confirm Submission" }).click();
 
-    // Then see the "waiting to be graded" message
+    // Then see the "waiting to be graded" message — Q2 & Q3 are MC (auto-graded) but
+    // Q1 (free-text) still needs manual grading → atomic reveal: no scores shown yet
     await expect(
       page.getByText("submitted and is waiting to be graded"),
     ).toBeVisible({ timeout: 10000 });
@@ -300,29 +406,37 @@ test.describe("LMS E2E Flow", () => {
       page.getByRole("heading", { name: "Grade: E2E Midterm" }),
     ).toBeVisible();
 
-    // The student's answer should be visible
+    // The student's free-text answer for Q1 should be visible
     await expect(page.getByText("console.log('hello world')")).toBeVisible();
 
-    // When the admin fills in the grade
-    await page.getByLabel("Score (0–100):").fill("85");
-    await page
+    // Scope all interactions to the Q1 form to avoid ambiguity with the Q2 (MC) form
+    const q1Form = page.locator("div.rounded-lg.border").filter({
+      hasText: "Q1: Hello World",
+    });
+
+    // When the admin fills in the grade for Q1
+    await q1Form.getByLabel("Score (0–100):").fill("85");
+    await q1Form
       .getByPlaceholder("Feedback for this question")
       .fill("Good job, but use return instead of console.log");
-    await page
+    await q1Form
       .getByPlaceholder("Enter the correct solution")
       .fill("function hello() { return 'hello world'; }");
-    await page.getByRole("button", { name: "Save Grade" }).click();
+    await q1Form.getByRole("button", { name: "Save Grade" }).click();
 
     // Then a success message appears
-    await expect(page.getByText("Grade saved")).toBeVisible({
+    await expect(q1Form.getByText("Grade saved")).toBeVisible({
       timeout: 10000,
     });
   });
 
-  // ─── Step 14: Student sees grade and feedback ─────────────────────────────
+  // ─── Step 17: Atomic reveal — score visible after admin grades Q1 ─────────
 
-  test("student can see their grade and feedback", async ({ browser }) => {
-    // Given the student navigates to the test page
+  test("student sees weighted score visible after admin grades free-text question", async ({
+    browser,
+  }) => {
+    // Now both Q1 (graded by admin in step 13) and Q2 (MC, auto-graded) have grades.
+    // With showGradeAfterSubmit=true, all grades present → atomic reveal unlocks.
     const context = await browser.newContext({
       storageState: path.join(authDir, "student.json"),
     });
@@ -334,13 +448,10 @@ test.describe("LMS E2E Flow", () => {
       page.getByRole("heading", { name: "E2E Midterm" }),
     ).toBeVisible();
 
-    // Then the grade score is visible
-    await expect(page.getByText("85/100")).toBeVisible();
-
-    // And the teacher feedback is visible
-    await expect(
-      page.getByText("Good job, but use return instead of console.log"),
-    ).toBeVisible();
+    // All questions graded → weighted average: Q1=85, Q2=100, Q3=100 → Math.round(285/3)=95 → displayed as toFixed(1)
+    await expect(page.getByText("Average Score: 95.0 / 100")).toBeVisible({
+      timeout: 10000,
+    });
 
     await context.close();
   });
