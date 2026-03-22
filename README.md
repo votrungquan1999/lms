@@ -9,12 +9,13 @@ A web-based Learning Management System that enables students to login, take test
 - **Admin Login** — Admin signs in via Google OAuth (whitelisted emails only)
 - **Student Account Creation** — Admin creates student accounts with username and password
 - **Course Management** — Create courses, enroll students, manage tests
-- **Test Question Management** — Add questions with markdown content, import from JSON
+- **Test Question Management** — Add questions with markdown content; supports free-text, single-select MC, and multi-select MC types
+- **Multiple Choice Questions** — Sidebar type-picker UI for admins; radio buttons / checkboxes for students; auto-graded on submission
 - **Student Course Browsing** — Students view enrolled courses, navigate to tests
-- **Test Taking** — Students view questions and submit free-text answers per question (append-only history)
-- **Test Grading** — Teacher grades each question (0–100 score, feedback, optional per-student solution); auto-averaged test total
+- **Test Taking** — Students answer free-text questions (append-only history) and MC questions (radio/checkbox); submit for grading
+- **Test Grading** — Teacher grades free-text questions (0–100, feedback, optional solution); MC answers are auto-graded; scores averaged
 - **Test Status** — Derived status per student: not started, in progress, submitted, graded
-
+- **Atomic Grade Reveal** — Grades and correct answers are only surfaced once *all* questions have a grade; controlled by `showGradeAfterSubmit` and `showCorrectAnswerAfterSubmit` flags
 - **Diff-Based Answer Comparison** — GitHub-style side-by-side diff of student answers vs provided solutions (`react-diff-viewer-continued`)
 
 ### Planned
