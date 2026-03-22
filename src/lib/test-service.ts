@@ -8,6 +8,10 @@ export interface TestDocument {
   courseId: string;
   title: string;
   description: string;
+  showCorrectAnswerAfterSubmit: boolean;
+  showGradeAfterSubmit: boolean;
+  correctAnswersReleasedAt: Date | null;
+  gradesReleasedAt: Date | null;
   createdAt: Date;
   createdBy: string;
   updatedAt: Date | null;
@@ -22,6 +26,10 @@ export interface Test {
   courseId: string;
   title: string;
   description: string;
+  showCorrectAnswerAfterSubmit: boolean;
+  showGradeAfterSubmit: boolean;
+  correctAnswersReleasedAt: Date | null;
+  gradesReleasedAt: Date | null;
   createdAt: Date;
 }
 
@@ -32,6 +40,8 @@ export interface CreateTestInput {
   title: string;
   description: string;
   createdBy: string;
+  showCorrectAnswerAfterSubmit?: boolean;
+  showGradeAfterSubmit?: boolean;
 }
 
 /**
@@ -50,6 +60,10 @@ export class TestService {
       courseId,
       title: input.title,
       description: input.description,
+      showCorrectAnswerAfterSubmit: input.showCorrectAnswerAfterSubmit ?? true,
+      showGradeAfterSubmit: input.showGradeAfterSubmit ?? true,
+      correctAnswersReleasedAt: null,
+      gradesReleasedAt: null,
       createdAt: new Date(),
       createdBy: input.createdBy,
       updatedAt: null,
@@ -63,6 +77,10 @@ export class TestService {
       courseId: doc.courseId,
       title: doc.title,
       description: doc.description,
+      showCorrectAnswerAfterSubmit: doc.showCorrectAnswerAfterSubmit,
+      showGradeAfterSubmit: doc.showGradeAfterSubmit,
+      correctAnswersReleasedAt: doc.correctAnswersReleasedAt,
+      gradesReleasedAt: doc.gradesReleasedAt,
       createdAt: doc.createdAt,
     };
   }
@@ -77,6 +95,10 @@ export class TestService {
       courseId: doc.courseId,
       title: doc.title,
       description: doc.description,
+      showCorrectAnswerAfterSubmit: doc.showCorrectAnswerAfterSubmit,
+      showGradeAfterSubmit: doc.showGradeAfterSubmit,
+      correctAnswersReleasedAt: doc.correctAnswersReleasedAt,
+      gradesReleasedAt: doc.gradesReleasedAt,
       createdAt: doc.createdAt,
     };
   }
@@ -92,7 +114,40 @@ export class TestService {
       courseId: doc.courseId,
       title: doc.title,
       description: doc.description,
+      showCorrectAnswerAfterSubmit: doc.showCorrectAnswerAfterSubmit,
+      showGradeAfterSubmit: doc.showGradeAfterSubmit,
+      correctAnswersReleasedAt: doc.correctAnswersReleasedAt,
+      gradesReleasedAt: doc.gradesReleasedAt,
       createdAt: doc.createdAt,
     }));
+  }
+
+  async releaseGrades(testId: string, updatedBy: string): Promise<void> {
+    await this.tests.updateOne(
+      { id: testId },
+      {
+        $set: {
+          gradesReleasedAt: new Date(),
+          updatedBy,
+          updatedAt: new Date(),
+        },
+      },
+    );
+  }
+
+  async releaseCorrectAnswers(
+    testId: string,
+    updatedBy: string,
+  ): Promise<void> {
+    await this.tests.updateOne(
+      { id: testId },
+      {
+        $set: {
+          correctAnswersReleasedAt: new Date(),
+          updatedBy,
+          updatedAt: new Date(),
+        },
+      },
+    );
   }
 }
