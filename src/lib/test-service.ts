@@ -16,6 +16,8 @@ export interface TestDocument {
   createdBy: string;
   updatedAt: Date | null;
   updatedBy: string | null;
+  deletedAt: Date | null;
+  deletedBy: string | null;
 }
 
 /**
@@ -68,6 +70,8 @@ export class TestService {
       createdBy: input.createdBy,
       updatedAt: null,
       updatedBy: null,
+      deletedAt: null,
+      deletedBy: null,
     };
 
     await this.tests.insertOne(doc);
@@ -76,13 +80,13 @@ export class TestService {
   }
 
   async getTest(testId: string): Promise<Test | null> {
-    const doc = await this.tests.findOne({ id: testId });
+    const doc = await this.tests.findOne({ id: testId, deletedAt: null });
     return doc ? this.toTest(doc) : null;
   }
 
   async listTests(courseId: string): Promise<Test[]> {
     const docs = await this.tests
-      .find({ courseId })
+      .find({ courseId, deletedAt: null })
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -127,6 +131,20 @@ export class TestService {
           correctAnswersReleasedAt: new Date(),
           updatedBy,
           updatedAt: new Date(),
+        },
+      },
+    );
+  }
+
+  async deleteTest(testId: string, deletedBy: string): Promise<void> {
+    await this.tests.updateOne(
+      { id: testId },
+      {
+        $set: {
+          deletedAt: new Date(),
+          deletedBy,
+          updatedAt: new Date(),
+          updatedBy: deletedBy,
         },
       },
     );

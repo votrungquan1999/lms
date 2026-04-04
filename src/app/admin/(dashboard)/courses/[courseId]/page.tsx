@@ -13,6 +13,7 @@ import {
 import { TestStatus } from "src/lib/test-status-service";
 import { CreateTestDialog } from "./create-test-form";
 import { ManageEnrollmentsDialog } from "./enroll-student-form";
+import { DeleteTestButton } from "./tests/[testId]/delete-test-button";
 
 export const metadata = {
   title: "Course Detail — LMS Admin",
@@ -137,44 +138,64 @@ export default async function CourseDetailPage({
           <div className="space-y-3">
             <h2 className="text-xl font-semibold">Tests</h2>
             {testsWithSummary.map((test) => (
-              <Link
+              <Card
                 key={test.id}
-                href={`/admin/courses/${courseId}/tests/${test.id}`}
-                className="block"
+                className="transition-colors hover:bg-accent/50 group"
               >
-                <Card className="transition-colors hover:bg-accent/50">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{test.title}</CardTitle>
-                      {test.totalStudents > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          {test.statusCounts[TestStatus.Graded]}/
-                          {test.totalStudents} graded
-                        </span>
-                      )}
-                    </div>
-                    {test.description && (
-                      <p className="text-sm text-muted-foreground">
-                        {test.description}
-                      </p>
-                    )}
-                    {test.totalStudents > 0 && (
-                      <div className="flex gap-2 mt-1">
-                        {Object.entries(test.statusCounts)
-                          .filter(([, count]) => count > 0)
-                          .map(([status, count]) => (
-                            <span
-                              key={status}
-                              className="text-xs text-muted-foreground"
-                            >
-                              {count} {statusLabels[status as TestStatus]}
-                            </span>
-                          ))}
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1 flex-1 block">
+                      <div className="flex items-center justify-between pointer-events-none">
+                        <Link
+                          href={`/admin/courses/${courseId}/tests/${test.id}`}
+                          className="hover:underline pointer-events-auto"
+                        >
+                          <CardTitle className="text-lg">
+                            {test.title}
+                          </CardTitle>
+                        </Link>
+                        {test.totalStudents > 0 && (
+                          <span className="text-xs text-muted-foreground mr-4 pointer-events-auto">
+                            {test.statusCounts[TestStatus.Graded]}/
+                            {test.totalStudents} graded
+                          </span>
+                        )}
                       </div>
-                    )}
-                  </CardHeader>
-                </Card>
-              </Link>
+                      <Link
+                        href={`/admin/courses/${courseId}/tests/${test.id}`}
+                        className="block pointer-events-auto"
+                      >
+                        {test.description && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {test.description}
+                          </p>
+                        )}
+                        {test.totalStudents > 0 && (
+                          <div className="flex gap-2 mt-2">
+                            {Object.entries(test.statusCounts)
+                              .filter(([, count]) => count > 0)
+                              .map(([status, count]) => (
+                                <span
+                                  key={status}
+                                  className="text-xs text-muted-foreground"
+                                >
+                                  {count} {statusLabels[status as TestStatus]}
+                                </span>
+                              ))}
+                          </div>
+                        )}
+                      </Link>
+                    </div>
+                    <div className="pl-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <DeleteTestButton
+                        courseId={courseId}
+                        testId={test.id}
+                        iconOnly
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
             ))}
           </div>
         )}

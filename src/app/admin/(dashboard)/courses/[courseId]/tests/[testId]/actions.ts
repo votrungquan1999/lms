@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
-import { getQuestionService } from "src/lib/services-singleton";
+import { getQuestionService, getTestService } from "src/lib/services-singleton";
 import { z } from "zod";
 
 const optionSchema = z.object({
@@ -34,7 +34,9 @@ const addQuestionSchema = z.discriminatedUnion("type", [
     title: z.string().trim().min(1, "Question title is required"),
     content: z.string().min(1, "Question content is required"),
     options: z.array(optionSchema).min(2, "At least 2 options are required"),
-    mcGradingStrategy: z.enum(["all_or_nothing", "partial"]).default("all_or_nothing"),
+    mcGradingStrategy: z
+      .enum(["all_or_nothing", "partial"])
+      .default("all_or_nothing"),
   }),
 ]);
 
@@ -131,9 +133,7 @@ export async function addQuestionAction(
       });
     }
 
-    revalidatePath(
-      `/admin/courses/${data.courseId}/tests/${data.testId}`,
-    );
+    revalidatePath(`/admin/courses/${data.courseId}/tests/${data.testId}`);
 
     return {
       success: true,
@@ -211,6 +211,54 @@ export async function importQuestionsAction(
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =
       error instanceof Error ? error.message : "Failed to import questions";
+    return { success: false, message };
+  }
+}
+
+export interface DeleteTestState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: soft deletes a test from a course.
+ */
+export async function deleteTestAction(
+  _prevState: DeleteTestState | null,
+  formData: FormData,
+): Promise<DeleteTestState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  const testId = formData.get("testId")?.toString() ?? "";
+  const courseId = formData.get("courseId")?.toString() ?? "";
+
+  if (!testId || !courseId) {
+    return { success: false, message: "Test ID or Course ID is missing" };
+  }
+
+  try {
+    const testService = await getTestService();
+    await testService.deleteTest(testId, adminUserId);
+
+    revalidatePath(`/admin/courses/${courseId}`);
+
+    return {
+      success: true,
+      message: "Test deleted successfully",
+    };
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to delete test";
     return { success: false, message };
   }
 }

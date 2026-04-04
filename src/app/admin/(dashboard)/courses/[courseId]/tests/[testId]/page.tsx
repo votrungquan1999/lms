@@ -5,6 +5,7 @@ import { getQuestionService, getTestService } from "src/lib/services-singleton";
 import { AddQuestionForm } from "./add-question-form";
 import { ImportQuestionsForm } from "./import-questions-form";
 import { QuestionList } from "./question-list";
+import { DeleteTestButton } from "./delete-test-button";
 
 export const metadata = {
   title: "Test Questions — LMS Admin",
@@ -29,13 +30,16 @@ export default async function TestDetailPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
-      <header className="w-full max-w-2xl">
-        <h1 className="text-3xl font-bold tracking-tight">{test.title}</h1>
-        {test.description && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {test.description}
-          </p>
-        )}
+      <header className="flex w-full max-w-2xl items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{test.title}</h1>
+          {test.description && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {test.description}
+            </p>
+          )}
+        </div>
+        <DeleteTestButton testId={testId} courseId={courseId} />
       </header>
 
       <section className="w-full max-w-2xl space-y-6">
