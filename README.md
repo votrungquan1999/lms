@@ -17,6 +17,7 @@ A web-based Learning Management System that enables students to login, take test
 - **Test Status** — Derived status per student: not started, in progress, submitted, graded
 - **Atomic Grade Reveal** — Grades and correct answers are only surfaced once *all* questions have a grade; controlled by `showGradeAfterSubmit` and `showCorrectAnswerAfterSubmit` flags
 - **Diff-Based Answer Comparison** — GitHub-style side-by-side diff of student answers vs provided solutions (`react-diff-viewer-continued`)
+- **Programmatic Test Creation** — Fast, typesafe test creation via standalone Bun script (`scripts/create-test.ts`) bypassing the UI
 
 ### Planned
 
@@ -57,6 +58,15 @@ pnpm format
 
 Open [http://localhost:3000](http://localhost:3000) to view the app.
 
+## Scripts
+
+Standalone CLI tools are located in the `scripts/` directory.
+
+```bash
+# Create a test programmatically from a typescript data file
+bun scripts/create-test.ts scripts/data/my-test.ts
+```
+
 ## Project Structure
 
 ```
@@ -69,6 +79,7 @@ src/
   components/ui/  # shadcn UI components
 documents/
   features/       # Feature specifications and acceptance criteria
+scripts/          # Standalone infrastructure and automation scripts
 .agent/           # AI agent configurations (workflows, skills, rules)
 ```
 

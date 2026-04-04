@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 
 interface MarkdownContentProps {
   content: string;
@@ -12,7 +13,8 @@ interface MarkdownContentProps {
 
 /**
  * Renders markdown content with proper Vietnamese diacritics and formatting.
- * Uses react-markdown with GFM (GitHub Flavored Markdown) support.
+ * Uses react-markdown with GFM (GitHub Flavored Markdown) and remark-breaks
+ * (to naturally respect single-newline breaks).
  */
 export function MarkdownContent({
   content,
@@ -23,7 +25,9 @@ export function MarkdownContent({
 
   return (
     <div className={`prose prose-neutral ${sizeClass} max-w-none ${className}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }
