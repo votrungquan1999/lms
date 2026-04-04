@@ -82,7 +82,11 @@ describe("Feature: Admin Course Management Flow", () => {
         createdBy: "admin-1",
       });
 
-      await enrollmentService.enrollStudent(course.id, "student-123", "admin-1");
+      await enrollmentService.enrollStudent(
+        course.id,
+        "student-123",
+        "admin-1",
+      );
     });
 
     dbIt("should throw when enrolling a duplicate student", async ({ db }) => {
@@ -93,7 +97,11 @@ describe("Feature: Admin Course Management Flow", () => {
         description: "",
         createdBy: "admin-1",
       });
-      await enrollmentService.enrollStudent(course.id, "student-123", "admin-1");
+      await enrollmentService.enrollStudent(
+        course.id,
+        "student-123",
+        "admin-1",
+      );
 
       await expect(
         enrollmentService.enrollStudent(course.id, "student-123", "admin-1"),

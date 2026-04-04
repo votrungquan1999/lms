@@ -66,9 +66,7 @@ export default async function StudentTestDetailPage({
     session.studentId,
   );
   // Map questionId → StudentAnswer object
-  const answerMap = new Map(
-    latestAnswers.map((a) => [a.questionId, a.answer]),
-  );
+  const answerMap = new Map(latestAnswers.map((a) => [a.questionId, a.answer]));
 
   const testSubmissionService = await getTestSubmissionService();
   const isSubmitted = await testSubmissionService.isTestSubmitted(

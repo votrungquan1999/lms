@@ -14,9 +14,18 @@ function makeServices(db: Db) {
   const questionService = new QuestionService(db);
   const answerService = new AnswerService(db, questionService);
   const testService = new TestService(db);
-  const gradeService = new GradeService(db, questionService, answerService, testService);
+  const gradeService = new GradeService(
+    db,
+    questionService,
+    answerService,
+    testService,
+  );
   const testSubmissionService = new TestSubmissionService(db, gradeService);
-  const testStatusService = new TestStatusService(answerService, testSubmissionService, gradeService);
+  const testStatusService = new TestStatusService(
+    answerService,
+    testSubmissionService,
+    gradeService,
+  );
   return { answerService, gradeService, testStatusService };
 }
 
@@ -87,7 +96,8 @@ describe("TestStatusService", () => {
     "should return 'submitted' when partially graded (Atomic Reveal)",
     async ({ db }) => {
       // This covers: Mixed test - MC auto-graded but student sees nothing until free-text graded -> full reveal
-      const { answerService, gradeService, testStatusService } = makeServices(db);
+      const { answerService, gradeService, testStatusService } =
+        makeServices(db);
 
       // Answer both questions (free-text only; status tests don't require real MC questions)
       await answerService.submitAnswer({

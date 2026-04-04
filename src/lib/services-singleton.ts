@@ -67,7 +67,12 @@ export async function getGradeService(): Promise<GradeService> {
     const questionService = await getQuestionService();
     const answerService = await getAnswerService();
     const testService = await getTestService();
-    gradeService = new GradeService(db, questionService, answerService, testService);
+    gradeService = new GradeService(
+      db,
+      questionService,
+      answerService,
+      testService,
+    );
   }
   return gradeService;
 }

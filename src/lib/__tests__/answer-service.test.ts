@@ -49,67 +49,70 @@ describe("AnswerService - Integration Tests", () => {
         answer: { type: "free_text", text: "My answer" },
       });
 
-      const answers = await answerService.getLatestAnswers("test-1", "student-1");
+      const answers = await answerService.getLatestAnswers(
+        "test-1",
+        "student-1",
+      );
       const mcAnswer = answers.find((a) => a.questionId === mcQuestion.id);
       const ftAnswer = answers.find((a) => a.questionId === ftQuestion.id);
 
-      expect(mcAnswer?.answer).toEqual({ type: "mc", selectedIds: [opt1, opt2] });
-      expect(ftAnswer?.answer).toEqual({ type: "free_text", text: "My answer" });
-    },
-  );
-
-  dbIt(
-    "should create a new answer record for a question",
-    async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-
-      const answer = await answerService.submitAnswer({
-        testId: "test-1",
-        questionId: "q-1",
-        studentId: "student-1",
-        answer: { type: "free_text", text: "My answer to question 1" },
+      expect(mcAnswer?.answer).toEqual({
+        type: "mc",
+        selectedIds: [opt1, opt2],
       });
-
-      expect(answer.id).toBeDefined();
-      expect(answer.testId).toBe("test-1");
-      expect(answer.questionId).toBe("q-1");
-      expect(answer.studentId).toBe("student-1");
-      expect(answer.answer).toEqual({
+      expect(ftAnswer?.answer).toEqual({
         type: "free_text",
-        text: "My answer to question 1",
-      });
-      expect(answer.submittedAt).toBeInstanceOf(Date);
-    },
-  );
-
-  dbIt(
-    "should preserve answer history (append-only model)",
-    async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-
-      const first = await answerService.submitAnswer({
-        testId: "test-1",
-        questionId: "q-1",
-        studentId: "student-1",
-        answer: { type: "free_text", text: "First attempt" },
-      });
-
-      const second = await answerService.submitAnswer({
-        testId: "test-1",
-        questionId: "q-1",
-        studentId: "student-1",
-        answer: { type: "free_text", text: "Revised answer" },
-      });
-
-      expect(first.id).not.toBe(second.id);
-      expect(second.answer).toEqual({
-        type: "free_text",
-        text: "Revised answer",
+        text: "My answer",
       });
     },
   );
+
+  dbIt("should create a new answer record for a question", async ({ db }) => {
+    const questionService = new QuestionService(db);
+    const answerService = new AnswerService(db, questionService);
+
+    const answer = await answerService.submitAnswer({
+      testId: "test-1",
+      questionId: "q-1",
+      studentId: "student-1",
+      answer: { type: "free_text", text: "My answer to question 1" },
+    });
+
+    expect(answer.id).toBeDefined();
+    expect(answer.testId).toBe("test-1");
+    expect(answer.questionId).toBe("q-1");
+    expect(answer.studentId).toBe("student-1");
+    expect(answer.answer).toEqual({
+      type: "free_text",
+      text: "My answer to question 1",
+    });
+    expect(answer.submittedAt).toBeInstanceOf(Date);
+  });
+
+  dbIt("should preserve answer history (append-only model)", async ({ db }) => {
+    const questionService = new QuestionService(db);
+    const answerService = new AnswerService(db, questionService);
+
+    const first = await answerService.submitAnswer({
+      testId: "test-1",
+      questionId: "q-1",
+      studentId: "student-1",
+      answer: { type: "free_text", text: "First attempt" },
+    });
+
+    const second = await answerService.submitAnswer({
+      testId: "test-1",
+      questionId: "q-1",
+      studentId: "student-1",
+      answer: { type: "free_text", text: "Revised answer" },
+    });
+
+    expect(first.id).not.toBe(second.id);
+    expect(second.answer).toEqual({
+      type: "free_text",
+      text: "Revised answer",
+    });
+  });
 
   dbIt(
     "should reject a duplicate submission when answer is identical to the latest",
@@ -160,26 +163,29 @@ describe("AnswerService - Integration Tests", () => {
         answer: { type: "free_text", text: "Only attempt for q2" },
       });
 
-      const latest = await answerService.getLatestAnswers("test-1", "student-1");
+      const latest = await answerService.getLatestAnswers(
+        "test-1",
+        "student-1",
+      );
 
       expect(latest).toHaveLength(2);
       const q1Answer = latest.find((a) => a.questionId === "q-1");
       const q2Answer = latest.find((a) => a.questionId === "q-2");
       expect(q1Answer?.answer).toEqual({ type: "free_text", text: "Second" });
-      expect(q2Answer?.answer).toEqual({ type: "free_text", text: "Only attempt for q2" });
+      expect(q2Answer?.answer).toEqual({
+        type: "free_text",
+        text: "Only attempt for q2",
+      });
     },
   );
 
-  dbIt(
-    "should return empty array when no answers exist",
-    async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
+  dbIt("should return empty array when no answers exist", async ({ db }) => {
+    const questionService = new QuestionService(db);
+    const answerService = new AnswerService(db, questionService);
 
-      const latest = await answerService.getLatestAnswers("test-1", "student-1");
-      expect(latest).toHaveLength(0);
-    },
-  );
+    const latest = await answerService.getLatestAnswers("test-1", "student-1");
+    expect(latest).toHaveLength(0);
+  });
 });
 
 // ── MC answer validation ─────────────────────────────────────────────────────

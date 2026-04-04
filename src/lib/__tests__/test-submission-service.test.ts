@@ -20,7 +20,12 @@ describe("TestSubmissionService - Integration Tests", () => {
     async ({ db }) => {
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, new TestService(db));
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        new TestService(db),
+      );
       const testSubmissionService = new TestSubmissionService(db, gradeService);
 
       const question = (await questionService.addQuestion("test-1", {
@@ -53,8 +58,16 @@ describe("TestSubmissionService - Integration Tests", () => {
       await testSubmissionService.submitTest("test-1", "student-1");
       await testSubmissionService.submitTest("test-1", "student-2");
 
-      const gradeCorrect = await gradeService.getGrade("test-1", question.id, "student-1");
-      const gradeWrong = await gradeService.getGrade("test-1", question.id, "student-2");
+      const gradeCorrect = await gradeService.getGrade(
+        "test-1",
+        question.id,
+        "student-1",
+      );
+      const gradeWrong = await gradeService.getGrade(
+        "test-1",
+        question.id,
+        "student-2",
+      );
 
       expect(gradeCorrect?.score).toBe(100);
       expect(gradeWrong?.score).toBe(0);
@@ -66,7 +79,12 @@ describe("TestSubmissionService - Integration Tests", () => {
     async ({ db }) => {
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, new TestService(db));
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        new TestService(db),
+      );
       const testSubmissionService = new TestSubmissionService(db, gradeService);
 
       const question = (await questionService.addQuestion("test-1", {
@@ -109,13 +127,25 @@ describe("TestSubmissionService - Integration Tests", () => {
       await testSubmissionService.submitTest("test-1", "student-2");
       await testSubmissionService.submitTest("test-1", "student-3");
 
-      const grade1 = await gradeService.getGrade("test-1", question.id, "student-1");
-      const grade2 = await gradeService.getGrade("test-1", question.id, "student-2");
-      const grade3 = await gradeService.getGrade("test-1", question.id, "student-3");
+      const grade1 = await gradeService.getGrade(
+        "test-1",
+        question.id,
+        "student-1",
+      );
+      const grade2 = await gradeService.getGrade(
+        "test-1",
+        question.id,
+        "student-2",
+      );
+      const grade3 = await gradeService.getGrade(
+        "test-1",
+        question.id,
+        "student-3",
+      );
 
       expect(grade1?.score).toBe(100); // Exact match
-      expect(grade2?.score).toBe(0);   // Partial but strategy is all_or_nothing
-      expect(grade3?.score).toBe(0);   // Includes incorrect option
+      expect(grade2?.score).toBe(0); // Partial but strategy is all_or_nothing
+      expect(grade3?.score).toBe(0); // Includes incorrect option
     },
   );
 
@@ -124,7 +154,12 @@ describe("TestSubmissionService - Integration Tests", () => {
     async ({ db }) => {
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, new TestService(db));
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        new TestService(db),
+      );
       const testSubmissionService = new TestSubmissionService(db, gradeService);
 
       const question = (await questionService.addQuestion("test-1", {
@@ -176,10 +211,26 @@ describe("TestSubmissionService - Integration Tests", () => {
       await testSubmissionService.submitTest("test-1", "student-3");
       await testSubmissionService.submitTest("test-1", "student-4");
 
-      const grade1 = await gradeService.getGrade("test-1", question.id, "student-1");
-      const grade2 = await gradeService.getGrade("test-1", question.id, "student-2");
-      const grade3 = await gradeService.getGrade("test-1", question.id, "student-3");
-      const grade4 = await gradeService.getGrade("test-1", question.id, "student-4");
+      const grade1 = await gradeService.getGrade(
+        "test-1",
+        question.id,
+        "student-1",
+      );
+      const grade2 = await gradeService.getGrade(
+        "test-1",
+        question.id,
+        "student-2",
+      );
+      const grade3 = await gradeService.getGrade(
+        "test-1",
+        question.id,
+        "student-3",
+      );
+      const grade4 = await gradeService.getGrade(
+        "test-1",
+        question.id,
+        "student-4",
+      );
 
       expect(grade1?.score).toBe(67);
       expect(grade2?.score).toBe(100);
@@ -193,9 +244,18 @@ describe("TestSubmissionService - Integration Tests", () => {
     async ({ db }) => {
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, new TestService(db));
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        new TestService(db),
+      );
       const testSubmissionService = new TestSubmissionService(db, gradeService);
-      const testStatusService = new TestStatusService(answerService, testSubmissionService, gradeService);
+      const testStatusService = new TestStatusService(
+        answerService,
+        testSubmissionService,
+        gradeService,
+      );
 
       const questionMC = (await questionService.addQuestion("test-mix", {
         title: "Q MC",
@@ -232,61 +292,80 @@ describe("TestSubmissionService - Integration Tests", () => {
 
       await testSubmissionService.submitTest("test-mix", "student-mix");
 
-      const gradeMC = await gradeService.getGrade("test-mix", questionMC.id, "student-mix");
-      const gradeFree = await gradeService.getGrade("test-mix", questionFree.id, "student-mix");
+      const gradeMC = await gradeService.getGrade(
+        "test-mix",
+        questionMC.id,
+        "student-mix",
+      );
+      const gradeFree = await gradeService.getGrade(
+        "test-mix",
+        questionFree.id,
+        "student-mix",
+      );
 
       expect(gradeMC?.score).toBe(100);
       expect(gradeFree).toBeNull(); // Still ungraded
 
-      const status = await testStatusService.getStatus("test-mix", "student-mix", 2);
+      const status = await testStatusService.getStatus(
+        "test-mix",
+        "student-mix",
+        2,
+      );
       expect(status).toBe("submitted"); // NOT Graded yet
     },
   );
 });
 
 describe("TestSubmissionService - Edge Cases", () => {
-  dbIt(
-    "submitTest called twice rejects the second call",
-    async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, new TestService(db));
-      const testSubmissionService = new TestSubmissionService(db, gradeService);
+  dbIt("submitTest called twice rejects the second call", async ({ db }) => {
+    const questionService = new QuestionService(db);
+    const answerService = new AnswerService(db, questionService);
+    const gradeService = new GradeService(
+      db,
+      questionService,
+      answerService,
+      new TestService(db),
+    );
+    const testSubmissionService = new TestSubmissionService(db, gradeService);
 
-      const question = await questionService.addQuestion("test-idem", {
-        title: "Q?",
-        content: "Choose.",
-        createdBy: "admin-1",
-        type: "single_select",
-        options: [
-          { text: "A", isCorrect: true },
-          { text: "B", isCorrect: false },
-        ],
-      });
+    const question = await questionService.addQuestion("test-idem", {
+      title: "Q?",
+      content: "Choose.",
+      createdBy: "admin-1",
+      type: "single_select",
+      options: [
+        { text: "A", isCorrect: true },
+        { text: "B", isCorrect: false },
+      ],
+    });
 
-      const optA = question.options.find((o) => o.text === "A")!.id;
+    const optA = question.options.find((o) => o.text === "A")!.id;
 
-      await answerService.submitAnswer({
-        testId: "test-idem",
-        questionId: question.id,
-        studentId: "student-1",
-        answer: { type: "mc", selectedIds: [optA] },
-      });
+    await answerService.submitAnswer({
+      testId: "test-idem",
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "mc", selectedIds: [optA] },
+    });
 
-      await testSubmissionService.submitTest("test-idem", "student-1");
+    await testSubmissionService.submitTest("test-idem", "student-1");
 
-      await expect(
-        testSubmissionService.submitTest("test-idem", "student-1"),
-      ).rejects.toThrow("already been submitted");
-    },
-  );
+    await expect(
+      testSubmissionService.submitTest("test-idem", "student-1"),
+    ).rejects.toThrow("already been submitted");
+  });
 
   dbIt(
     "submitTest on a free-text-only test creates no grades and does not crash",
     async ({ db }) => {
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, new TestService(db));
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        new TestService(db),
+      );
       const testSubmissionService = new TestSubmissionService(db, gradeService);
 
       const q = await questionService.addQuestion("test-freeonly", {
@@ -315,7 +394,12 @@ describe("TestSubmissionService - Edge Cases", () => {
     async ({ db }) => {
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, new TestService(db));
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        new TestService(db),
+      );
       const testSubmissionService = new TestSubmissionService(db, gradeService);
 
       const q = (await questionService.addQuestion("test-noanswer", {
@@ -332,7 +416,11 @@ describe("TestSubmissionService - Edge Cases", () => {
       // Student never answered — just submits the test
       await testSubmissionService.submitTest("test-noanswer", "student-1");
 
-      const grade = await gradeService.getGrade("test-noanswer", q.id, "student-1");
+      const grade = await gradeService.getGrade(
+        "test-noanswer",
+        q.id,
+        "student-1",
+      );
       expect(grade).toBeNull();
     },
   );
@@ -342,7 +430,12 @@ describe("TestSubmissionService - Edge Cases", () => {
     async ({ db }) => {
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, new TestService(db));
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        new TestService(db),
+      );
       const testSubmissionService = new TestSubmissionService(db, gradeService);
 
       const q1 = await questionService.addQuestion("test-partial", {
@@ -379,15 +472,26 @@ describe("TestSubmissionService - Edge Cases", () => {
       await testSubmissionService.submitTest("test-partial", "student-1");
 
       // Q1 answered correctly → auto-graded 100
-      const grade1 = await gradeService.getGrade("test-partial", q1.id, "student-1");
+      const grade1 = await gradeService.getGrade(
+        "test-partial",
+        q1.id,
+        "student-1",
+      );
       expect(grade1?.score).toBe(100);
 
       // Q2 unanswered → no individual grade
-      const grade2 = await gradeService.getGrade("test-partial", q2.id, "student-1");
+      const grade2 = await gradeService.getGrade(
+        "test-partial",
+        q2.id,
+        "student-1",
+      );
       expect(grade2).toBeNull();
 
       // Overall test score: Q1=100, Q2=0 (unanswered) → average = 50
-      const avg = await gradeService.getAverageScore("test-partial", "student-1");
+      const avg = await gradeService.getAverageScore(
+        "test-partial",
+        "student-1",
+      );
       expect(avg).toBe(50);
     },
   );

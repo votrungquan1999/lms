@@ -131,121 +131,103 @@ describe("QuestionService - Integration Tests", () => {
     },
   );
 
-  dbIt(
-    "should add a question with raw markdown content",
-    async ({ db }) => {
-      const service = new QuestionService(db);
-      const markdownContent = `## Question 1\n\nWrite a function that sorts an array using **merge sort**.\n\n\`\`\`python\ndef merge_sort(arr):\n    # Your code here\n    pass\n\`\`\``;
+  dbIt("should add a question with raw markdown content", async ({ db }) => {
+    const service = new QuestionService(db);
+    const markdownContent = `## Question 1\n\nWrite a function that sorts an array using **merge sort**.\n\n\`\`\`python\ndef merge_sort(arr):\n    # Your code here\n    pass\n\`\`\``;
 
-      const question = await service.addQuestion("test-1", {
-        title: "Merge Sort Implementation",
-        content: markdownContent,
-        createdBy: "admin-1",
-      });
+    const question = await service.addQuestion("test-1", {
+      title: "Merge Sort Implementation",
+      content: markdownContent,
+      createdBy: "admin-1",
+    });
 
-      expect(question.id).toBeDefined();
-      expect(question.title).toBe("Merge Sort Implementation");
-      expect(question.content).toBe(markdownContent);
-      expect(question.order).toBe(1);
-    },
-  );
+    expect(question.id).toBeDefined();
+    expect(question.title).toBe("Merge Sort Implementation");
+    expect(question.content).toBe(markdownContent);
+    expect(question.order).toBe(1);
+  });
 
-  dbIt(
-    "should assign increasing order numbers",
-    async ({ db }) => {
-      const service = new QuestionService(db);
+  dbIt("should assign increasing order numbers", async ({ db }) => {
+    const service = new QuestionService(db);
 
-      const q1 = await service.addQuestion("test-1", {
-        title: "Q1",
-        content: "First",
-        createdBy: "admin-1",
-      });
-      const q2 = await service.addQuestion("test-1", {
-        title: "Q2",
-        content: "Second",
-        createdBy: "admin-1",
-      });
+    const q1 = await service.addQuestion("test-1", {
+      title: "Q1",
+      content: "First",
+      createdBy: "admin-1",
+    });
+    const q2 = await service.addQuestion("test-1", {
+      title: "Q2",
+      content: "Second",
+      createdBy: "admin-1",
+    });
 
-      expect(q1.order).toBe(1);
-      expect(q2.order).toBe(2);
-    },
-  );
+    expect(q1.order).toBe(1);
+    expect(q2.order).toBe(2);
+  });
 
-  dbIt(
-    "should list questions ordered by order field",
-    async ({ db }) => {
-      const service = new QuestionService(db);
-      await service.addQuestion("test-1", {
-        title: "Q1",
-        content: "First",
-        createdBy: "admin-1",
-      });
-      await service.addQuestion("test-1", {
-        title: "Q2",
-        content: "Second",
-        createdBy: "admin-1",
-      });
+  dbIt("should list questions ordered by order field", async ({ db }) => {
+    const service = new QuestionService(db);
+    await service.addQuestion("test-1", {
+      title: "Q1",
+      content: "First",
+      createdBy: "admin-1",
+    });
+    await service.addQuestion("test-1", {
+      title: "Q2",
+      content: "Second",
+      createdBy: "admin-1",
+    });
 
-      const questions = await service.listQuestions("test-1");
+    const questions = await service.listQuestions("test-1");
 
-      expect(questions).toHaveLength(2);
-      expect(questions[0].order).toBe(1);
-      expect(questions[1].order).toBe(2);
-    },
-  );
+    expect(questions).toHaveLength(2);
+    expect(questions[0].order).toBe(1);
+    expect(questions[1].order).toBe(2);
+  });
 
-  dbIt(
-    "should bulk import questions with correct ordering",
-    async ({ db }) => {
-      const service = new QuestionService(db);
+  dbIt("should bulk import questions with correct ordering", async ({ db }) => {
+    const service = new QuestionService(db);
 
-      const imported = await service.importQuestions(
-        "test-1",
-        [
-          { title: "Imported Q1", content: "## First\nContent" },
-          { title: "Imported Q2", content: "## Second\nContent" },
-          { title: "Imported Q3", content: "## Third\nContent" },
-        ],
-        "admin-1",
-      );
+    const imported = await service.importQuestions(
+      "test-1",
+      [
+        { title: "Imported Q1", content: "## First\nContent" },
+        { title: "Imported Q2", content: "## Second\nContent" },
+        { title: "Imported Q3", content: "## Third\nContent" },
+      ],
+      "admin-1",
+    );
 
-      expect(imported).toHaveLength(3);
-      expect(imported[0].title).toBe("Imported Q1");
-      expect(imported[0].order).toBe(1);
-      expect(imported[2].order).toBe(3);
-    },
-  );
+    expect(imported).toHaveLength(3);
+    expect(imported[0].title).toBe("Imported Q1");
+    expect(imported[0].order).toBe(1);
+    expect(imported[2].order).toBe(3);
+  });
 
-  dbIt(
-    "should continue ordering after existing questions",
-    async ({ db }) => {
-      const service = new QuestionService(db);
-      await service.addQuestion("test-1", {
-        title: "Existing",
-        content: "Already here",
-        createdBy: "admin-1",
-      });
+  dbIt("should continue ordering after existing questions", async ({ db }) => {
+    const service = new QuestionService(db);
+    await service.addQuestion("test-1", {
+      title: "Existing",
+      content: "Already here",
+      createdBy: "admin-1",
+    });
 
-      const imported = await service.importQuestions(
-        "test-1",
-        [{ title: "New", content: "From JSON" }],
-        "admin-1",
-      );
+    const imported = await service.importQuestions(
+      "test-1",
+      [{ title: "New", content: "From JSON" }],
+      "admin-1",
+    );
 
-      expect(imported[0].order).toBe(2);
-      const all = await service.listQuestions("test-1");
-      expect(all).toHaveLength(2);
-    },
-  );
+    expect(imported[0].order).toBe(2);
+    const all = await service.listQuestions("test-1");
+    expect(all).toHaveLength(2);
+  });
 
-  dbIt(
-    "should return empty array when importing nothing",
-    async ({ db }) => {
-      const service = new QuestionService(db);
+  dbIt("should return empty array when importing nothing", async ({ db }) => {
+    const service = new QuestionService(db);
 
-      const result = await service.importQuestions("test-1", [], "admin-1");
+    const result = await service.importQuestions("test-1", [], "admin-1");
 
-      expect(result).toHaveLength(0);
-    },
-  );
+    expect(result).toHaveLength(0);
+  });
 });

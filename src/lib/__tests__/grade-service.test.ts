@@ -22,7 +22,12 @@ describe("GradeService - Integration Tests", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
 
       const test = await testService.createTest("course-1", {
         title: "Test",
@@ -75,7 +80,12 @@ describe("GradeService - Integration Tests", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
 
       const test = await testService.createTest("course-1", {
         title: "Auto Grade Test",
@@ -197,7 +207,12 @@ describe("GradeService - Integration Tests", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
 
       const test = await testService.createTest("course-1", {
         title: "Midterm",
@@ -242,7 +257,12 @@ describe("GradeService - Integration Tests", () => {
     async ({ db }) => {
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, new TestService(db));
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        new TestService(db),
+      );
 
       const grade = await gradeService.gradeQuestion({
         testId: "test-1",
@@ -262,7 +282,12 @@ describe("GradeService - Integration Tests", () => {
   dbIt("should update score and feedback when re-grading", async ({ db }) => {
     const questionService = new QuestionService(db);
     const answerService = new AnswerService(db, questionService);
-    const gradeService = new GradeService(db, questionService, answerService, new TestService(db));
+    const gradeService = new GradeService(
+      db,
+      questionService,
+      answerService,
+      new TestService(db),
+    );
 
     await gradeService.gradeQuestion({
       testId: "test-1",
@@ -292,7 +317,12 @@ describe("GradeService - Integration Tests", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
 
       const studentId = "student-vis";
       const testDoc = await testService.createTest("course-1", {
@@ -381,7 +411,12 @@ describe("GradeService - Integration Tests", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
 
       // Test configured to NOT reveal grades automatically
       const testDoc = await testService.createTest("course-reveal", {
@@ -445,7 +480,12 @@ describe("GradeService - Atomic Reveal", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
       const testSubmissionService = new TestSubmissionService(db, gradeService);
 
       // Default settings: showGradeAfterSubmit=true, showCorrectAnswerAfterSubmit=true
@@ -529,7 +569,9 @@ describe("GradeService - Atomic Reveal", () => {
       expect(gradesAfterFullGrade).toHaveLength(2);
 
       const mcGrade = gradesAfterFullGrade.find((g) => g.questionId === qMC.id);
-      const freeGrade = gradesAfterFullGrade.find((g) => g.questionId === qFree.id);
+      const freeGrade = gradesAfterFullGrade.find(
+        (g) => g.questionId === qFree.id,
+      );
       expect(mcGrade?.score).toBe(100);
       expect(freeGrade?.score).toBe(80);
 
@@ -548,7 +590,12 @@ describe("GradeService - Atomic Reveal", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
       const testSubmissionService = new TestSubmissionService(db, gradeService);
 
       // Both reveal flags turned OFF
@@ -634,7 +681,12 @@ describe("GradeService - Auto-Grade Edge Cases", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
 
       const test = await testService.createTest("course-1", {
         title: "Partial Full Correct",
@@ -718,7 +770,12 @@ describe("GradeService - Visibility Edge Cases", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
 
       // Both reveal flags ON (default)
       const test = await testService.createTest("course-1", {
@@ -768,7 +825,12 @@ describe("GradeService - Visibility Edge Cases", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -842,7 +904,12 @@ describe("GradeService - Visibility Edge Cases", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
 
       const test = await testService.createTest("course-1", {
         title: "No Grade Test",
@@ -871,7 +938,12 @@ describe("GradeService - Re-grade Override", () => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(db, questionService, answerService, testService);
+      const gradeService = new GradeService(
+        db,
+        questionService,
+        answerService,
+        testService,
+      );
 
       const test = await testService.createTest("course-1", {
         title: "Re-grade Test",
@@ -899,7 +971,10 @@ describe("GradeService - Re-grade Override", () => {
         answer: { type: "mc", selectedIds: [optB] },
       });
 
-      const [autoGrade] = await gradeService.autoGradeTest(test.id, "student-1");
+      const [autoGrade] = await gradeService.autoGradeTest(
+        test.id,
+        "student-1",
+      );
       expect(autoGrade.score).toBe(0);
 
       // Teacher overrides with partial credit

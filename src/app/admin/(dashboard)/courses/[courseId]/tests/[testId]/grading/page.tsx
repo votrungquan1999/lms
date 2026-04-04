@@ -36,7 +36,6 @@ function formatStudentAnswer(
   return null;
 }
 
-
 export const metadata = {
   title: "Grade Test — LMS Admin",
   description: "Grade student submissions",
@@ -117,7 +116,10 @@ export default async function GradingPage({
         )}
 
         {studentData.map(
-          ({ student, rawAnswerMap, gradeMap, testFeedback, hasAnswers }, idx) => {
+          (
+            { student, rawAnswerMap, gradeMap, testFeedback, hasAnswers },
+            idx,
+          ) => {
             const gradedCount = gradeMap.size;
             const totalQ = questions.length;
             const allGraded = gradedCount >= totalQ;

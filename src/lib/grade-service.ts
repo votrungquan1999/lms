@@ -246,8 +246,7 @@ export class GradeService {
     // If any free-text question is ungraded, the total is not yet meaningful
     const freeTextUngraded = questions.some(
       (q) =>
-        q.type === "free_text" &&
-        !grades.some((g) => g.questionId === q.id),
+        q.type === "free_text" && !grades.some((g) => g.questionId === q.id),
     );
     if (freeTextUngraded) return null;
 
