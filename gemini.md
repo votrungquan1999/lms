@@ -9,6 +9,7 @@ This is a **Learning Management System (LMS)** built with Next.js 16, TypeScript
 1. **Always update `README.md`** when features are added, modified, or removed — keep the "Core Features" section in sync with the actual state of the project.
 2. **Refer to `.agent/`** for agent configurations including workflows, skills, and rules.
 3. **Feature documentation** lives in `documents/features/` — update the relevant feature doc when making changes to a feature.
+4. **Use `pnpm` and verify commands**: This project uses `pnpm` exclusively. Prior to running commands for testing, linting, formatting, or building, you MUST check `package.json` to ensure you are executing the correct existing scripts (e.g. `pnpm run test`, `pnpm run format`).
 
 ## Agent Configurations
 
