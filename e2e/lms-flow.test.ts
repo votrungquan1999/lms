@@ -307,7 +307,9 @@ test.describe("LMS E2E Flow", () => {
     await page.getByLabel("Question Title").fill("Q3: MC Planets");
     await page
       .getByLabel("Content (Markdown)")
-      .fill("Which of the following are planets in our solar system? Select all that apply.");
+      .fill(
+        "Which of the following are planets in our solar system? Select all that apply.",
+      );
 
     // Add a third option (two default ones exist)
     await page.getByRole("button", { name: "Add Option" }).click();
@@ -356,23 +358,37 @@ test.describe("LMS E2E Flow", () => {
 
     // ── Answer Q1 (free-text) ───────────────────────────────────────
     // Card component renders as div[data-slot="card"]
-    const q1Card = page.locator("div[data-slot='card']").filter({ hasText: "Q1: Hello World" });
-    await q1Card.getByPlaceholder("Type your answer here...").fill("console.log('hello world')");
+    const q1Card = page
+      .locator("div[data-slot='card']")
+      .filter({ hasText: "Q1: Hello World" });
+    await q1Card
+      .getByPlaceholder("Type your answer here...")
+      .fill("console.log('hello world')");
     await q1Card.getByRole("button", { name: "Submit Answer" }).click();
-    await expect(q1Card.getByRole("button", { name: "Edit Answer" })).toBeVisible({ timeout: 10000 });
+    await expect(
+      q1Card.getByRole("button", { name: "Edit Answer" }),
+    ).toBeVisible({ timeout: 10000 });
 
     // ── Answer Q2 (MC single-select) ─────────────────────────────────────
-    const q2Card = page.locator("div[data-slot='card']").filter({ hasText: "Q2: MC Capital of France" });
+    const q2Card = page
+      .locator("div[data-slot='card']")
+      .filter({ hasText: "Q2: MC Capital of France" });
     await q2Card.getByLabel("Paris").check();
     await q2Card.getByRole("button", { name: "Submit Answer" }).click();
-    await expect(q2Card.getByRole("button", { name: "Edit Answer" })).toBeVisible({ timeout: 10000 });
+    await expect(
+      q2Card.getByRole("button", { name: "Edit Answer" }),
+    ).toBeVisible({ timeout: 10000 });
 
     // ── Answer Q3 (MC multi-select) ───────────────────────────────────────
-    const q3Card = page.locator("div[data-slot='card']").filter({ hasText: "Q3: MC Planets" });
+    const q3Card = page
+      .locator("div[data-slot='card']")
+      .filter({ hasText: "Q3: MC Planets" });
     await q3Card.getByLabel("Earth").check();
     await q3Card.getByLabel("Mars").check();
     await q3Card.getByRole("button", { name: "Submit Answer" }).click();
-    await expect(q3Card.getByRole("button", { name: "Edit Answer" })).toBeVisible({ timeout: 10000 });
+    await expect(
+      q3Card.getByRole("button", { name: "Edit Answer" }),
+    ).toBeVisible({ timeout: 10000 });
 
     // ── Submit the entire test for grading ────────────────────────────────
     await page.getByRole("button", { name: "Submit Test for Grading" }).click();

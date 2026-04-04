@@ -97,4 +97,42 @@ describe("TestService", () => {
       expect(after?.correctAnswersReleasedAt).toBeInstanceOf(Date);
     },
   );
+
+  dbIt("should soft delete a test and hide it from queries", async ({ db }) => {
+    const courseService = new CourseService(db);
+    const testService = new TestService(db);
+
+    const course = await courseService.createCourse({
+      title: "Course",
+      description: "Desc",
+      createdBy: "admin",
+    });
+
+    const test = await testService.createTest(course.id, {
+      title: "Test to delete",
+      description: "Desc",
+      createdBy: "admin",
+    });
+
+    // Verify it exists in list
+    let list = await testService.listTests(course.id);
+    expect(list).toHaveLength(1);
+
+    // Soft delete it
+    await testService.deleteTest(test.id, "admin");
+
+    // Verify it's hidden from list
+    list = await testService.listTests(course.id);
+    expect(list).toHaveLength(0);
+
+    // Verify it's hidden from getTest
+    const fetched = await testService.getTest(test.id);
+    expect(fetched).toBeNull();
+
+    // Verify the document is still in the DB with deletedAt/deletedBy fields
+    const doc = await db.collection("test").findOne({ id: test.id });
+    expect(doc).not.toBeNull();
+    expect(doc?.deletedAt).toBeInstanceOf(Date);
+    expect(doc?.deletedBy).toBe("admin");
+  });
 });

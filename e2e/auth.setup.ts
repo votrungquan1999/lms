@@ -1,6 +1,6 @@
-import { test as setup, expect } from "@playwright/test";
-import path from "node:path";
 import fs from "node:fs";
+import path from "node:path";
+import { expect, test as setup } from "@playwright/test";
 
 const authDir = path.join(__dirname, "../playwright/.auth");
 const BASE_URL = "http://localhost:3001";
