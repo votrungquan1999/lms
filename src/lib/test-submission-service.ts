@@ -56,4 +56,11 @@ export class TestSubmissionService {
     const doc = await this.testSubmissions.findOne({ testId, studentId });
     return doc !== null;
   }
+
+  /**
+   * Deletes a previous submission so the student can resubmit (used in redo flow).
+   */
+  async deleteSubmission(testId: string, studentId: string): Promise<void> {
+    await this.testSubmissions.deleteMany({ testId, studentId });
+  }
 }

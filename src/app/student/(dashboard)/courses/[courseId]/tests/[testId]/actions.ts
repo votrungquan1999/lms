@@ -6,6 +6,7 @@ import { getAuthService } from "src/lib/auth-singleton";
 import {
   getAnswerService,
   getEnrollmentService,
+  getRedoRequestService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
 import type { StudentSession } from "src/lib/session";
@@ -151,7 +152,21 @@ export async function submitTestAction(
 
   try {
     const testSubmissionService = await getTestSubmissionService();
+    const redoRequestService = await getRedoRequestService();
+
+    // Check for an active redo request — if one exists, remove the old submission
+    // so submitTest() can create a fresh one (which re-triggers auto-grading on new answers)
+    const activeRedo = await redoRequestService.getActiveRedoRequest(testId, studentId);
+    if (activeRedo) {
+      await testSubmissionService.deleteSubmission(testId, studentId);
+    }
+
     await testSubmissionService.submitTest(testId, studentId);
+
+    // Resolve the redo request after successful submission
+    if (activeRedo) {
+      await redoRequestService.resolveRedoRequest(testId, studentId);
+    }
 
     revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
     revalidatePath(`/student/courses/${courseId}`);
@@ -165,3 +180,4 @@ export async function submitTestAction(
     };
   }
 }
+
