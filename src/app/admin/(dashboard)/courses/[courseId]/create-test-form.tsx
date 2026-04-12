@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "src/components/ui/button";
+import { Checkbox } from "src/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +60,18 @@ export function CreateTestDialog({ courseId }: { courseId: string }) {
               placeholder="Optional test description"
               rows={3}
             />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="show-grades-immediately"
+              name="showGradeAfterSubmit"
+              value="true"
+              defaultChecked
+            />
+            <Label htmlFor="show-grades-immediately">
+              Show grades immediately
+            </Label>
           </div>
 
           <Button type="submit" disabled={isPending} className="w-full">

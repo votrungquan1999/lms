@@ -72,6 +72,11 @@ const createTestSchema = z.object({
   courseId: z.string().min(1, "Course ID is missing"),
   title: z.string().trim().min(1, "Test title is required"),
   description: z.string().trim().default(""),
+  // Checkbox sends "true" when checked, nothing when unchecked
+  showGradeAfterSubmit: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
 });
 
 export interface CreateTestState {
@@ -101,6 +106,7 @@ export async function createTestAction(
     courseId: formData.get("courseId"),
     title: formData.get("title"),
     description: formData.get("description"),
+    showGradeAfterSubmit: formData.get("showGradeAfterSubmit") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -113,6 +119,7 @@ export async function createTestAction(
       title: parsed.data.title,
       description: parsed.data.description,
       createdBy: adminUserId,
+      showGradeAfterSubmit: parsed.data.showGradeAfterSubmit,
     });
 
     revalidatePath(`/admin/courses/${parsed.data.courseId}`);
