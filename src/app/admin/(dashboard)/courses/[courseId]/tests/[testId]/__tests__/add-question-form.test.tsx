@@ -50,14 +50,14 @@ describe("Feature: Add Question Form", () => {
     });
   });
 
-  describe("Scenario: Both fields are required", () => {
-    it("should require title and content fields", () => {
+  describe("Scenario: Title field is required, content is optional", () => {
+    it("should require the title field but not the content field", () => {
       // Setup & Action
       render(<AddQuestionForm testId="test-1" courseId="course-1" />);
 
       // Assert
       expect(screen.getByLabelText("Question Title")).toBeRequired();
-      expect(screen.getByLabelText("Content (Markdown)")).toBeRequired();
+      expect(screen.getByLabelText("Content (Markdown)")).not.toBeRequired();
     });
   });
 });

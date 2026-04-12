@@ -233,9 +233,49 @@ test.describe("LMS E2E Flow", () => {
       timeout: 10000,
     });
 
-    // And the question appears in the list
+    // And the form clears automatically (no reload needed)
+    await expect(page.getByLabel("Question Title")).toHaveValue("");
+    await expect(page.getByLabel("Content (Markdown)")).toHaveValue("");
+
+    // And the question appears in the list after reload
     await page.reload();
     await expect(page.getByText("Q1: Hello World")).toBeVisible();
+  });
+
+  // ─── Step 11a-pre: Admin adds a question with no content (title-only) ──────
+
+  test("admin can add a question with title only (empty content)", async ({
+    page,
+  }) => {
+    // Given the admin is on the course detail
+    await page.goto("/admin/courses");
+    await page.getByText("E2E Test Course").click();
+    await expect(
+      page.getByRole("heading", { name: "E2E Test Course" }),
+    ).toBeVisible();
+
+    // Create a separate test for this so it doesn't break the Midterm grading math
+    await page.getByRole("button", { name: "Add Test" }).click();
+    await page.getByLabel("Test Title").fill("E2E Title Only Test");
+    await page.getByRole("button", { name: "Create Test" }).click();
+    await expect(page.getByText("created successfully")).toBeVisible({ timeout: 10000 });
+
+    await page.reload();
+    await page.getByText("E2E Title Only Test").click();
+
+    // When filling only the title (no content)
+    await page.getByLabel("Question Title").fill("Q1b: Title-only Question");
+    // Leave Content (Markdown) empty
+    await page.getByRole("button", { name: "Add Question" }).click();
+
+    // Then a success message appears
+    await expect(page.getByText("added successfully")).toBeVisible({
+      timeout: 10000,
+    });
+
+    // And the question appears in the list
+    await page.reload();
+    await expect(page.getByText("Q1b: Title-only Question")).toBeVisible();
   });
 
   // ─── Step 11a: Admin also adds a MC (single-select) question ────────────────
@@ -278,6 +318,10 @@ test.describe("LMS E2E Flow", () => {
     await expect(page.getByText("added successfully")).toBeVisible({
       timeout: 10000,
     });
+
+    // And the form clears automatically (no reload needed)
+    await expect(page.getByLabel("Question Title")).toHaveValue("");
+    await expect(page.getByLabel("Content (Markdown)")).toHaveValue("");
 
     // And after reload both questions appear in the list
     await page.reload();
@@ -330,6 +374,10 @@ test.describe("LMS E2E Flow", () => {
     await expect(page.getByText("added successfully")).toBeVisible({
       timeout: 10000,
     });
+
+    // And the form clears automatically (no reload needed)
+    await expect(page.getByLabel("Question Title")).toHaveValue("");
+    await expect(page.getByLabel("Content (Markdown)")).toHaveValue("");
 
     // And after reload all three questions appear in the list
     await page.reload();

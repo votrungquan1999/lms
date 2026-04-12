@@ -4,6 +4,10 @@ export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
 
+  /* Tests share the same MongoDB — run files sequentially to avoid conflicts */
+  fullyParallel: false,
+  workers: 1,
+
   /* Fail the build on CI if you accidentally left test.only in the source code */
   forbidOnly: !!process.env.CI,
 
