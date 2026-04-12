@@ -5,6 +5,7 @@ import { EnrollmentService } from "./enrollment-service";
 import { GradeService } from "./grade-service";
 import { PageGuard } from "./page-guard";
 import { QuestionService } from "./question-service";
+import { RedoRequestService } from "./redo-request-service";
 import { StudentService } from "./student-service";
 import { TestFeedbackService } from "./test-feedback-service";
 import { TestService } from "./test-service";
@@ -20,6 +21,7 @@ let answerService: AnswerService | null = null;
 let courseService: CourseService | null = null;
 let enrollmentService: EnrollmentService | null = null;
 let gradeService: GradeService | null = null;
+let redoRequestService: RedoRequestService | null = null;
 let testService: TestService | null = null;
 let testFeedbackService: TestFeedbackService | null = null;
 let testStatusService: TestStatusService | null = null;
@@ -128,4 +130,12 @@ export async function getStudentService(): Promise<StudentService> {
     studentService = new StudentService(db);
   }
   return studentService;
+}
+
+export async function getRedoRequestService(): Promise<RedoRequestService> {
+  if (!redoRequestService) {
+    const db = await getDatabase();
+    redoRequestService = new RedoRequestService(db);
+  }
+  return redoRequestService;
 }
