@@ -22,12 +22,14 @@ import {
   getGradeService,
   getPageGuard,
   getQuestionService,
+  getRedoRequestService,
   getTestFeedbackService,
   getTestService,
   getTestStatusService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
 import { TestStatus } from "src/lib/test-status-service";
+import { McAnswerChips } from "src/components/mc-answer-chips";
 import { AnswerForm } from "./answer-form";
 import { DiffViewer } from "./diff-viewer";
 import { SubmitTestButton } from "./submit-test-button";
@@ -103,6 +105,15 @@ export default async function StudentTestDetailPage({
     session.studentId,
   );
 
+  const redoRequestService = await getRedoRequestService();
+  const activeRedoRequest = await redoRequestService.getActiveRedoRequest(
+    testId,
+    session.studentId,
+  );
+
+  // Student can answer if test is not submitted OR if there's an active redo request
+  const canAnswer = !isSubmitted || !!activeRedoRequest;
+
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <header className="w-full max-w-5xl">
@@ -132,6 +143,16 @@ export default async function StudentTestDetailPage({
           <p className="mt-1 text-sm text-muted-foreground">
             {test.description}
           </p>
+        )}
+
+        {activeRedoRequest && (
+          <div className="mt-4 rounded-md border border-orange-300 bg-orange-50 p-3 text-sm text-orange-800 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-200">
+            <p className="font-semibold">Redo Required ↩</p>
+            <p className="mt-0.5">
+              Your teacher has requested that you redo this test. Please
+              re-answer the questions and submit again.
+            </p>
+          </div>
         )}
 
         {average !== null && (
@@ -189,8 +210,8 @@ export default async function StudentTestDetailPage({
                 <CardContent className="space-y-4">
                   <MarkdownContent content={question.content} />
 
-                  {/* ── Answer input (only when not yet submitted) ─────── */}
-                  {!isSubmitted &&
+                  {/* ── Answer input (when not submitted, or redo active) ── */}
+                  {canAnswer &&
                     (isMC ? (
                       <AnswerForm
                         testId={testId}
@@ -218,31 +239,22 @@ export default async function StudentTestDetailPage({
                       />
                     ))}
 
-                  {/* ── Submitted answer display ─────────────────────────── */}
-                  {isSubmitted && studentAnswer && (
+                  {/* ── Submitted answer display (only when submitted and NOT re-answering via redo) ── */}
+                  {isSubmitted && !activeRedoRequest && studentAnswer && (
                     <div className="rounded-md border bg-muted/50 p-3">
                       <p className="text-xs font-medium text-muted-foreground mb-1">
                         Your Answer:
                       </p>
-                      {studentAnswer.type === "mc" ? (
-                        // Render selected option labels for MC questions
-                        <div className="space-y-1">
-                          {isMC &&
-                            question.options
-                              .filter((opt) =>
-                                studentAnswer.selectedIds.includes(opt.id),
-                              )
-                              .map((opt) => (
-                                <p key={opt.id} className="text-sm font-medium">
-                                  {opt.text}
-                                </p>
-                              ))}
-                        </div>
-                      ) : (
+                      {studentAnswer.type === "mc" && isMC ? (
+                        <McAnswerChips
+                          selectedIds={studentAnswer.selectedIds}
+                          options={question.options}
+                        />
+                      ) : studentAnswer.type === "free_text" ? (
                         <p className="whitespace-pre-wrap text-sm">
                           {studentAnswer.text}
                         </p>
-                      )}
+                      ) : null}
                     </div>
                   )}
 
@@ -260,6 +272,19 @@ export default async function StudentTestDetailPage({
                           </span>
                         )}
                       </div>
+                      {/* MC answer chips with correct answers visible in graded view */}
+                      {isMC && grade && studentAnswer?.type === "mc" && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">
+                            Your Selection:
+                          </p>
+                          <McAnswerChips
+                            selectedIds={studentAnswer.selectedIds}
+                            options={question.options}
+                            showCorrectAnswers
+                          />
+                        </div>
+                      )}
                       {grade.feedback && (
                         <div>
                           <p className="text-xs font-medium text-muted-foreground mb-1">
@@ -297,7 +322,7 @@ export default async function StudentTestDetailPage({
           </p>
         )}
 
-        {!isSubmitted && questions.length > 0 && (
+        {canAnswer && questions.length > 0 && (
           <>
             <Separator />
             <SubmitTestButton
@@ -309,7 +334,7 @@ export default async function StudentTestDetailPage({
           </>
         )}
 
-        {isSubmitted && grades.length === 0 && (
+        {isSubmitted && !activeRedoRequest && grades.length === 0 && (
           <div className="space-y-3">
             <div className="rounded-md border bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-950 dark:text-blue-300">
               Your test has been submitted and is waiting to be graded.
