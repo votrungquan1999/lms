@@ -49,6 +49,8 @@ export function AddQuestionForm({
     { text: "", isCorrect: false },
   ]);
 
+  const [successCount, setSuccessCount] = useState(0);
+
   const [state, formAction, isPending] = useActionState<
     AddQuestionState | null,
     FormData
@@ -57,7 +59,12 @@ export function AddQuestionForm({
     if (questionType !== "free_text") {
       rawFormData.set("options", JSON.stringify(options));
     }
-    return addQuestionAction(_prevState, rawFormData);
+    const result = await addQuestionAction(_prevState, rawFormData);
+    if (result.success) {
+      setSuccessCount((c) => c + 1);
+      setOptions([{ text: "", isCorrect: false }, { text: "", isCorrect: false }]);
+    }
+    return result;
   }, null);
 
   const addOption = () =>
@@ -115,7 +122,7 @@ export function AddQuestionForm({
               {TYPE_DESCRIPTIONS[questionType]}
             </p>
 
-            <form action={formAction} className="space-y-4">
+            <form key={successCount} action={formAction} className="space-y-4">
               <input type="hidden" name="testId" value={testId} />
               <input type="hidden" name="courseId" value={courseId} />
 
@@ -136,7 +143,6 @@ export function AddQuestionForm({
                 <Textarea
                   id="question-content"
                   name="content"
-                  required
                   placeholder="Paste your markdown content here…"
                   rows={isMC ? 4 : 15}
                   className="font-mono text-sm"
@@ -220,21 +226,23 @@ export function AddQuestionForm({
               </Button>
             </form>
 
-            {state?.success && (
-              <output className="mt-4 block rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
-                {state.message}
-              </output>
-            )}
-
-            {state && !state.success && (
-              <div
-                className="mt-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
-                role="alert"
-              >
-                {state.message}
-              </div>
-            )}
           </div>
+
+          {/* Status messages live outside the form so they survive the remount */}
+          {state?.success && (
+            <output className="mt-2 block rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
+              {state.message}
+            </output>
+          )}
+
+          {state && !state.success && (
+            <div
+              className="mt-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+              role="alert"
+            >
+              {state.message}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
