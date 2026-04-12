@@ -6,35 +6,19 @@ import {
   CardTitle,
 } from "src/components/ui/card";
 import { Separator } from "src/components/ui/separator";
-import type { StudentAnswer } from "src/lib/answer-service";
-import type { Question } from "src/lib/question-service";
+
 import {
   getAnswerService,
   getEnrollmentService,
   getGradeService,
   getQuestionService,
+  getRedoRequestService,
   getStudentService,
   getTestFeedbackService,
   getTestService,
 } from "src/lib/services-singleton";
-import { OverallFeedbackForm, QuestionGradeForm } from "./grading-forms";
+import { FreeTextQuestionGradeForm, McQuestionGradeForm, OverallFeedbackForm, ReleaseGradesButton, RequestRedoButton } from "./grading-forms";
 
-/** Converts a StudentAnswer union to a human-readable string for the admin view. */
-function formatStudentAnswer(
-  answer: StudentAnswer | undefined,
-  question: Question,
-): string | null {
-  if (!answer) return null;
-  if (answer.type === "free_text") return answer.text;
-  // MC answer — look up option labels by id
-  if (question.type === "single_select" || question.type === "multi_select") {
-    const labels = answer.selectedIds
-      .map((id) => question.options.find((o) => o.id === id)?.text ?? id)
-      .join(", ");
-    return `[MC] ${labels}`;
-  }
-  return null;
-}
 
 export const metadata = {
   title: "Grade Test — LMS Admin",
@@ -87,12 +71,19 @@ export default async function GradingPage({
         student.id,
       );
 
+      const redoRequestService = await getRedoRequestService();
+      const activeRedoRequest = await redoRequestService.getActiveRedoRequest(
+        testId,
+        student.id,
+      );
+
       return {
         student,
         rawAnswerMap,
         gradeMap,
         testFeedback,
         hasAnswers: latestAnswers.length > 0,
+        hasActiveRedoRequest: activeRedoRequest !== null,
       };
     }),
   );
@@ -106,6 +97,11 @@ export default async function GradingPage({
         <p className="mt-1 text-sm text-muted-foreground">
           {students.length} student(s) enrolled · {questions.length} question(s)
         </p>
+        {!test.showGradeAfterSubmit && !test.gradesReleasedAt && (
+          <div className="mt-4">
+            <ReleaseGradesButton testId={testId} courseId={courseId} />
+          </div>
+        )}
       </header>
 
       <section className="w-full max-w-3xl space-y-8">
@@ -117,7 +113,7 @@ export default async function GradingPage({
 
         {studentData.map(
           (
-            { student, rawAnswerMap, gradeMap, testFeedback, hasAnswers },
+            { student, rawAnswerMap, gradeMap, testFeedback, hasAnswers, hasActiveRedoRequest },
             idx,
           ) => {
             const gradedCount = gradeMap.size;
@@ -141,32 +137,64 @@ export default async function GradingPage({
                           @{student.username}
                         </span>
                       </CardTitle>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassName}`}
-                      >
-                        {gradedCount}/{totalQ} graded
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassName}`}
+                        >
+                          {gradedCount}/{totalQ} graded
+                        </span>
+                        <RequestRedoButton
+                          testId={testId}
+                          courseId={courseId}
+                          studentId={student.id}
+                          hasActiveRedoRequest={hasActiveRedoRequest}
+                        />
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {questions.map((question) => {
                       const grade = gradeMap.get(question.id);
+                      const rawAnswer = rawAnswerMap.get(question.id);
+                      const sharedProps = {
+                        testId,
+                        courseId,
+                        questionId: question.id,
+                        studentId: student.id,
+                        questionTitle: question.title,
+                        questionOrder: question.order,
+                        existingScore: grade?.score ?? null,
+                        existingFeedback: grade?.feedback ?? null,
+                        existingSolution: grade?.solution ?? null,
+                      };
+
+                      if (
+                        question.type === "single_select" ||
+                        question.type === "multi_select"
+                      ) {
+                        return (
+                          <McQuestionGradeForm
+                            key={question.id}
+                            {...sharedProps}
+                            selectedIds={
+                              rawAnswer?.type === "mc"
+                                ? rawAnswer.selectedIds
+                                : []
+                            }
+                            options={question.options}
+                          />
+                        );
+                      }
+
                       return (
-                        <QuestionGradeForm
+                        <FreeTextQuestionGradeForm
                           key={question.id}
-                          testId={testId}
-                          courseId={courseId}
-                          questionId={question.id}
-                          studentId={student.id}
-                          questionTitle={question.title}
-                          questionOrder={question.order}
-                          studentAnswer={formatStudentAnswer(
-                            rawAnswerMap.get(question.id),
-                            question,
-                          )}
-                          existingScore={grade?.score ?? null}
-                          existingFeedback={grade?.feedback ?? null}
-                          existingSolution={grade?.solution ?? null}
+                          {...sharedProps}
+                          answerText={
+                            rawAnswer?.type === "free_text"
+                              ? rawAnswer.text
+                              : null
+                          }
                         />
                       );
                     })}
