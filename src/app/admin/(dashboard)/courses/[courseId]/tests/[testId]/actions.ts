@@ -17,14 +17,14 @@ const addQuestionSchema = z.discriminatedUnion("type", [
     testId: z.string().min(1, "Test ID is missing"),
     courseId: z.string().min(1, "Course ID is missing"),
     title: z.string().trim().min(1, "Question title is required"),
-    content: z.string().min(1, "Question content is required"),
+    content: z.string().default(""),
   }),
   z.object({
     type: z.literal("single_select"),
     testId: z.string().min(1, "Test ID is missing"),
     courseId: z.string().min(1, "Course ID is missing"),
     title: z.string().trim().min(1, "Question title is required"),
-    content: z.string().min(1, "Question content is required"),
+    content: z.string().default(""),
     options: z.array(optionSchema).min(2, "At least 2 options are required"),
   }),
   z.object({
@@ -32,7 +32,7 @@ const addQuestionSchema = z.discriminatedUnion("type", [
     testId: z.string().min(1, "Test ID is missing"),
     courseId: z.string().min(1, "Course ID is missing"),
     title: z.string().trim().min(1, "Question title is required"),
-    content: z.string().min(1, "Question content is required"),
+    content: z.string().default(""),
     options: z.array(optionSchema).min(2, "At least 2 options are required"),
     mcGradingStrategy: z
       .enum(["all_or_nothing", "partial"])
