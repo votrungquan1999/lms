@@ -62,7 +62,10 @@ export function AddQuestionForm({
     const result = await addQuestionAction(_prevState, rawFormData);
     if (result.success) {
       setSuccessCount((c) => c + 1);
-      setOptions([{ text: "", isCorrect: false }, { text: "", isCorrect: false }]);
+      setOptions([
+        { text: "", isCorrect: false },
+        { text: "", isCorrect: false },
+      ]);
     }
     return result;
   }, null);
@@ -225,7 +228,6 @@ export function AddQuestionForm({
                 {isPending ? "Adding…" : "Add Question"}
               </Button>
             </form>
-
           </div>
 
           {/* Status messages live outside the form so they survive the remount */}

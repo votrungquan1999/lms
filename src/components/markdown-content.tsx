@@ -1,8 +1,8 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 
 interface MarkdownContentProps {
   content: string;

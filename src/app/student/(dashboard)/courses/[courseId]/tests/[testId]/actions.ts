@@ -156,7 +156,10 @@ export async function submitTestAction(
 
     // Check for an active redo request — if one exists, remove the old submission
     // so submitTest() can create a fresh one (which re-triggers auto-grading on new answers)
-    const activeRedo = await redoRequestService.getActiveRedoRequest(testId, studentId);
+    const activeRedo = await redoRequestService.getActiveRedoRequest(
+      testId,
+      studentId,
+    );
     if (activeRedo) {
       await testSubmissionService.deleteSubmission(testId, studentId);
     }
@@ -180,4 +183,3 @@ export async function submitTestAction(
     };
   }
 }
-

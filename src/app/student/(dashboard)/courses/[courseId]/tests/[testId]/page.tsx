@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MarkdownContent } from "src/components/markdown-content";
+import { McAnswerChips } from "src/components/mc-answer-chips";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -29,7 +30,6 @@ import {
   getTestSubmissionService,
 } from "src/lib/services-singleton";
 import { TestStatus } from "src/lib/test-status-service";
-import { McAnswerChips } from "src/components/mc-answer-chips";
 import { AnswerForm } from "./answer-form";
 import { DiffViewer } from "./diff-viewer";
 import { SubmitTestButton } from "./submit-test-button";

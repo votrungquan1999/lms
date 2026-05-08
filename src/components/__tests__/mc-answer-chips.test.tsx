@@ -39,7 +39,9 @@ describe("Feature: McAnswerChips", () => {
 
   describe("Scenario: Student selected multiple options (multi-select)", () => {
     it("should render chips for each selected option with correct colouring", () => {
-      render(<McAnswerChips selectedIds={["opt-a", "opt-b"]} options={OPTIONS} />);
+      render(
+        <McAnswerChips selectedIds={["opt-a", "opt-b"]} options={OPTIONS} />,
+      );
 
       const wrongChip = screen.getByTestId("mc-chip-opt-a");
       const correctChip = screen.getByTestId("mc-chip-opt-b");

@@ -20,14 +20,20 @@ describe("RedoRequestService", () => {
         const service = new RedoRequestService(db);
 
         // Given no active request exists
-        const before = await service.getActiveRedoRequest("test-1", "student-1");
+        const before = await service.getActiveRedoRequest(
+          "test-1",
+          "student-1",
+        );
         expect(before).toBeNull();
 
         // When the admin requests a redo
         await service.requestRedo("test-1", "student-1", "admin-1");
 
         // Then getActiveRedoRequest returns the active request
-        const active = await service.getActiveRedoRequest("test-1", "student-1");
+        const active = await service.getActiveRedoRequest(
+          "test-1",
+          "student-1",
+        );
         expect(active).not.toBeNull();
         expect(active!.testId).toBe("test-1");
         expect(active!.studentId).toBe("student-1");
@@ -44,10 +50,14 @@ describe("RedoRequestService", () => {
         await service.requestRedo("test-1", "student-1", "admin-1");
 
         // Different student: no active request
-        expect(await service.getActiveRedoRequest("test-1", "student-2")).toBeNull();
+        expect(
+          await service.getActiveRedoRequest("test-1", "student-2"),
+        ).toBeNull();
 
         // Different test: no active request
-        expect(await service.getActiveRedoRequest("test-2", "student-1")).toBeNull();
+        expect(
+          await service.getActiveRedoRequest("test-2", "student-1"),
+        ).toBeNull();
       },
     );
   });
@@ -60,7 +70,9 @@ describe("RedoRequestService", () => {
 
         // Setup: create an active request
         await service.requestRedo("test-1", "student-1", "admin-1");
-        expect(await service.getActiveRedoRequest("test-1", "student-1")).not.toBeNull();
+        expect(
+          await service.getActiveRedoRequest("test-1", "student-1"),
+        ).not.toBeNull();
 
         // When the redo is resolved (student resubmits)
         await service.resolveRedoRequest("test-1", "student-1");

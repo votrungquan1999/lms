@@ -18,7 +18,11 @@ interface McAnswerChipsProps {
  * Not-selected options are not rendered unless showCorrectAnswers is true
  * (in which case unselected correct options are shown with an outline style).
  */
-export function McAnswerChips({ selectedIds, options, showCorrectAnswers }: McAnswerChipsProps) {
+export function McAnswerChips({
+  selectedIds,
+  options,
+  showCorrectAnswers,
+}: McAnswerChipsProps) {
   const selectedSet = new Set(selectedIds);
 
   // Build the list of chips to render
@@ -41,13 +45,16 @@ export function McAnswerChips({ selectedIds, options, showCorrectAnswers }: McAn
         let className: string;
         if (isSelected && option.isCorrect) {
           // Selected + correct → solid green
-          className = "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300";
+          className =
+            "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300";
         } else if (isSelected && !option.isCorrect) {
           // Selected + wrong → solid red
-          className = "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300";
+          className =
+            "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300";
         } else {
           // Not selected + correct (missed) → green outline
-          className = "border border-green-300 text-green-700 dark:border-green-700 dark:text-green-300";
+          className =
+            "border border-green-300 text-green-700 dark:border-green-700 dark:text-green-300";
         }
 
         return (
@@ -63,4 +70,3 @@ export function McAnswerChips({ selectedIds, options, showCorrectAnswers }: McAn
     </div>
   );
 }
-
