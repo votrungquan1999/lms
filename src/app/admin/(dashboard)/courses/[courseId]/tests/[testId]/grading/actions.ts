@@ -85,6 +85,9 @@ export async function gradeQuestionAction(
     revalidatePath(
       `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
     );
+    revalidatePath("/admin/grading");
+    revalidatePath(`/admin/grading/${parsed.data.testId}`);
+    revalidatePath("/admin/dashboard");
 
     return { success: true, message: "Grade saved" };
   } catch (error) {
@@ -137,6 +140,9 @@ export async function setTestFeedbackAction(
     revalidatePath(
       `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
     );
+    revalidatePath("/admin/grading");
+    revalidatePath(`/admin/grading/${parsed.data.testId}`);
+    revalidatePath("/admin/dashboard");
 
     return { success: true, message: "Feedback saved" };
   } catch (error) {
@@ -193,13 +199,17 @@ export async function releaseGradesAction(
     revalidatePath(
       `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
     );
+    revalidatePath("/admin/grading");
+    revalidatePath(`/admin/grading/${parsed.data.testId}`);
+    revalidatePath("/admin/dashboard");
 
     return { success: true, message: "Grades released" };
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {
       success: false,
-      message: error instanceof Error ? error.message : "Failed to release grades",
+      message:
+        error instanceof Error ? error.message : "Failed to release grades",
     };
   }
 }
@@ -253,10 +263,13 @@ export async function requestRedoAction(
       adminUserId,
     );
 
-    // Revalidate admin grading page and student test page
+    // Revalidate admin grading paths (course-scoped + hub + variant + dashboard) and student test page
     revalidatePath(
       `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
     );
+    revalidatePath("/admin/grading");
+    revalidatePath(`/admin/grading/${parsed.data.testId}`);
+    revalidatePath("/admin/dashboard");
     revalidatePath(
       `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
     );
@@ -266,7 +279,8 @@ export async function requestRedoAction(
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {
       success: false,
-      message: error instanceof Error ? error.message : "Failed to request redo",
+      message:
+        error instanceof Error ? error.message : "Failed to request redo",
     };
   }
 }
