@@ -1,6 +1,12 @@
 "use client";
 
-import { BookOpen, LayoutDashboard, LogOut, Users } from "lucide-react";
+import {
+  BookOpen,
+  ClipboardCheck,
+  LayoutDashboard,
+  LogOut,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -22,6 +28,10 @@ const navItems = [
   { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Students", href: "/admin/students", icon: Users },
   { title: "Courses", href: "/admin/courses", icon: BookOpen },
+];
+
+const needActionsItems = [
+  { title: "Grading", href: "/admin/grading", icon: ClipboardCheck },
 ];
 
 export function AdminSidebar({ email }: { email: string }) {
@@ -62,6 +72,28 @@ export function AdminSidebar({ email }: { email: string }) {
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith(item.href)}
+                    tooltip={item.title}
+                  >
+                    <Link href={item.href}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Need actions</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {needActionsItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild

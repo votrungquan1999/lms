@@ -155,10 +155,13 @@ export default async function CourseDetailPage({
                           </CardTitle>
                         </Link>
                         {test.totalStudents > 0 && (
-                          <span className="text-xs text-muted-foreground mr-4 pointer-events-auto">
+                          <Link
+                            href={`/admin/grading/${test.id}`}
+                            className="text-xs text-muted-foreground mr-4 pointer-events-auto hover:underline"
+                          >
                             {test.statusCounts[TestStatus.Graded]}/
                             {test.totalStudents} graded
-                          </span>
+                          </Link>
                         )}
                       </div>
                       <Link
