@@ -49,3 +49,15 @@ next-env.d.ts
 
 
 .history
+
+# claude code
+.claude/settings.local.json
+
+# orchestrated-feature-dev workflow state
+/RESEARCH_OUTPUT.md
+/PLAN_STEPS.md
+/implementation-plan.md
+/IMPLEMENTATION_PROGRESS.md
+/INVESTIGATION_STEP_*.md
+/VALIDATION_STEP_*.md
+/tmp/
