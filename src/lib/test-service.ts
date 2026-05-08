@@ -93,6 +93,19 @@ export class TestService {
     return docs.map((doc) => this.toTest(doc));
   }
 
+  /**
+   * Returns every non-deleted test across all courses, sorted by `createdAt` desc.
+   * Used by the grading hub and admin dashboard for cross-course aggregation.
+   */
+  async listAllTests(): Promise<Test[]> {
+    const docs = await this.tests
+      .find({ deletedAt: null })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    return docs.map((doc) => this.toTest(doc));
+  }
+
   private toTest(doc: TestDocument): Test {
     return {
       id: doc.id,

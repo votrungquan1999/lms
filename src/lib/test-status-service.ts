@@ -70,4 +70,35 @@ export class TestStatusService {
 
     return TestStatus.InProgress;
   }
+
+  /**
+   * Returns the count of students in each status for a single test.
+   *
+   * Result always contains all four TestStatus keys (zero-initialised).
+   * Caller is responsible for passing deduplicated studentIds.
+   */
+  async getStatusCounts(
+    testId: string,
+    studentIds: string[],
+    totalQuestions: number,
+  ): Promise<Record<TestStatus, number>> {
+    const counts: Record<TestStatus, number> = {
+      [TestStatus.NotStarted]: 0,
+      [TestStatus.InProgress]: 0,
+      [TestStatus.Submitted]: 0,
+      [TestStatus.Graded]: 0,
+    };
+
+    const statuses = await Promise.all(
+      studentIds.map((studentId) =>
+        this.getStatus(testId, studentId, totalQuestions),
+      ),
+    );
+
+    for (const status of statuses) {
+      counts[status]++;
+    }
+
+    return counts;
+  }
 }

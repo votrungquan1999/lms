@@ -93,6 +93,85 @@ describe("TestStatusService", () => {
   );
 
   dbIt(
+    "getStatusCounts should return per-status histogram across multiple students with all four keys present",
+    async ({ db }) => {
+      const { answerService, gradeService, testStatusService } =
+        makeServices(db);
+      const testId = "test-1";
+      const totalQuestions = 2;
+
+      // student-not-started: no answers at all
+      // student-in-progress: 1 of 2 answered
+      await answerService.submitAnswer({
+        testId,
+        questionId: "q-1",
+        studentId: "student-in-progress",
+        answer: { type: "free_text", text: "Partial" },
+      });
+      // student-submitted: both answered, none graded
+      await answerService.submitAnswer({
+        testId,
+        questionId: "q-1",
+        studentId: "student-submitted",
+        answer: { type: "free_text", text: "A" },
+      });
+      await answerService.submitAnswer({
+        testId,
+        questionId: "q-2",
+        studentId: "student-submitted",
+        answer: { type: "free_text", text: "B" },
+      });
+      // student-graded: both answered, both graded
+      await answerService.submitAnswer({
+        testId,
+        questionId: "q-1",
+        studentId: "student-graded",
+        answer: { type: "free_text", text: "A" },
+      });
+      await answerService.submitAnswer({
+        testId,
+        questionId: "q-2",
+        studentId: "student-graded",
+        answer: { type: "free_text", text: "B" },
+      });
+      await gradeService.gradeQuestion({
+        testId,
+        questionId: "q-1",
+        studentId: "student-graded",
+        score: 100,
+        feedback: "",
+        gradedBy: "admin-1",
+      });
+      await gradeService.gradeQuestion({
+        testId,
+        questionId: "q-2",
+        studentId: "student-graded",
+        score: 90,
+        feedback: "",
+        gradedBy: "admin-1",
+      });
+
+      const counts = await testStatusService.getStatusCounts(
+        testId,
+        [
+          "student-not-started",
+          "student-in-progress",
+          "student-submitted",
+          "student-graded",
+        ],
+        totalQuestions,
+      );
+
+      expect(counts).toEqual({
+        not_started: 1,
+        in_progress: 1,
+        submitted: 1,
+        graded: 1,
+      });
+    },
+  );
+
+  dbIt(
     "should return 'submitted' when partially graded (Atomic Reveal)",
     async ({ db }) => {
       // This covers: Mixed test - MC auto-graded but student sees nothing until free-text graded -> full reveal

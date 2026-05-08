@@ -135,4 +135,46 @@ describe("TestService", () => {
     expect(doc?.deletedAt).toBeInstanceOf(Date);
     expect(doc?.deletedBy).toBe("admin");
   });
+
+  dbIt(
+    "listAllTests should return every non-deleted test across all courses",
+    async ({ db }) => {
+      const courseService = new CourseService(db);
+      const testService = new TestService(db);
+
+      const courseA = await courseService.createCourse({
+        title: "Course A",
+        description: "A",
+        createdBy: "admin",
+      });
+      const courseB = await courseService.createCourse({
+        title: "Course B",
+        description: "B",
+        createdBy: "admin",
+      });
+
+      const a1 = await testService.createTest(courseA.id, {
+        title: "A1",
+        description: "",
+        createdBy: "admin",
+      });
+      const a2 = await testService.createTest(courseA.id, {
+        title: "A2",
+        description: "",
+        createdBy: "admin",
+      });
+      const b1 = await testService.createTest(courseB.id, {
+        title: "B1",
+        description: "",
+        createdBy: "admin",
+      });
+
+      await testService.deleteTest(a2.id, "admin");
+
+      const all = await testService.listAllTests();
+      const ids = all.map((t) => t.id).sort();
+
+      expect(ids).toEqual([a1.id, b1.id].sort());
+    },
+  );
 });
