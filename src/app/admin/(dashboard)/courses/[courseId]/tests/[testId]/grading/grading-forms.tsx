@@ -2,16 +2,28 @@
 
 import { useActionState } from "react";
 import { McAnswerChips } from "src/components/mc-answer-chips";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "src/components/ui/alert-dialog";
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
 import type { McOption } from "src/lib/question-service";
+import { TestStatus } from "src/lib/test-status-service";
 import {
   type GradeQuestionState,
   gradeQuestionAction,
   type ReleaseGradesState,
-  releaseGradesAction,
   type RequestRedoState,
+  releaseGradesAction,
   requestRedoAction,
   setTestFeedbackAction,
   type TestFeedbackState,
@@ -29,6 +41,7 @@ interface BaseGradeFormProps {
   existingScore: number | null;
   existingFeedback: string | null;
   existingSolution: string | null;
+  studentStatus?: TestStatus;
 }
 
 // ── Shared primitive: score / feedback / solution inputs ──────────────────────
@@ -47,10 +60,7 @@ function GradeInputs({
   return (
     <>
       <div className="flex items-center gap-3">
-        <label
-          htmlFor={`score-${questionId}`}
-          className="text-sm font-medium"
-        >
+        <label htmlFor={`score-${questionId}`} className="text-sm font-medium">
           Score (0–100):
         </label>
         <Input
@@ -103,8 +113,6 @@ function GradeInputs({
   );
 }
 
-
-
 // ── FreeTextQuestionGradeForm ─────────────────────────────────────────────────
 
 interface FreeTextQuestionGradeFormProps extends BaseGradeFormProps {
@@ -139,7 +147,11 @@ export function FreeTextQuestionGradeForm({
       </h4>
       {answerDisplay}
       {answerText && (
-        <GradeFormInner questionTitle={questionTitle} questionOrder={questionOrder} {...rest} />
+        <GradeFormInner
+          questionTitle={questionTitle}
+          questionOrder={questionOrder}
+          {...rest}
+        />
       )}
     </div>
   );
@@ -177,7 +189,11 @@ export function McQuestionGradeForm({
         {questionTitle}
       </h4>
       {answerDisplay}
-      <GradeFormInner questionTitle={questionTitle} questionOrder={questionOrder} {...rest} />
+      <GradeFormInner
+        questionTitle={questionTitle}
+        questionOrder={questionOrder}
+        {...rest}
+      />
     </div>
   );
 }
@@ -192,11 +208,20 @@ function GradeFormInner({
   existingScore,
   existingFeedback,
   existingSolution,
+  studentStatus,
 }: BaseGradeFormProps) {
   const [state, formAction, isPending] = useActionState<
     GradeQuestionState | null,
     FormData
   >(gradeQuestionAction, null);
+
+  const submitLabel = isPending
+    ? "Saving..."
+    : existingScore !== null
+      ? "Update Grade"
+      : "Save Grade";
+
+  const requiresConfirm = studentStatus === TestStatus.InProgress;
 
   return (
     <form action={formAction} className="space-y-3">
@@ -213,13 +238,34 @@ function GradeFormInner({
       />
 
       <div className="flex items-center gap-3">
-        <Button type="submit" size="sm" disabled={isPending}>
-          {isPending
-            ? "Saving..."
-            : existingScore !== null
-              ? "Update Grade"
-              : "Save Grade"}
-        </Button>
+        {requiresConfirm ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" size="sm" disabled={isPending}>
+                {submitLabel}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Submit grade anyway?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This student hasn&apos;t submitted their test yet. Are you
+                  sure you want to grade their in-progress work?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction type="submit">
+                  Submit Anyway
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button type="submit" size="sm" disabled={isPending}>
+            {submitLabel}
+          </Button>
+        )}
         {state?.message && (
           <p
             className={`text-sm ${state.success ? "text-green-600" : "text-destructive"}`}
@@ -313,9 +359,7 @@ export function RequestRedoButton({
 
   if (state?.success || hasActiveRedoRequest) {
     return (
-      <p className="text-sm font-medium text-orange-600">
-        Redo requested ↩
-      </p>
+      <p className="text-sm font-medium text-orange-600">Redo requested ↩</p>
     );
   }
 
@@ -339,7 +383,6 @@ export function RequestRedoButton({
     </form>
   );
 }
-
 
 interface ReleaseGradesButtonProps {
   testId: string;

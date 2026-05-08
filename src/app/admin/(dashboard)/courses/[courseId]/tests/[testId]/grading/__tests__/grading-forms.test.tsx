@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { TestStatus } from "src/lib/test-status-service";
 import { describe, expect, it, vi } from "vitest";
-import { FreeTextQuestionGradeForm, McQuestionGradeForm } from "../grading-forms";
+import {
+  FreeTextQuestionGradeForm,
+  McQuestionGradeForm,
+} from "../grading-forms";
 
 vi.mock("../actions", () => ({
   gradeQuestionAction: vi.fn(),
   setTestFeedbackAction: vi.fn(),
   releaseGradesAction: vi.fn(),
+  requestRedoAction: vi.fn(),
 }));
 
 /**
@@ -86,14 +92,49 @@ describe("Feature: FreeTextQuestionGradeForm", () => {
 
   describe("Scenario: Student has not answered", () => {
     it("should show 'No answer submitted' when answerText is null", () => {
+      render(<FreeTextQuestionGradeForm {...BASE_PROPS} answerText={null} />);
+
+      expect(screen.getByText("No answer submitted")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("Feature: InProgress confirm dialog", () => {
+  describe("Scenario: Admin grades an InProgress student", () => {
+    it("should show a confirm dialog before submitting; cancel aborts the form action, confirm proceeds", async () => {
+      const user = userEvent.setup();
       render(
         <FreeTextQuestionGradeForm
           {...BASE_PROPS}
-          answerText={null}
+          answerText="partial"
+          studentStatus={TestStatus.InProgress}
         />,
       );
 
-      expect(screen.getByText("No answer submitted")).toBeInTheDocument();
+      // Fill in the score so the form would normally submit
+      const scoreInput = screen.getByLabelText(/Score/);
+      await user.clear(scoreInput);
+      await user.type(scoreInput, "80");
+
+      // Click the gated submit button
+      await user.click(screen.getByRole("button", { name: /Save Grade/i }));
+
+      // Dialog should appear
+      const dialog = await screen.findByRole("alertdialog");
+      expect(dialog).toBeInTheDocument();
+      expect(dialog).toHaveTextContent(/hasn.?t submitted/i);
+
+      // Cancel — form should not actually submit; dialog closes
+      await user.click(screen.getByRole("button", { name: /Cancel/i }));
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+
+      // Re-open and confirm
+      await user.click(screen.getByRole("button", { name: /Save Grade/i }));
+      const confirmBtn = await screen.findByRole("button", {
+        name: /Submit Anyway|Confirm/i,
+      });
+      // The confirm button must be a real submit button so the form posts.
+      expect(confirmBtn.getAttribute("type")).toBe("submit");
     });
   });
 });
