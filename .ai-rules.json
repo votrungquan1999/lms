@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "agent": "antigravity",
+  "agent": "claude-code",
   "categories": [
     "component-architecture",
     "database-patterns",
@@ -10,7 +10,8 @@
     "styling-tailwind",
     "testing-guidelines",
     "typescript-conventions",
-    "url-state-management"
+    "url-state-management",
+    "brainstorming-patterns"
   ],
   "skills": [
     "bdd-design",
@@ -21,7 +22,15 @@
     "test-quality-reviewer",
     "web-search",
     "create-pr",
-    "orchestrated-feature-dev"
+    "orchestrated-feature-dev",
+    "commit-plan",
+    "feature-development-workflow",
+    "find-patterns",
+    "repo-knowledge",
+    "review-changes",
+    "root-cause-analysis",
+    "structured-brainstorming",
+    "validate-pr-comments"
   ],
   "workflows": [
     "commit-plan",
