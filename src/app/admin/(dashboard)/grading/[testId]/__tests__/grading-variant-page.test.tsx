@@ -25,6 +25,7 @@ vi.mock(
     setTestFeedbackAction: vi.fn(),
     releaseGradesAction: vi.fn(),
     requestRedoAction: vi.fn(),
+    releaseGradeForStudentAction: vi.fn(),
   }),
 );
 

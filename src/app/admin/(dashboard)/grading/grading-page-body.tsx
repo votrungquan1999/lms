@@ -14,6 +14,7 @@ import {
   getStudentService,
   getTestFeedbackService,
   getTestStatusService,
+  getTestSubmissionService,
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
 import { TestStatus } from "src/lib/test-status-service";
@@ -23,6 +24,7 @@ import {
   OverallFeedbackForm,
   RequestRedoButton,
 } from "../courses/[courseId]/tests/[testId]/grading/grading-forms";
+import { ReleaseGradeForStudentControl } from "../courses/[courseId]/tests/[testId]/grading/release-grade-for-student";
 import { StudentStatusBadge } from "./student-status-badge";
 
 const STATUS_SORT_RANK: Record<TestStatus, number> = {
@@ -64,6 +66,7 @@ export async function GradingPageBody({
   const answerService = await getAnswerService();
   const gradeService = await getGradeService();
   const testStatusService = await getTestStatusService();
+  const testSubmissionService = await getTestSubmissionService();
 
   const studentDataUnsorted = await Promise.all(
     students.map(async (student, enrollmentIndex) => {
@@ -96,6 +99,11 @@ export async function GradingPageBody({
         questions.length,
       );
 
+      const activeSubmission = await testSubmissionService.getActiveSubmission(
+        testId,
+        student.id,
+      );
+
       return {
         student,
         rawAnswerMap,
@@ -104,6 +112,7 @@ export async function GradingPageBody({
         hasAnswers: latestAnswers.length > 0,
         hasActiveRedoRequest: activeRedoRequest !== null,
         status,
+        activeSubmission,
         enrollmentIndex,
       };
     }),
@@ -133,6 +142,7 @@ export async function GradingPageBody({
             hasAnswers,
             hasActiveRedoRequest,
             status,
+            activeSubmission,
           },
           idx,
         ) => {
@@ -173,6 +183,13 @@ export async function GradingPageBody({
                         courseId={courseId}
                         studentId={student.id}
                         hasActiveRedoRequest={hasActiveRedoRequest}
+                      />
+                      <ReleaseGradeForStudentControl
+                        test={test}
+                        courseId={courseId}
+                        studentId={student.id}
+                        submission={activeSubmission}
+                        status={status}
                       />
                     </div>
                   </div>

@@ -79,9 +79,8 @@ describe("Feature: grading actions extend revalidatePath to hub, variant page, a
     expect(calls).toContain(`/admin/grading/${testId}`);
     expect(calls).toContain("/admin/dashboard");
 
-    // Each of the four actions revalidates all four "extended" paths
-    // (course-scoped + hub + variant + dashboard). Count: 4 paths × 4 actions = 16 minimum,
-    // plus requestRedo's pre-existing student path → 17.
-    expect(calls.length).toBeGreaterThanOrEqual(16);
+    // Step 15 fix: releaseGradesAction now also revalidates the student page
+    // so the student sees grades on the next visit after a global release.
+    expect(calls).toContain(`/student/courses/${courseId}/tests/${testId}`);
   });
 });

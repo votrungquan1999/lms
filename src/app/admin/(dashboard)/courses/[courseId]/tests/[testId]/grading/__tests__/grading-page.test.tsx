@@ -35,6 +35,7 @@ vi.mock("../actions", () => ({
   setTestFeedbackAction: vi.fn(),
   releaseGradesAction: vi.fn(),
   requestRedoAction: vi.fn(),
+  releaseGradeForStudentAction: vi.fn(),
 }));
 
 describe("Feature: GradingPage student card ordering", () => {

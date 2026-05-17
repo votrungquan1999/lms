@@ -8,6 +8,7 @@ import {
   getRedoRequestService,
   getTestFeedbackService,
   getTestService,
+  getTestSubmissionService,
 } from "src/lib/services-singleton";
 import { z } from "zod";
 
@@ -202,6 +203,11 @@ export async function releaseGradesAction(
     revalidatePath("/admin/grading");
     revalidatePath(`/admin/grading/${parsed.data.testId}`);
     revalidatePath("/admin/dashboard");
+    // Pre-existing gap: a global release must also propagate to the student
+    // page so the student sees grades on the next visit.
+    revalidatePath(
+      `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+    );
 
     return { success: true, message: "Grades released" };
   } catch (error) {
@@ -281,6 +287,89 @@ export async function requestRedoAction(
       success: false,
       message:
         error instanceof Error ? error.message : "Failed to request redo",
+    };
+  }
+}
+
+const releaseGradeForStudentSchema = z.object({
+  testId: z.string().min(1),
+  courseId: z.string().min(1),
+  studentId: z.string().min(1),
+});
+
+export interface ReleaseGradeForStudentState {
+  success: boolean;
+  message: string;
+  releasedAt: string | null;
+}
+
+/**
+ * Server action: stamps `releasedAt` / `releasedBy` on a single student's
+ * active submission, opening the per-student tier of the visibility gate.
+ * Used when the test has delayed release (`!showGradeAfterSubmit && !gradesReleasedAt`).
+ */
+export async function releaseGradeForStudentAction(
+  _prevState: ReleaseGradeForStudentState | null,
+  formData: FormData,
+): Promise<ReleaseGradeForStudentState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return {
+      success: false,
+      message: "Unauthorized: admin access required",
+      releasedAt: null,
+    };
+  }
+
+  const parsed = releaseGradeForStudentSchema.safeParse({
+    testId: formData.get("testId"),
+    courseId: formData.get("courseId"),
+    studentId: formData.get("studentId"),
+  });
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: parsed.error.issues[0].message,
+      releasedAt: null,
+    };
+  }
+
+  try {
+    const testSubmissionService = await getTestSubmissionService();
+    await testSubmissionService.releaseGradeToStudent(
+      parsed.data.testId,
+      parsed.data.studentId,
+      adminUserId,
+    );
+
+    revalidatePath(
+      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+    );
+    revalidatePath("/admin/grading");
+    revalidatePath(`/admin/grading/${parsed.data.testId}`);
+    revalidatePath("/admin/dashboard");
+    revalidatePath(
+      `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+    );
+
+    return {
+      success: true,
+      message: "Grade released to student",
+      releasedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Failed to release grade",
+      releasedAt: null,
     };
   }
 }
