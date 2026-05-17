@@ -5,6 +5,7 @@ import { AnswerService } from "src/lib/answer-service";
 import { CourseService } from "src/lib/course-service";
 import { EnrollmentService } from "src/lib/enrollment-service";
 import { GradeService } from "src/lib/grade-service";
+import { GradeVisibilityService } from "src/lib/grade-visibility-service";
 import { PageGuard } from "src/lib/page-guard";
 import { QuestionService } from "src/lib/question-service";
 import { RedoRequestService } from "src/lib/redo-request-service";
@@ -23,6 +24,7 @@ export interface TestServices {
   courseService: CourseService;
   enrollmentService: EnrollmentService;
   gradeService: GradeService;
+  gradeVisibilityService: GradeVisibilityService;
   pageGuard: PageGuard;
   questionService: QuestionService;
   redoRequestService: RedoRequestService;
@@ -45,13 +47,21 @@ function makeServices(db: Db): TestServices {
   const questionService = new QuestionService(db);
   const answerService = new AnswerService(db, questionService);
   const testService = new TestService(db);
+  // Wire the three-way cycle the same way `services-singleton.ts` does: the
+  // GradeVisibilityService holds a thunk for TestSubmissionService instead of
+  // an instance, so we can build TSS *after* GradeService. See the service's
+  // JSDoc for the full cycle breakdown.
+  let testSubmissionService!: TestSubmissionService;
+  const gradeVisibilityService = new GradeVisibilityService(testService, () =>
+    Promise.resolve(testSubmissionService),
+  );
   const gradeService = new GradeService(
     db,
     questionService,
     answerService,
-    testService,
+    gradeVisibilityService,
   );
-  const testSubmissionService = new TestSubmissionService(db, gradeService);
+  testSubmissionService = new TestSubmissionService(db, gradeService);
   const testStatusService = new TestStatusService(
     answerService,
     testSubmissionService,
@@ -69,6 +79,7 @@ function makeServices(db: Db): TestServices {
     courseService,
     enrollmentService,
     gradeService,
+    gradeVisibilityService,
     pageGuard,
     questionService,
     redoRequestService,
@@ -136,6 +147,8 @@ export function servicesSingletonMockFactory() {
     getCourseService: async () => getTestServices().courseService,
     getEnrollmentService: async () => getTestServices().enrollmentService,
     getGradeService: async () => getTestServices().gradeService,
+    getGradeVisibilityService: async () =>
+      getTestServices().gradeVisibilityService,
     getPageGuard: async () => getTestServices().pageGuard,
     getQuestionService: async () => getTestServices().questionService,
     getRedoRequestService: async () => getTestServices().redoRequestService,

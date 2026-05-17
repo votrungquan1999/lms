@@ -4,13 +4,35 @@ import type { GradeService } from "./grade-service";
 
 /**
  * Test submission document stored in the `test_submission` collection.
- * One per (testId, studentId) — marks the test as explicitly submitted.
+ * One *active* row per (testId, studentId). When the redo flow deletes a
+ * submission we soft-delete (set `deletedAt`) so the historical row remains
+ * queryable and any audit data on it (e.g. per-student release fields)
+ * survives the redo cycle.
  */
 export interface TestSubmissionDocument {
   id: string;
   testId: string;
   studentId: string;
   submittedAt: Date;
+  deletedAt: Date | null;
+  /** When the admin released this individual student's grades. */
+  releasedAt: Date | null;
+  /** Admin userId that released this individual student's grades. */
+  releasedBy: string | null;
+}
+
+/**
+ * Client-facing shape returned by `getActiveSubmission`. Keeps audit fields
+ * (`releasedAt`, `releasedBy`) but does not expose `deletedAt` — by definition,
+ * an active submission is the one row with `deletedAt: null`.
+ */
+export interface TestSubmissionActive {
+  id: string;
+  testId: string;
+  studentId: string;
+  submittedAt: Date;
+  releasedAt: Date | null;
+  releasedBy: string | null;
 }
 
 /**
@@ -30,10 +52,14 @@ export class TestSubmissionService {
 
   /**
    * Explicitly submits a test for a student.
-   * Throws if the test has already been submitted.
+   * Throws if the test already has an active (non-soft-deleted) submission.
    */
   async submitTest(testId: string, studentId: string): Promise<void> {
-    const existing = await this.testSubmissions.findOne({ testId, studentId });
+    const existing = await this.testSubmissions.findOne({
+      testId,
+      studentId,
+      deletedAt: null,
+    });
     if (existing) {
       throw new Error("Test has already been submitted");
     }
@@ -43,6 +69,9 @@ export class TestSubmissionService {
       testId,
       studentId,
       submittedAt: new Date(),
+      deletedAt: null,
+      releasedAt: null,
+      releasedBy: null,
     });
 
     // Auto-grade applicable questions
@@ -50,17 +79,72 @@ export class TestSubmissionService {
   }
 
   /**
-   * Checks if a test has been explicitly submitted by a student.
+   * Checks if a test has an active (non-soft-deleted) submission for a student.
    */
   async isTestSubmitted(testId: string, studentId: string): Promise<boolean> {
-    const doc = await this.testSubmissions.findOne({ testId, studentId });
+    const doc = await this.testSubmissions.findOne({
+      testId,
+      studentId,
+      deletedAt: null,
+    });
     return doc !== null;
   }
 
   /**
-   * Deletes a previous submission so the student can resubmit (used in redo flow).
+   * Returns the active (non-soft-deleted) submission for a student on a test,
+   * including the audit fields used by the per-student grade-release flow.
+   * Missing `releasedAt` / `releasedBy` on legacy rows are coerced to null.
+   * Returns null when no active submission exists.
+   */
+  async getActiveSubmission(
+    testId: string,
+    studentId: string,
+  ): Promise<TestSubmissionActive | null> {
+    const doc = await this.testSubmissions.findOne({
+      testId,
+      studentId,
+      deletedAt: null,
+    });
+    if (!doc) return null;
+    return {
+      id: doc.id,
+      testId: doc.testId,
+      studentId: doc.studentId,
+      submittedAt: doc.submittedAt,
+      releasedAt: doc.releasedAt ?? null,
+      releasedBy: doc.releasedBy ?? null,
+    };
+  }
+
+  /**
+   * Stamps `releasedAt` and `releasedBy` on the active submission for this
+   * student, so the per-student release tier of the visibility gate opens.
+   * Re-calling refreshes both fields (matches `releaseGrades` semantics).
+   * Soft-deleted rows are not touched. Throws if no active submission exists.
+   */
+  async releaseGradeToStudent(
+    testId: string,
+    studentId: string,
+    userId: string,
+  ): Promise<void> {
+    const result = await this.testSubmissions.updateOne(
+      { testId, studentId, deletedAt: null },
+      { $set: { releasedAt: new Date(), releasedBy: userId } },
+    );
+    if (result.matchedCount === 0) {
+      throw new Error("No active submission to release");
+    }
+  }
+
+  /**
+   * Soft-deletes the active submission (used in the redo flow). The row stays
+   * in the collection with `deletedAt` set so audit data on it is preserved;
+   * subsequent reads via `isTestSubmitted` / `submitTest` ignore it.
    */
   async deleteSubmission(testId: string, studentId: string): Promise<void> {
-    await this.testSubmissions.deleteMany({ testId, studentId });
+    await this.testSubmissions.updateMany(
+      { testId, studentId, deletedAt: null },
+      { $set: { deletedAt: new Date() } },
+    );
   }
 }

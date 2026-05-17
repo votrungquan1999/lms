@@ -1,26 +1,14 @@
 import type { Db } from "mongodb";
-import { AnswerService } from "src/lib/answer-service";
-import { GradeService } from "src/lib/grade-service";
-import { QuestionService } from "src/lib/question-service";
-import { TestService } from "src/lib/test-service";
 import { TestStatusService } from "src/lib/test-status-service";
-import { TestSubmissionService } from "src/lib/test-submission-service";
+import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
 
 function makeServices(db: Db) {
-  const questionService = new QuestionService(db);
-  const answerService = new AnswerService(db, questionService);
-  const testService = new TestService(db);
-  const gradeService = new GradeService(
-    db,
-    questionService,
-    answerService,
-    testService,
-  );
-  const testSubmissionService = new TestSubmissionService(db, gradeService);
+  const { answerService, gradeService, testSubmissionService } =
+    buildCoreServices(db);
   const testStatusService = new TestStatusService(
     answerService,
     testSubmissionService,

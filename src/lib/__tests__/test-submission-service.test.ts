@@ -1,14 +1,10 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: this is for test */
-import { AnswerService } from "src/lib/answer-service";
-import { GradeService } from "src/lib/grade-service";
-import {
-  type MultiSelectQuestion,
-  QuestionService,
-  type SingleSelectQuestion,
+import type {
+  MultiSelectQuestion,
+  SingleSelectQuestion,
 } from "src/lib/question-service";
-import { TestService } from "src/lib/test-service";
 import { TestStatusService } from "src/lib/test-status-service";
-import { TestSubmissionService } from "src/lib/test-submission-service";
+import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -18,15 +14,12 @@ describe("TestSubmissionService - Integration Tests", () => {
   dbIt(
     "should auto-grade single_select as 100 when selection matches, 0 when wrong, triggered on submitTest",
     async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
+      const {
         questionService,
         answerService,
-        new TestService(db),
-      );
-      const testSubmissionService = new TestSubmissionService(db, gradeService);
+        gradeService,
+        testSubmissionService,
+      } = buildCoreServices(db);
 
       const question = (await questionService.addQuestion("test-1", {
         title: "Q?",
@@ -77,15 +70,12 @@ describe("TestSubmissionService - Integration Tests", () => {
   dbIt(
     "should auto-grade multi_select (all_or_nothing) as 100 for exact match, 0 otherwise",
     async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
+      const {
         questionService,
         answerService,
-        new TestService(db),
-      );
-      const testSubmissionService = new TestSubmissionService(db, gradeService);
+        gradeService,
+        testSubmissionService,
+      } = buildCoreServices(db);
 
       const question = (await questionService.addQuestion("test-1", {
         title: "Q?",
@@ -152,15 +142,12 @@ describe("TestSubmissionService - Integration Tests", () => {
   dbIt(
     "should auto-grade multi_select (partial) proportionally minus deduction for wrong selections",
     async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
+      const {
         questionService,
         answerService,
-        new TestService(db),
-      );
-      const testSubmissionService = new TestSubmissionService(db, gradeService);
+        gradeService,
+        testSubmissionService,
+      } = buildCoreServices(db);
 
       const question = (await questionService.addQuestion("test-1", {
         title: "Q Options?",
@@ -242,15 +229,12 @@ describe("TestSubmissionService - Integration Tests", () => {
   dbIt(
     "should only auto-grade multiple choice questions and leave free-text questions ungraded in a mixed test",
     async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
+      const {
         questionService,
         answerService,
-        new TestService(db),
-      );
-      const testSubmissionService = new TestSubmissionService(db, gradeService);
+        gradeService,
+        testSubmissionService,
+      } = buildCoreServices(db);
       const testStatusService = new TestStatusService(
         answerService,
         testSubmissionService,
@@ -316,17 +300,291 @@ describe("TestSubmissionService - Integration Tests", () => {
   );
 });
 
+describe("TestSubmissionService - Soft Delete", () => {
+  dbIt(
+    "deleteSubmission soft-deletes the row, lets the student resubmit, and leaves exactly one active row",
+    async ({ db }) => {
+      const { questionService, answerService, testSubmissionService } =
+        buildCoreServices(db);
+
+      const question = (await questionService.addQuestion("test-soft", {
+        title: "Q?",
+        content: "Pick.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "A", isCorrect: true },
+          { text: "B", isCorrect: false },
+        ],
+      })) as SingleSelectQuestion;
+      const correctId = question.options.find((o) => o.isCorrect)!.id;
+
+      await answerService.submitAnswer({
+        testId: "test-soft",
+        questionId: question.id,
+        studentId: "student-1",
+        answer: { type: "mc", selectedIds: [correctId] },
+      });
+      await testSubmissionService.submitTest("test-soft", "student-1");
+      expect(
+        await testSubmissionService.isTestSubmitted("test-soft", "student-1"),
+      ).toBe(true);
+
+      // Soft-delete the submission (redo flow).
+      await testSubmissionService.deleteSubmission("test-soft", "student-1");
+
+      // The student is no longer "submitted" from the caller's perspective.
+      expect(
+        await testSubmissionService.isTestSubmitted("test-soft", "student-1"),
+      ).toBe(false);
+
+      // But the historical row is still in the collection with `deletedAt` set.
+      const allRows = await db
+        .collection("test_submission")
+        .find({ testId: "test-soft", studentId: "student-1" })
+        .toArray();
+      expect(allRows).toHaveLength(1);
+      expect(allRows[0].deletedAt).toBeInstanceOf(Date);
+
+      // Resubmitting succeeds — adds a new active row.
+      await testSubmissionService.submitTest("test-soft", "student-1");
+
+      const afterResubmit = await db
+        .collection("test_submission")
+        .find({ testId: "test-soft", studentId: "student-1" })
+        .toArray();
+      expect(afterResubmit).toHaveLength(2);
+
+      const activeRows = afterResubmit.filter((r) => r.deletedAt === null);
+      const softDeletedRows = afterResubmit.filter(
+        (r) => r.deletedAt instanceof Date,
+      );
+      expect(activeRows).toHaveLength(1);
+      expect(softDeletedRows).toHaveLength(1);
+    },
+  );
+
+  dbIt(
+    "legacy rows inserted without a `deletedAt` field are treated as active",
+    async ({ db }) => {
+      const { testSubmissionService } = buildCoreServices(db);
+
+      // Direct insert simulates a pre-migration row produced by an older
+      // version of the service that didn't yet write `deletedAt`.
+      await db.collection("test_submission").insertOne({
+        id: "legacy-1",
+        testId: "test-legacy",
+        studentId: "student-legacy",
+        submittedAt: new Date(),
+      });
+
+      // Mongo's `{ deletedAt: null }` equality matches missing fields, so the
+      // legacy row should still register as "submitted".
+      expect(
+        await testSubmissionService.isTestSubmitted(
+          "test-legacy",
+          "student-legacy",
+        ),
+      ).toBe(true);
+
+      // And the duplicate-check in submitTest should also see the legacy row,
+      // so re-submission still rejects.
+      await expect(
+        testSubmissionService.submitTest("test-legacy", "student-legacy"),
+      ).rejects.toThrow("already been submitted");
+
+      // getActiveSubmission must also return the legacy row, with releasedAt /
+      // releasedBy coerced to null since the legacy doc has no release fields.
+      const active = await testSubmissionService.getActiveSubmission(
+        "test-legacy",
+        "student-legacy",
+      );
+      expect(active).not.toBeNull();
+      expect(active?.testId).toBe("test-legacy");
+      expect(active?.studentId).toBe("student-legacy");
+      expect(active?.releasedAt).toBeNull();
+      expect(active?.releasedBy).toBeNull();
+    },
+  );
+});
+
+describe("TestSubmissionService.getActiveSubmission", () => {
+  dbIt(
+    "returns the active row with releasedAt/releasedBy coerced to null when fresh",
+    async ({ db }) => {
+      const { testSubmissionService } = buildCoreServices(db);
+
+      await testSubmissionService.submitTest("test-active", "student-1");
+
+      const active = await testSubmissionService.getActiveSubmission(
+        "test-active",
+        "student-1",
+      );
+
+      expect(active).not.toBeNull();
+      expect(active?.testId).toBe("test-active");
+      expect(active?.studentId).toBe("student-1");
+      expect(active?.submittedAt).toBeInstanceOf(Date);
+      expect(active?.releasedAt).toBeNull();
+      expect(active?.releasedBy).toBeNull();
+    },
+  );
+
+  dbIt(
+    "returns null when no submission exists for the (testId, studentId)",
+    async ({ db }) => {
+      const { testSubmissionService } = buildCoreServices(db);
+
+      expect(
+        await testSubmissionService.getActiveSubmission("nope", "nobody"),
+      ).toBeNull();
+    },
+  );
+
+  dbIt(
+    "returns null when the only row for (testId, studentId) is soft-deleted",
+    async ({ db }) => {
+      const { testSubmissionService } = buildCoreServices(db);
+
+      await testSubmissionService.submitTest("test-soft-only", "student-1");
+      await testSubmissionService.deleteSubmission(
+        "test-soft-only",
+        "student-1",
+      );
+
+      expect(
+        await testSubmissionService.getActiveSubmission(
+          "test-soft-only",
+          "student-1",
+        ),
+      ).toBeNull();
+    },
+  );
+});
+
+describe("TestSubmissionService.releaseGradeToStudent", () => {
+  dbIt(
+    "stamps releasedAt and releasedBy on the active submission",
+    async ({ db }) => {
+      const { testSubmissionService } = buildCoreServices(db);
+
+      await testSubmissionService.submitTest("test-rel", "student-1");
+
+      await testSubmissionService.releaseGradeToStudent(
+        "test-rel",
+        "student-1",
+        "admin-1",
+      );
+
+      const active = await testSubmissionService.getActiveSubmission(
+        "test-rel",
+        "student-1",
+      );
+      expect(active?.releasedAt).toBeInstanceOf(Date);
+      expect(active?.releasedBy).toBe("admin-1");
+    },
+  );
+
+  dbIt(
+    "re-release refreshes both fields when a different admin re-releases",
+    async ({ db }) => {
+      const { testSubmissionService } = buildCoreServices(db);
+
+      await testSubmissionService.submitTest("test-rel-2", "student-1");
+
+      await testSubmissionService.releaseGradeToStudent(
+        "test-rel-2",
+        "student-1",
+        "admin-first",
+      );
+      const first = await testSubmissionService.getActiveSubmission(
+        "test-rel-2",
+        "student-1",
+      );
+
+      await testSubmissionService.releaseGradeToStudent(
+        "test-rel-2",
+        "student-1",
+        "admin-second",
+      );
+      const second = await testSubmissionService.getActiveSubmission(
+        "test-rel-2",
+        "student-1",
+      );
+
+      // Use `>=` (same-millisecond risk) AND assert the `releasedBy` switched
+      // — the latter is the stronger signal that the row was actually updated.
+      expect((second!.releasedAt as Date).getTime()).toBeGreaterThanOrEqual(
+        (first!.releasedAt as Date).getTime(),
+      );
+      expect(second?.releasedBy).toBe("admin-second");
+    },
+  );
+
+  dbIt("throws when no active submission exists", async ({ db }) => {
+    const { testSubmissionService } = buildCoreServices(db);
+
+    await expect(
+      testSubmissionService.releaseGradeToStudent(
+        "test-nobody",
+        "ghost",
+        "admin-1",
+      ),
+    ).rejects.toThrow("No active submission to release");
+  });
+
+  dbIt(
+    "does not touch a soft-deleted row's stale releasedAt",
+    async ({ db }) => {
+      const { testSubmissionService } = buildCoreServices(db);
+
+      // Seed a soft-deleted row with a stale releasedAt directly.
+      const staleReleasedAt = new Date("2020-01-01T00:00:00Z");
+      await db.collection("test_submission").insertOne({
+        id: "old",
+        testId: "test-soft-stale",
+        studentId: "student-1",
+        submittedAt: new Date("2019-12-31T00:00:00Z"),
+        deletedAt: new Date("2020-02-01T00:00:00Z"),
+        releasedAt: staleReleasedAt,
+        releasedBy: "admin-old",
+      });
+
+      // Create a new active submission for the same student/test.
+      await testSubmissionService.submitTest("test-soft-stale", "student-1");
+
+      // Release on the active row only.
+      await testSubmissionService.releaseGradeToStudent(
+        "test-soft-stale",
+        "student-1",
+        "admin-new",
+      );
+
+      // The soft-deleted row's audit fields must be byte-equal to the stale
+      // seed — the mutator filter is `deletedAt: null`, so the soft-deleted
+      // row should be invisible to it.
+      const softDeleted = await db
+        .collection("test_submission")
+        .findOne({ id: "old" });
+      expect((softDeleted?.releasedAt as Date).getTime()).toBe(
+        staleReleasedAt.getTime(),
+      );
+      expect(softDeleted?.releasedBy).toBe("admin-old");
+
+      // The active row got the new release fields.
+      const active = await testSubmissionService.getActiveSubmission(
+        "test-soft-stale",
+        "student-1",
+      );
+      expect(active?.releasedBy).toBe("admin-new");
+    },
+  );
+});
+
 describe("TestSubmissionService - Edge Cases", () => {
   dbIt("submitTest called twice rejects the second call", async ({ db }) => {
-    const questionService = new QuestionService(db);
-    const answerService = new AnswerService(db, questionService);
-    const gradeService = new GradeService(
-      db,
-      questionService,
-      answerService,
-      new TestService(db),
-    );
-    const testSubmissionService = new TestSubmissionService(db, gradeService);
+    const { questionService, answerService, testSubmissionService } =
+      buildCoreServices(db);
 
     const question = await questionService.addQuestion("test-idem", {
       title: "Q?",
@@ -358,15 +616,12 @@ describe("TestSubmissionService - Edge Cases", () => {
   dbIt(
     "submitTest on a free-text-only test creates no grades and does not crash",
     async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
+      const {
         questionService,
         answerService,
-        new TestService(db),
-      );
-      const testSubmissionService = new TestSubmissionService(db, gradeService);
+        gradeService,
+        testSubmissionService,
+      } = buildCoreServices(db);
 
       const q = await questionService.addQuestion("test-freeonly", {
         title: "Open Q",
@@ -392,15 +647,8 @@ describe("TestSubmissionService - Edge Cases", () => {
   dbIt(
     "submitTest when student has no MC answer skips that question and creates no grade",
     async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        new TestService(db),
-      );
-      const testSubmissionService = new TestSubmissionService(db, gradeService);
+      const { questionService, gradeService, testSubmissionService } =
+        buildCoreServices(db);
 
       const q = (await questionService.addQuestion("test-noanswer", {
         title: "Q?",
@@ -428,15 +676,12 @@ describe("TestSubmissionService - Edge Cases", () => {
   dbIt(
     "submitTest with 2 MC questions where only one is answered auto-grades the answered question and leaves the other with no grade",
     async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
+      const {
         questionService,
         answerService,
-        new TestService(db),
-      );
-      const testSubmissionService = new TestSubmissionService(db, gradeService);
+        gradeService,
+        testSubmissionService,
+      } = buildCoreServices(db);
 
       const q1 = await questionService.addQuestion("test-partial", {
         title: "Q1",

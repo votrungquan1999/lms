@@ -1,7 +1,6 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: this is for test */
 import { AnswerService } from "src/lib/answer-service";
 import { CourseService } from "src/lib/course-service";
-import { GradeService } from "src/lib/grade-service";
 import {
   type MultiSelectQuestion,
   QuestionService,
@@ -9,7 +8,7 @@ import {
 } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
 import { TestStatus } from "src/lib/test-status-service";
-import { TestSubmissionService } from "src/lib/test-submission-service";
+import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -19,15 +18,8 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "should return weighted average of grades based on question weights",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        testService,
-      );
+      const { testService, questionService, gradeService } =
+        buildCoreServices(db);
 
       const test = await testService.createTest("course-1", {
         title: "Test",
@@ -77,15 +69,8 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "autoGradeTest should correctly grade single_select and multi_select questions",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        testService,
-      );
+      const { testService, questionService, answerService, gradeService } =
+        buildCoreServices(db);
 
       const test = await testService.createTest("course-1", {
         title: "Auto Grade Test",
@@ -204,15 +189,8 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "should persist grade with score, feedback, and timestamp",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        testService,
-      );
+      const { testService, questionService, answerService, gradeService } =
+        buildCoreServices(db);
 
       const test = await testService.createTest("course-1", {
         title: "Midterm",
@@ -255,14 +233,10 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "should store an optional solution per student-question",
     async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        new TestService(db),
-      );
+      const { questionService, answerService, gradeService } =
+        buildCoreServices(db);
+      void questionService;
+      void answerService;
 
       const grade = await gradeService.gradeQuestion({
         testId: "test-1",
@@ -280,14 +254,10 @@ describe("GradeService - Integration Tests", () => {
   );
 
   dbIt("should update score and feedback when re-grading", async ({ db }) => {
-    const questionService = new QuestionService(db);
-    const answerService = new AnswerService(db, questionService);
-    const gradeService = new GradeService(
-      db,
-      questionService,
-      answerService,
-      new TestService(db),
-    );
+    const { questionService, answerService, gradeService } =
+      buildCoreServices(db);
+    void questionService;
+    void answerService;
 
     await gradeService.gradeQuestion({
       testId: "test-1",
@@ -314,15 +284,8 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "getStudentGrades & getStudentAverageScore should enforce visibility and atomic reveal",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        testService,
-      );
+      const { testService, questionService, answerService, gradeService } =
+        buildCoreServices(db);
 
       const studentId = "student-vis";
       const testDoc = await testService.createTest("course-1", {
@@ -408,15 +371,8 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "getStudentGrades should return empty when test is configured to not reveal grades after submit",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        testService,
-      );
+      const { testService, questionService, answerService, gradeService } =
+        buildCoreServices(db);
 
       // Test configured to NOT reveal grades automatically
       const testDoc = await testService.createTest("course-reveal", {
@@ -477,16 +433,13 @@ describe("GradeService - Atomic Reveal", () => {
   dbIt(
     "happy path: grades are hidden until all questions are graded (flags ON)",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
+      const {
+        testService,
         questionService,
         answerService,
-        testService,
-      );
-      const testSubmissionService = new TestSubmissionService(db, gradeService);
+        gradeService,
+        testSubmissionService,
+      } = buildCoreServices(db);
 
       // Default settings: showGradeAfterSubmit=true, showCorrectAnswerAfterSubmit=true
       const testDoc = await testService.createTest("course-ar", {
@@ -587,16 +540,13 @@ describe("GradeService - Atomic Reveal", () => {
   dbIt(
     "flags OFF: grades remain hidden even after all questions are graded, until admin releases",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
+      const {
+        testService,
         questionService,
         answerService,
-        testService,
-      );
-      const testSubmissionService = new TestSubmissionService(db, gradeService);
+        gradeService,
+        testSubmissionService,
+      } = buildCoreServices(db);
 
       // Both reveal flags turned OFF
       const testDoc = await testService.createTest("course-ar2", {
@@ -678,15 +628,8 @@ describe("GradeService - Auto-Grade Edge Cases", () => {
   dbIt(
     "multi_select partial with all correct and no wrong selected scores 100",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        testService,
-      );
+      const { testService, questionService, answerService, gradeService } =
+        buildCoreServices(db);
 
       const test = await testService.createTest("course-1", {
         title: "Partial Full Correct",
@@ -767,15 +710,8 @@ describe("GradeService - Visibility Edge Cases", () => {
   dbIt(
     "getStudentGrades returns empty when showGradeAfterSubmit=true but one question is still ungraded",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        testService,
-      );
+      const { testService, questionService, gradeService } =
+        buildCoreServices(db);
 
       // Both reveal flags ON (default)
       const test = await testService.createTest("course-1", {
@@ -822,15 +758,8 @@ describe("GradeService - Visibility Edge Cases", () => {
     "getStudentGrades returns empty when showGradeAfterSubmit=false until grades are explicitly released",
     async ({ db }) => {
       const courseService = new CourseService(db);
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        testService,
-      );
+      const { testService, questionService, answerService, gradeService } =
+        buildCoreServices(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -901,15 +830,8 @@ describe("GradeService - Visibility Edge Cases", () => {
   dbIt(
     "getAverageScore returns null when no grades exist for the student",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        testService,
-      );
+      const { testService, questionService, gradeService } =
+        buildCoreServices(db);
 
       const test = await testService.createTest("course-1", {
         title: "No Grade Test",
@@ -935,15 +857,8 @@ describe("GradeService - Re-grade Override", () => {
   dbIt(
     "manually re-grading an auto-graded MC question upserts the score correctly",
     async ({ db }) => {
-      const testService = new TestService(db);
-      const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
-      const gradeService = new GradeService(
-        db,
-        questionService,
-        answerService,
-        testService,
-      );
+      const { testService, questionService, answerService, gradeService } =
+        buildCoreServices(db);
 
       const test = await testService.createTest("course-1", {
         title: "Re-grade Test",

@@ -1,12 +1,12 @@
 import type { Collection, Db } from "mongodb";
 import type { AnswerService } from "src/lib/answer-service";
+import type { GradeVisibilityService } from "src/lib/grade-visibility-service";
 import type {
   MultiSelectQuestion,
   QuestionService,
   SingleSelectQuestion,
 } from "src/lib/question-service";
-import type { TestService } from "src/lib/test-service";
-import { TestStatus } from "src/lib/test-status-service";
+import type { TestStatus } from "src/lib/test-status-service";
 
 /**
  * Grade document stored in the `grade` collection.
@@ -65,7 +65,7 @@ export class GradeService {
     db: Db,
     private readonly questionService: QuestionService,
     private readonly answerService: AnswerService,
-    private readonly testService: TestService,
+    private readonly gradeVisibility: GradeVisibilityService,
   ) {
     this.grades = db.collection<GradeDocument>("grade");
   }
@@ -311,14 +311,12 @@ export class GradeService {
     studentId: string,
     testStatus: TestStatus,
   ): Promise<Grade[]> {
-    if (testStatus !== TestStatus.Graded) {
-      return [];
-    }
-    const test = await this.testService.getTest(testId);
-    if (!test) return [];
-    if (!test.showGradeAfterSubmit && !test.gradesReleasedAt) {
-      return [];
-    }
+    const visible = await this.gradeVisibility.canRevealGrades(
+      testId,
+      studentId,
+      testStatus,
+    );
+    if (!visible) return [];
     return this.getGrades(testId, studentId);
   }
 
@@ -331,14 +329,12 @@ export class GradeService {
     studentId: string,
     testStatus: TestStatus,
   ): Promise<number | null> {
-    if (testStatus !== TestStatus.Graded) {
-      return null;
-    }
-    const test = await this.testService.getTest(testId);
-    if (!test) return null;
-    if (!test.showGradeAfterSubmit && !test.gradesReleasedAt) {
-      return null;
-    }
+    const visible = await this.gradeVisibility.canRevealGrades(
+      testId,
+      studentId,
+      testStatus,
+    );
+    if (!visible) return null;
     return this.getAverageScore(testId, studentId);
   }
 }

@@ -3,6 +3,7 @@ import { CourseService } from "./course-service";
 import { getDatabase } from "./database";
 import { EnrollmentService } from "./enrollment-service";
 import { GradeService } from "./grade-service";
+import { GradeVisibilityService } from "./grade-visibility-service";
 import { PageGuard } from "./page-guard";
 import { QuestionService } from "./question-service";
 import { RedoRequestService } from "./redo-request-service";
@@ -21,6 +22,7 @@ let answerService: AnswerService | null = null;
 let courseService: CourseService | null = null;
 let enrollmentService: EnrollmentService | null = null;
 let gradeService: GradeService | null = null;
+let gradeVisibilityService: GradeVisibilityService | null = null;
 let redoRequestService: RedoRequestService | null = null;
 let testService: TestService | null = null;
 let testFeedbackService: TestFeedbackService | null = null;
@@ -68,15 +70,32 @@ export async function getGradeService(): Promise<GradeService> {
     const db = await getDatabase();
     const questionService = await getQuestionService();
     const answerService = await getAnswerService();
-    const testService = await getTestService();
+    const visibility = await getGradeVisibilityService();
     gradeService = new GradeService(
       db,
       questionService,
       answerService,
-      testService,
+      visibility,
     );
   }
   return gradeService;
+}
+
+/**
+ * Returns the singleton `GradeVisibilityService`. Constructed AFTER
+ * `TestService` and `TestSubmissionService`, BEFORE `GradeService` —
+ * keeps the dependency graph acyclic (see the service's class JSDoc).
+ */
+export async function getGradeVisibilityService(): Promise<GradeVisibilityService> {
+  if (!gradeVisibilityService) {
+    const testService = await getTestService();
+    // Lazy thunk — see `GradeVisibilityService` JSDoc for the cycle reasoning.
+    gradeVisibilityService = new GradeVisibilityService(
+      testService,
+      getTestSubmissionService,
+    );
+  }
+  return gradeVisibilityService;
 }
 
 export async function getTestService(): Promise<TestService> {
