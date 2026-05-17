@@ -62,6 +62,12 @@ export default async function StudentTestDetailPage({
   const questionService = await getQuestionService();
   const questions = await questionService.listQuestions(testId);
 
+  // Atomic-reveal gate for MC correct answers. When closed, every option's
+  // `isCorrect` is overwritten to `false` before reaching any client component,
+  // so devtools / page-source inspection cannot recover the answer key.
+  const correctAnswersVisible =
+    test.showCorrectAnswerAfterSubmit || test.correctAnswersReleasedAt != null;
+
   const answerService = await getAnswerService();
   const latestAnswers = await answerService.getLatestAnswers(
     testId,
@@ -200,6 +206,18 @@ export default async function StudentTestDetailPage({
               question.type === "single_select" ||
               question.type === "multi_select";
 
+            // For MC questions, build the option list that's safe to ship to
+            // the client. When the gate is closed, every option's `isCorrect`
+            // becomes `false` — this means selected chips will render in the
+            // neutral "selected + !isCorrect" path without revealing the
+            // answer key. Unselected correct options also won't render
+            // because `showCorrectAnswers` is gated below.
+            const safeOptions = isMC
+              ? correctAnswersVisible
+                ? question.options
+                : question.options.map((o) => ({ ...o, isCorrect: false }))
+              : [];
+
             return (
               <Card key={question.id}>
                 <CardHeader>
@@ -218,7 +236,7 @@ export default async function StudentTestDetailPage({
                         courseId={courseId}
                         questionId={question.id}
                         questionType={question.type}
-                        options={question.options}
+                        options={safeOptions}
                         existingSelectedIds={
                           studentAnswer?.type === "mc"
                             ? studentAnswer.selectedIds
@@ -248,7 +266,7 @@ export default async function StudentTestDetailPage({
                       {studentAnswer.type === "mc" && isMC ? (
                         <McAnswerChips
                           selectedIds={studentAnswer.selectedIds}
-                          options={question.options}
+                          options={safeOptions}
                         />
                       ) : studentAnswer.type === "free_text" ? (
                         <p className="whitespace-pre-wrap text-sm">
@@ -272,19 +290,26 @@ export default async function StudentTestDetailPage({
                           </span>
                         )}
                       </div>
-                      {/* MC answer chips with correct answers visible in graded view */}
-                      {isMC && grade && studentAnswer?.type === "mc" && (
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1">
-                            Your Selection:
-                          </p>
-                          <McAnswerChips
-                            selectedIds={studentAnswer.selectedIds}
-                            options={question.options}
-                            showCorrectAnswers
-                          />
-                        </div>
-                      )}
+                      {/* MC answer chips with correct answers visible in graded view.
+                          Only rendered when the correct-answer gate is open — otherwise
+                          chips would mislabel correct picks as wrong (every option has
+                          `isCorrect: false` under the closed-gate redaction, so the
+                          "selected + !isCorrect" branch paints them red). */}
+                      {isMC &&
+                        grade &&
+                        studentAnswer?.type === "mc" &&
+                        correctAnswersVisible && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">
+                              Your Selection:
+                            </p>
+                            <McAnswerChips
+                              selectedIds={studentAnswer.selectedIds}
+                              options={safeOptions}
+                              showCorrectAnswers={correctAnswersVisible}
+                            />
+                          </div>
+                        )}
                       {grade.feedback && (
                         <div>
                           <p className="text-xs font-medium text-muted-foreground mb-1">
