@@ -137,6 +137,65 @@ describe("TestService", () => {
   });
 
   dbIt(
+    "updateTestSettings overwrites both visibility flags and stamps audit fields, leaving release timestamps untouched",
+    async ({ db }) => {
+      const courseService = new CourseService(db);
+      const testService = new TestService(db);
+
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "Desc",
+        createdBy: "admin",
+      });
+
+      const test = await testService.createTest(course.id, {
+        title: "Test",
+        description: "",
+        createdBy: "admin",
+        showGradeAfterSubmit: true,
+        showCorrectAnswerAfterSubmit: true,
+      });
+
+      // Seed non-null release timestamps so the "unchanged" assertion is sensitive.
+      await testService.releaseGrades(test.id, "admin");
+      await testService.releaseCorrectAnswers(test.id, "admin");
+
+      const beforeDoc = await db.collection("test").findOne({ id: test.id });
+      const seededGradesReleasedAt = beforeDoc?.gradesReleasedAt as Date;
+      const seededCorrectAnswersReleasedAt =
+        beforeDoc?.correctAnswersReleasedAt as Date;
+      const beforeUpdatedAt = beforeDoc?.updatedAt as Date;
+      expect(seededGradesReleasedAt).toBeInstanceOf(Date);
+      expect(seededCorrectAnswersReleasedAt).toBeInstanceOf(Date);
+
+      await testService.updateTestSettings(test.id, {
+        showGradeAfterSubmit: false,
+        showCorrectAnswerAfterSubmit: false,
+        updatedBy: "admin2",
+      });
+
+      const after = await testService.getTest(test.id);
+      expect(after?.showGradeAfterSubmit).toBe(false);
+      expect(after?.showCorrectAnswerAfterSubmit).toBe(false);
+
+      const afterDoc = await db.collection("test").findOne({ id: test.id });
+      expect(afterDoc?.updatedAt).toBeInstanceOf(Date);
+      expect((afterDoc?.updatedAt as Date).getTime()).toBeGreaterThanOrEqual(
+        beforeUpdatedAt.getTime(),
+      );
+      expect(afterDoc?.updatedBy).toBe("admin2");
+
+      // Release timestamps must be byte-equal to seeded values.
+      expect((afterDoc?.gradesReleasedAt as Date).getTime()).toBe(
+        seededGradesReleasedAt.getTime(),
+      );
+      expect((afterDoc?.correctAnswersReleasedAt as Date).getTime()).toBe(
+        seededCorrectAnswersReleasedAt.getTime(),
+      );
+    },
+  );
+
+  dbIt(
     "listAllTests should return every non-deleted test across all courses",
     async ({ db }) => {
       const courseService = new CourseService(db);

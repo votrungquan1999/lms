@@ -47,6 +47,15 @@ export interface CreateTestInput {
 }
 
 /**
+ * Input for overwriting a test's visibility flags via the admin settings panel.
+ */
+export interface UpdateTestSettingsInput {
+  showGradeAfterSubmit: boolean;
+  showCorrectAnswerAfterSubmit: boolean;
+  updatedBy: string;
+}
+
+/**
  * TestService — manages the `test` collection.
  */
 export class TestService {
@@ -118,6 +127,28 @@ export class TestService {
       gradesReleasedAt: doc.gradesReleasedAt,
       createdAt: doc.createdAt,
     };
+  }
+
+  /**
+   * Overwrites a test's visibility flags and stamps audit fields.
+   * Does NOT touch `gradesReleasedAt` or `correctAnswersReleasedAt` — those are
+   * owned by the dedicated release mutators (`releaseGrades`, `releaseCorrectAnswers`).
+   */
+  async updateTestSettings(
+    testId: string,
+    input: UpdateTestSettingsInput,
+  ): Promise<void> {
+    await this.tests.updateOne(
+      { id: testId },
+      {
+        $set: {
+          showGradeAfterSubmit: input.showGradeAfterSubmit,
+          showCorrectAnswerAfterSubmit: input.showCorrectAnswerAfterSubmit,
+          updatedAt: new Date(),
+          updatedBy: input.updatedBy,
+        },
+      },
+    );
   }
 
   async releaseGrades(testId: string, updatedBy: string): Promise<void> {

@@ -6,6 +6,7 @@ import { AddQuestionForm } from "./add-question-form";
 import { DeleteTestButton } from "./delete-test-button";
 import { ImportQuestionsForm } from "./import-questions-form";
 import { QuestionList } from "./question-list";
+import { TestSettingsPanel } from "./test-settings-panel";
 
 export const metadata = {
   title: "Test Questions — LMS Admin",
@@ -43,6 +44,15 @@ export default async function TestDetailPage({
       </header>
 
       <section className="w-full max-w-2xl space-y-6">
+        <TestSettingsPanel
+          courseId={courseId}
+          testId={testId}
+          showGradeAfterSubmit={test.showGradeAfterSubmit}
+          showCorrectAnswerAfterSubmit={test.showCorrectAnswerAfterSubmit}
+          gradesReleasedAt={test.gradesReleasedAt}
+          correctAnswersReleasedAt={test.correctAnswersReleasedAt}
+        />
+
         <AddQuestionForm testId={testId} courseId={courseId} />
 
         <ImportQuestionsForm testId={testId} courseId={courseId} />
