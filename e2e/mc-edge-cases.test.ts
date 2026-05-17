@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { MongoClient } from "mongodb";
 import { expect, test } from "@playwright/test";
+import { MongoClient } from "mongodb";
 
 // ─── Shared constants ────────────────────────────────────────────────────────
 
@@ -30,7 +30,9 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
     await page.goto("/admin/courses");
     await page.getByRole("button", { name: "Add Course" }).click();
     await page.getByLabel("Course Title").fill("EC Delayed Course");
-    await page.getByLabel("Description").fill("Edge case delayed release course");
+    await page
+      .getByLabel("Description")
+      .fill("Edge case delayed release course");
     await page.getByRole("button", { name: "Create Course" }).click();
     await expect(page.getByText("created successfully")).toBeVisible({
       timeout: 10_000,
@@ -60,7 +62,9 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
 
   // ── Setup: Admin creates the student for this scenario ───────────────────
 
-  test("admin creates student for delayed reveal scenario", async ({ page }) => {
+  test("admin creates student for delayed reveal scenario", async ({
+    page,
+  }) => {
     await page.goto("/admin/students");
     await page.getByRole("button", { name: "Add Student" }).first().click();
     await page.getByLabel("Full Name").fill(STUDENT_NAME);
@@ -189,7 +193,9 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
     ).not.toBeVisible({ timeout: 10_000 });
   });
 
-  test("student sees score after admin releases grades", async ({ browser }) => {
+  test("student sees score after admin releases grades", async ({
+    browser,
+  }) => {
     // Given: grades were just released
     const ctx = await browser.newContext({ storageState: EC_STUDENT_AUTH });
     const page = await ctx.newPage();
@@ -229,7 +235,10 @@ test.describe("MC Edge Cases — Partial correct multi-select", () => {
     const adminCtx = await browser.newContext({ storageState: adminAuthPath });
     const adminPage = await adminCtx.newPage();
     await adminPage.goto(`${BASE_URL}/admin/students`);
-    await adminPage.getByRole("button", { name: "Add Student" }).first().click();
+    await adminPage
+      .getByRole("button", { name: "Add Student" })
+      .first()
+      .click();
     await adminPage.getByLabel("Full Name").fill("EC Partial Student");
     await adminPage.getByLabel("Username").fill(STUDENT_USERNAME);
     await adminPage.getByLabel("Password").fill(STUDENT_PASSWORD);

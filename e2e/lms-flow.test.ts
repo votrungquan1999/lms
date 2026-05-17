@@ -258,7 +258,9 @@ test.describe("LMS E2E Flow", () => {
     await page.getByRole("button", { name: "Add Test" }).click();
     await page.getByLabel("Test Title").fill("E2E Title Only Test");
     await page.getByRole("button", { name: "Create Test" }).click();
-    await expect(page.getByText("created successfully")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("created successfully")).toBeVisible({
+      timeout: 10000,
+    });
 
     await page.reload();
     await page.getByText("E2E Title Only Test").click();

@@ -79,9 +79,9 @@ test.describe("Grading Hub Flow", () => {
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
-    await expect(
-      page.getByRole("heading", { name: TEST_TITLE }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: TEST_TITLE })).toBeVisible({
+      timeout: 10000,
+    });
 
     await page.getByLabel("Question Title").fill("Describe Big-O");
     await page.getByRole("button", { name: "Add Question" }).click();
@@ -118,17 +118,17 @@ test.describe("Grading Hub Flow", () => {
     await page.goto("http://localhost:3001/student/dashboard");
     await page.getByRole("link", { name: /Grading Hub Course/ }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
-    await expect(
-      page.getByRole("heading", { name: TEST_TITLE }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: TEST_TITLE })).toBeVisible({
+      timeout: 10000,
+    });
 
     await page
       .getByPlaceholder("Type your answer here...")
       .fill("Time complexity bound.");
     await page.getByRole("button", { name: "Submit Answer" }).click();
-    await expect(
-      page.getByRole("button", { name: "Edit Answer" }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("button", { name: "Edit Answer" })).toBeVisible(
+      { timeout: 10000 },
+    );
 
     await page.getByRole("button", { name: "Submit Test for Grading" }).click();
     await expect(
@@ -152,13 +152,14 @@ test.describe("Grading Hub Flow", () => {
     await expect(
       page.getByRole("heading", { name: "Dashboard" }),
     ).toBeVisible();
-    await page.getByRole("link", { name: /Grading/ }).first().click();
+    await page
+      .getByRole("link", { name: /Grading/ })
+      .first()
+      .click();
     await expect(page).toHaveURL(/\/admin\/grading$/, { timeout: 10000 });
 
     // Block B: Hub → Variant
-    await expect(
-      page.getByRole("heading", { name: /Grading/ }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Grading/ })).toBeVisible();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
     await expect(page).toHaveURL(/\/admin\/grading\/[^/]+$/, {
       timeout: 10000,
