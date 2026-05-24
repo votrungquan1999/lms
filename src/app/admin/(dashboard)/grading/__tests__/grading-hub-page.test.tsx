@@ -68,6 +68,8 @@ describe("Feature: GradingHubPage default view", () => {
       await services.questionService.addQuestion(t.id, {
         type: "free_text",
         title: "Q",
+        content: "Q",
+        createdBy: "admin",
       });
     }
 
@@ -154,6 +156,8 @@ describe("Feature: GradingHubPage default view", () => {
       await services.questionService.addQuestion(t.id, {
         type: "free_text",
         title: "Q",
+        content: "Q",
+        createdBy: "admin",
       });
     }
 

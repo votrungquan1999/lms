@@ -293,7 +293,6 @@ describe("Feature: Student test page — 3-tier grade visibility gate", () => {
       studentId: student.id,
       score: 80,
       feedback: "Good",
-      solution: null,
       gradedBy: "admin",
     });
     return { services, course, test, question, student };

@@ -46,10 +46,14 @@ describe("Feature: Dashboard Grading card", () => {
     await services.questionService.addQuestion(test1.id, {
       type: "free_text",
       title: "Q",
+      content: "Q",
+      createdBy: "admin",
     });
     await services.questionService.addQuestion(test2.id, {
       type: "free_text",
       title: "Q",
+      content: "Q",
+      createdBy: "admin",
     });
     const [q1] = await services.questionService.listQuestions(test1.id);
     const [q2] = await services.questionService.listQuestions(test2.id);

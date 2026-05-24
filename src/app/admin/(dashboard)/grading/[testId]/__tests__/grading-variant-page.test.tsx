@@ -54,6 +54,8 @@ describe("Feature: GradingVariantPage", () => {
     await services.questionService.addQuestion(test.id, {
       type: "free_text",
       title: "Q",
+      content: "Q",
+      createdBy: "admin",
     });
     const [q] = await services.questionService.listQuestions(test.id);
 

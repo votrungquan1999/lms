@@ -90,7 +90,6 @@ describe("Feature: Admin per-student grade release", () => {
       studentId: student.id,
       score: 80,
       feedback: "Good",
-      solution: null,
       gradedBy: "admin",
     });
 
@@ -225,7 +224,6 @@ describe("Feature: Admin per-student grade release", () => {
       studentId: releasedStudent.id,
       score: 90,
       feedback: "Good",
-      solution: null,
       gradedBy: "admin",
     });
     await services.testSubmissionService.releaseGradeToStudent(
@@ -328,7 +326,6 @@ describe("Feature: Admin per-student grade release", () => {
       studentId: globalFlagStudent.id,
       score: 95,
       feedback: "Great",
-      solution: null,
       gradedBy: "admin",
     });
 

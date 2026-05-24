@@ -65,10 +65,14 @@ describe("Feature: GradingPage student card ordering", () => {
     await services.questionService.addQuestion(test.id, {
       type: "free_text",
       title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
     });
     await services.questionService.addQuestion(test.id, {
       type: "free_text",
       title: "Q2",
+      content: "Q2",
+      createdBy: "admin",
     });
     const questions = await services.questionService.listQuestions(test.id);
     const [q1, q2] = questions;
@@ -176,6 +180,8 @@ describe("Feature: GradingPage student card ordering", () => {
     await services.questionService.addQuestion(test.id, {
       type: "free_text",
       title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
     });
     const [q1] = await services.questionService.listQuestions(test.id);
 
