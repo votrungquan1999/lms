@@ -22,6 +22,7 @@ A web-based Learning Management System that enables students to login, take test
 ### Planned
 
 - **Lesson File Downloads** — Students download lesson materials (PDFs, documents, etc.)
+- **Mathematical Questions** — Students upload pictures of handwritten answers; teachers review and annotate directly on images
 
 ## Tech Stack
 
