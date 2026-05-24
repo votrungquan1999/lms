@@ -172,6 +172,7 @@ const applyAiSuggestionSchema = z.object({
   suggestionId: z.string().min(1),
   scoreOverride: z.coerce.number().int().min(0).max(100).optional(),
   feedbackOverride: z.string().optional(),
+  solutionOverride: z.string().optional(),
 });
 
 export interface ApplyAiSuggestionState {
@@ -207,6 +208,7 @@ export async function applyAiSuggestionAction(
 
   const rawScoreOverride = formData.get("scoreOverride");
   const rawFeedbackOverride = formData.get("feedbackOverride");
+  const rawSolutionOverride = formData.get("solutionOverride");
 
   const parsed = applyAiSuggestionSchema.safeParse({
     testId: formData.get("testId"),
@@ -219,6 +221,8 @@ export async function applyAiSuggestionAction(
         : rawScoreOverride,
     feedbackOverride:
       rawFeedbackOverride === null ? undefined : rawFeedbackOverride,
+    solutionOverride:
+      rawSolutionOverride === null ? undefined : rawSolutionOverride,
   });
 
   if (!parsed.success) {
@@ -233,6 +237,7 @@ export async function applyAiSuggestionAction(
       {
         scoreOverride: parsed.data.scoreOverride,
         feedbackOverride: parsed.data.feedbackOverride,
+        solutionOverride: parsed.data.solutionOverride,
       },
     );
 

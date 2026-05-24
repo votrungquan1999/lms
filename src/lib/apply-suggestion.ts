@@ -33,6 +33,7 @@ export interface ApplySuggestionDeps {
 export interface ApplySuggestionOverrides {
   scoreOverride?: number;
   feedbackOverride?: string;
+  solutionOverride?: string;
 }
 
 /**
@@ -117,6 +118,7 @@ export async function applySuggestion(
 
   const effectiveScore = overrides?.scoreOverride ?? target.score;
   const effectiveFeedback = overrides?.feedbackOverride ?? target.feedback;
+  const effectiveSolution = overrides?.solutionOverride ?? target.solution;
 
   await gradeService.gradeQuestion({
     testId: target.testId,
@@ -124,6 +126,7 @@ export async function applySuggestion(
     studentId: target.studentId,
     score: effectiveScore,
     feedback: effectiveFeedback,
+    solution: effectiveSolution,
     gradedBy: byAdminId,
   });
 
@@ -151,6 +154,7 @@ export async function applySuggestion(
     studentId: updated.studentId,
     score: updated.score,
     feedback: updated.feedback,
+    solution: updated.solution,
     gradedAgainstAnswerId: updated.gradedAgainstAnswerId,
     model: updated.model,
     generatedAt: updated.generatedAt,

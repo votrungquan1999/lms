@@ -26,6 +26,14 @@ export interface AiGradeSuggestionDocument {
   studentId: string;
   score: number;
   feedback: string;
+  /**
+   * Minimally-edited corrected version of the student's submission produced
+   * by the model. Surfaced in the admin AI suggestion panel and written into
+   * the canonical `grade.solution` field when the suggestion is applied so
+   * the student-facing diff can render. May be `undefined` on legacy rows
+   * written before the `solution` field shipped.
+   */
+  solution?: string;
   /** Snapshot of the answer the AI was shown — drives the stale check (Step 8). */
   gradedAgainstAnswerId: string;
   /** Raw model name, e.g. `"gemini-2.5-flash"`. */
@@ -53,6 +61,11 @@ export interface AiGradeSuggestion {
   studentId: string;
   score: number;
   feedback: string;
+  /**
+   * Model-produced corrected version of the student's answer. `undefined` for
+   * legacy suggestions written before the `solution` field shipped.
+   */
+  solution?: string;
   gradedAgainstAnswerId: string;
   model: string;
   generatedAt: Date;

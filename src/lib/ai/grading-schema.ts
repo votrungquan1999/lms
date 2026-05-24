@@ -9,11 +9,18 @@ import { z } from "zod";
  *   layer's outer try/catch converts that to the pinned error message.
  * - `feedback`: short, surgical comment shown side-by-side to the teacher.
  *   Capped to 2000 chars so a runaway model can't break the UI.
+ * - `solution`: minimally-edited corrected version of the student's
+ *   submission. The model is prompted to preserve the student's variable
+ *   names and structure where possible so the student-facing diff highlights
+ *   only what actually changed. For blank submissions the model produces a
+ *   minimal idiomatic solution from scratch. Capped at 4000 chars (larger
+ *   than `feedback` because solutions can be code).
  */
 export const aiGradeItemSchema = z.object({
   questionId: z.string(),
   score: z.number().int().min(0).max(100),
   feedback: z.string().min(1).max(2000),
+  solution: z.string().min(1).max(4000),
 });
 
 /**

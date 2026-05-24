@@ -42,6 +42,10 @@ export function buildGradingPrompt(
     priorByQuestion.set(pg.questionId, pg);
   }
 
+  sections.push(
+    "For each item, also produce a `solution`: a corrected version of the student's answer with the SMALLEST possible edit. Preserve the student's variable names, structure, and style wherever possible — change only what is wrong. If the student's answer is blank, off-topic, or incoherent, synthesize a minimal idiomatic solution from scratch. Never return an empty solution.",
+  );
+
   sections.push("Grade each of the following items:");
   for (const item of items) {
     const lines = [
@@ -54,12 +58,15 @@ export function buildGradingPrompt(
       lines.push(
         `Prior suggestion for this question: score=${prior.score}, feedback=${prior.feedback}`,
       );
+      if (prior.solution && prior.solution.trim().length > 0) {
+        lines.push(`Prior suggested solution:\n${prior.solution}`);
+      }
     }
     sections.push(lines.join("\n"));
   }
 
   sections.push(
-    'Respond with JSON of the form { "grades": [{ "questionId": string, "score": int 0-100, "feedback": string }, ...] }. Return exactly one entry per questionId above.',
+    'Respond with JSON of the form { "grades": [{ "questionId": string, "score": int 0-100, "feedback": string, "solution": string }, ...] }. Return exactly one entry per questionId above.',
   );
 
   return sections.join("\n\n");

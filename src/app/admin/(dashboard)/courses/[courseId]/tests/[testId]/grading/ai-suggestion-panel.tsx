@@ -174,6 +174,20 @@ function SuggestionRow({
         {suggestion.feedback}
       </pre>
 
+      {suggestion.solution && suggestion.solution.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">
+            Suggested solution
+          </p>
+          <pre
+            className="rounded-sm bg-muted px-2 py-1.5 font-mono text-xs whitespace-pre-wrap text-foreground"
+            data-testid="ai-suggestion-solution"
+          >
+            {suggestion.solution}
+          </pre>
+        </div>
+      )}
+
       {suggestion.regenerateReason !== null && (
         <p className="text-xs text-muted-foreground">
           Regen reason: {suggestion.regenerateReason}

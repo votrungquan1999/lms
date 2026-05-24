@@ -115,6 +115,7 @@ export class AiGradeService {
           questionId: candidate.questionId,
           score: prior.score,
           feedback: prior.feedback,
+          solution: prior.solution,
         });
       }
     }
@@ -265,6 +266,7 @@ export class AiGradeService {
         studentId,
         score: result.score,
         feedback: result.feedback,
+        solution: result.solution,
         gradedAgainstAnswerId: candidate.answerId,
         model: AI_MODEL_NAME,
         gradedBy: AI_GRADER_ID,
@@ -289,6 +291,7 @@ export class AiGradeService {
       studentId: doc.studentId,
       score: doc.score,
       feedback: doc.feedback,
+      solution: doc.solution,
       gradedAgainstAnswerId: doc.gradedAgainstAnswerId,
       model: doc.model,
       generatedAt: doc.generatedAt,

@@ -26,6 +26,7 @@ describe("AiGradeService.generateForStudent - Step 1", () => {
               questionId: item.questionId,
               score: expected?.score ?? 0,
               feedback: expected?.feedback ?? "",
+              solution: "",
             };
           });
         },
@@ -124,6 +125,7 @@ describe("AiGradeService.generateForStudent - Step 3 (skip filter)", () => {
           questionId: item.questionId,
           score: 90,
           feedback: "ok",
+          solution: "",
         })),
       );
       const stubAiClient: AiClient = {
@@ -281,6 +283,7 @@ describe("AiGradeService.regenerateForStudent - Step 5", () => {
             feedback: isRegenerate
               ? "Reconsidered after teacher reason."
               : "Initial suggestion.",
+            solution: "",
           }));
         },
       };
@@ -399,6 +402,7 @@ describe("AiGradeService.applySuggestion - Step 6 (apply-over-human-grade refusa
             questionId: item.questionId,
             score: 55,
             feedback: "ai feedback",
+            solution: "",
           }));
         },
       };
@@ -514,6 +518,7 @@ describe("AiGradeService.applySuggestion - Step 6", () => {
             questionId: item.questionId,
             score: 80,
             feedback: "good",
+            solution: "",
           }));
         },
       };
@@ -606,6 +611,7 @@ describe("AiGradeService.applySuggestion - Step 6 override semantics (?? not ||)
             questionId: item.questionId,
             score: 80,
             feedback: "good",
+            solution: "",
           }));
         },
       };
@@ -859,6 +865,277 @@ describe("AiGradeService.applySuggestion - Step 7 (switch applied back to a non-
       // Then: exclusivity invariant — exactly ONE suggestion marked applied.
       const appliedRows = rows.filter((r) => r.appliedAt !== null);
       expect(appliedRows).toHaveLength(1);
+    },
+  );
+});
+
+describe("AiGradeService.applySuggestion - Step 7 (solutionOverride precedence)", () => {
+  dbIt(
+    "given a suggestion with solution='ai-solution', when applying with solutionOverride='', then the grade row stores solution='' (empty-string is honored as an intentional override via ?? not ||)",
+    async ({ db }) => {
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch() {
+          throw new Error("not used in this test");
+        },
+      };
+      const services = buildCoreServices(db, { aiClient: stubAiClient });
+      const {
+        testService,
+        questionService,
+        answerService,
+        gradeService,
+        aiGradeService,
+      } = services;
+
+      const test = await testService.createTest("course-1", {
+        title: "AI Grade Step 7 solutionOverride",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Sum a list.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "def total(nums): pass" },
+      });
+
+      const suggestionId = "suggestion-step-7-override";
+      await db.collection<AiGradeSuggestionDocument>("ai_grade").insertOne({
+        id: suggestionId,
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        score: 75,
+        feedback: "ok",
+        solution: "ai-solution",
+        gradedAgainstAnswerId: "answer-snap-1",
+        model: "gemini-2.5-flash",
+        gradedBy: "ai:gemini-2.5-flash",
+        generatedByAdminId: "admin-1",
+        generatedAt: new Date(),
+        regenerateReason: null,
+        appliedAt: null,
+        appliedBy: null,
+      });
+
+      await aiGradeService.applySuggestion(suggestionId, "admin-3", {
+        solutionOverride: "",
+      });
+
+      const grade = await gradeService.getGrade(test.id, q1.id, "student-1");
+      expect(grade!.solution).toBe("");
+    },
+  );
+});
+
+describe("AiGradeService.applySuggestion - Step 6 (solution into grade row)", () => {
+  dbIt(
+    "given an unapplied suggestion whose solution is set, when applying, then the persisted grade row carries the same solution string",
+    async ({ db }) => {
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch() {
+          throw new Error("not used in this test");
+        },
+      };
+      const services = buildCoreServices(db, { aiClient: stubAiClient });
+      const {
+        testService,
+        questionService,
+        answerService,
+        gradeService,
+        aiGradeService,
+      } = services;
+
+      const test = await testService.createTest("course-1", {
+        title: "AI Grade Step 6 solution",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Sum a list.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "def total(nums): pass" },
+      });
+
+      const suggestionId = "suggestion-step-6-sol";
+      const aiSolution = "def total(nums):\n    return sum(nums)";
+      await db.collection<AiGradeSuggestionDocument>("ai_grade").insertOne({
+        id: suggestionId,
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        score: 75,
+        feedback: "ok",
+        solution: aiSolution,
+        gradedAgainstAnswerId: "answer-snap-1",
+        model: "gemini-2.5-flash",
+        gradedBy: "ai:gemini-2.5-flash",
+        generatedByAdminId: "admin-1",
+        generatedAt: new Date(),
+        regenerateReason: null,
+        appliedAt: null,
+        appliedBy: null,
+      });
+
+      await aiGradeService.applySuggestion(suggestionId, "admin-2");
+
+      const gradeDoc = await db.collection<GradeDocument>("grade").findOne({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+      });
+      expect(gradeDoc).not.toBeNull();
+      expect(gradeDoc!.solution).toBe(aiSolution);
+
+      const grade = await gradeService.getGrade(test.id, q1.id, "student-1");
+      expect(grade!.solution).toBe(aiSolution);
+    },
+  );
+});
+
+describe("AiGradeService.regenerateForStudent - Step 5 (prior solution forwarded)", () => {
+  dbIt(
+    "given an existing suggestion with a solution, when regenerating, then the AI client's regenerate call receives the prior solution in priorGrades",
+    async ({ db }) => {
+      const calls: Array<{
+        items: AiGradeBatchInput[];
+        opts: AiGradeBatchOptions | undefined;
+      }> = [];
+
+      let callIndex = 0;
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch(
+          items: AiGradeBatchInput[],
+          opts?: AiGradeBatchOptions,
+        ) {
+          calls.push({ items, opts });
+          const isRegenerate = callIndex > 0;
+          callIndex += 1;
+          return items.map((item) => ({
+            questionId: item.questionId,
+            score: isRegenerate ? 70 : 80,
+            feedback: isRegenerate ? "v2" : "v1",
+            solution: isRegenerate
+              ? "def total(nums):\n    return sum(nums)"
+              : "def total(nums):\n    s = 0\n    for n in nums:\n        s += n\n    return s",
+          }));
+        },
+      };
+
+      const services = buildCoreServices(db, { aiClient: stubAiClient });
+      const { testService, questionService, answerService, aiGradeService } =
+        services;
+
+      const test = await testService.createTest("course-1", {
+        title: "AI Grade Step 5 solution",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Sum a list.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "def total(nums): pass" },
+      });
+
+      await aiGradeService.generateForStudent(test.id, "student-1", "admin-1");
+      await aiGradeService.regenerateForStudent(
+        test.id,
+        "student-1",
+        "admin-2",
+        "be stricter on style",
+      );
+
+      expect(calls).toHaveLength(2);
+      const regenerateCall = calls[1]!;
+      expect(regenerateCall.opts?.priorGrades).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            questionId: q1.id,
+            solution:
+              "def total(nums):\n    s = 0\n    for n in nums:\n        s += n\n    return s",
+          }),
+        ]),
+      );
+    },
+  );
+});
+
+describe("AiGradeService.generateForStudent - Step 4 (solution persistence)", () => {
+  dbIt(
+    "given the AI client returns a per-item solution, when generating, then the inserted ai_grade doc AND the returned suggestion both carry that solution string",
+    async ({ db }) => {
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
+          return items.map((item) => ({
+            questionId: item.questionId,
+            score: 75,
+            feedback: "ok",
+            solution: "def total(nums):\n    return sum(nums)",
+          }));
+        },
+      };
+
+      const services = buildCoreServices(db, { aiClient: stubAiClient });
+      const { testService, questionService, answerService, aiGradeService } =
+        services;
+
+      const test = await testService.createTest("course-1", {
+        title: "AI Grade Step 4",
+        description: "",
+        createdBy: "admin-1",
+      });
+
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Sum a list using a loop.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "def total(nums): pass" },
+      });
+
+      const suggestions = await aiGradeService.generateForStudent(
+        test.id,
+        "student-1",
+        "admin-1",
+      );
+
+      expect(suggestions).toHaveLength(1);
+      expect(suggestions[0]!.solution).toBe(
+        "def total(nums):\n    return sum(nums)",
+      );
+
+      const rows = await db
+        .collection<AiGradeSuggestionDocument>("ai_grade")
+        .find({ testId: test.id, studentId: "student-1" })
+        .toArray();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.solution).toBe("def total(nums):\n    return sum(nums)");
     },
   );
 });

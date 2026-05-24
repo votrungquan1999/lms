@@ -99,6 +99,52 @@ describe("Feature: AiSuggestionPanel history expansion (Step 7)", () => {
   });
 });
 
+describe("Feature: AiSuggestionPanel solution preview", () => {
+  it("given a suggestion whose solution field is set, when the panel renders, then the row exposes a solution preview block containing the solution text; a sibling row with no solution renders no preview block", () => {
+    const suggestions: AiGradeSuggestion[] = [
+      buildSuggestion({
+        id: "sugg-with-solution",
+        score: 75,
+        feedback: "ok",
+        solution: "def total(nums):\n    return sum(nums)",
+        generatedAt: new Date("2026-01-02T00:00:00Z"),
+      }),
+      buildSuggestion({
+        id: "sugg-no-solution",
+        score: 60,
+        feedback: "legacy",
+        generatedAt: new Date("2026-01-01T00:00:00Z"),
+      }),
+    ];
+
+    render(
+      <AiSuggestionPanel
+        testId="test-1"
+        courseId="course-1"
+        studentId="student-1"
+        suggestions={suggestions}
+        defaultHistoryOpen={true}
+      />,
+    );
+
+    const rows = screen.getAllByTestId("ai-suggestion-row");
+    const withSolution = rows.find(
+      (r) => r.getAttribute("data-suggestion-id") === "sugg-with-solution",
+    )!;
+    const noSolution = rows.find(
+      (r) => r.getAttribute("data-suggestion-id") === "sugg-no-solution",
+    )!;
+
+    const preview = within(withSolution).getByTestId("ai-suggestion-solution");
+    expect(preview).toHaveTextContent("def total(nums):");
+    expect(preview).toHaveTextContent("return sum(nums)");
+
+    expect(
+      within(noSolution).queryByTestId("ai-suggestion-solution"),
+    ).toBeNull();
+  });
+});
+
 describe("Feature: AiSuggestionPanel stale-suggestion badge (Step 8)", () => {
   it("given two suggestions where one was graded against an older answer and another against the latest answer, when the panel renders with the latest answer id, then only the older suggestion's row carries data-stale=true and shows a Stale badge", () => {
     // Given: two suggestions for the same question; A was graded against

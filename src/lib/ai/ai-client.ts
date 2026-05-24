@@ -14,22 +14,31 @@ export interface AiGradeBatchInput {
 
 /**
  * Output for one item from an AI free-text grading batch.
+ *
+ * `solution` is a minimally-edited corrected version of the student's
+ * submission produced by the model. The student-facing UI renders this as
+ * the "correct answer" side of the side-by-side diff once the suggestion is
+ * applied to the canonical grade row.
  */
 export interface AiGradeBatchOutput {
   questionId: string;
   score: number;
   feedback: string;
+  solution: string;
 }
 
 /**
  * Prior grade snapshot passed to the AI client on regenerate so the LLM can
  * see what was suggested before and adjust accordingly. One entry per
- * candidate question that already had a prior suggestion.
+ * candidate question that already had a prior suggestion. `solution` is
+ * optional because legacy suggestions written before the solution field
+ * shipped have no prior solution to forward.
  */
 export interface AiGradeBatchPriorGrade {
   questionId: string;
   score: number;
   feedback: string;
+  solution?: string;
 }
 
 /**
@@ -103,6 +112,7 @@ export class GeminiAiClient implements AiClient {
       questionId: g.questionId,
       score: g.score,
       feedback: g.feedback,
+      solution: g.solution,
     }));
   }
 }
