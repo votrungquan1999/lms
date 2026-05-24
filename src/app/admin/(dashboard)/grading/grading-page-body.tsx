@@ -5,7 +5,9 @@ import {
   CardTitle,
 } from "src/components/ui/card";
 import { Separator } from "src/components/ui/separator";
+import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
 import {
+  getAiGradeService,
   getAnswerService,
   getEnrollmentService,
   getGradeService,
@@ -18,6 +20,8 @@ import {
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
 import { TestStatus } from "src/lib/test-status-service";
+import { AiSuggestionPanel } from "../courses/[courseId]/tests/[testId]/grading/ai-suggestion-panel";
+import { AutoGradeWithAiButton } from "../courses/[courseId]/tests/[testId]/grading/auto-grade-with-ai-button";
 import {
   FreeTextQuestionGradeForm,
   McQuestionGradeForm,
@@ -40,13 +44,9 @@ interface GradingPageBodyProps {
 }
 
 /**
- * Renders the per-student grading cards for a single test.
- * Shared by:
- *   - /admin/courses/[courseId]/tests/[testId]/grading (course-scoped)
- *   - /admin/grading/[testId] (variant via grading hub)
- *
- * Sorts students Submitted → InProgress → NotStarted → Graded with
- * the data-fetch order (enrolledAt desc) as stable tiebreaker.
+ * Renders the per-student grading cards for a single test. Sorts students
+ * Submitted → InProgress → NotStarted → Graded; enrollment order is the
+ * stable tiebreaker.
  */
 export async function GradingPageBody({
   test,
@@ -67,6 +67,7 @@ export async function GradingPageBody({
   const gradeService = await getGradeService();
   const testStatusService = await getTestStatusService();
   const testSubmissionService = await getTestSubmissionService();
+  const aiGradeService = await getAiGradeService();
 
   const studentDataUnsorted = await Promise.all(
     students.map(async (student, enrollmentIndex) => {
@@ -76,6 +77,11 @@ export async function GradingPageBody({
       );
       const rawAnswerMap = new Map(
         latestAnswers.map((a) => [a.questionId, a.answer]),
+      );
+      // Map questionId → latest Answer.id, used by <AiSuggestionPanel> to
+      // flag suggestions whose `gradedAgainstAnswerId` no longer matches.
+      const latestAnswerIdByQuestion = new Map(
+        latestAnswers.map((a) => [a.questionId, a.id]),
       );
 
       const grades = await gradeService.getGrades(testId, student.id);
@@ -104,15 +110,20 @@ export async function GradingPageBody({
         student.id,
       );
 
+      const aiSuggestionsByQuestion =
+        await aiGradeService.getSuggestionsForStudent(testId, student.id);
+
       return {
         student,
         rawAnswerMap,
+        latestAnswerIdByQuestion,
         gradeMap,
         testFeedback,
         hasAnswers: latestAnswers.length > 0,
         hasActiveRedoRequest: activeRedoRequest !== null,
         status,
         activeSubmission,
+        aiSuggestionsByQuestion,
         enrollmentIndex,
       };
     }),
@@ -137,12 +148,14 @@ export async function GradingPageBody({
           {
             student,
             rawAnswerMap,
+            latestAnswerIdByQuestion,
             gradeMap,
             testFeedback,
             hasAnswers,
             hasActiveRedoRequest,
             status,
             activeSubmission,
+            aiSuggestionsByQuestion,
           },
           idx,
         ) => {
@@ -184,6 +197,17 @@ export async function GradingPageBody({
                         studentId={student.id}
                         hasActiveRedoRequest={hasActiveRedoRequest}
                       />
+                      {status === TestStatus.Submitted && (
+                        <AutoGradeWithAiButton
+                          testId={testId}
+                          courseId={courseId}
+                          studentId={student.id}
+                          status={status}
+                          hasExistingSuggestions={
+                            aiSuggestionsByQuestion.size > 0
+                          }
+                        />
+                      )}
                       <ReleaseGradeForStudentControl
                         test={test}
                         courseId={courseId}
@@ -229,16 +253,31 @@ export async function GradingPageBody({
                       );
                     }
 
+                    const aiSuggestions: AiGradeSuggestion[] =
+                      aiSuggestionsByQuestion.get(question.id) ?? [];
+
                     return (
-                      <FreeTextQuestionGradeForm
-                        key={question.id}
-                        {...sharedProps}
-                        answerText={
-                          rawAnswer?.type === "free_text"
-                            ? rawAnswer.text
-                            : null
-                        }
-                      />
+                      <div key={question.id} className="space-y-2">
+                        <FreeTextQuestionGradeForm
+                          {...sharedProps}
+                          answerText={
+                            rawAnswer?.type === "free_text"
+                              ? rawAnswer.text
+                              : null
+                          }
+                        />
+                        {aiSuggestions.length > 0 && (
+                          <AiSuggestionPanel
+                            testId={testId}
+                            courseId={courseId}
+                            studentId={student.id}
+                            suggestions={aiSuggestions}
+                            latestAnswerId={
+                              latestAnswerIdByQuestion.get(question.id) ?? null
+                            }
+                          />
+                        )}
+                      </div>
                     );
                   })}
 
