@@ -189,7 +189,7 @@ describe("Feature: GradingHubPage default view", () => {
       "admin",
     );
 
-    // testFully: both students answered + both graded → Fully graded
+    // testFully: both students answered, submitted + both graded → Fully graded
     for (const s of [studentA, studentB]) {
       await services.answerService.submitAnswer({
         testId: testFully.id,
@@ -197,6 +197,7 @@ describe("Feature: GradingHubPage default view", () => {
         studentId: s.id,
         answer: { type: "free_text", text: "x" },
       });
+      await services.testSubmissionService.submitTest(testFully.id, s.id);
       await services.gradeService.gradeQuestion({
         testId: testFully.id,
         questionId: qFully.id,
@@ -207,13 +208,17 @@ describe("Feature: GradingHubPage default view", () => {
       });
     }
 
-    // testPartial: studentA answered + graded; studentB answered, not graded → Partial
+    // testPartial: studentA answered + submitted + graded; studentB answered + submitted, not graded → Partial
     await services.answerService.submitAnswer({
       testId: testPartial.id,
       questionId: qPartial.id,
       studentId: studentA.id,
       answer: { type: "free_text", text: "x" },
     });
+    await services.testSubmissionService.submitTest(
+      testPartial.id,
+      studentA.id,
+    );
     await services.gradeService.gradeQuestion({
       testId: testPartial.id,
       questionId: qPartial.id,
@@ -228,6 +233,10 @@ describe("Feature: GradingHubPage default view", () => {
       studentId: studentB.id,
       answer: { type: "free_text", text: "y" },
     });
+    await services.testSubmissionService.submitTest(
+      testPartial.id,
+      studentB.id,
+    );
 
     // Default (needs-grading): testPartial appears because studentB is Submitted-but-ungraded.
     // We instead test fully-graded and partially-graded filters to cover the routing.

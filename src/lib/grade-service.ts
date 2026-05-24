@@ -228,8 +228,11 @@ export class GradeService {
    * Computes the weighted average score for a student on a test.
    *
    * - MC questions with no submitted answer are counted as 0.
-   * - Returns null if any **free-text** question has not yet been graded,
-   *   since those require manual review before a meaningful total exists.
+   * - Free-text questions with no submitted answer are also counted as 0
+   *   (consistent with the MC blank treatment — blanks always score 0).
+   * - Returns null only if a free-text question was **answered** but has
+   *   not yet been graded, since manual review is still pending and the
+   *   total is not yet meaningful.
    */
   async getAverageScore(
     testId: string,
@@ -243,10 +246,19 @@ export class GradeService {
       .sort({ gradedAt: -1 })
       .toArray();
 
-    // If any free-text question is ungraded, the total is not yet meaningful
+    const answers = await this.answerService.getLatestAnswers(
+      testId,
+      studentId,
+    );
+    const answeredIds = new Set(answers.map((a) => a.questionId));
+
+    // If any free-text question was *answered* but has no grade row,
+    // manual review is still pending and the total is not yet meaningful.
     const freeTextUngraded = questions.some(
       (q) =>
-        q.type === "free_text" && !grades.some((g) => g.questionId === q.id),
+        q.type === "free_text" &&
+        answeredIds.has(q.id) &&
+        !grades.some((g) => g.questionId === q.id),
     );
     if (freeTextUngraded) return null;
 
@@ -257,7 +269,7 @@ export class GradeService {
       const g = grades.find((grade) => grade.questionId === q.id);
       const w = q.weight ?? 1;
       totalWeight += w;
-      // Ungraded MC questions (student didn't answer) count as 0
+      // Unanswered questions (MC or free-text) have no grade row and count as 0.
       totalWeightedScore += (g?.score ?? 0) * w;
     }
 

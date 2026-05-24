@@ -427,6 +427,93 @@ describe("GradeService - Integration Tests", () => {
       expect(avg).toBeNull();
     },
   );
+
+  dbIt(
+    "getAverageScore returns null when a free-text question has an answer but no grade yet",
+    async ({ db }) => {
+      const { testService, questionService, answerService, gradeService } =
+        buildCoreServices(db);
+
+      const test = await testService.createTest("course-1", {
+        title: "No Grade Test",
+        description: "",
+        createdBy: "admin",
+      });
+
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Content",
+        createdBy: "admin",
+        type: "free_text",
+      });
+
+      // The student answered q1 but the teacher has not graded it yet —
+      // manual review is still pending, so the total is not meaningful.
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "my answer" },
+      });
+
+      const avg = await gradeService.getAverageScore(test.id, "student-1");
+      expect(avg).toBeNull();
+    },
+  );
+
+  dbIt(
+    "getAverageScore counts an unanswered free-text question as 0 instead of returning null",
+    async ({ db }) => {
+      // Given: two free-text questions of equal weight. The student
+      // answered q1 (graded 100) but never answered q2 — no Answer row,
+      // no Grade row for q2. The old code would have tripped the
+      // `freeTextUngraded` guard and returned null. Under the relaxed
+      // guard, blank free-text questions fall through and score 0,
+      // mirroring how blank MC questions are already treated.
+      const { testService, questionService, answerService, gradeService } =
+        buildCoreServices(db);
+
+      const test = await testService.createTest("course-1", {
+        title: "Blank Free-Text Test",
+        description: "",
+        createdBy: "admin",
+      });
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Answer Q1",
+        createdBy: "admin",
+        type: "free_text",
+      });
+      await questionService.addQuestion(test.id, {
+        title: "Q2",
+        content: "Answer Q2",
+        createdBy: "admin",
+        type: "free_text",
+      });
+
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "my answer" },
+      });
+      await gradeService.gradeQuestion({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        score: 100,
+        feedback: "",
+        gradedBy: "teacher",
+      });
+      // q2 deliberately left blank — no submitAnswer, no gradeQuestion.
+
+      // When: average is requested.
+      const avg = await gradeService.getAverageScore(test.id, "student-1");
+
+      // Then: q2 scores 0; (100 + 0) / 2 = 50.
+      expect(avg).toBe(50);
+    },
+  );
 });
 
 describe("GradeService - Atomic Reveal", () => {
@@ -824,31 +911,6 @@ describe("GradeService - Visibility Edge Cases", () => {
       );
       expect(visibleGrades).toHaveLength(1);
       expect(visibleGrades[0].score).toBe(100);
-    },
-  );
-
-  dbIt(
-    "getAverageScore returns null when no grades exist for the student",
-    async ({ db }) => {
-      const { testService, questionService, gradeService } =
-        buildCoreServices(db);
-
-      const test = await testService.createTest("course-1", {
-        title: "No Grade Test",
-        description: "",
-        createdBy: "admin",
-      });
-
-      await questionService.addQuestion(test.id, {
-        title: "Q1",
-        content: "Content",
-        createdBy: "admin",
-        type: "free_text",
-      });
-
-      // No grades submitted at all
-      const avg = await gradeService.getAverageScore(test.id, "student-1");
-      expect(avg).toBeNull();
     },
   );
 });

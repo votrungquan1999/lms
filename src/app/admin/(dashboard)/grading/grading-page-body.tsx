@@ -160,8 +160,8 @@ export async function GradingPageBody({
           idx,
         ) => {
           const gradedCount = gradeMap.size;
-          const totalQ = questions.length;
-          const allGraded = gradedCount >= totalQ;
+          const answeredCount = latestAnswerIdByQuestion.size;
+          const allGraded = answeredCount > 0 && gradedCount >= answeredCount;
           const badgeClassName = allGraded
             ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
             : gradedCount > 0
@@ -189,7 +189,7 @@ export async function GradingPageBody({
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassName}`}
                       >
-                        {gradedCount}/{totalQ} graded
+                        {gradedCount}/{answeredCount} graded
                       </span>
                       <RequestRedoButton
                         testId={testId}

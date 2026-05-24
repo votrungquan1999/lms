@@ -26,10 +26,14 @@ export class TestStatusService {
   /**
    * Derives the test status for a student.
    *
-   * - not_started: no answers submitted
-   * - in_progress: some answers submitted but test not explicitly submitted
-   * - submitted: student explicitly submitted the test (or answered all questions)
-   * - graded: all questions graded by teacher
+   * - not_started: no answers submitted and not explicitly submitted
+   * - in_progress: some answers submitted, fewer than total questions, and
+   *   not explicitly submitted
+   * - submitted: student explicitly submitted the test, or answered every
+   *   question without an explicit submission
+   * - graded: test was explicitly submitted AND every question the student
+   *   *answered* has a grade row. Questions the student left blank do not
+   *   need a grade row to reach this state — blanks score 0 by convention.
    */
   async getStatus(
     testId: string,
@@ -45,26 +49,28 @@ export class TestStatusService {
       studentId,
     );
 
-    if (answers.length === 0) {
-      const isSubmitted = await this.testSubmissionService.isTestSubmitted(
-        testId,
-        studentId,
-      );
-      return isSubmitted ? TestStatus.Submitted : TestStatus.NotStarted;
-    }
-
-    // Check if all questions are graded
-    const grades = await this.gradeService.getGrades(testId, studentId);
-    if (grades.length >= totalQuestions) {
-      return TestStatus.Graded;
-    }
-
-    // Check if explicitly submitted or all questions answered
     const isSubmitted = await this.testSubmissionService.isTestSubmitted(
       testId,
       studentId,
     );
-    if (isSubmitted || answers.length >= totalQuestions) {
+
+    if (answers.length === 0) {
+      return isSubmitted ? TestStatus.Submitted : TestStatus.NotStarted;
+    }
+
+    if (isSubmitted) {
+      const grades = await this.gradeService.getGrades(testId, studentId);
+      const gradedQuestionIds = new Set(grades.map((g) => g.questionId));
+      const everyAnsweredHasGrade = answers.every((a) =>
+        gradedQuestionIds.has(a.questionId),
+      );
+      if (everyAnsweredHasGrade) {
+        return TestStatus.Graded;
+      }
+      return TestStatus.Submitted;
+    }
+
+    if (answers.length >= totalQuestions) {
       return TestStatus.Submitted;
     }
 

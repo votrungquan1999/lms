@@ -122,7 +122,7 @@ describe("Feature: GradingPage student card ordering", () => {
       answer: { type: "free_text", text: "C1" },
     });
 
-    // Dan: Graded (both answered + both graded)
+    // Dan: Graded (both answered, submitted + both graded)
     await services.answerService.submitAnswer({
       testId: test.id,
       questionId: q1.id,
@@ -135,6 +135,7 @@ describe("Feature: GradingPage student card ordering", () => {
       studentId: studentIds.D,
       answer: { type: "free_text", text: "D2" },
     });
+    await services.testSubmissionService.submitTest(test.id, studentIds.D);
     await services.gradeService.gradeQuestion({
       testId: test.id,
       questionId: q1.id,
