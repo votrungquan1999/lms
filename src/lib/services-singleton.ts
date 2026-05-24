@@ -1,3 +1,5 @@
+import { GeminiAiClient } from "./ai/ai-client";
+import { AiGradeService } from "./ai-grade-service";
 import { AnswerService } from "./answer-service";
 import { CourseService } from "./course-service";
 import { getDatabase } from "./database";
@@ -18,6 +20,7 @@ import { TestSubmissionService } from "./test-submission-service";
  * Uses the shared database connection from database.ts.
  */
 
+let aiGradeService: AiGradeService | null = null;
 let answerService: AnswerService | null = null;
 let courseService: CourseService | null = null;
 let enrollmentService: EnrollmentService | null = null;
@@ -38,6 +41,28 @@ export async function getPageGuard(): Promise<PageGuard> {
     pageGuard = new PageGuard(enrollment);
   }
   return pageGuard;
+}
+
+/**
+ * Returns the singleton `AiGradeService` wired against the live Gemini client.
+ * Tests inject a stub via `buildCoreServices(db, { aiClient })` — they never
+ * call this getter.
+ */
+export async function getAiGradeService(): Promise<AiGradeService> {
+  if (!aiGradeService) {
+    const db = await getDatabase();
+    const questionService = await getQuestionService();
+    const answerService = await getAnswerService();
+    const gradeService = await getGradeService();
+    aiGradeService = new AiGradeService(
+      db,
+      new GeminiAiClient(),
+      questionService,
+      answerService,
+      gradeService,
+    );
+  }
+  return aiGradeService;
 }
 
 export async function getAnswerService(): Promise<AnswerService> {

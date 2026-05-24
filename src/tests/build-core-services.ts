@@ -1,4 +1,11 @@
 import type { Db } from "mongodb";
+import type {
+  AiClient,
+  AiGradeBatchInput,
+  AiGradeBatchOptions,
+  AiGradeBatchOutput,
+} from "src/lib/ai/ai-client";
+import { AiGradeService } from "src/lib/ai-grade-service";
 import { AnswerService } from "src/lib/answer-service";
 import { GradeService } from "src/lib/grade-service";
 import { GradeVisibilityService } from "src/lib/grade-visibility-service";
@@ -18,13 +25,47 @@ export interface CoreServices {
   gradeVisibilityService: GradeVisibilityService;
   gradeService: GradeService;
   testSubmissionService: TestSubmissionService;
+  aiGradeService: AiGradeService;
+}
+
+/**
+ * Options accepted by `buildCoreServices`. Currently only the AI client seam.
+ */
+export interface BuildCoreServicesOptions {
+  /** Inject a deterministic stub for service-level tests. */
+  aiClient?: AiClient;
+}
+
+/**
+ * Default no-op AI client for tests that don't exercise the AI path.
+ * Throws to surface accidental real-AI calls during a test.
+ */
+class NoopAiClient implements AiClient {
+  /**
+   * Throws — tests that exercise the AI path MUST inject a stub via
+   * `buildCoreServices(db, { aiClient })`.
+   */
+  async gradeFreeTextBatch(
+    _items: AiGradeBatchInput[],
+    _opts?: AiGradeBatchOptions,
+  ): Promise<AiGradeBatchOutput[]> {
+    throw new Error(
+      "NoopAiClient: pass `{ aiClient }` to buildCoreServices to exercise AI grading paths.",
+    );
+  }
 }
 
 /**
  * Builds the wired-up core services for a test using the same lazy-thunk
  * pattern as `services-singleton.ts`.
+ *
+ * @param db - The isolated test database.
+ * @param opts - Optional service overrides (currently only `aiClient`).
  */
-export function buildCoreServices(db: Db): CoreServices {
+export function buildCoreServices(
+  db: Db,
+  opts: BuildCoreServicesOptions = {},
+): CoreServices {
   const questionService = new QuestionService(db);
   const answerService = new AnswerService(db, questionService);
   const testService = new TestService(db);
@@ -40,6 +81,15 @@ export function buildCoreServices(db: Db): CoreServices {
   );
   testSubmissionService = new TestSubmissionService(db, gradeService);
 
+  const aiClient: AiClient = opts.aiClient ?? new NoopAiClient();
+  const aiGradeService = new AiGradeService(
+    db,
+    aiClient,
+    questionService,
+    answerService,
+    gradeService,
+  );
+
   return {
     questionService,
     answerService,
@@ -47,5 +97,6 @@ export function buildCoreServices(db: Db): CoreServices {
     gradeVisibilityService,
     gradeService,
     testSubmissionService,
+    aiGradeService,
   };
 }

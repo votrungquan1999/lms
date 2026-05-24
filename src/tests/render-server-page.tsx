@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Db, MongoClient } from "mongodb";
 import { MongoClient as MongoClientCtor } from "mongodb";
+import { GeminiAiClient } from "src/lib/ai/ai-client";
+import { AiGradeService } from "src/lib/ai-grade-service";
 import { AnswerService } from "src/lib/answer-service";
 import { CourseService } from "src/lib/course-service";
 import { EnrollmentService } from "src/lib/enrollment-service";
@@ -20,6 +22,7 @@ import { TestSubmissionService } from "src/lib/test-submission-service";
  * Returned by setupServerPageTest and exposed to mock factories via getTestServices.
  */
 export interface TestServices {
+  aiGradeService: AiGradeService;
   answerService: AnswerService;
   courseService: CourseService;
   enrollmentService: EnrollmentService;
@@ -67,6 +70,15 @@ function makeServices(db: Db): TestServices {
     testSubmissionService,
     gradeService,
   );
+  // Real Gemini wrapper — service-page tests that exercise the AI path must
+  // override `getAiGradeService` directly in their own `vi.mock(...)` factory.
+  const aiGradeService = new AiGradeService(
+    db,
+    new GeminiAiClient(),
+    questionService,
+    answerService,
+    gradeService,
+  );
   const courseService = new CourseService(db);
   const enrollmentService = new EnrollmentService(db);
   const studentService = new StudentService(db);
@@ -75,6 +87,7 @@ function makeServices(db: Db): TestServices {
   const pageGuard = new PageGuard(enrollmentService);
 
   return {
+    aiGradeService,
     answerService,
     courseService,
     enrollmentService,
@@ -143,6 +156,7 @@ export function getTestServices(): TestServices {
  */
 export function servicesSingletonMockFactory() {
   return {
+    getAiGradeService: async () => getTestServices().aiGradeService,
     getAnswerService: async () => getTestServices().answerService,
     getCourseService: async () => getTestServices().courseService,
     getEnrollmentService: async () => getTestServices().enrollmentService,
