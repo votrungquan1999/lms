@@ -8,9 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@ai-sdk/google':
+        specifier: ^3.0.62
+        version: 3.0.62(zod@4.3.6)
+      ai:
+        specifier: ^6.0.158
+        version: 6.0.158(zod@4.3.6)
       better-auth:
         specifier: ^1.5.4
-        version: 1.5.4(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)))(mongodb@7.1.0)(mysql2@3.15.3)(next@16.1.6(@babel/core@7.29.0)(@playwright/test@1.58.2)(babel-plugin-macros@3.1.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@4.0.18(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.31.1)(msw@2.12.10(@types/node@20.19.37)(typescript@5.9.3)))
+        version: 1.5.4(f536afff9c4d59510b94f29622894dd9)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -28,7 +34,7 @@ importers:
         version: 7.1.0
       next:
         specifier: 16.1.6
-        version: 16.1.6(@babel/core@7.29.0)(@playwright/test@1.58.2)(babel-plugin-macros@3.1.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        version: 16.1.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(babel-plugin-macros@3.1.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       radix-ui:
         specifier: ^1.4.3
         version: 1.4.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -110,7 +116,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.18
-        version: 4.0.18(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.31.1)(msw@2.12.10(@types/node@20.19.37)(typescript@5.9.3))
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.31.1)(msw@2.12.10(@types/node@20.19.37)(typescript@5.9.3))
 
 packages:
 
@@ -119,6 +125,28 @@ packages:
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
+
+  '@ai-sdk/gateway@3.0.95':
+    resolution: {integrity: sha512-ZmUNNbZl3V42xwQzPaNUi+s8eqR2lnrxf0bvB6YbLXpLjHYv0k2Y78t12cNOfY0bxGeuVVTLyk856uLuQIuXEQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/google@3.0.62':
+    resolution: {integrity: sha512-cC9HAjR5WZxjqGyEJrJqFTlVqyPE9UOFmmGdf5dINaimgfPmzqXYN1qTYEJ+1knbyTVsNMub0KAF5SOqqtO8IQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/provider-utils@4.0.23':
+    resolution: {integrity: sha512-z8GlDaCmRSDlqkMF2f4/RFgWxdarvIbyuk+m6WXT1LYgsnGiXRJGTD2Z1+SDl3LqtFuRtGX1aghYvQLoHL/9pg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/provider@3.0.8':
+    resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
+    engines: {node: '>=18'}
 
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
@@ -1024,6 +1052,10 @@ packages:
 
   '@open-draft/until@2.1.0':
     resolution: {integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==}
+
+  '@opentelemetry/api@1.9.0':
+    resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
+    engines: {node: '>=8.0.0'}
 
   '@playwright/test@1.58.2':
     resolution: {integrity: sha512-akea+6bHYBBfA9uQqSYmlJXn61cTa+jbO87xVLCWbTqbWadRVmhxlXATaOjOgcBaWU4ePo0wB41KMFv3o35IXA==}
@@ -2124,6 +2156,10 @@ packages:
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
 
+  '@vercel/oidc@3.1.0':
+    resolution: {integrity: sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w==}
+    engines: {node: '>= 20'}
+
   '@vitejs/plugin-react@5.1.4':
     resolution: {integrity: sha512-VIcFLdRi/VYRU8OL/puL7QXMYafHmqOnwTZY50U1JPlCNj30PxCMx65c494b1K9be9hX83KVt0+gTEwTWLqToA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2166,6 +2202,12 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
+
+  ai@6.0.158:
+    resolution: {integrity: sha512-gLTp1UXFtMqKUi3XHs33K7UFglbvojkxF/aq337TxnLGOhHIW9+GyP2jwW4hYX87f1es+wId3VQoPRRu9zEStQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
 
   ajv-formats@3.0.1:
     resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
@@ -3226,6 +3268,9 @@ packages:
 
   json-schema-typed@8.0.2:
     resolution: {integrity: sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA==}
+
+  json-schema@0.4.0:
+    resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
 
   json5@2.2.3:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
@@ -4606,6 +4651,30 @@ snapshots:
 
   '@adobe/css-tools@4.4.4': {}
 
+  '@ai-sdk/gateway@3.0.95(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
+      '@vercel/oidc': 3.1.0
+      zod: 4.3.6
+
+  '@ai-sdk/google@3.0.62(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
+      zod: 4.3.6
+
+  '@ai-sdk/provider-utils@4.0.23(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.6
+      zod: 4.3.6
+
+  '@ai-sdk/provider@3.0.8':
+    dependencies:
+      json-schema: 0.4.0
+
   '@alloc/quick-lru@5.2.0': {}
 
   '@antfu/ni@25.0.0':
@@ -4842,11 +4911,11 @@ snapshots:
       nanostores: 1.1.1
       zod: 4.3.6
 
-  '@better-auth/drizzle-adapter@1.5.4(@better-auth/core@1.5.4(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)))':
+  '@better-auth/drizzle-adapter@1.5.4(@better-auth/core@1.5.4(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@opentelemetry/api@1.9.0)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)))':
     dependencies:
       '@better-auth/core': 1.5.4(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1)
       '@better-auth/utils': 0.3.1
-      drizzle-orm: 0.45.1(@electric-sql/pglite@0.3.15)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))
+      drizzle-orm: 0.45.1(@electric-sql/pglite@0.3.15)(@opentelemetry/api@1.9.0)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))
 
   '@better-auth/kysely-adapter@1.5.4(@better-auth/core@1.5.4(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(kysely@0.28.11)':
     dependencies:
@@ -5408,6 +5477,8 @@ snapshots:
       outvariant: 1.4.3
 
   '@open-draft/until@2.1.0': {}
+
+  '@opentelemetry/api@1.9.0': {}
 
   '@playwright/test@1.58.2':
     dependencies:
@@ -6511,6 +6582,8 @@ snapshots:
 
   '@ungap/structured-clone@1.3.0': {}
 
+  '@vercel/oidc@3.1.0': {}
+
   '@vitejs/plugin-react@5.1.4(vite@7.3.1(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.31.1))':
     dependencies:
       '@babel/core': 7.29.0
@@ -6569,6 +6642,14 @@ snapshots:
       negotiator: 1.0.0
 
   agent-base@7.1.4: {}
+
+  ai@6.0.158(zod@4.3.6):
+    dependencies:
+      '@ai-sdk/gateway': 3.0.95(zod@4.3.6)
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
+      '@opentelemetry/api': 1.9.0
+      zod: 4.3.6
 
   ajv-formats@3.0.1(ajv@8.18.0):
     optionalDependencies:
@@ -6629,10 +6710,10 @@ snapshots:
 
   baseline-browser-mapping@2.10.0: {}
 
-  better-auth@1.5.4(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)))(mongodb@7.1.0)(mysql2@3.15.3)(next@16.1.6(@babel/core@7.29.0)(@playwright/test@1.58.2)(babel-plugin-macros@3.1.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@4.0.18(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.31.1)(msw@2.12.10(@types/node@20.19.37)(typescript@5.9.3))):
+  better-auth@1.5.4(f536afff9c4d59510b94f29622894dd9):
     dependencies:
       '@better-auth/core': 1.5.4(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1)
-      '@better-auth/drizzle-adapter': 1.5.4(@better-auth/core@1.5.4(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)))
+      '@better-auth/drizzle-adapter': 1.5.4(@better-auth/core@1.5.4(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@opentelemetry/api@1.9.0)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)))
       '@better-auth/kysely-adapter': 1.5.4(@better-auth/core@1.5.4(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(kysely@0.28.11)
       '@better-auth/memory-adapter': 1.5.4(@better-auth/core@1.5.4(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)
       '@better-auth/mongo-adapter': 1.5.4(@better-auth/core@1.5.4(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.0)(kysely@0.28.11)(nanostores@1.1.1))(@better-auth/utils@0.3.1)(mongodb@7.1.0)
@@ -6650,14 +6731,14 @@ snapshots:
       zod: 4.3.6
     optionalDependencies:
       '@prisma/client': 7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3)
-      drizzle-orm: 0.45.1(@electric-sql/pglite@0.3.15)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))
+      drizzle-orm: 0.45.1(@electric-sql/pglite@0.3.15)(@opentelemetry/api@1.9.0)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))
       mongodb: 7.1.0
       mysql2: 3.15.3
-      next: 16.1.6(@babel/core@7.29.0)(@playwright/test@1.58.2)(babel-plugin-macros@3.1.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      next: 16.1.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(babel-plugin-macros@3.1.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       prisma: 7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
-      vitest: 4.0.18(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.31.1)(msw@2.12.10(@types/node@20.19.37)(typescript@5.9.3))
+      vitest: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.31.1)(msw@2.12.10(@types/node@20.19.37)(typescript@5.9.3))
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
 
@@ -6942,9 +7023,10 @@ snapshots:
 
   dotenv@17.3.1: {}
 
-  drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)):
+  drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@opentelemetry/api@1.9.0)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(kysely@0.28.11)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)):
     optionalDependencies:
       '@electric-sql/pglite': 0.3.15
+      '@opentelemetry/api': 1.9.0
       '@prisma/client': 7.4.2(prisma@7.4.2(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3)
       kysely: 0.28.11
       mysql2: 3.15.3
@@ -7479,6 +7561,8 @@ snapshots:
   json-schema-traverse@1.0.0: {}
 
   json-schema-typed@8.0.2: {}
+
+  json-schema@0.4.0: {}
 
   json5@2.2.3: {}
 
@@ -8028,7 +8112,7 @@ snapshots:
 
   negotiator@1.0.0: {}
 
-  next@16.1.6(@babel/core@7.29.0)(@playwright/test@1.58.2)(babel-plugin-macros@3.1.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  next@16.1.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(babel-plugin-macros@3.1.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       '@next/env': 16.1.6
       '@swc/helpers': 0.5.15
@@ -8047,6 +8131,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 16.1.6
       '@next/swc-win32-arm64-msvc': 16.1.6
       '@next/swc-win32-x64-msvc': 16.1.6
+      '@opentelemetry/api': 1.9.0
       '@playwright/test': 1.58.2
       babel-plugin-react-compiler: 1.0.0
       sharp: 0.34.5
@@ -8985,7 +9070,7 @@ snapshots:
       jiti: 2.6.1
       lightningcss: 1.31.1
 
-  vitest@4.0.18(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.31.1)(msw@2.12.10(@types/node@20.19.37)(typescript@5.9.3)):
+  vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.31.1)(msw@2.12.10(@types/node@20.19.37)(typescript@5.9.3)):
     dependencies:
       '@vitest/expect': 4.0.18
       '@vitest/mocker': 4.0.18(msw@2.12.10(@types/node@20.19.37)(typescript@5.9.3))(vite@7.3.1(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.31.1))
@@ -9008,6 +9093,7 @@ snapshots:
       vite: 7.3.1(@types/node@20.19.37)(jiti@2.6.1)(lightningcss@1.31.1)
       why-is-node-running: 2.3.0
     optionalDependencies:
+      '@opentelemetry/api': 1.9.0
       '@types/node': 20.19.37
       jsdom: 28.1.0(@noble/hashes@2.0.1)
     transitivePeerDependencies:

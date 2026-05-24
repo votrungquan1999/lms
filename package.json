@@ -14,6 +14,8 @@
     "dev:e2e": "MONGODB_URI=mongodb://localhost:27017/lms_e2e AUTH_ALLOWED_HOSTS=localhost:3001 TRUSTED_ORIGINS=http://localhost:3001 next dev --port 3001"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.62",
+    "ai": "^6.0.158",
     "better-auth": "^1.5.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
