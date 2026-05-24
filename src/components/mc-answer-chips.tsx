@@ -37,7 +37,7 @@ export function McAnswerChips({
     }
   }
 
-  if (chips.length === 0) return <></>;
+  if (chips.length === 0) return null;
 
   return (
     <div className="flex flex-wrap gap-1.5">
