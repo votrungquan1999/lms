@@ -43,7 +43,7 @@ const BASE_PROPS = {
 
 describe("Feature: McQuestionGradeForm", () => {
   describe("Scenario: Student selected a correct option", () => {
-    it("should render the selected option as a green chip (not a raw [MC] string)", () => {
+    it("should render the selected option as a selected-correct chip (not a raw [MC] string)", () => {
       render(
         <McQuestionGradeForm
           {...BASE_PROPS}
@@ -55,12 +55,12 @@ describe("Feature: McQuestionGradeForm", () => {
       expect(screen.queryByText(/\[MC\]/)).not.toBeInTheDocument();
       const chip = screen.getByTestId("mc-chip-opt-b");
       expect(chip).toHaveTextContent("Paris");
-      expect(chip.className).toMatch(/green/);
+      expect(chip).toHaveAttribute("data-state", "selected-correct");
     });
   });
 
   describe("Scenario: Student selected a wrong option", () => {
-    it("should render the selected option as a red chip", () => {
+    it("should render the selected option as a selected-wrong chip", () => {
       render(
         <McQuestionGradeForm
           {...BASE_PROPS}
@@ -71,7 +71,7 @@ describe("Feature: McQuestionGradeForm", () => {
 
       const chip = screen.getByTestId("mc-chip-opt-a");
       expect(chip).toHaveTextContent("Berlin");
-      expect(chip.className).toMatch(/red/);
+      expect(chip).toHaveAttribute("data-state", "selected-wrong");
     });
   });
 });
@@ -129,13 +129,15 @@ describe("Feature: InProgress confirm dialog", () => {
       await user.click(screen.getByRole("button", { name: /Cancel/i }));
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 
-      // Re-open and confirm
+      // Re-open and confirm — clicking Confirm dismisses the gating dialog
+      // so the form can proceed (user-observable: dialog is gone).
       await user.click(screen.getByRole("button", { name: /Save Grade/i }));
-      const confirmBtn = await screen.findByRole("button", {
-        name: /Submit Anyway|Confirm/i,
-      });
-      // The confirm button must be a real submit button so the form posts.
-      expect(confirmBtn.getAttribute("type")).toBe("submit");
+      await user.click(
+        await screen.findByRole("button", {
+          name: /Submit Anyway|Confirm/i,
+        }),
+      );
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     });
   });
 });

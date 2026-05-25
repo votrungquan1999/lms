@@ -10,10 +10,13 @@ interface McAnswerChipsProps {
 }
 
 /**
- * Renders the student's MC selections as coloured chips:
- * - 🟢 Green (solid)   = selected and correct
- * - 🔴 Red (solid)     = selected but wrong
- * - 🟢 Green (outline) = correct but not selected (only when showCorrectAnswers)
+ * Renders the student's MC selections as coloured chips. Each chip exposes a
+ * semantic `data-state` attribute so tests can assert on the chip's meaning
+ * rather than its visual classes:
+ * - data-state="selected-correct" → solid green (selected and correct)
+ * - data-state="selected-wrong"   → solid red   (selected but wrong)
+ * - data-state="missed-correct"   → green outline (correct, not selected;
+ *   only rendered when showCorrectAnswers is true)
  *
  * Not-selected options are not rendered unless showCorrectAnswers is true
  * (in which case unselected correct options are shown with an outline style).
@@ -43,16 +46,20 @@ export function McAnswerChips({
     <div className="flex flex-wrap gap-1.5">
       {chips.map(({ option, isSelected }) => {
         let className: string;
+        let chipState: "selected-correct" | "selected-wrong" | "missed-correct";
         if (isSelected && option.isCorrect) {
           // Selected + correct → solid green
+          chipState = "selected-correct";
           className =
             "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300";
         } else if (isSelected && !option.isCorrect) {
           // Selected + wrong → solid red
+          chipState = "selected-wrong";
           className =
             "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300";
         } else {
           // Not selected + correct (missed) → green outline
+          chipState = "missed-correct";
           className =
             "border border-green-300 text-green-700 dark:border-green-700 dark:text-green-300";
         }
@@ -61,6 +68,7 @@ export function McAnswerChips({
           <span
             key={option.id}
             data-testid={`mc-chip-${option.id}`}
+            data-state={chipState}
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${className}`}
           >
             {option.text}

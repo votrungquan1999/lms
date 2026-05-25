@@ -18,27 +18,27 @@ const OPTIONS = [
 
 describe("Feature: McAnswerChips", () => {
   describe("Scenario: Student selected the correct option", () => {
-    it("should render a green chip for the correct selection", () => {
+    it("should render a selected-correct chip for the correct selection", () => {
       render(<McAnswerChips selectedIds={["opt-b"]} options={OPTIONS} />);
 
       const chip = screen.getByTestId("mc-chip-opt-b");
       expect(chip).toHaveTextContent("Paris");
-      expect(chip.className).toMatch(/green/);
+      expect(chip).toHaveAttribute("data-state", "selected-correct");
     });
   });
 
   describe("Scenario: Student selected a wrong option", () => {
-    it("should render a red chip for the wrong selection", () => {
+    it("should render a selected-wrong chip for the wrong selection", () => {
       render(<McAnswerChips selectedIds={["opt-a"]} options={OPTIONS} />);
 
       const chip = screen.getByTestId("mc-chip-opt-a");
       expect(chip).toHaveTextContent("Berlin");
-      expect(chip.className).toMatch(/red/);
+      expect(chip).toHaveAttribute("data-state", "selected-wrong");
     });
   });
 
   describe("Scenario: Student selected multiple options (multi-select)", () => {
-    it("should render chips for each selected option with correct colouring", () => {
+    it("should render chips for each selected option with correct state", () => {
       render(
         <McAnswerChips selectedIds={["opt-a", "opt-b"]} options={OPTIONS} />,
       );
@@ -46,8 +46,8 @@ describe("Feature: McAnswerChips", () => {
       const wrongChip = screen.getByTestId("mc-chip-opt-a");
       const correctChip = screen.getByTestId("mc-chip-opt-b");
 
-      expect(wrongChip.className).toMatch(/red/);
-      expect(correctChip.className).toMatch(/green/);
+      expect(wrongChip).toHaveAttribute("data-state", "selected-wrong");
+      expect(correctChip).toHaveAttribute("data-state", "selected-correct");
     });
   });
 
@@ -60,7 +60,7 @@ describe("Feature: McAnswerChips", () => {
   });
 
   describe("Scenario: showCorrectAnswers reveals missed correct options", () => {
-    it("should render an unselected correct option as a green-outlined 'missed' chip", () => {
+    it("should render an unselected correct option as a missed-correct chip", () => {
       // Given the student selected the wrong answer (Berlin)
       // and the correct answer is Paris (not selected)
       render(
@@ -74,9 +74,9 @@ describe("Feature: McAnswerChips", () => {
       // Then the missed correct option should also be rendered
       const missedChip = screen.getByTestId("mc-chip-opt-b");
       expect(missedChip).toHaveTextContent("Paris");
-      // It should have a distinct "missed" style (green outline, not solid green)
-      expect(missedChip.className).toMatch(/green/);
-      expect(missedChip.className).toMatch(/border/);
+      // It should expose the "missed-correct" semantic state (distinct from
+      // selected-correct, which uses a solid fill).
+      expect(missedChip).toHaveAttribute("data-state", "missed-correct");
     });
   });
 });
