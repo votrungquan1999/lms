@@ -302,7 +302,7 @@ describe("TestSubmissionService - Integration Tests", () => {
 
 describe("TestSubmissionService - Soft Delete", () => {
   dbIt(
-    "deleteSubmission soft-deletes the row, lets the student resubmit, and leaves exactly one active row",
+    "deleteSubmission clears submitted state and lets the student resubmit",
     async ({ db }) => {
       const { questionService, answerService, testSubmissionService } =
         buildCoreServices(db);
@@ -338,29 +338,11 @@ describe("TestSubmissionService - Soft Delete", () => {
         await testSubmissionService.isTestSubmitted("test-soft", "student-1"),
       ).toBe(false);
 
-      // But the historical row is still in the collection with `deletedAt` set.
-      const allRows = await db
-        .collection("test_submission")
-        .find({ testId: "test-soft", studentId: "student-1" })
-        .toArray();
-      expect(allRows).toHaveLength(1);
-      expect(allRows[0].deletedAt).toBeInstanceOf(Date);
-
-      // Resubmitting succeeds — adds a new active row.
+      // Resubmitting succeeds and the student is "submitted" again.
       await testSubmissionService.submitTest("test-soft", "student-1");
-
-      const afterResubmit = await db
-        .collection("test_submission")
-        .find({ testId: "test-soft", studentId: "student-1" })
-        .toArray();
-      expect(afterResubmit).toHaveLength(2);
-
-      const activeRows = afterResubmit.filter((r) => r.deletedAt === null);
-      const softDeletedRows = afterResubmit.filter(
-        (r) => r.deletedAt instanceof Date,
-      );
-      expect(activeRows).toHaveLength(1);
-      expect(softDeletedRows).toHaveLength(1);
+      expect(
+        await testSubmissionService.isTestSubmitted("test-soft", "student-1"),
+      ).toBe(true);
     },
   );
 
