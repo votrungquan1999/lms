@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { revalidatePath } from "next/cache";
 import {
@@ -232,13 +238,20 @@ describe("Feature: Admin per-student grade release", () => {
       "admin-1",
     );
 
-    // Render Test A's admin grading page.
-    const uiA = await GradingPage({
-      params: Promise.resolve({ courseId: courseA.id, testId: testA.id }),
-    });
-    const { unmount: unmountA } = render(uiA);
+    // Render once per student via ?studentId= so the detail pane focuses
+    // the right one each time. The redesigned shell renders only the focused
+    // student in the main pane, so per-student assertions need per-student
+    // renders.
+    const renderTestAFor = async (studentId: string) => {
+      cleanup();
+      const ui = await GradingPage({
+        params: Promise.resolve({ courseId: courseA.id, testId: testA.id }),
+        searchParams: Promise.resolve({ studentId }),
+      });
+      render(ui);
+    };
 
-    // Each student rendered in their own card; assert visibility per card.
+    await renderTestAFor(submittedStudent.id);
     const submittedCard = await screen.findByTestId(
       `student-card-${submittedStudent.id}`,
     );
@@ -251,6 +264,7 @@ describe("Feature: Admin per-student grade release", () => {
       within(submittedCard).queryByText(/released to this student/i),
     ).toBeNull();
 
+    await renderTestAFor(notStartedStudent.id);
     const notStartedCard = screen.getByTestId(
       `student-card-${notStartedStudent.id}`,
     );
@@ -263,6 +277,7 @@ describe("Feature: Admin per-student grade release", () => {
       within(notStartedCard).queryByText(/released to this student/i),
     ).toBeNull();
 
+    await renderTestAFor(releasedStudent.id);
     const releasedCard = screen.getByTestId(
       `student-card-${releasedStudent.id}`,
     );
@@ -275,7 +290,7 @@ describe("Feature: Admin per-student grade release", () => {
       within(releasedCard).getByText(/released to this student/i),
     ).toBeInTheDocument();
 
-    unmountA();
+    cleanup();
 
     // --- Test B: flag ON (global release scenario) -------------------------
     const courseB = await services.courseService.createCourse({

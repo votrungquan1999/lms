@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 import { ReleaseGradesButton } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
-import { GradingPageBody } from "src/app/admin/(dashboard)/grading/grading-page-body";
+import {
+  GradingMode,
+  GradingSort,
+} from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
+import { GradingPageShell } from "src/app/admin/(dashboard)/grading/page-body/grading-page-shell";
 import {
   getCourseService,
   getEnrollmentService,
@@ -14,16 +18,32 @@ export const metadata = {
 };
 
 /**
- * Variant grading page reachable from the grading hub. Renders the same body
- * as the course-scoped page but resolves courseId from the test (URL doesn't
- * include it) and shows the course name in the header.
+ * Variant grading page reachable from the grading hub. Renders the redesigned
+ * roster + detail shell. Forwards selection state (`studentId`, etc.) from
+ * the URL into the shell.
  */
 export default async function GradingVariantPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ testId: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { testId } = await params;
+  const sp = (await searchParams) ?? {};
+  const rawStudentId = sp.studentId;
+  const studentId = typeof rawStudentId === "string" ? rawStudentId : undefined;
+  const rawQuestionId = sp.questionId;
+  const questionId =
+    typeof rawQuestionId === "string" ? rawQuestionId : undefined;
+  const mode =
+    sp.mode === GradingMode.Question ? GradingMode.Question : GradingMode.Student;
+  const sort =
+    sp.sort === GradingSort.Name
+      ? GradingSort.Name
+      : sp.sort === GradingSort.Status
+        ? GradingSort.Status
+        : GradingSort.Enrollment;
 
   const testService = await getTestService();
   const test = await testService.getTest(testId);
@@ -41,11 +61,9 @@ export default async function GradingVariantPage({
   const questionService = await getQuestionService();
   const questions = await questionService.listQuestions(testId);
 
-  const body = await GradingPageBody({ test, courseId });
-
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
-      <header className="w-full max-w-3xl">
+      <header className="w-full">
         <h1 className="text-3xl font-bold tracking-tight">
           Grade: {test.title}
         </h1>
@@ -60,7 +78,14 @@ export default async function GradingVariantPage({
         )}
       </header>
 
-      {body}
+      {
+        await GradingPageShell({
+          test,
+          courseId,
+          basePath: `/admin/grading/${testId}`,
+          selection: { mode, studentId, questionId, sort },
+        })
+      }
     </div>
   );
 }

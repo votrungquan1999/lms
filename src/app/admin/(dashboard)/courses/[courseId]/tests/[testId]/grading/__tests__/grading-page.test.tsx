@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -36,9 +36,10 @@ vi.mock("../actions", () => ({
   releaseGradesAction: vi.fn(),
   requestRedoAction: vi.fn(),
   releaseGradeForStudentAction: vi.fn(),
+  saveAndJumpToNextAction: vi.fn(),
 }));
 
-describe("Feature: GradingPage student card ordering", () => {
+describe("Feature: GradingPage roster ordering", () => {
   beforeEach(async () => {
     await setupTestDb();
   });
@@ -47,7 +48,7 @@ describe("Feature: GradingPage student card ordering", () => {
     await teardownTestDb();
   });
 
-  it("should sort student cards Submitted -> InProgress -> NotStarted -> Graded with enrollment order as tiebreaker", async () => {
+  it("should render the roster in newest-first enrollment order with no automatic status-sort reshuffling", async () => {
     const services = getTestServices();
 
     const course = await services.courseService.createCourse({
@@ -159,14 +160,23 @@ describe("Feature: GradingPage student card ordering", () => {
 
     render(ui);
 
-    const cards = screen.getAllByTestId(/^student-card-/);
-    const orderedNames = cards.map((el) =>
-      el.getAttribute("data-student-name"),
+    // Roster renders newest-first enrollment order. The legacy status-sort
+    // (Submitted → InProgress → NotStarted → Graded) is intentionally gone —
+    // finishing a grade must no longer reshuffle the list.
+    const cells = screen.getAllByTestId(/^roster-cell-/);
+    const orderedIds = cells.map((el) =>
+      el.getAttribute("data-testid")?.replace("roster-cell-", ""),
     );
-    expect(orderedNames).toEqual(["Bob", "Carol", "Eve", "Alice", "Dan"]);
+    expect(orderedIds).toEqual([
+      studentIds.E,
+      studentIds.D,
+      studentIds.C,
+      studentIds.B,
+      studentIds.A,
+    ]);
   });
 
-  it("should render a status badge in the header of each student card", async () => {
+  it("should render a status badge in each roster cell", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Course",
@@ -210,9 +220,46 @@ describe("Feature: GradingPage student card ordering", () => {
     });
     render(ui);
 
-    const card = screen.getByTestId(`student-card-${submittedStudent.id}`);
-    const badge = card.querySelector("[data-status]");
+    const cell = screen.getByTestId(`roster-cell-${submittedStudent.id}`);
+    const badge = cell.querySelector("[data-status]");
     expect(badge?.getAttribute("data-status")).toBe("submitted");
     expect(badge?.textContent).toContain("Submitted");
+  });
+
+  it("when I land on the course-scoped grading page with a question link, I see the question I picked and the page is on the 'By question' tab", async () => {
+    const services = getTestServices();
+
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Explain Big-O",
+      content: "Define O(n).",
+      createdBy: "admin",
+    });
+    const [q] = await services.questionService.listQuestions(test.id);
+
+    const ui = await GradingPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+      searchParams: Promise.resolve({ mode: "question", questionId: q.id }),
+    });
+    render(ui);
+
+    // Then: the pivot toggle reflects question mode.
+    const byQuestion = screen.getByRole("tab", { name: /By question/i });
+    expect(byQuestion.getAttribute("data-state")).toBe("active");
+
+    // Then: the main pane shows the question title (proving the URL ->
+    // shell selection wiring works on the course-scoped route too).
+    const mainPane = screen.getByTestId("grading-main-pane");
+    expect(within(mainPane).getByText(/Explain Big-O/)).toBeInTheDocument();
   });
 });

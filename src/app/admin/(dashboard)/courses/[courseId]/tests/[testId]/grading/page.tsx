@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
-import { GradingPageBody } from "src/app/admin/(dashboard)/grading/grading-page-body";
+import {
+  GradingMode,
+  GradingSort,
+} from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
+import { GradingPageShell } from "src/app/admin/(dashboard)/grading/page-body/grading-page-shell";
 import {
   getEnrollmentService,
   getQuestionService,
@@ -14,10 +18,29 @@ export const metadata = {
 
 export default async function GradingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ courseId: string; testId: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { courseId, testId } = await params;
+  const sp = (await searchParams) ?? {};
+  const rawStudentId = sp.studentId;
+  const studentId =
+    typeof rawStudentId === "string" ? rawStudentId : undefined;
+  const rawQuestionId = sp.questionId;
+  const questionId =
+    typeof rawQuestionId === "string" ? rawQuestionId : undefined;
+  const mode =
+    sp.mode === GradingMode.Question
+      ? GradingMode.Question
+      : GradingMode.Student;
+  const sort =
+    sp.sort === GradingSort.Name
+      ? GradingSort.Name
+      : sp.sort === GradingSort.Status
+        ? GradingSort.Status
+        : GradingSort.Enrollment;
 
   const testService = await getTestService();
   const test = await testService.getTest(testId);
@@ -31,11 +54,9 @@ export default async function GradingPage({
   const questionService = await getQuestionService();
   const questions = await questionService.listQuestions(testId);
 
-  const body = await GradingPageBody({ test, courseId });
-
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
-      <header className="w-full max-w-3xl">
+      <header className="w-full">
         <h1 className="text-3xl font-bold tracking-tight">
           Grade: {test.title}
         </h1>
@@ -50,7 +71,14 @@ export default async function GradingPage({
         )}
       </header>
 
-      {body}
+      {
+        await GradingPageShell({
+          test,
+          courseId,
+          basePath: `/admin/courses/${courseId}/tests/${testId}/grading`,
+          selection: { mode, studentId, questionId, sort },
+        })
+      }
     </div>
   );
 }

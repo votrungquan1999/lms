@@ -13,6 +13,7 @@ vi.mock("../actions", () => ({
   setTestFeedbackAction: vi.fn(),
   releaseGradesAction: vi.fn(),
   requestRedoAction: vi.fn(),
+  saveAndJumpToNextAction: vi.fn(),
 }));
 
 /**

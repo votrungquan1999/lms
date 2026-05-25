@@ -25,11 +25,31 @@ import {
   type RequestRedoState,
   releaseGradesAction,
   requestRedoAction,
+  saveAndJumpToNextAction,
   setTestFeedbackAction,
   type TestFeedbackState,
 } from "./actions";
 
 // ── Shared base props ─────────────────────────────────────────────────────────
+
+/**
+ * Optional "Save & Next" navigation payload. When set, the grade form
+ * renders a second submit button that persists the grade and then jumps
+ * to the next ungraded item via the `saveAndJumpToNextAction` server
+ * action. See `saveAndJumpToNextAction` for the semantics.
+ */
+export interface SaveAndNextNavigation {
+  /** Comma-separated student ids in current roster sort order. */
+  candidateIds: string;
+  /** The student id currently focused (the one being graded right now). */
+  currentStudentId: string;
+  /** Base path the action redirects back to (no query string). */
+  returnPath: string;
+  /** `"student"` or `"question"` — picks the "next ungraded" rule. */
+  mode: "student" | "question";
+  /** Current sort criterion, preserved in the redirect target. */
+  sort?: string;
+}
 
 interface BaseGradeFormProps {
   testId: string;
@@ -42,6 +62,8 @@ interface BaseGradeFormProps {
   existingFeedback: string | null;
   existingSolution: string | null;
   studentStatus?: TestStatus;
+  /** When present, renders a "Save & Next" button alongside the save. */
+  saveAndNext?: SaveAndNextNavigation;
 }
 
 // ── Shared primitive: score / feedback / solution inputs ──────────────────────
@@ -198,7 +220,11 @@ export function McQuestionGradeForm({
   );
 }
 
-// ── Internal: grade form inputs only (no outer card) ─────────────────────────
+// ── CompactGradeForm: grade inputs only (no outer card) ─────────────────────
+// Exported for the question-mode rows in the grading shell, where the
+// per-student grading form needs to render inside a compact row (no card,
+// no question heading — those are owned by the row/header).
+export { GradeFormInner as CompactGradeForm };
 
 function GradeFormInner({
   testId,
@@ -209,6 +235,7 @@ function GradeFormInner({
   existingFeedback,
   existingSolution,
   studentStatus,
+  saveAndNext,
 }: BaseGradeFormProps) {
   const [state, formAction, isPending] = useActionState<
     GradeQuestionState | null,
@@ -229,6 +256,29 @@ function GradeFormInner({
       <input type="hidden" name="courseId" value={courseId} />
       <input type="hidden" name="questionId" value={questionId} />
       <input type="hidden" name="studentId" value={studentId} />
+      {saveAndNext && (
+        <>
+          <input
+            type="hidden"
+            name="candidateIds"
+            value={saveAndNext.candidateIds}
+          />
+          <input
+            type="hidden"
+            name="currentStudentId"
+            value={saveAndNext.currentStudentId}
+          />
+          <input
+            type="hidden"
+            name="returnPath"
+            value={saveAndNext.returnPath}
+          />
+          <input type="hidden" name="mode" value={saveAndNext.mode} />
+          {saveAndNext.sort && (
+            <input type="hidden" name="sort" value={saveAndNext.sort} />
+          )}
+        </>
+      )}
 
       <GradeInputs
         questionId={questionId}
@@ -264,6 +314,17 @@ function GradeFormInner({
         ) : (
           <Button type="submit" size="sm" disabled={isPending}>
             {submitLabel}
+          </Button>
+        )}
+        {saveAndNext && (
+          <Button
+            type="submit"
+            size="sm"
+            variant="secondary"
+            disabled={isPending}
+            formAction={saveAndJumpToNextAction}
+          >
+            Save & Next
           </Button>
         )}
         {state?.message && (

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -172,13 +172,19 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
       gradedBy: "admin",
     });
 
-    // When: the grading page renders
-    const ui = await GradingPage({
-      params: Promise.resolve({ courseId: course.id, testId: test.id }),
-    });
-    render(ui);
+    // When + Then: each student is focused via ?studentId=, the detail pane
+    // shows only that student, and the Auto-grade button appears iff their
+    // status is Submitted.
+    const renderForStudent = async (studentId: string) => {
+      cleanup();
+      const ui = await GradingPage({
+        params: Promise.resolve({ courseId: course.id, testId: test.id }),
+        searchParams: Promise.resolve({ studentId }),
+      });
+      render(ui);
+    };
 
-    // Then: only the Submitted card shows the Auto-grade with AI button
+    await renderForStudent(submittedStudent.id);
     const submittedCard = await screen.findByTestId(
       `student-card-${submittedStudent.id}`,
     );
@@ -188,6 +194,7 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
       }),
     ).toBeInTheDocument();
 
+    await renderForStudent(notStartedStudent.id);
     const notStartedCard = screen.getByTestId(
       `student-card-${notStartedStudent.id}`,
     );
@@ -197,6 +204,7 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
       }),
     ).toBeNull();
 
+    await renderForStudent(inProgressStudent.id);
     const inProgressCard = screen.getByTestId(
       `student-card-${inProgressStudent.id}`,
     );
@@ -206,6 +214,7 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
       }),
     ).toBeNull();
 
+    await renderForStudent(gradedStudent.id);
     const gradedCard = screen.getByTestId(`student-card-${gradedStudent.id}`);
     expect(
       within(gradedCard).queryByRole("button", {
