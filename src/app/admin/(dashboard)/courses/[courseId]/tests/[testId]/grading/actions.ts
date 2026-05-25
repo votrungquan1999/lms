@@ -2,14 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { getAuthService } from "src/lib/auth-singleton";
 import {
   getGradeService,
+  getQuestionService,
   getRedoRequestService,
   getTestFeedbackService,
   getTestService,
+  getTestStatusService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
+import { TestStatus } from "src/lib/test-status-service";
 import { z } from "zod";
 
 const gradeQuestionSchema = z.object({
@@ -372,4 +376,126 @@ export async function releaseGradeForStudentAction(
       releasedAt: null,
     };
   }
+}
+
+const saveAndJumpToNextSchema = z.object({
+  testId: z.string().min(1),
+  courseId: z.string().min(1),
+  questionId: z.string().min(1),
+  studentId: z.string().min(1),
+  currentStudentId: z.string().min(1),
+  candidateIds: z.string().min(1),
+  returnPath: z.string().min(1),
+  mode: z.enum(["student", "question"]),
+  score: z.coerce.number().int().min(0).max(100),
+  feedback: z.string(),
+  solution: z.string().optional(),
+  sort: z.string().optional(),
+});
+
+/**
+ * Server action: grades a question for the current student and then redirects
+ * to the next ungraded item.
+ *
+ * - Student-mode: jumps to the next student in `candidateIds` (after the
+ *   current student) whose post-save `TestStatus === Submitted`.
+ * - Question-mode: jumps to the next student in `candidateIds` whose grade
+ *   for the active question is still missing after this save.
+ *
+ * If no next ungraded item exists, redirects back to the current URL.
+ *
+ * IMPORTANT: `redirect()` throws `NEXT_REDIRECT` and is called OUTSIDE the
+ * try/catch wrapping the persist so the redirect propagates correctly.
+ */
+export async function saveAndJumpToNextAction(formData: FormData) {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+  const session = await authService.requireAdminSession(requestHeaders);
+  const adminUserId = session.userId;
+
+  const parsed = saveAndJumpToNextSchema.safeParse({
+    testId: formData.get("testId"),
+    courseId: formData.get("courseId"),
+    questionId: formData.get("questionId"),
+    studentId: formData.get("studentId"),
+    currentStudentId: formData.get("currentStudentId"),
+    candidateIds: formData.get("candidateIds"),
+    returnPath: formData.get("returnPath"),
+    mode: formData.get("mode"),
+    score: formData.get("score"),
+    feedback: formData.get("feedback"),
+    solution: formData.get("solution") || undefined,
+    sort: formData.get("sort") || undefined,
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid form data");
+  }
+
+  const gradeService = await getGradeService();
+  await gradeService.gradeQuestion({
+    testId: parsed.data.testId,
+    questionId: parsed.data.questionId,
+    studentId: parsed.data.studentId,
+    score: parsed.data.score,
+    feedback: parsed.data.feedback,
+    solution: parsed.data.solution,
+    gradedBy: adminUserId,
+  });
+
+  revalidatePath(
+    `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+  );
+  revalidatePath("/admin/grading");
+  revalidatePath(`/admin/grading/${parsed.data.testId}`);
+  revalidatePath("/admin/dashboard");
+
+  const candidates = parsed.data.candidateIds
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  const currentIndex = candidates.indexOf(parsed.data.currentStudentId);
+  const after = currentIndex >= 0 ? candidates.slice(currentIndex + 1) : candidates;
+
+  let nextStudentId: string | undefined;
+  if (parsed.data.mode === "student") {
+    const testStatusService = await getTestStatusService();
+    const questionService = await getQuestionService();
+    const questions = await questionService.listQuestions(parsed.data.testId);
+    for (const id of after) {
+      const status = await testStatusService.getStatus(
+        parsed.data.testId,
+        id,
+        questions.length,
+      );
+      if (status === TestStatus.Submitted) {
+        nextStudentId = id;
+        break;
+      }
+    }
+  } else {
+    for (const id of after) {
+      const grade = await gradeService.getGrade(
+        parsed.data.testId,
+        parsed.data.questionId,
+        id,
+      );
+      if (!grade) {
+        nextStudentId = id;
+        break;
+      }
+    }
+  }
+
+  const params = new URLSearchParams();
+  if (parsed.data.mode === "question") {
+    params.set("mode", "question");
+    params.set("questionId", parsed.data.questionId);
+  }
+  if (nextStudentId) params.set("studentId", nextStudentId);
+  else params.set("studentId", parsed.data.currentStudentId);
+  if (parsed.data.sort) params.set("sort", parsed.data.sort);
+
+  const qs = params.toString();
+  redirect(qs.length > 0 ? `${parsed.data.returnPath}?${qs}` : parsed.data.returnPath);
 }
