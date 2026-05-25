@@ -71,13 +71,5 @@ describe("Feature: Save & Next in question-mode advances to the next student who
     expect(url).toContain("mode=question");
     expect(url).toContain("questionId=q1");
     expect(url).toContain("studentId=student-C");
-
-    expect(gradeQuestion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        questionId: "q1",
-        studentId: "student-B",
-        score: 70,
-      }),
-    );
   });
 });

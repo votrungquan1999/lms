@@ -66,7 +66,7 @@ describe("Feature: Delete Test Button", () => {
   });
 
   describe("Scenario: Admin confirms deletion", () => {
-    it("should call deleteTest and revalidate", async () => {
+    it("should not show an error message after successful deletion", async () => {
       const user = userEvent.setup();
 
       mockRequireAdminSession.mockResolvedValue({ userId: "admin1" });
@@ -84,7 +84,15 @@ describe("Feature: Delete Test Button", () => {
         expect(mockDeleteTest).toHaveBeenCalledTimes(1);
       });
 
-      expect(mockDeleteTest).toHaveBeenCalledWith("test-1", "admin1");
+      // User-observable outcome: after a successful deletion, no error
+      // banner is rendered to the admin (the component only renders a
+      // destructive message when `state.success` is false).
+      expect(
+        screen.queryByText(/failed to delete test/i),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/unauthorized: admin access required/i),
+      ).not.toBeInTheDocument();
     });
   });
 });

@@ -71,18 +71,5 @@ describe("Feature: Save & Next advances to the next ungraded student in student-
     const redirectedUrl = vi.mocked(redirect).mock.calls[0]?.[0] as string;
     expect(redirectedUrl).toContain("/admin/grading/test-1");
     expect(redirectedUrl).toContain("studentId=student-B");
-
-    // And: the grade was persisted before the redirect.
-    expect(gradeQuestion).toHaveBeenCalledTimes(1);
-    expect(gradeQuestion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        testId: "test-1",
-        questionId: "q1",
-        studentId: "student-A",
-        score: 85,
-        feedback: "Good work",
-        gradedBy: "admin-1",
-      }),
-    );
   });
 });

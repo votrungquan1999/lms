@@ -88,17 +88,9 @@ describe("Feature: Dashboard Grading card", () => {
     const card = screen.getByRole("link", { name: /Grading/i });
     expect(card.getAttribute("href")).toBe("/admin/grading");
 
-    const cardText = card.textContent ?? "";
-    expect(cardText).toMatch(/Tests needing grading/);
-    expect(cardText).toMatch(/Students waiting/);
     // 1 test waits (test1), 2 students total are waiting
-    const testsCount = card.querySelector(
-      '[data-stat="tests-needing-grading"]',
-    )?.textContent;
-    const studentsCount = card.querySelector(
-      '[data-stat="students-waiting"]',
-    )?.textContent;
-    expect(testsCount).toBe("1");
-    expect(studentsCount).toBe("2");
+    const cardText = card.textContent ?? "";
+    expect(cardText).toContain("1Tests needing grading");
+    expect(cardText).toContain("2Students waiting");
   });
 });

@@ -2,6 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { createCourseAction } from "../actions";
 import { CreateCourseDialog } from "../create-course-form";
 
 vi.mock("../actions", () => ({
@@ -16,40 +17,44 @@ vi.mock("../actions", () => ({
  */
 
 describe("Feature: Course Creation Dialog", () => {
-  describe("Scenario: Admin sees the course creation dialog", () => {
-    it("should display title and description fields with a submit button", async () => {
-      // Setup & Action
+  describe("Scenario: Admin successfully creates a course", () => {
+    it("should show a success message after submitting with a title", async () => {
+      // Setup — mock the server action to return success
+      const user = userEvent.setup();
+      vi.mocked(createCourseAction).mockResolvedValue({
+        success: true,
+        message: 'Course "Algorithms 101" created successfully',
+      });
       render(<CreateCourseDialog />);
-      await userEvent.click(screen.getByRole("button", { name: "Add Course" }));
+      await user.click(screen.getByRole("button", { name: "Add Course" }));
 
-      // Assert
-      expect(screen.getByLabelText("Course Title")).toBeInTheDocument();
-      expect(screen.getByLabelText("Description")).toBeInTheDocument();
+      // Action — fill the title and submit
+      await user.type(screen.getByLabelText("Course Title"), "Algorithms 101");
+      await user.click(screen.getByRole("button", { name: "Create Course" }));
+
+      // Assert — the user sees the success banner
       expect(
-        screen.getByRole("button", { name: "Create Course" }),
+        await screen.findByText('Course "Algorithms 101" created successfully'),
       ).toBeInTheDocument();
     });
   });
 
-  describe("Scenario: Title field is required", () => {
-    it("should require the title field", async () => {
-      // Setup & Action
+  describe("Scenario: Admin submits without filling the title", () => {
+    it("should not invoke the create action when the title is empty", async () => {
+      // Setup
+      const user = userEvent.setup();
+      vi.mocked(createCourseAction).mockClear();
       render(<CreateCourseDialog />);
-      await userEvent.click(screen.getByRole("button", { name: "Add Course" }));
+      await user.click(screen.getByRole("button", { name: "Add Course" }));
 
-      // Assert
-      expect(screen.getByLabelText("Course Title")).toBeRequired();
-    });
-  });
+      // Action — click submit without typing a title
+      await user.click(screen.getByRole("button", { name: "Create Course" }));
 
-  describe("Scenario: Description field is optional", () => {
-    it("should not require the description field", async () => {
-      // Setup & Action
-      render(<CreateCourseDialog />);
-      await userEvent.click(screen.getByRole("button", { name: "Add Course" }));
-
-      // Assert
-      expect(screen.getByLabelText("Description")).not.toBeRequired();
+      // Assert — HTML5 form validation blocks submission, so the server
+      // action is never invoked. This is the user-observable outcome:
+      // nothing happens (no success banner, no error banner).
+      expect(createCourseAction).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
   });
 });
