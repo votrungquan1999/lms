@@ -455,7 +455,8 @@ export async function saveAndJumpToNextAction(formData: FormData) {
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
   const currentIndex = candidates.indexOf(parsed.data.currentStudentId);
-  const after = currentIndex >= 0 ? candidates.slice(currentIndex + 1) : candidates;
+  const after =
+    currentIndex >= 0 ? candidates.slice(currentIndex + 1) : candidates;
 
   let nextStudentId: string | undefined;
   if (parsed.data.mode === "student") {
@@ -497,5 +498,7 @@ export async function saveAndJumpToNextAction(formData: FormData) {
   if (parsed.data.sort) params.set("sort", parsed.data.sort);
 
   const qs = params.toString();
-  redirect(qs.length > 0 ? `${parsed.data.returnPath}?${qs}` : parsed.data.returnPath);
+  redirect(
+    qs.length > 0 ? `${parsed.data.returnPath}?${qs}` : parsed.data.returnPath,
+  );
 }

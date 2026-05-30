@@ -26,8 +26,7 @@ export default async function GradingPage({
   const { courseId, testId } = await params;
   const sp = (await searchParams) ?? {};
   const rawStudentId = sp.studentId;
-  const studentId =
-    typeof rawStudentId === "string" ? rawStudentId : undefined;
+  const studentId = typeof rawStudentId === "string" ? rawStudentId : undefined;
   const rawQuestionId = sp.questionId;
   const questionId =
     typeof rawQuestionId === "string" ? rawQuestionId : undefined;
