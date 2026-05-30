@@ -14,6 +14,9 @@ A web-based Learning Management System that enables students to login, take test
 - **Student Course Browsing** — Students view enrolled courses, navigate to tests
 - **Test Taking** — Students answer free-text questions (append-only history) and MC questions (radio/checkbox); submit for grading
 - **Test Grading** — Teacher grades free-text questions (0–100, feedback, optional solution); MC answers are auto-graded; scores averaged
+- **AI-Assisted Grading** — Gemini (via Vercel AI SDK) suggests a score, feedback, and solution for free-text answers; teacher reviews/applies the suggestion. Omits the suggested solution for perfect (100) scores
+- **MC Answer Visualization (Grading)** — Student MC answers render as highlighted option chips on the grading page instead of raw text
+- **Needs Redo** — Teacher can mark a student's submission as "needs redo", prompting the student to resubmit
 - **Test Status** — Derived status per student: not started, in progress, submitted, graded
 - **Atomic Grade Reveal** — Grades and correct answers are only surfaced once *all* questions have a grade; controlled by `showGradeAfterSubmit` and `showCorrectAnswerAfterSubmit` flags
 - **Diff-Based Answer Comparison** — GitHub-style side-by-side diff of student answers vs provided solutions (`react-diff-viewer-continued`)

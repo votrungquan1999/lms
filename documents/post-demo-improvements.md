@@ -10,14 +10,14 @@ Collected after the customer demo on 2026-03-22. Items are grouped by priority a
 
 ### Teacher — Manage Questions
 
-- [ ] Clear the add-question form automatically after a question is successfully added
-- [ ] Allow `content` field to be empty (some questions rely only on a title or image)
-- [ ] Allow teacher to upload images for individual questions
+- [x] Clear the add-question form automatically after a question is successfully added — `key={successCount}` remount in `add-question-form.tsx`
+- [x] Allow `content` field to be empty (some questions rely only on a title or image) — `content: z.string().default("")` in the add-question action; grading view guards on truthy content
+- [ ] Allow teacher to upload images for individual questions — blocked on file-storage infrastructure (none exists yet)
 
 ### Teacher — Grading
 
-- [ ] Display MC question answers in a visual format on the grading page (highlight selected choice(s)) instead of raw text
-- [ ] Allow teacher to mark a student's test as "needs redo", prompting the student to resubmit
+- [x] Display MC question answers in a visual format on the grading page (highlight selected choice(s)) instead of raw text — `mc-answer-chips.tsx`
+- [x] Allow teacher to mark a student's test as "needs redo", prompting the student to resubmit — `redo-request-service.ts` + grading/student UI
 
 ### Teacher — Results & Export
 

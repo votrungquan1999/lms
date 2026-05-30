@@ -1,5 +1,10 @@
 # Brainstorm: Programmatic LLM Auto-Grading of Free-Text Answers
 
+> **Status (2026-05-30): ✅ Implemented.** AI-assisted free-text grading shipped via
+> `src/lib/ai/` (`ai-client.ts`, `grading-prompt.ts`, `grading-schema.ts`),
+> `ai-grade-service.ts`, and `apply-suggestion.ts`, surfaced in the grading view as a
+> reviewable suggestion panel. This document is retained as the original design record.
+
 > Phase 1 of the structured-brainstorming workflow: **problem definition + clarifying questions**.
 > No solutions are committed yet — Phase 2 (zoom-out alternatives) will only start after the user answers the clarifying questions.
 

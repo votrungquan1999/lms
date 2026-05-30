@@ -1,7 +1,7 @@
 # ADR: AI-Assisted Question Import from Documents
 
 **Date:** 2026-04-12
-**Status:** Accepted
+**Status:** Accepted — **not yet implemented** (as of 2026-05-30; only TypeScript-CLI and JSON-upload import exist; .docx/.pdf AI import is unbuilt)
 **Deciders:** Project Owner
 
 ## Context
