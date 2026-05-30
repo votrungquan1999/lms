@@ -62,4 +62,23 @@ describe("Feature: CourseDetailPage X/Y graded badge links to grading", () => {
     const link = screen.getByRole("link", { name: /\d+\/\d+ graded/ });
     expect(link.getAttribute("href")).toBe(`/admin/grading/${test.id}`);
   });
+
+  it("links to the results-report export view for the course", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+
+    const ui = await CourseDetailPage({
+      params: Promise.resolve({ courseId: course.id }),
+    });
+    render(ui);
+
+    const link = screen.getByRole("link", { name: /export results/i });
+    expect(link.getAttribute("href")).toBe(
+      `/admin/courses/${course.id}/results-report`,
+    );
+  });
 });

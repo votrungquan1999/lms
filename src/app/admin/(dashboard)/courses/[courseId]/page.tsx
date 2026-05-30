@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button } from "src/components/ui/button";
 import { Card, CardHeader, CardTitle } from "src/components/ui/card";
 import { Separator } from "src/components/ui/separator";
 import {
@@ -84,13 +85,20 @@ export default async function CourseDetailPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
-      <header className="w-full max-w-2xl">
-        <h1 className="text-3xl font-bold tracking-tight">{course.title}</h1>
-        {course.description && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {course.description}
-          </p>
-        )}
+      <header className="w-full max-w-2xl flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{course.title}</h1>
+          {course.description && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {course.description}
+            </p>
+          )}
+        </div>
+        <Button asChild variant="outline">
+          <Link href={`/admin/courses/${courseId}/results-report`}>
+            Export Results
+          </Link>
+        </Button>
       </header>
 
       <section className="w-full max-w-2xl space-y-6">
