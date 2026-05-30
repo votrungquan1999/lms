@@ -18,13 +18,14 @@ export interface AiGradeBatchInput {
  * `solution` is a minimally-edited corrected version of the student's
  * submission produced by the model. The student-facing UI renders this as
  * the "correct answer" side of the side-by-side diff once the suggestion is
- * applied to the canonical grade row.
+ * applied to the canonical grade row. It is optional: the model omits it for
+ * a fully-correct (score 100) answer, so a perfect score carries no solution.
  */
 export interface AiGradeBatchOutput {
   questionId: string;
   score: number;
   feedback: string;
-  solution: string;
+  solution?: string;
 }
 
 /**

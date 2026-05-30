@@ -43,7 +43,7 @@ export function buildGradingPrompt(
   }
 
   sections.push(
-    "For each item, also produce a `solution`: a corrected version of the student's answer with the SMALLEST possible edit. Preserve the student's variable names, structure, and style wherever possible — change only what is wrong. If the student's answer is blank, off-topic, or incoherent, synthesize a minimal idiomatic solution from scratch. Never return an empty solution.",
+    "For each item that is NOT fully correct, also produce a `solution`: a corrected version of the student's answer with the SMALLEST possible edit. Preserve the student's variable names, structure, and style wherever possible — change only what is wrong. If the student's answer is blank, off-topic, or incoherent, synthesize a minimal idiomatic solution from scratch. When an item is fully correct and you score it 100, omit the `solution` field entirely for that item — do not return a solution (and never return an empty one).",
   );
 
   sections.push("Grade each of the following items:");
@@ -66,7 +66,7 @@ export function buildGradingPrompt(
   }
 
   sections.push(
-    'Respond with JSON of the form { "grades": [{ "questionId": string, "score": int 0-100, "feedback": string, "solution": string }, ...] }. Return exactly one entry per questionId above.',
+    'Respond with JSON of the form { "grades": [{ "questionId": string, "score": int 0-100, "feedback": string, "solution"?: string }, ...] }. The "solution" field is optional: include it for any answer that is not fully correct, and omit it entirely when the score is 100. Return exactly one entry per questionId above.',
   );
 
   return sections.join("\n\n");

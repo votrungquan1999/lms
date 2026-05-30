@@ -39,4 +39,40 @@ describe("GeminiAiClient.gradeFreeTextBatch", () => {
     expect(results).toHaveLength(1);
     expect(results[0]?.solution).toBe("def total(nums):\n    return sum(nums)");
   });
+
+  it("produces a suggestion (score + feedback, no solution) instead of erroring when the model omits the solution for a perfect score", async () => {
+    // Given: the model returns a perfect-score item with NO solution field,
+    // run through the SAME schema the live SDK applies to model output (the
+    // SDK throws AI_NoObjectGeneratedError on a schema miss — we mirror that
+    // by parsing the raw output via the configured schema before returning).
+    generateTextMock.mockImplementationOnce(
+      (opts: {
+        output: { schema: { parse: (value: unknown) => unknown } };
+      }) => {
+        const rawModelOutput = {
+          grades: [{ questionId: "q1", score: 100, feedback: "perfect" }],
+        };
+        return Promise.resolve({
+          output: opts.output.schema.parse(rawModelOutput),
+        });
+      },
+    );
+
+    const client = new GeminiAiClient();
+
+    // When: grading a batch whose answer is fully correct.
+    const results = await client.gradeFreeTextBatch([
+      {
+        questionId: "q1",
+        questionContent: "Sum a list",
+        studentAnswer: "def total(nums):\n    return sum(nums)",
+      },
+    ]);
+
+    // Then: one output row carrying score + feedback and NO solution, no throw.
+    expect(results).toHaveLength(1);
+    expect(results[0]?.score).toBe(100);
+    expect(results[0]?.feedback).toBe("perfect");
+    expect(results[0]?.solution).toBeUndefined();
+  });
 });

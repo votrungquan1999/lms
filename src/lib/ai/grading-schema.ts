@@ -14,13 +14,15 @@ import { z } from "zod";
  *   names and structure where possible so the student-facing diff highlights
  *   only what actually changed. For blank submissions the model produces a
  *   minimal idiomatic solution from scratch. Capped at 4000 chars (larger
- *   than `feedback` because solutions can be code).
+ *   than `feedback` because solutions can be code). Optional: the model omits
+ *   it entirely for a fully-correct (score 100) answer, so a perfect score has
+ *   no suggested solution. When present it must still be a non-empty string.
  */
 export const aiGradeItemSchema = z.object({
   questionId: z.string(),
   score: z.number().int().min(0).max(100),
   feedback: z.string().min(1).max(2000),
-  solution: z.string().min(1).max(4000),
+  solution: z.string().min(1).max(4000).optional(),
 });
 
 /**
