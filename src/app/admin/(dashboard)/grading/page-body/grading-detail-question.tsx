@@ -1,4 +1,5 @@
 import { CompactGradeForm } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
+import { CollapsibleQuestionDescription } from "src/app/admin/(dashboard)/grading/page-body/grading-detail-question.ui";
 import { StudentStatusBadge } from "src/app/admin/(dashboard)/grading/student-status-badge";
 import { McAnswerChips } from "src/components/mc-answer-chips";
 import {
@@ -79,9 +80,7 @@ export async function GradingDetailQuestion({
           Q{question.order}. {question.title}
         </h2>
         {question.content && (
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-            {question.content}
-          </p>
+          <CollapsibleQuestionDescription description={question.content} />
         )}
       </header>
 
