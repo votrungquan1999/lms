@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.62",
+    "@react-pdf/renderer": "^4.5.1",
     "ai": "^6.0.158",
     "better-auth": "^1.5.4",
     "class-variance-authority": "^0.7.1",
