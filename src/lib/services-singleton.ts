@@ -12,6 +12,7 @@ import { RedoRequestService } from "./redo-request-service";
 import { StudentService } from "./student-service";
 import { TestFeedbackService } from "./test-feedback-service";
 import { TestService } from "./test-service";
+import { TestStartService } from "./test-start-service";
 import { TestStatusService } from "./test-status-service";
 import { TestSubmissionService } from "./test-submission-service";
 
@@ -27,6 +28,7 @@ let enrollmentService: EnrollmentService | null = null;
 let gradeService: GradeService | null = null;
 let gradeVisibilityService: GradeVisibilityService | null = null;
 let redoRequestService: RedoRequestService | null = null;
+let testStartService: TestStartService | null = null;
 let testService: TestService | null = null;
 let testFeedbackService: TestFeedbackService | null = null;
 let testStatusService: TestStatusService | null = null;
@@ -69,7 +71,9 @@ export async function getAnswerService(): Promise<AnswerService> {
   if (!answerService) {
     const db = await getDatabase();
     const qs = await getQuestionService();
-    answerService = new AnswerService(db, qs);
+    const ts = await getTestService();
+    const tss = await getTestStartService();
+    answerService = new AnswerService(db, qs, ts, tss);
   }
   return answerService;
 }
@@ -145,6 +149,8 @@ export async function getTestSubmissionService(): Promise<TestSubmissionService>
     testSubmissionService = new TestSubmissionService(
       db,
       await getGradeService(),
+      await getTestService(),
+      await getTestStartService(),
     );
   }
   return testSubmissionService;
@@ -182,4 +188,12 @@ export async function getRedoRequestService(): Promise<RedoRequestService> {
     redoRequestService = new RedoRequestService(db);
   }
   return redoRequestService;
+}
+
+export async function getTestStartService(): Promise<TestStartService> {
+  if (!testStartService) {
+    const db = await getDatabase();
+    testStartService = new TestStartService(db);
+  }
+  return testStartService;
 }

@@ -7,6 +7,7 @@ import {
   getAnswerService,
   getEnrollmentService,
   getRedoRequestService,
+  getTestStartService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
 import type { StudentSession } from "src/lib/session";
@@ -110,6 +111,67 @@ export async function submitAnswerAction(
     const message =
       error instanceof Error ? error.message : "Failed to submit answer";
     return { success: false, message };
+  }
+}
+
+const startTestSchema = z.object({
+  testId: z.string().min(1, "Test ID is missing"),
+  courseId: z.string().min(1, "Course ID is missing"),
+});
+
+export interface StartTestState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: records the start of a timed test for the current student.
+ * Student-guarded and enrollment-checked; idempotent start recording is
+ * delegated to `TestStartService.recordStart` (starting twice is harmless).
+ */
+export async function startTest(
+  _prevState: StartTestState | null,
+  formData: FormData,
+): Promise<StartTestState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let studentId: string;
+  try {
+    const session = await authService.requireStudentSession(requestHeaders);
+    studentId = (session as StudentSession).studentId;
+  } catch {
+    return { success: false, message: "Unauthorized: student access required" };
+  }
+
+  const parsed = startTestSchema.safeParse({
+    testId: formData.get("testId"),
+    courseId: formData.get("courseId"),
+  });
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+  const { testId, courseId } = parsed.data;
+
+  const enrollmentService = await getEnrollmentService();
+  const enrolled = await enrollmentService.isEnrolled(courseId, studentId);
+  if (!enrolled) {
+    return { success: false, message: "You are not enrolled in this course" };
+  }
+
+  try {
+    const testStartService = await getTestStartService();
+    await testStartService.recordStart(testId, studentId, new Date());
+
+    revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
+
+    return { success: true, message: "Test started" };
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Failed to start test",
+    };
   }
 }
 

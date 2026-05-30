@@ -11,6 +11,7 @@ import { GradeService } from "src/lib/grade-service";
 import { GradeVisibilityService } from "src/lib/grade-visibility-service";
 import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
+import { TestStartService } from "src/lib/test-start-service";
 import { TestSubmissionService } from "src/lib/test-submission-service";
 
 /**
@@ -25,6 +26,7 @@ export interface CoreServices {
   gradeVisibilityService: GradeVisibilityService;
   gradeService: GradeService;
   testSubmissionService: TestSubmissionService;
+  testStartService: TestStartService;
   aiGradeService: AiGradeService;
 }
 
@@ -34,6 +36,8 @@ export interface CoreServices {
 export interface BuildCoreServicesOptions {
   /** Inject a deterministic stub for service-level tests. */
   aiClient?: AiClient;
+  /** Inject a controlled clock for deadline-enforcement tests. */
+  now?: () => Date;
 }
 
 /**
@@ -67,8 +71,15 @@ export function buildCoreServices(
   opts: BuildCoreServicesOptions = {},
 ): CoreServices {
   const questionService = new QuestionService(db);
-  const answerService = new AnswerService(db, questionService);
   const testService = new TestService(db);
+  const testStartService = new TestStartService(db);
+  const answerService = new AnswerService(
+    db,
+    questionService,
+    testService,
+    testStartService,
+    opts.now,
+  );
   let testSubmissionService!: TestSubmissionService;
   const gradeVisibilityService = new GradeVisibilityService(testService, () =>
     Promise.resolve(testSubmissionService),
@@ -79,7 +90,13 @@ export function buildCoreServices(
     answerService,
     gradeVisibilityService,
   );
-  testSubmissionService = new TestSubmissionService(db, gradeService);
+  testSubmissionService = new TestSubmissionService(
+    db,
+    gradeService,
+    testService,
+    testStartService,
+    opts.now,
+  );
 
   const aiClient: AiClient = opts.aiClient ?? new NoopAiClient();
   const aiGradeService = new AiGradeService(
@@ -97,6 +114,7 @@ export function buildCoreServices(
     gradeVisibilityService,
     gradeService,
     testSubmissionService,
+    testStartService,
     aiGradeService,
   };
 }

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "src/components/ui/button";
 import { Checkbox } from "src/components/ui/checkbox";
+import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { setTestSettingsAction } from "./settings-actions";
 
@@ -11,6 +12,7 @@ interface TestSettingsPanelProps {
   testId: string;
   showGradeAfterSubmit: boolean;
   showCorrectAnswerAfterSubmit: boolean;
+  timeLimitMinutes: number | null;
   gradesReleasedAt: Date | null;
   correctAnswersReleasedAt: Date | null;
 }
@@ -30,6 +32,7 @@ export function TestSettingsPanel({
   testId,
   showGradeAfterSubmit,
   showCorrectAnswerAfterSubmit,
+  timeLimitMinutes,
   gradesReleasedAt,
   correctAnswersReleasedAt,
 }: TestSettingsPanelProps) {
@@ -67,6 +70,22 @@ export function TestSettingsPanel({
           <Label htmlFor="show-correct-answer-after-submit">
             Show correct answer after submit
           </Label>
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="time-limit-minutes">Time limit (minutes)</Label>
+          <Input
+            id="time-limit-minutes"
+            name="timeLimitMinutes"
+            type="number"
+            min={1}
+            step={1}
+            placeholder="Untimed"
+            defaultValue={timeLimitMinutes ?? ""}
+          />
+          <p className="text-xs text-muted-foreground">
+            Leave blank for an untimed test.
+          </p>
         </div>
 
         <div className="text-xs text-muted-foreground space-y-1">

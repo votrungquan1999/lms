@@ -153,6 +153,7 @@ describe("TestService", () => {
       await testService.updateTestSettings(test.id, {
         showGradeAfterSubmit: false,
         showCorrectAnswerAfterSubmit: false,
+        timeLimitMinutes: null,
         updatedBy: "admin2",
       });
 
@@ -161,6 +162,86 @@ describe("TestService", () => {
       expect(after?.showCorrectAnswerAfterSubmit).toBe(false);
     },
   );
+
+  dbIt("updateTestSettings persists a positive time limit", async ({ db }) => {
+    const courseService = new CourseService(db);
+    const testService = new TestService(db);
+
+    const course = await courseService.createCourse({
+      title: "Course",
+      description: "Desc",
+      createdBy: "admin",
+    });
+    const test = await testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+
+    await testService.updateTestSettings(test.id, {
+      showGradeAfterSubmit: true,
+      showCorrectAnswerAfterSubmit: true,
+      timeLimitMinutes: 30,
+      updatedBy: "admin",
+    });
+
+    const after = await testService.getTest(test.id);
+    expect(after?.timeLimitMinutes).toBe(30);
+  });
+
+  dbIt(
+    "updateTestSettings clears the time limit back to untimed (null)",
+    async ({ db }) => {
+      const courseService = new CourseService(db);
+      const testService = new TestService(db);
+
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "Desc",
+        createdBy: "admin",
+      });
+      const test = await testService.createTest(course.id, {
+        title: "Test",
+        description: "",
+        createdBy: "admin",
+      });
+
+      await testService.updateTestSettings(test.id, {
+        showGradeAfterSubmit: true,
+        showCorrectAnswerAfterSubmit: true,
+        timeLimitMinutes: 30,
+        updatedBy: "admin",
+      });
+      await testService.updateTestSettings(test.id, {
+        showGradeAfterSubmit: true,
+        showCorrectAnswerAfterSubmit: true,
+        timeLimitMinutes: null,
+        updatedBy: "admin",
+      });
+
+      const after = await testService.getTest(test.id);
+      expect(after?.timeLimitMinutes).toBeNull();
+    },
+  );
+
+  dbIt("a newly created test is untimed by default", async ({ db }) => {
+    const courseService = new CourseService(db);
+    const testService = new TestService(db);
+
+    const course = await courseService.createCourse({
+      title: "Course",
+      description: "Desc",
+      createdBy: "admin",
+    });
+    const test = await testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+
+    const fetched = await testService.getTest(test.id);
+    expect(fetched?.timeLimitMinutes).toBeNull();
+  });
 
   dbIt(
     "listAllTests should return every non-deleted test across all courses",

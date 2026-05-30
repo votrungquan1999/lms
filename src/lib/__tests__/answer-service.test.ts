@@ -1,6 +1,8 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: this is for test */
 import { AnswerService } from "src/lib/answer-service";
 import { QuestionService } from "src/lib/question-service";
+import { TestService } from "src/lib/test-service";
+import { TestStartService } from "src/lib/test-start-service";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -13,7 +15,12 @@ describe("AnswerService - Integration Tests", () => {
     "should store MC answer as { type: 'mc', selectedIds } and free-text as { type: 'free_text', text }",
     async ({ db }) => {
       const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
 
       const mcQuestion = await questionService.addQuestion("test-1", {
         title: "MC Q",
@@ -69,7 +76,12 @@ describe("AnswerService - Integration Tests", () => {
 
   dbIt("should create a new answer record for a question", async ({ db }) => {
     const questionService = new QuestionService(db);
-    const answerService = new AnswerService(db, questionService);
+    const answerService = new AnswerService(
+      db,
+      questionService,
+      new TestService(db),
+      new TestStartService(db),
+    );
 
     const answer = await answerService.submitAnswer({
       testId: "test-1",
@@ -91,7 +103,12 @@ describe("AnswerService - Integration Tests", () => {
 
   dbIt("should preserve answer history (append-only model)", async ({ db }) => {
     const questionService = new QuestionService(db);
-    const answerService = new AnswerService(db, questionService);
+    const answerService = new AnswerService(
+      db,
+      questionService,
+      new TestService(db),
+      new TestStartService(db),
+    );
 
     const first = await answerService.submitAnswer({
       testId: "test-1",
@@ -118,7 +135,12 @@ describe("AnswerService - Integration Tests", () => {
     "should reject a duplicate submission when answer is identical to the latest",
     async ({ db }) => {
       const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
 
       await answerService.submitAnswer({
         testId: "test-1",
@@ -142,7 +164,12 @@ describe("AnswerService - Integration Tests", () => {
     "should return only the latest answer per question via getLatestAnswers",
     async ({ db }) => {
       const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
 
       await answerService.submitAnswer({
         testId: "test-1",
@@ -181,7 +208,12 @@ describe("AnswerService - Integration Tests", () => {
 
   dbIt("should return empty array when no answers exist", async ({ db }) => {
     const questionService = new QuestionService(db);
-    const answerService = new AnswerService(db, questionService);
+    const answerService = new AnswerService(
+      db,
+      questionService,
+      new TestService(db),
+      new TestStartService(db),
+    );
 
     const latest = await answerService.getLatestAnswers("test-1", "student-1");
     expect(latest).toHaveLength(0);
@@ -195,7 +227,12 @@ describe("AnswerService - MC Answer Validation", () => {
     "rejects a single_select MC answer with no selected options",
     async ({ db }) => {
       const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
 
       const q = await questionService.addQuestion("test-mc", {
         title: "Q?",
@@ -223,7 +260,12 @@ describe("AnswerService - MC Answer Validation", () => {
     "rejects a single_select MC answer with a bogus option ID",
     async ({ db }) => {
       const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
 
       const q = await questionService.addQuestion("test-mc", {
         title: "Q?",
@@ -251,7 +293,12 @@ describe("AnswerService - MC Answer Validation", () => {
     "rejects a multi_select MC answer with no selected options",
     async ({ db }) => {
       const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
 
       const q = await questionService.addQuestion("test-mc", {
         title: "Select all correct",

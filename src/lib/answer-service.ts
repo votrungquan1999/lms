@@ -1,5 +1,8 @@
 import type { Collection, Db } from "mongodb";
+import { isPastEnforcementDeadline } from "./enforcement-deadline";
 import type { QuestionService } from "./question-service";
+import type { TestService } from "./test-service";
+import type { TestStartService } from "./test-start-service";
 
 // ── Discriminated union for student answers ──────────────────────────────────
 
@@ -50,7 +53,13 @@ export class AnswerService {
   private readonly answers: Collection<AnswerDocument>;
   private readonly questionService: QuestionService;
 
-  constructor(db: Db, questionService: QuestionService) {
+  constructor(
+    db: Db,
+    questionService: QuestionService,
+    private readonly testService: TestService,
+    private readonly testStartService: TestStartService,
+    private readonly now: () => Date = () => new Date(),
+  ) {
     this.answers = db.collection<AnswerDocument>("answer");
     this.questionService = questionService;
   }
@@ -63,6 +72,24 @@ export class AnswerService {
    * - An MC answer references option IDs that don't exist on the question.
    */
   async submitAnswer(input: SubmitAnswerInput): Promise<Answer> {
+    // Reject writes past the enforcement deadline before any validation or
+    // persistence, so a late write changes nothing. Uses the same deadline
+    // math as the submit path (see enforcement-deadline.ts).
+    const test = await this.testService.getTest(input.testId);
+    const start = await this.testStartService.getActiveStart(
+      input.testId,
+      input.studentId,
+    );
+    if (
+      isPastEnforcementDeadline(
+        start?.startedAt ?? null,
+        test?.timeLimitMinutes ?? null,
+        this.now(),
+      )
+    ) {
+      throw new Error("Time limit exceeded");
+    }
+
     // Validate MC answers against the question's actual options
     if (input.answer.type === "mc") {
       const { selectedIds } = input.answer;

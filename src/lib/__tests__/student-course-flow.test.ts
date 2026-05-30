@@ -3,6 +3,7 @@ import { CourseService } from "src/lib/course-service";
 import { EnrollmentService } from "src/lib/enrollment-service";
 import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
+import { TestStartService } from "src/lib/test-start-service";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -165,7 +166,12 @@ describe("Feature: Student Course & Test Taking Flow", () => {
         const enrollmentService = new EnrollmentService(db);
         const testService = new TestService(db);
         const questionService = new QuestionService(db);
-        const answerService = new AnswerService(db, questionService);
+        const answerService = new AnswerService(
+          db,
+          questionService,
+          new TestService(db),
+          new TestStartService(db),
+        );
 
         // Admin creates a course with a test and questions
         const course = await courseService.createCourse({

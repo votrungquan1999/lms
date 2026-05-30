@@ -1,6 +1,9 @@
 import type { Collection, Db } from "mongodb";
 
+import { isPastEnforcementDeadline } from "./enforcement-deadline";
 import type { GradeService } from "./grade-service";
+import type { TestService } from "./test-service";
+import type { TestStartService } from "./test-start-service";
 
 /**
  * Test submission document stored in the `test_submission` collection.
@@ -45,6 +48,9 @@ export class TestSubmissionService {
   constructor(
     db: Db,
     private readonly gradeService: GradeService,
+    private readonly testService: TestService,
+    private readonly testStartService: TestStartService,
+    private readonly now: () => Date = () => new Date(),
   ) {
     this.testSubmissions =
       db.collection<TestSubmissionDocument>("test_submission");
@@ -62,6 +68,18 @@ export class TestSubmissionService {
     });
     if (existing) {
       throw new Error("Test has already been submitted");
+    }
+
+    const test = await this.testService.getTest(testId);
+    const start = await this.testStartService.getActiveStart(testId, studentId);
+    if (
+      isPastEnforcementDeadline(
+        start?.startedAt ?? null,
+        test?.timeLimitMinutes ?? null,
+        this.now(),
+      )
+    ) {
+      throw new Error("Time limit exceeded");
     }
 
     await this.testSubmissions.insertOne({

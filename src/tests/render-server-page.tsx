@@ -14,6 +14,7 @@ import { RedoRequestService } from "src/lib/redo-request-service";
 import { StudentService } from "src/lib/student-service";
 import { TestFeedbackService } from "src/lib/test-feedback-service";
 import { TestService } from "src/lib/test-service";
+import { TestStartService } from "src/lib/test-start-service";
 import { TestStatusService } from "src/lib/test-status-service";
 import { TestSubmissionService } from "src/lib/test-submission-service";
 
@@ -34,6 +35,7 @@ export interface TestServices {
   studentService: StudentService;
   testFeedbackService: TestFeedbackService;
   testService: TestService;
+  testStartService: TestStartService;
   testStatusService: TestStatusService;
   testSubmissionService: TestSubmissionService;
 }
@@ -48,8 +50,14 @@ let currentServices: TestServices | null = null;
 
 function makeServices(db: Db): TestServices {
   const questionService = new QuestionService(db);
-  const answerService = new AnswerService(db, questionService);
   const testService = new TestService(db);
+  const testStartService = new TestStartService(db);
+  const answerService = new AnswerService(
+    db,
+    questionService,
+    testService,
+    testStartService,
+  );
   // Wire the three-way cycle the same way `services-singleton.ts` does: the
   // GradeVisibilityService holds a thunk for TestSubmissionService instead of
   // an instance, so we can build TSS *after* GradeService. See the service's
@@ -64,7 +72,12 @@ function makeServices(db: Db): TestServices {
     answerService,
     gradeVisibilityService,
   );
-  testSubmissionService = new TestSubmissionService(db, gradeService);
+  testSubmissionService = new TestSubmissionService(
+    db,
+    gradeService,
+    testService,
+    testStartService,
+  );
   const testStatusService = new TestStatusService(
     answerService,
     testSubmissionService,
@@ -99,6 +112,7 @@ function makeServices(db: Db): TestServices {
     studentService,
     testFeedbackService,
     testService,
+    testStartService,
     testStatusService,
     testSubmissionService,
   };
@@ -169,6 +183,7 @@ export function servicesSingletonMockFactory() {
     getStudentService: async () => getTestServices().studentService,
     getTestFeedbackService: async () => getTestServices().testFeedbackService,
     getTestService: async () => getTestServices().testService,
+    getTestStartService: async () => getTestServices().testStartService,
     getTestStatusService: async () => getTestServices().testStatusService,
     getTestSubmissionService: async () =>
       getTestServices().testSubmissionService,

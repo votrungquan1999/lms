@@ -10,6 +10,8 @@ export interface TestDocument {
   description: string;
   showCorrectAnswerAfterSubmit: boolean;
   showGradeAfterSubmit: boolean;
+  /** Exam time limit in minutes; null means untimed. */
+  timeLimitMinutes: number | null;
   correctAnswersReleasedAt: Date | null;
   gradesReleasedAt: Date | null;
   createdAt: Date;
@@ -30,6 +32,8 @@ export interface Test {
   description: string;
   showCorrectAnswerAfterSubmit: boolean;
   showGradeAfterSubmit: boolean;
+  /** Exam time limit in minutes; null means untimed. */
+  timeLimitMinutes: number | null;
   correctAnswersReleasedAt: Date | null;
   gradesReleasedAt: Date | null;
   createdAt: Date;
@@ -52,6 +56,7 @@ export interface CreateTestInput {
 export interface UpdateTestSettingsInput {
   showGradeAfterSubmit: boolean;
   showCorrectAnswerAfterSubmit: boolean;
+  timeLimitMinutes: number | null;
   updatedBy: string;
 }
 
@@ -73,6 +78,7 @@ export class TestService {
       description: input.description,
       showCorrectAnswerAfterSubmit: input.showCorrectAnswerAfterSubmit ?? true,
       showGradeAfterSubmit: input.showGradeAfterSubmit ?? true,
+      timeLimitMinutes: null,
       correctAnswersReleasedAt: null,
       gradesReleasedAt: null,
       createdAt: new Date(),
@@ -123,6 +129,7 @@ export class TestService {
       description: doc.description,
       showCorrectAnswerAfterSubmit: doc.showCorrectAnswerAfterSubmit,
       showGradeAfterSubmit: doc.showGradeAfterSubmit,
+      timeLimitMinutes: doc.timeLimitMinutes ?? null,
       correctAnswersReleasedAt: doc.correctAnswersReleasedAt,
       gradesReleasedAt: doc.gradesReleasedAt,
       createdAt: doc.createdAt,
@@ -144,6 +151,7 @@ export class TestService {
         $set: {
           showGradeAfterSubmit: input.showGradeAfterSubmit,
           showCorrectAnswerAfterSubmit: input.showCorrectAnswerAfterSubmit,
+          timeLimitMinutes: input.timeLimitMinutes,
           updatedAt: new Date(),
           updatedBy: input.updatedBy,
         },

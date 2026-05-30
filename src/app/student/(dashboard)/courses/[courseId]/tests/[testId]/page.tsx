@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MarkdownContent } from "src/components/markdown-content";
-import { McAnswerChips } from "src/components/mc-answer-chips";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -11,13 +9,6 @@ import {
   BreadcrumbSeparator,
 } from "src/components/ui/breadcrumb";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "src/components/ui/card";
-import { Separator } from "src/components/ui/separator";
-import {
   getAnswerService,
   getCourseService,
   getGradeService,
@@ -26,13 +17,13 @@ import {
   getRedoRequestService,
   getTestFeedbackService,
   getTestService,
+  getTestStartService,
   getTestStatusService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
-import { TestStatus } from "src/lib/test-status-service";
-import { AnswerForm } from "./answer-form";
-import { DiffViewer } from "./diff-viewer";
-import { SubmitTestButton } from "./submit-test-button";
+import { TestCountdown } from "./countdown.state";
+import { StartTestGate } from "./start-test-gate";
+import { TestQuestionsSection } from "./test-questions-section";
 
 export const metadata = {
   title: "Test — LMS",
@@ -120,6 +111,29 @@ export default async function StudentTestDetailPage({
   // Student can answer if test is not submitted OR if there's an active redo request
   const canAnswer = !isSubmitted || !!activeRedoRequest;
 
+  // ── Timed-test Start gate ────────────────────────────────────────────────
+  // A timed test (timeLimitMinutes != null) that the student has not yet
+  // started shows a Start gate instead of the questions.
+  const testStartService = await getTestStartService();
+  const activeStart = await testStartService.getActiveStart(
+    testId,
+    session.studentId,
+  );
+  // When non-null, the Start gate is shown and carries the (narrowed) limit;
+  // null means the test is untimed or already started, so show the questions.
+  const startGateMinutes =
+    test.timeLimitMinutes !== null && activeStart === null
+      ? test.timeLimitMinutes
+      : null;
+
+  // Once a timed test is started and still answerable, show a live countdown to
+  // the true deadline (startedAt + limit). Null otherwise (untimed, not yet
+  // started, or already submitted with no active redo).
+  const countdownDeadlineMs =
+    test.timeLimitMinutes !== null && activeStart !== null && canAnswer
+      ? activeStart.startedAt.getTime() + test.timeLimitMinutes * 60_000
+      : null;
+
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <header className="w-full max-w-5xl">
@@ -174,7 +188,7 @@ export default async function StudentTestDetailPage({
           </div>
         )}
 
-        {!isSubmitted && questions.length > 0 && (
+        {startGateMinutes === null && !isSubmitted && questions.length > 0 && (
           <div className="mt-4 space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
@@ -197,182 +211,38 @@ export default async function StudentTestDetailPage({
         )}
       </header>
 
-      <section className="w-full max-w-5xl space-y-8">
-        {questions.length > 0 ? (
-          questions.map((question) => {
-            const grade = gradeMap.get(question.id);
-            const studentAnswer = answerMap.get(question.id);
-            const isMC =
-              question.type === "single_select" ||
-              question.type === "multi_select";
-
-            // For MC questions, build the option list that's safe to ship to
-            // the client. When the gate is closed, every option's `isCorrect`
-            // becomes `false` — this means selected chips will render in the
-            // neutral "selected + !isCorrect" path without revealing the
-            // answer key. Unselected correct options also won't render
-            // because `showCorrectAnswers` is gated below.
-            const safeOptions = isMC
-              ? correctAnswersVisible
-                ? question.options
-                : question.options.map((o) => ({ ...o, isCorrect: false }))
-              : [];
-
-            return (
-              <Card key={question.id}>
-                <CardHeader>
-                  <CardTitle className="text-lg">
-                    Question {question.order}: {question.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <MarkdownContent content={question.content} />
-
-                  {/* ── Answer input (when not submitted, or redo active) ── */}
-                  {canAnswer &&
-                    (isMC ? (
-                      <AnswerForm
-                        testId={testId}
-                        courseId={courseId}
-                        questionId={question.id}
-                        questionType={question.type}
-                        options={safeOptions}
-                        existingSelectedIds={
-                          studentAnswer?.type === "mc"
-                            ? studentAnswer.selectedIds
-                            : []
-                        }
-                      />
-                    ) : (
-                      <AnswerForm
-                        testId={testId}
-                        courseId={courseId}
-                        questionId={question.id}
-                        questionType="free_text"
-                        existingAnswer={
-                          studentAnswer?.type === "free_text"
-                            ? studentAnswer.text
-                            : ""
-                        }
-                      />
-                    ))}
-
-                  {/* ── Submitted answer display (only when submitted and NOT re-answering via redo) ── */}
-                  {isSubmitted && !activeRedoRequest && studentAnswer && (
-                    <div className="rounded-md border bg-muted/50 p-3">
-                      <p className="text-xs font-medium text-muted-foreground mb-1">
-                        Your Answer:
-                      </p>
-                      {studentAnswer.type === "mc" && isMC ? (
-                        <McAnswerChips
-                          selectedIds={studentAnswer.selectedIds}
-                          options={safeOptions}
-                        />
-                      ) : studentAnswer.type === "free_text" ? (
-                        <p className="whitespace-pre-wrap text-sm">
-                          {studentAnswer.text}
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-
-                  {/* ── Grade display (only when atomic reveal unlocks) ──── */}
-                  {grade && (
-                    <div className="rounded-md border bg-muted/30 p-4 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-0.5 text-sm font-semibold text-primary">
-                          {grade.score}/100
-                        </span>
-                        {/* For MC questions, show correct vs selected */}
-                        {isMC && testStatus === TestStatus.Graded && (
-                          <span className="text-xs text-muted-foreground">
-                            (auto-graded)
-                          </span>
-                        )}
-                      </div>
-                      {/* MC answer chips with correct answers visible in graded view.
-                          Only rendered when the correct-answer gate is open — otherwise
-                          chips would mislabel correct picks as wrong (every option has
-                          `isCorrect: false` under the closed-gate redaction, so the
-                          "selected + !isCorrect" branch paints them red). */}
-                      {isMC &&
-                        grade &&
-                        studentAnswer?.type === "mc" &&
-                        correctAnswersVisible && (
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-1">
-                              Your Selection:
-                            </p>
-                            <McAnswerChips
-                              selectedIds={studentAnswer.selectedIds}
-                              options={safeOptions}
-                              showCorrectAnswers={correctAnswersVisible}
-                            />
-                          </div>
-                        )}
-                      {grade.feedback && (
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1">
-                            Teacher Feedback:
-                          </p>
-                          <p className="text-sm whitespace-pre-wrap">
-                            {grade.feedback}
-                          </p>
-                        </div>
-                      )}
-                      {grade.solution && studentAnswer && !isMC && (
-                        <div>
-                          <p className="mb-2 text-xs font-medium text-muted-foreground">
-                            Diff Comparison:
-                          </p>
-                          <DiffViewer
-                            studentAnswer={
-                              studentAnswer.type === "free_text"
-                                ? studentAnswer.text
-                                : ""
-                            }
-                            solution={grade.solution}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })
-        ) : (
-          <p className="text-center text-muted-foreground">
-            No questions have been added to this test yet.
-          </p>
-        )}
-
-        {canAnswer && questions.length > 0 && (
-          <>
-            <Separator />
-            <SubmitTestButton
-              testId={testId}
-              courseId={courseId}
-              totalQuestions={questions.length}
-              answeredQuestions={answerMap.size}
-            />
-          </>
-        )}
-
-        {isSubmitted && !activeRedoRequest && grades.length === 0 && (
-          <div className="space-y-3">
-            <div className="rounded-md border bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-              Your test has been submitted and is waiting to be graded.
+      {startGateMinutes !== null ? (
+        <StartTestGate
+          testId={testId}
+          courseId={courseId}
+          timeLimitMinutes={startGateMinutes}
+        />
+      ) : (
+        <>
+          {countdownDeadlineMs !== null && (
+            <div className="w-full max-w-5xl">
+              <TestCountdown
+                deadlineMs={countdownDeadlineMs}
+                testId={testId}
+                courseId={courseId}
+              />
             </div>
-            <Link
-              href={`/student/courses/${courseId}`}
-              className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              ← Back to Course
-            </Link>
-          </div>
-        )}
-      </section>
+          )}
+          <TestQuestionsSection
+            testId={testId}
+            courseId={courseId}
+            questions={questions}
+            answerMap={answerMap}
+            gradeMap={gradeMap}
+            testStatus={testStatus}
+            isSubmitted={isSubmitted}
+            hasActiveRedo={!!activeRedoRequest}
+            canAnswer={canAnswer}
+            correctAnswersVisible={correctAnswersVisible}
+            gradeCount={grades.length}
+          />
+        </>
+      )}
     </div>
   );
 }

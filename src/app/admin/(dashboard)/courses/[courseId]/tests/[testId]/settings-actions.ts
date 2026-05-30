@@ -16,6 +16,17 @@ const setTestSettingsSchema = z.object({
   courseId: z.string().min(1, "Course ID is missing"),
   showGradeAfterSubmit: z.boolean(),
   showCorrectAnswerAfterSubmit: z.boolean(),
+  // Blank/absent ⇒ untimed (null). Otherwise a positive whole number.
+  // Preprocessed before coercion because `Number("") === 0` would otherwise
+  // turn a blank field into 0 and collide with the positive-only rule.
+  timeLimitMinutes: z.preprocess(
+    (value) => (value === "" || value == null ? null : value),
+    z.coerce
+      .number()
+      .int("Time limit must be a positive whole number")
+      .positive("Time limit must be a positive whole number")
+      .nullable(),
+  ),
 });
 
 /**
@@ -43,6 +54,7 @@ export async function setTestSettingsAction(
     showGradeAfterSubmit: formData.get("showGradeAfterSubmit") === "true",
     showCorrectAnswerAfterSubmit:
       formData.get("showCorrectAnswerAfterSubmit") === "true",
+    timeLimitMinutes: formData.get("timeLimitMinutes"),
   });
 
   if (!parsed.success) {
@@ -54,6 +66,7 @@ export async function setTestSettingsAction(
     await testService.updateTestSettings(parsed.data.testId, {
       showGradeAfterSubmit: parsed.data.showGradeAfterSubmit,
       showCorrectAnswerAfterSubmit: parsed.data.showCorrectAnswerAfterSubmit,
+      timeLimitMinutes: parsed.data.timeLimitMinutes,
       updatedBy: adminUserId,
     });
 

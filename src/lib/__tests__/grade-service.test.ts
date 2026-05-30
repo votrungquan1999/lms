@@ -7,6 +7,7 @@ import {
   type SingleSelectQuestion,
 } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
+import { TestStartService } from "src/lib/test-start-service";
 import { TestStatus } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
@@ -760,7 +761,12 @@ describe("GradeService - Auto-Grade Edge Cases", () => {
     async ({ db }) => {
       const testService = new TestService(db);
       const questionService = new QuestionService(db);
-      const answerService = new AnswerService(db, questionService);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
 
       const test = await testService.createTest("course-1", {
         title: "Partial Empty",
