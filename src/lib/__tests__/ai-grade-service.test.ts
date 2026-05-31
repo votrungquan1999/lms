@@ -1083,4 +1083,62 @@ describe("AiGradeService.generateForStudent - Step 4 (solution persistence)", ()
       expect(rows[0]!.solution).toBe("def total(nums):\n    return sum(nums)");
     },
   );
+
+  dbIt(
+    "given the AI client returns a solution with CRLF line endings and trailing whitespace, when generating, then the stored and returned solution are normalized to LF with no trailing whitespace",
+    async ({ db }) => {
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
+          return items.map((item) => ({
+            questionId: item.questionId,
+            score: 75,
+            feedback: "ok",
+            solution: "def total(nums):  \r\n    return sum(nums)\r\n",
+          }));
+        },
+      };
+
+      const services = buildCoreServices(db, { aiClient: stubAiClient });
+      const { testService, questionService, answerService, aiGradeService } =
+        services;
+
+      const test = await testService.createTest("course-1", {
+        title: "AI Grade solution normalization",
+        description: "",
+        createdBy: "admin-1",
+      });
+
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Sum a list using a loop.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "def total(nums): pass" },
+      });
+
+      const suggestions = await aiGradeService.generateForStudent(
+        test.id,
+        "student-1",
+        "admin-1",
+      );
+
+      // Returned suggestion is normalized: CRLF -> LF, trailing whitespace stripped.
+      expect(suggestions[0]!.solution).toBe(
+        "def total(nums):\n    return sum(nums)\n",
+      );
+
+      // Persisted document carries the normalized solution too.
+      const rows = await db
+        .collection<AiGradeSuggestionDocument>("ai_grade")
+        .find({ testId: test.id, studentId: "student-1" })
+        .toArray();
+      expect(rows[0]!.solution).toBe("def total(nums):\n    return sum(nums)\n");
+    },
+  );
 });

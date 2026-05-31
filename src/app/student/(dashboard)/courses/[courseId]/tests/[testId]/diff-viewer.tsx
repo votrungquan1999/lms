@@ -2,6 +2,7 @@
 
 import ReactDiffViewer from "react-diff-viewer-continued";
 import { useTheme } from "src/components/theme-provider";
+import { normalizeText } from "src/lib/text-normalization";
 
 interface DiffViewerProps {
   studentAnswer: string;
@@ -27,8 +28,8 @@ export function DiffViewer({ studentAnswer, solution }: DiffViewerProps) {
   return (
     <div className="overflow-x-auto rounded-md border">
       <ReactDiffViewer
-        oldValue={studentAnswer}
-        newValue={solution}
+        oldValue={normalizeText(studentAnswer)}
+        newValue={normalizeText(solution)}
         splitView={true}
         leftTitle="Your Answer"
         rightTitle="Correct Solution"

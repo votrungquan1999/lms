@@ -17,6 +17,7 @@ import {
 } from "src/lib/apply-suggestion";
 import type { GradeDocument, GradeService } from "src/lib/grade-service";
 import type { QuestionService } from "src/lib/question-service";
+import { normalizeText } from "src/lib/text-normalization";
 
 /** Internal candidate row for the generate/regenerate skip-filter. */
 interface Candidate {
@@ -266,7 +267,10 @@ export class AiGradeService {
         studentId,
         score: result.score,
         feedback: result.feedback,
-        solution: result.solution,
+        solution:
+          result.solution === undefined
+            ? undefined
+            : normalizeText(result.solution),
         gradedAgainstAnswerId: candidate.answerId,
         model: AI_MODEL_NAME,
         gradedBy: AI_GRADER_ID,
