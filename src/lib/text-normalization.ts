@@ -15,3 +15,17 @@
 export function normalizeText(value: string): string {
   return value.replace(/\r\n?/g, "\n").replace(/[ \t]+$/gm, "");
 }
+
+/**
+ * Reports whether two texts are equal once normalized, i.e. they differ only in
+ * line endings and trailing per-line whitespace. Used to decide whether a
+ * student-vs-solution diff is worth showing — when equivalent, there is no real
+ * difference to display.
+ *
+ * @param a - First text to compare.
+ * @param b - Second text to compare.
+ * @returns `true` when the two texts are equal after normalization.
+ */
+export function isTextEquivalent(a: string, b: string): boolean {
+  return normalizeText(a) === normalizeText(b);
+}

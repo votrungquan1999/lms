@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { MarkdownContent } from "src/components/markdown-content";
 import { McAnswerChips } from "src/components/mc-answer-chips";
-import { Badge } from "src/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -12,9 +11,9 @@ import { Separator } from "src/components/ui/separator";
 import type { StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
 import type { Question } from "src/lib/question-service";
-import { TestStatus } from "src/lib/test-status-service";
+import type { TestStatus } from "src/lib/test-status-service";
 import { AnswerForm } from "./answer-form";
-import { DiffViewer } from "./diff-viewer";
+import { GradedQuestion } from "./graded-question";
 import { SubmitTestButton } from "./submit-test-button";
 
 interface TestQuestionsSectionProps {
@@ -71,6 +70,24 @@ export function TestQuestionsSection({
                 : question.options.map((o) => ({ ...o, isCorrect: false }))
               : [];
 
+          // Read-only graded view: collapsible card tinted by score band.
+          // (During a redo, canAnswer is true so the answer form is shown
+          // instead.)
+          if (grade && !canAnswer) {
+            return (
+              <GradedQuestion
+                key={question.id}
+                question={question}
+                studentAnswer={studentAnswer}
+                grade={grade}
+                isMC={isMC}
+                options={safeOptions}
+                correctAnswersVisible={correctAnswersVisible}
+                testStatus={testStatus}
+              />
+            );
+          }
+
           return (
             <Card key={question.id}>
               <CardHeader>
@@ -126,61 +143,6 @@ export function TestQuestionsSection({
                         {studentAnswer.text}
                       </p>
                     ) : null}
-                  </div>
-                )}
-
-                {/* ── Grade display (only when atomic reveal unlocks) ── */}
-                {grade && (
-                  <div className="rounded-md border bg-muted/30 p-4 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <Badge variant="info" className="text-sm font-semibold">
-                        {grade.score}/100
-                      </Badge>
-                      {isMC && testStatus === TestStatus.Graded && (
-                        <span className="text-xs text-muted-foreground">
-                          (auto-graded)
-                        </span>
-                      )}
-                    </div>
-                    {isMC &&
-                      studentAnswer?.type === "mc" &&
-                      correctAnswersVisible && (
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1">
-                            Your Selection:
-                          </p>
-                          <McAnswerChips
-                            selectedIds={studentAnswer.selectedIds}
-                            options={safeOptions}
-                            showCorrectAnswers={correctAnswersVisible}
-                          />
-                        </div>
-                      )}
-                    {grade.feedback && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1">
-                          Teacher Feedback:
-                        </p>
-                        <p className="text-sm whitespace-pre-wrap">
-                          {grade.feedback}
-                        </p>
-                      </div>
-                    )}
-                    {grade.solution && studentAnswer && !isMC && (
-                      <div>
-                        <p className="mb-2 text-xs font-medium text-muted-foreground">
-                          Diff Comparison:
-                        </p>
-                        <DiffViewer
-                          studentAnswer={
-                            studentAnswer.type === "free_text"
-                              ? studentAnswer.text
-                              : ""
-                          }
-                          solution={grade.solution}
-                        />
-                      </div>
-                    )}
                   </div>
                 )}
               </CardContent>
