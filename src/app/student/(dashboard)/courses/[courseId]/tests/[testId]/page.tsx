@@ -8,6 +8,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "src/components/ui/breadcrumb";
+import { Progress } from "src/components/ui/progress";
 import {
   getAnswerService,
   getCourseService,
@@ -21,6 +22,8 @@ import {
   getTestStatusService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
+import { PageHeader } from "../../../../_ui/page-header.ui";
+import { StatusBadge } from "../../../../_ui/status-badge.ui";
 import { TestCountdown } from "./countdown.state";
 import { StartTestGate } from "./start-test-gate";
 import { TestQuestionsSection } from "./test-questions-section";
@@ -135,40 +138,42 @@ export default async function StudentTestDetailPage({
       : null;
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
-      <header className="w-full max-w-5xl">
-        <Breadcrumb className="mb-4">
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link href="/student/dashboard">My Courses</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link href={`/student/courses/${courseId}`}>
-                  {course?.title ?? "Course"}
-                </Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{test.title}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <h1 className="text-3xl font-bold tracking-tight">{test.title}</h1>
-        {test.description && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {test.description}
-          </p>
-        )}
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
+      <PageHeader
+        breadcrumb={
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href="/student/dashboard">My Courses</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href={`/student/courses/${courseId}`}>
+                    {course?.title ?? "Course"}
+                  </Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{test.title}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        }
+        title={test.title}
+        description={test.description}
+      >
+        <div className="flex items-center gap-2">
+          <StatusBadge status={testStatus} />
+        </div>
 
         {activeRedoRequest && (
-          <div className="mt-4 rounded-md border border-orange-300 bg-orange-50 p-3 text-sm text-orange-800 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-200">
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
             <p className="font-semibold">Redo Required ↩</p>
-            <p className="mt-0.5">
+            <p className="mt-0.5 text-muted-foreground">
               Your teacher has requested that you redo this test. Please
               re-answer the questions and submit again.
             </p>
@@ -176,7 +181,7 @@ export default async function StudentTestDetailPage({
         )}
 
         {average !== null && (
-          <div className="mt-4 rounded-md border bg-muted/50 p-3">
+          <div className="rounded-md border bg-muted/50 p-3">
             <p className="text-lg font-semibold">
               Average Score: {average.toFixed(1)} / 100
             </p>
@@ -189,7 +194,7 @@ export default async function StudentTestDetailPage({
         )}
 
         {startGateMinutes === null && !isSubmitted && questions.length > 0 && (
-          <div className="mt-4 space-y-2">
+          <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
                 {answerMap.size} / {questions.length} question
@@ -199,17 +204,13 @@ export default async function StudentTestDetailPage({
                 {Math.round((answerMap.size / (questions.length || 1)) * 100)}%
               </span>
             </div>
-            <div className="h-2 w-full rounded-full bg-muted">
-              <div
-                className="h-2 rounded-full bg-primary transition-all"
-                style={{
-                  width: `${(answerMap.size / (questions.length || 1)) * 100}%`,
-                }}
-              />
-            </div>
+            <Progress
+              value={(answerMap.size / (questions.length || 1)) * 100}
+              className="h-2"
+            />
           </div>
         )}
-      </header>
+      </PageHeader>
 
       {startGateMinutes !== null ? (
         <StartTestGate

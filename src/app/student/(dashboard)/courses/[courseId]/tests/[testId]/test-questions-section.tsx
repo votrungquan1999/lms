@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MarkdownContent } from "src/components/markdown-content";
 import { McAnswerChips } from "src/components/mc-answer-chips";
+import { Badge } from "src/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -49,7 +50,7 @@ export function TestQuestionsSection({
   gradeCount,
 }: TestQuestionsSectionProps) {
   return (
-    <section className="w-full max-w-5xl space-y-8">
+    <section className="w-full space-y-8">
       {questions.length > 0 ? (
         questions.map((question) => {
           const grade = gradeMap.get(question.id);
@@ -132,9 +133,9 @@ export function TestQuestionsSection({
                 {grade && (
                   <div className="rounded-md border bg-muted/30 p-4 space-y-3">
                     <div className="flex items-center gap-3">
-                      <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-0.5 text-sm font-semibold text-primary">
+                      <Badge variant="info" className="text-sm font-semibold">
                         {grade.score}/100
-                      </span>
+                      </Badge>
                       {isMC && testStatus === TestStatus.Graded && (
                         <span className="text-xs text-muted-foreground">
                           (auto-graded)
@@ -206,7 +207,7 @@ export function TestQuestionsSection({
 
       {isSubmitted && !hasActiveRedo && gradeCount === 0 && (
         <div className="space-y-3">
-          <div className="rounded-md border bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+          <div className="rounded-md border border-info/30 bg-info/10 p-3 text-sm text-foreground">
             Your test has been submitted and is waiting to be graded.
           </div>
           <Link
