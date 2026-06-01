@@ -1,6 +1,7 @@
 import { AuthService } from "./auth-service";
 import { loadConfig } from "./config";
 import { getDatabase } from "./database";
+import { tracedService } from "./observability/traced-service";
 import { StudentService } from "./student-service";
 
 /**
@@ -18,7 +19,10 @@ export async function getAuthService(): Promise<AuthService> {
   const config = loadConfig();
   const db = await getDatabase();
   const studentService = new StudentService(db);
-  authService = new AuthService(db, config, studentService);
+  authService = tracedService(
+    new AuthService(db, config, studentService),
+    "auth",
+  );
 
   return authService;
 }

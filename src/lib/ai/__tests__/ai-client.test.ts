@@ -15,6 +15,10 @@ import { GeminiAiClient } from "../ai-client";
 describe("GeminiAiClient.gradeFreeTextBatch", () => {
   it("forwards the model's per-item solution into each batch output row", async () => {
     generateTextMock.mockResolvedValueOnce({
+      // `usage` is always present on the real SDK result (token fields may be
+      // undefined); the span enrichment reads `result.usage.*`, so the mock
+      // must include it. This test does not assert on token counts.
+      usage: {},
       output: {
         grades: [
           {
@@ -53,6 +57,7 @@ describe("GeminiAiClient.gradeFreeTextBatch", () => {
           grades: [{ questionId: "q1", score: 100, feedback: "perfect" }],
         };
         return Promise.resolve({
+          usage: {},
           output: opts.output.schema.parse(rawModelOutput),
         });
       },

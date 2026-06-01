@@ -2,6 +2,7 @@ import { google } from "@ai-sdk/google";
 import { generateText, Output } from "ai";
 import { buildGradingPrompt } from "src/lib/ai/grading-prompt";
 import { aiGradeBatchSchema } from "src/lib/ai/grading-schema";
+import { withSpan } from "src/lib/observability/with-span";
 
 /**
  * Input for one item in an AI free-text grading batch.
@@ -99,21 +100,47 @@ export class GeminiAiClient implements AiClient {
     items: AiGradeBatchInput[],
     opts?: AiGradeBatchOptions,
   ): Promise<AiGradeBatchOutput[]> {
-    const result = await generateText({
-      model: google(GEMINI_MODEL_ID),
-      output: Output.object({ schema: aiGradeBatchSchema }),
-      prompt: buildGradingPrompt(items, opts),
-    });
+    return withSpan(
+      "gemini.gradeFreeTextBatch",
+      {
+        "gen_ai.request.model": GEMINI_MODEL_ID,
+        "gen_ai.operation.name": "generate_content",
+        "lms.ai.batch_size": items.length,
+        "lms.ai.regenerate": opts !== undefined,
+      },
+      async (span) => {
+        const result = await generateText({
+          model: google(GEMINI_MODEL_ID),
+          output: Output.object({ schema: aiGradeBatchSchema }),
+          prompt: buildGradingPrompt(items, opts),
+        });
 
-    const parsed = result.output;
-    if (!parsed) {
-      throw new Error("Gemini returned no parsed output");
-    }
-    return parsed.grades.map((g) => ({
-      questionId: g.questionId,
-      score: g.score,
-      feedback: g.feedback,
-      solution: g.solution,
-    }));
+        // Token counts are `number | undefined` — set each only when present;
+        // never `?? 0` (fabricates a count), never pass undefined.
+        if (result.usage.inputTokens !== undefined) {
+          span.setAttribute(
+            "gen_ai.usage.input_tokens",
+            result.usage.inputTokens,
+          );
+        }
+        if (result.usage.outputTokens !== undefined) {
+          span.setAttribute(
+            "gen_ai.usage.output_tokens",
+            result.usage.outputTokens,
+          );
+        }
+
+        const parsed = result.output;
+        if (!parsed) {
+          throw new Error("Gemini returned no parsed output");
+        }
+        return parsed.grades.map((g) => ({
+          questionId: g.questionId,
+          score: g.score,
+          feedback: g.feedback,
+          solution: g.solution,
+        }));
+      },
+    );
   }
 }

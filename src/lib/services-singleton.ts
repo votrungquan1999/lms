@@ -6,6 +6,7 @@ import { getDatabase } from "./database";
 import { EnrollmentService } from "./enrollment-service";
 import { GradeService } from "./grade-service";
 import { GradeVisibilityService } from "./grade-visibility-service";
+import { tracedService } from "./observability/traced-service";
 import { PageGuard } from "./page-guard";
 import { QuestionService } from "./question-service";
 import { RedoRequestService } from "./redo-request-service";
@@ -40,7 +41,7 @@ let pageGuard: PageGuard | null = null;
 export async function getPageGuard(): Promise<PageGuard> {
   if (!pageGuard) {
     const enrollment = await getEnrollmentService();
-    pageGuard = new PageGuard(enrollment);
+    pageGuard = tracedService(new PageGuard(enrollment), "pageGuard");
   }
   return pageGuard;
 }
@@ -56,12 +57,15 @@ export async function getAiGradeService(): Promise<AiGradeService> {
     const questionService = await getQuestionService();
     const answerService = await getAnswerService();
     const gradeService = await getGradeService();
-    aiGradeService = new AiGradeService(
-      db,
-      new GeminiAiClient(),
-      questionService,
-      answerService,
-      gradeService,
+    aiGradeService = tracedService(
+      new AiGradeService(
+        db,
+        new GeminiAiClient(),
+        questionService,
+        answerService,
+        gradeService,
+      ),
+      "aiGrade",
     );
   }
   return aiGradeService;
@@ -73,7 +77,7 @@ export async function getAnswerService(): Promise<AnswerService> {
     const qs = await getQuestionService();
     const ts = await getTestService();
     const tss = await getTestStartService();
-    answerService = new AnswerService(db, qs, ts, tss);
+    answerService = tracedService(new AnswerService(db, qs, ts, tss), "answer");
   }
   return answerService;
 }
@@ -81,7 +85,7 @@ export async function getAnswerService(): Promise<AnswerService> {
 export async function getCourseService(): Promise<CourseService> {
   if (!courseService) {
     const db = await getDatabase();
-    courseService = new CourseService(db);
+    courseService = tracedService(new CourseService(db), "course");
   }
   return courseService;
 }
@@ -89,7 +93,7 @@ export async function getCourseService(): Promise<CourseService> {
 export async function getEnrollmentService(): Promise<EnrollmentService> {
   if (!enrollmentService) {
     const db = await getDatabase();
-    enrollmentService = new EnrollmentService(db);
+    enrollmentService = tracedService(new EnrollmentService(db), "enrollment");
   }
   return enrollmentService;
 }
@@ -100,11 +104,9 @@ export async function getGradeService(): Promise<GradeService> {
     const questionService = await getQuestionService();
     const answerService = await getAnswerService();
     const visibility = await getGradeVisibilityService();
-    gradeService = new GradeService(
-      db,
-      questionService,
-      answerService,
-      visibility,
+    gradeService = tracedService(
+      new GradeService(db, questionService, answerService, visibility),
+      "grade",
     );
   }
   return gradeService;
@@ -119,9 +121,9 @@ export async function getGradeVisibilityService(): Promise<GradeVisibilityServic
   if (!gradeVisibilityService) {
     const testService = await getTestService();
     // Lazy thunk — see `GradeVisibilityService` JSDoc for the cycle reasoning.
-    gradeVisibilityService = new GradeVisibilityService(
-      testService,
-      getTestSubmissionService,
+    gradeVisibilityService = tracedService(
+      new GradeVisibilityService(testService, getTestSubmissionService),
+      "gradeVisibility",
     );
   }
   return gradeVisibilityService;
@@ -130,7 +132,7 @@ export async function getGradeVisibilityService(): Promise<GradeVisibilityServic
 export async function getTestService(): Promise<TestService> {
   if (!testService) {
     const db = await getDatabase();
-    testService = new TestService(db);
+    testService = tracedService(new TestService(db), "test");
   }
   return testService;
 }
@@ -138,7 +140,10 @@ export async function getTestService(): Promise<TestService> {
 export async function getTestFeedbackService(): Promise<TestFeedbackService> {
   if (!testFeedbackService) {
     const db = await getDatabase();
-    testFeedbackService = new TestFeedbackService(db);
+    testFeedbackService = tracedService(
+      new TestFeedbackService(db),
+      "testFeedback",
+    );
   }
   return testFeedbackService;
 }
@@ -146,11 +151,14 @@ export async function getTestFeedbackService(): Promise<TestFeedbackService> {
 export async function getTestSubmissionService(): Promise<TestSubmissionService> {
   if (!testSubmissionService) {
     const db = await getDatabase();
-    testSubmissionService = new TestSubmissionService(
-      db,
-      await getGradeService(),
-      await getTestService(),
-      await getTestStartService(),
+    testSubmissionService = tracedService(
+      new TestSubmissionService(
+        db,
+        await getGradeService(),
+        await getTestService(),
+        await getTestStartService(),
+      ),
+      "testSubmission",
     );
   }
   return testSubmissionService;
@@ -161,7 +169,10 @@ export async function getTestStatusService(): Promise<TestStatusService> {
     const answers = await getAnswerService();
     const submissions = await getTestSubmissionService();
     const grades = await getGradeService();
-    testStatusService = new TestStatusService(answers, submissions, grades);
+    testStatusService = tracedService(
+      new TestStatusService(answers, submissions, grades),
+      "testStatus",
+    );
   }
   return testStatusService;
 }
@@ -169,7 +180,7 @@ export async function getTestStatusService(): Promise<TestStatusService> {
 export async function getQuestionService(): Promise<QuestionService> {
   if (!questionService) {
     const db = await getDatabase();
-    questionService = new QuestionService(db);
+    questionService = tracedService(new QuestionService(db), "question");
   }
   return questionService;
 }
@@ -177,7 +188,7 @@ export async function getQuestionService(): Promise<QuestionService> {
 export async function getStudentService(): Promise<StudentService> {
   if (!studentService) {
     const db = await getDatabase();
-    studentService = new StudentService(db);
+    studentService = tracedService(new StudentService(db), "student");
   }
   return studentService;
 }
@@ -185,7 +196,10 @@ export async function getStudentService(): Promise<StudentService> {
 export async function getRedoRequestService(): Promise<RedoRequestService> {
   if (!redoRequestService) {
     const db = await getDatabase();
-    redoRequestService = new RedoRequestService(db);
+    redoRequestService = tracedService(
+      new RedoRequestService(db),
+      "redoRequest",
+    );
   }
   return redoRequestService;
 }
@@ -193,7 +207,7 @@ export async function getRedoRequestService(): Promise<RedoRequestService> {
 export async function getTestStartService(): Promise<TestStartService> {
   if (!testStartService) {
     const db = await getDatabase();
-    testStartService = new TestStartService(db);
+    testStartService = tracedService(new TestStartService(db), "testStart");
   }
   return testStartService;
 }

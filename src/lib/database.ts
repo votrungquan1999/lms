@@ -1,5 +1,6 @@
 import { type Db, MongoClient } from "mongodb";
 import { loadConfig } from "./config";
+import { tracedDb } from "./observability/traced-collection";
 
 /**
  * Lazy singleton for MongoDB connection.
@@ -18,7 +19,9 @@ export async function getDatabase(): Promise<Db> {
   const config = loadConfig();
   client = new MongoClient(config.mongodbUri);
   await client.connect();
-  db = client.db();
+  // Wrap once at connection time so every service receives span-aware
+  // collection handles; the wrapped Db is cached in the module singleton.
+  db = tracedDb(client.db());
 
   return db;
 }
