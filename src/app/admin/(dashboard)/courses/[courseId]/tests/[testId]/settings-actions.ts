@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import { withSpan } from "src/lib/observability/with-span";
 import { getTestService } from "src/lib/services-singleton";
 import { z } from "zod";
 
@@ -62,23 +63,34 @@ export async function setTestSettingsAction(
   }
 
   try {
-    const testService = await getTestService();
-    await testService.updateTestSettings(parsed.data.testId, {
-      showGradeAfterSubmit: parsed.data.showGradeAfterSubmit,
-      showCorrectAnswerAfterSubmit: parsed.data.showCorrectAnswerAfterSubmit,
-      timeLimitMinutes: parsed.data.timeLimitMinutes,
-      updatedBy: adminUserId,
-    });
+    return await withSpan(
+      "action.setTestSettingsAction",
+      {
+        "lms.action.name": "setTestSettingsAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+      },
+      async () => {
+        const testService = await getTestService();
+        await testService.updateTestSettings(parsed.data.testId, {
+          showGradeAfterSubmit: parsed.data.showGradeAfterSubmit,
+          showCorrectAnswerAfterSubmit:
+            parsed.data.showCorrectAnswerAfterSubmit,
+          timeLimitMinutes: parsed.data.timeLimitMinutes,
+          updatedBy: adminUserId,
+        });
 
-    revalidatePath(
-      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-    );
-    revalidatePath(`/admin/courses/${parsed.data.courseId}`);
-    revalidatePath(
-      `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-    );
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+        );
+        revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        revalidatePath(
+          `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+        );
 
-    return { success: true, message: "Settings saved" };
+        return { success: true, message: "Settings saved" };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =

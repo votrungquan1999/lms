@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import { withSpan } from "src/lib/observability/with-span";
 import { getCourseService } from "src/lib/services-singleton";
 import { z } from "zod";
 
@@ -44,16 +45,22 @@ export async function createCourseAction(
   }
 
   try {
-    const courseService = await getCourseService();
-    const course = await courseService.createCourse({
-      ...parsed.data,
-      createdBy: adminUserId,
-    });
-    revalidatePath("/admin/courses");
-    return {
-      success: true,
-      message: `Course "${course.title}" created successfully`,
-    };
+    return await withSpan(
+      "action.createCourseAction",
+      { "lms.action.name": "createCourseAction" },
+      async () => {
+        const courseService = await getCourseService();
+        const course = await courseService.createCourse({
+          ...parsed.data,
+          createdBy: adminUserId,
+        });
+        revalidatePath("/admin/courses");
+        return {
+          success: true,
+          message: `Course "${course.title}" created successfully`,
+        };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =

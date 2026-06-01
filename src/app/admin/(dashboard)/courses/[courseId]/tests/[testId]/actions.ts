@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import { withSpan } from "src/lib/observability/with-span";
 import { getQuestionService, getTestService } from "src/lib/services-singleton";
 import { z } from "zod";
 
@@ -105,40 +106,50 @@ export async function addQuestionAction(
   }
 
   try {
-    const questionService = await getQuestionService();
-    const data = parsed.data;
-    if (data.type === "free_text") {
-      await questionService.addQuestion(data.testId, {
-        title: data.title,
-        content: data.content,
-        type: "free_text",
-        createdBy: adminUserId,
-      });
-    } else if (data.type === "single_select") {
-      await questionService.addQuestion(data.testId, {
-        title: data.title,
-        content: data.content,
-        type: "single_select",
-        options: data.options,
-        createdBy: adminUserId,
-      });
-    } else {
-      await questionService.addQuestion(data.testId, {
-        title: data.title,
-        content: data.content,
-        type: "multi_select",
-        options: data.options,
-        mcGradingStrategy: data.mcGradingStrategy,
-        createdBy: adminUserId,
-      });
-    }
+    return await withSpan(
+      "action.addQuestionAction",
+      {
+        "lms.action.name": "addQuestionAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+      },
+      async () => {
+        const questionService = await getQuestionService();
+        const data = parsed.data;
+        if (data.type === "free_text") {
+          await questionService.addQuestion(data.testId, {
+            title: data.title,
+            content: data.content,
+            type: "free_text",
+            createdBy: adminUserId,
+          });
+        } else if (data.type === "single_select") {
+          await questionService.addQuestion(data.testId, {
+            title: data.title,
+            content: data.content,
+            type: "single_select",
+            options: data.options,
+            createdBy: adminUserId,
+          });
+        } else {
+          await questionService.addQuestion(data.testId, {
+            title: data.title,
+            content: data.content,
+            type: "multi_select",
+            options: data.options,
+            mcGradingStrategy: data.mcGradingStrategy,
+            createdBy: adminUserId,
+          });
+        }
 
-    revalidatePath(`/admin/courses/${data.courseId}/tests/${data.testId}`);
+        revalidatePath(`/admin/courses/${data.courseId}/tests/${data.testId}`);
 
-    return {
-      success: true,
-      message: `Question "${data.title}" added successfully`,
-    };
+        return {
+          success: true,
+          message: `Question "${data.title}" added successfully`,
+        };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =
@@ -179,30 +190,40 @@ export async function importQuestionsAction(
   }
 
   try {
-    const text = await file.text();
-    const rawParsed = JSON.parse(text);
+    return await withSpan(
+      "action.importQuestionsAction",
+      {
+        "lms.action.name": "importQuestionsAction",
+        "lms.test.id": testId,
+        "lms.course.id": courseId,
+      },
+      async () => {
+        const text = await file.text();
+        const rawParsed = JSON.parse(text);
 
-    const validated = importQuestionsFileSchema.safeParse(rawParsed);
-    if (!validated.success) {
-      return {
-        success: false,
-        message: validated.error.issues[0].message,
-      };
-    }
+        const validated = importQuestionsFileSchema.safeParse(rawParsed);
+        if (!validated.success) {
+          return {
+            success: false,
+            message: validated.error.issues[0].message,
+          };
+        }
 
-    const questionService = await getQuestionService();
-    const imported = await questionService.importQuestions(
-      testId,
-      validated.data,
-      adminUserId,
+        const questionService = await getQuestionService();
+        const imported = await questionService.importQuestions(
+          testId,
+          validated.data,
+          adminUserId,
+        );
+
+        revalidatePath(`/admin/courses/${courseId}/tests/${testId}`);
+
+        return {
+          success: true,
+          message: `Successfully imported ${imported.length} question(s)`,
+        };
+      },
     );
-
-    revalidatePath(`/admin/courses/${courseId}/tests/${testId}`);
-
-    return {
-      success: true,
-      message: `Successfully imported ${imported.length} question(s)`,
-    };
   } catch (error) {
     if (error instanceof SyntaxError) {
       console.error("JSON parse error:", error.message);
@@ -246,15 +267,25 @@ export async function deleteTestAction(
   }
 
   try {
-    const testService = await getTestService();
-    await testService.deleteTest(testId, adminUserId);
+    return await withSpan(
+      "action.deleteTestAction",
+      {
+        "lms.action.name": "deleteTestAction",
+        "lms.test.id": testId,
+        "lms.course.id": courseId,
+      },
+      async () => {
+        const testService = await getTestService();
+        await testService.deleteTest(testId, adminUserId);
 
-    revalidatePath(`/admin/courses/${courseId}`);
+        revalidatePath(`/admin/courses/${courseId}`);
 
-    return {
-      success: true,
-      message: "Test deleted successfully",
-    };
+        return {
+          success: true,
+          message: "Test deleted successfully",
+        };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =

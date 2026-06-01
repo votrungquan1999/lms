@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import { withSpan } from "src/lib/observability/with-span";
 
 export interface CreateStudentState {
   success: boolean;
@@ -48,22 +49,28 @@ export async function createStudentAction(
   }
 
   try {
-    const student = await authService.registerStudent({
-      name,
-      username,
-      password,
-      createdBy: "admin",
-    });
-    revalidatePath("/admin/students");
-    return {
-      success: true,
-      message: `Student "${student.name}" created successfully`,
-      student: {
-        id: student.id,
-        username: student.username,
-        name: student.name,
+    return await withSpan(
+      "action.createStudentAction",
+      { "lms.action.name": "createStudentAction" },
+      async () => {
+        const student = await authService.registerStudent({
+          name,
+          username,
+          password,
+          createdBy: "admin",
+        });
+        revalidatePath("/admin/students");
+        return {
+          success: true,
+          message: `Student "${student.name}" created successfully`,
+          student: {
+            id: student.id,
+            username: student.username,
+            name: student.name,
+          },
+        };
       },
-    };
+    );
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to create student";

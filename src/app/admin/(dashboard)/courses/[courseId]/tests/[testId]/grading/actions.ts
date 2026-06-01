@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuthService } from "src/lib/auth-singleton";
+import { withSpan } from "src/lib/observability/with-span";
 import {
   getGradeService,
   getQuestionService,
@@ -76,25 +77,36 @@ export async function gradeQuestionAction(
   }
 
   try {
-    const gradeService = await getGradeService();
-    await gradeService.gradeQuestion({
-      testId: parsed.data.testId,
-      questionId: parsed.data.questionId,
-      studentId: parsed.data.studentId,
-      score: parsed.data.score,
-      feedback: parsed.data.feedback,
-      solution: parsed.data.solution,
-      gradedBy: adminUserId,
-    });
+    return await withSpan(
+      "action.gradeQuestionAction",
+      {
+        "lms.action.name": "gradeQuestionAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+        "lms.student.id": parsed.data.studentId,
+      },
+      async () => {
+        const gradeService = await getGradeService();
+        await gradeService.gradeQuestion({
+          testId: parsed.data.testId,
+          questionId: parsed.data.questionId,
+          studentId: parsed.data.studentId,
+          score: parsed.data.score,
+          feedback: parsed.data.feedback,
+          solution: parsed.data.solution,
+          gradedBy: adminUserId,
+        });
 
-    revalidatePath(
-      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath("/admin/grading");
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        revalidatePath("/admin/dashboard");
+
+        return { success: true, message: "Grade saved" };
+      },
     );
-    revalidatePath("/admin/grading");
-    revalidatePath(`/admin/grading/${parsed.data.testId}`);
-    revalidatePath("/admin/dashboard");
-
-    return { success: true, message: "Grade saved" };
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {
@@ -134,22 +146,33 @@ export async function setTestFeedbackAction(
   }
 
   try {
-    const testFeedbackService = await getTestFeedbackService();
-    await testFeedbackService.setTestFeedback({
-      testId: parsed.data.testId,
-      studentId: parsed.data.studentId,
-      feedback: parsed.data.feedback,
-      gradedBy: adminUserId,
-    });
+    return await withSpan(
+      "action.setTestFeedbackAction",
+      {
+        "lms.action.name": "setTestFeedbackAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+        "lms.student.id": parsed.data.studentId,
+      },
+      async () => {
+        const testFeedbackService = await getTestFeedbackService();
+        await testFeedbackService.setTestFeedback({
+          testId: parsed.data.testId,
+          studentId: parsed.data.studentId,
+          feedback: parsed.data.feedback,
+          gradedBy: adminUserId,
+        });
 
-    revalidatePath(
-      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath("/admin/grading");
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        revalidatePath("/admin/dashboard");
+
+        return { success: true, message: "Feedback saved" };
+      },
     );
-    revalidatePath("/admin/grading");
-    revalidatePath(`/admin/grading/${parsed.data.testId}`);
-    revalidatePath("/admin/dashboard");
-
-    return { success: true, message: "Feedback saved" };
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {
@@ -198,22 +221,32 @@ export async function releaseGradesAction(
   }
 
   try {
-    const testService = await getTestService();
-    await testService.releaseGrades(parsed.data.testId, adminUserId);
+    return await withSpan(
+      "action.releaseGradesAction",
+      {
+        "lms.action.name": "releaseGradesAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+      },
+      async () => {
+        const testService = await getTestService();
+        await testService.releaseGrades(parsed.data.testId, adminUserId);
 
-    revalidatePath(
-      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-    );
-    revalidatePath("/admin/grading");
-    revalidatePath(`/admin/grading/${parsed.data.testId}`);
-    revalidatePath("/admin/dashboard");
-    // Pre-existing gap: a global release must also propagate to the student
-    // page so the student sees grades on the next visit.
-    revalidatePath(
-      `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-    );
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath("/admin/grading");
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        revalidatePath("/admin/dashboard");
+        // Pre-existing gap: a global release must also propagate to the student
+        // page so the student sees grades on the next visit.
+        revalidatePath(
+          `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+        );
 
-    return { success: true, message: "Grades released" };
+        return { success: true, message: "Grades released" };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {
@@ -266,25 +299,36 @@ export async function requestRedoAction(
   }
 
   try {
-    const redoRequestService = await getRedoRequestService();
-    await redoRequestService.requestRedo(
-      parsed.data.testId,
-      parsed.data.studentId,
-      adminUserId,
-    );
+    return await withSpan(
+      "action.requestRedoAction",
+      {
+        "lms.action.name": "requestRedoAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+        "lms.student.id": parsed.data.studentId,
+      },
+      async () => {
+        const redoRequestService = await getRedoRequestService();
+        await redoRequestService.requestRedo(
+          parsed.data.testId,
+          parsed.data.studentId,
+          adminUserId,
+        );
 
-    // Revalidate admin grading paths (course-scoped + hub + variant + dashboard) and student test page
-    revalidatePath(
-      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-    );
-    revalidatePath("/admin/grading");
-    revalidatePath(`/admin/grading/${parsed.data.testId}`);
-    revalidatePath("/admin/dashboard");
-    revalidatePath(
-      `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-    );
+        // Revalidate admin grading paths (course-scoped + hub + variant + dashboard) and student test page
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath("/admin/grading");
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        revalidatePath("/admin/dashboard");
+        revalidatePath(
+          `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+        );
 
-    return { success: true, message: "Redo requested" };
+        return { success: true, message: "Redo requested" };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {
@@ -345,28 +389,39 @@ export async function releaseGradeForStudentAction(
   }
 
   try {
-    const testSubmissionService = await getTestSubmissionService();
-    await testSubmissionService.releaseGradeToStudent(
-      parsed.data.testId,
-      parsed.data.studentId,
-      adminUserId,
-    );
+    return await withSpan(
+      "action.releaseGradeForStudentAction",
+      {
+        "lms.action.name": "releaseGradeForStudentAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+        "lms.student.id": parsed.data.studentId,
+      },
+      async () => {
+        const testSubmissionService = await getTestSubmissionService();
+        await testSubmissionService.releaseGradeToStudent(
+          parsed.data.testId,
+          parsed.data.studentId,
+          adminUserId,
+        );
 
-    revalidatePath(
-      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-    );
-    revalidatePath("/admin/grading");
-    revalidatePath(`/admin/grading/${parsed.data.testId}`);
-    revalidatePath("/admin/dashboard");
-    revalidatePath(
-      `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-    );
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath("/admin/grading");
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        revalidatePath("/admin/dashboard");
+        revalidatePath(
+          `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+        );
 
-    return {
-      success: true,
-      message: "Grade released to student",
-      releasedAt: new Date().toISOString(),
-    };
+        return {
+          success: true,
+          message: "Grade released to student",
+          releasedAt: new Date().toISOString(),
+        };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {
@@ -433,22 +488,36 @@ export async function saveAndJumpToNextAction(formData: FormData) {
   }
 
   const gradeService = await getGradeService();
-  await gradeService.gradeQuestion({
-    testId: parsed.data.testId,
-    questionId: parsed.data.questionId,
-    studentId: parsed.data.studentId,
-    score: parsed.data.score,
-    feedback: parsed.data.feedback,
-    solution: parsed.data.solution,
-    gradedBy: adminUserId,
-  });
+  // Wrap ONLY the persist block — the next-student lookup loop and the trailing
+  // redirect() stay outside the span (redirect throws NEXT_REDIRECT, which must
+  // not be recorded as a span error).
+  await withSpan(
+    "action.saveAndJumpToNextAction",
+    {
+      "lms.action.name": "saveAndJumpToNextAction",
+      "lms.test.id": parsed.data.testId,
+      "lms.course.id": parsed.data.courseId,
+      "lms.student.id": parsed.data.studentId,
+    },
+    async () => {
+      await gradeService.gradeQuestion({
+        testId: parsed.data.testId,
+        questionId: parsed.data.questionId,
+        studentId: parsed.data.studentId,
+        score: parsed.data.score,
+        feedback: parsed.data.feedback,
+        solution: parsed.data.solution,
+        gradedBy: adminUserId,
+      });
 
-  revalidatePath(
-    `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+      revalidatePath(
+        `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+      );
+      revalidatePath("/admin/grading");
+      revalidatePath(`/admin/grading/${parsed.data.testId}`);
+      revalidatePath("/admin/dashboard");
+    },
   );
-  revalidatePath("/admin/grading");
-  revalidatePath(`/admin/grading/${parsed.data.testId}`);
-  revalidatePath("/admin/dashboard");
 
   const candidates = parsed.data.candidateIds
     .split(",")

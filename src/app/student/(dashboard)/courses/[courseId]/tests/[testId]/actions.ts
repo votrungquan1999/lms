@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import { withSpan } from "src/lib/observability/with-span";
 import {
   getAnswerService,
   getEnrollmentService,
@@ -77,35 +78,47 @@ export async function submitAnswerAction(
   }
 
   try {
-    const answerService = await getAnswerService();
+    return await withSpan(
+      "action.submitAnswerAction",
+      {
+        "lms.action.name": "submitAnswerAction",
+        "lms.test.id": testId,
+        "lms.course.id": courseId,
+        "lms.student.id": studentId,
+        "lms.answer.type": selectedIds ? "mc" : "free_text",
+      },
+      async () => {
+        const answerService = await getAnswerService();
 
-    if (selectedIds) {
-      // MC answer
-      let ids: string[];
-      try {
-        ids = JSON.parse(selectedIds);
-      } catch {
-        return { success: false, message: "Invalid MC selection format" };
-      }
-      await answerService.submitAnswer({
-        testId,
-        questionId,
-        studentId,
-        answer: { type: "mc", selectedIds: ids },
-      });
-    } else {
-      // Free-text answer
-      await answerService.submitAnswer({
-        testId,
-        questionId,
-        studentId,
-        answer: { type: "free_text", text: answer as string },
-      });
-    }
+        if (selectedIds) {
+          // MC answer
+          let ids: string[];
+          try {
+            ids = JSON.parse(selectedIds);
+          } catch {
+            return { success: false, message: "Invalid MC selection format" };
+          }
+          await answerService.submitAnswer({
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "mc", selectedIds: ids },
+          });
+        } else {
+          // Free-text answer
+          await answerService.submitAnswer({
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "free_text", text: answer as string },
+          });
+        }
 
-    revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
+        revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
 
-    return { success: true, message: "Answer submitted successfully" };
+        return { success: true, message: "Answer submitted successfully" };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =
@@ -160,12 +173,23 @@ export async function startTest(
   }
 
   try {
-    const testStartService = await getTestStartService();
-    await testStartService.recordStart(testId, studentId, new Date());
+    return await withSpan(
+      "action.startTest",
+      {
+        "lms.action.name": "startTest",
+        "lms.test.id": testId,
+        "lms.course.id": courseId,
+        "lms.student.id": studentId,
+      },
+      async () => {
+        const testStartService = await getTestStartService();
+        await testStartService.recordStart(testId, studentId, new Date());
 
-    revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
+        revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
 
-    return { success: true, message: "Test started" };
+        return { success: true, message: "Test started" };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {
@@ -213,30 +237,41 @@ export async function submitTestAction(
   }
 
   try {
-    const testSubmissionService = await getTestSubmissionService();
-    const redoRequestService = await getRedoRequestService();
+    return await withSpan(
+      "action.submitTestAction",
+      {
+        "lms.action.name": "submitTestAction",
+        "lms.test.id": testId,
+        "lms.course.id": courseId,
+        "lms.student.id": studentId,
+      },
+      async () => {
+        const testSubmissionService = await getTestSubmissionService();
+        const redoRequestService = await getRedoRequestService();
 
-    // Check for an active redo request — if one exists, remove the old submission
-    // so submitTest() can create a fresh one (which re-triggers auto-grading on new answers)
-    const activeRedo = await redoRequestService.getActiveRedoRequest(
-      testId,
-      studentId,
+        // Check for an active redo request — if one exists, remove the old submission
+        // so submitTest() can create a fresh one (which re-triggers auto-grading on new answers)
+        const activeRedo = await redoRequestService.getActiveRedoRequest(
+          testId,
+          studentId,
+        );
+        if (activeRedo) {
+          await testSubmissionService.deleteSubmission(testId, studentId);
+        }
+
+        await testSubmissionService.submitTest(testId, studentId);
+
+        // Resolve the redo request after successful submission
+        if (activeRedo) {
+          await redoRequestService.resolveRedoRequest(testId, studentId);
+        }
+
+        revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
+        revalidatePath(`/student/courses/${courseId}`);
+
+        return { success: true, message: "Test submitted for grading" };
+      },
     );
-    if (activeRedo) {
-      await testSubmissionService.deleteSubmission(testId, studentId);
-    }
-
-    await testSubmissionService.submitTest(testId, studentId);
-
-    // Resolve the redo request after successful submission
-    if (activeRedo) {
-      await redoRequestService.resolveRedoRequest(testId, studentId);
-    }
-
-    revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
-    revalidatePath(`/student/courses/${courseId}`);
-
-    return { success: true, message: "Test submitted for grading" };
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {

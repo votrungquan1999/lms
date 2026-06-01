@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import { withSpan } from "src/lib/observability/with-span";
 import {
   getEnrollmentService,
   getTestService,
@@ -48,18 +49,27 @@ export async function setEnrollmentsAction(
   }
 
   try {
-    const enrollmentService = await getEnrollmentService();
-    await enrollmentService.setEnrolledStudents(
-      parsed.data.courseId,
-      parsed.data.studentIds,
-      adminUserId,
-    );
+    return await withSpan(
+      "action.setEnrollmentsAction",
+      {
+        "lms.action.name": "setEnrollmentsAction",
+        "lms.course.id": parsed.data.courseId,
+      },
+      async () => {
+        const enrollmentService = await getEnrollmentService();
+        await enrollmentService.setEnrolledStudents(
+          parsed.data.courseId,
+          parsed.data.studentIds,
+          adminUserId,
+        );
 
-    revalidatePath(`/admin/courses/${parsed.data.courseId}`);
-    return {
-      success: true,
-      message: `Enrollments updated (${parsed.data.studentIds.length} student${parsed.data.studentIds.length !== 1 ? "s" : ""})`,
-    };
+        revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        return {
+          success: true,
+          message: `Enrollments updated (${parsed.data.studentIds.length} student${parsed.data.studentIds.length !== 1 ? "s" : ""})`,
+        };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =
@@ -114,19 +124,28 @@ export async function createTestAction(
   }
 
   try {
-    const testService = await getTestService();
-    const test = await testService.createTest(parsed.data.courseId, {
-      title: parsed.data.title,
-      description: parsed.data.description,
-      createdBy: adminUserId,
-      showGradeAfterSubmit: parsed.data.showGradeAfterSubmit,
-    });
+    return await withSpan(
+      "action.createTestAction",
+      {
+        "lms.action.name": "createTestAction",
+        "lms.course.id": parsed.data.courseId,
+      },
+      async () => {
+        const testService = await getTestService();
+        const test = await testService.createTest(parsed.data.courseId, {
+          title: parsed.data.title,
+          description: parsed.data.description,
+          createdBy: adminUserId,
+          showGradeAfterSubmit: parsed.data.showGradeAfterSubmit,
+        });
 
-    revalidatePath(`/admin/courses/${parsed.data.courseId}`);
-    return {
-      success: true,
-      message: `Test "${test.title}" created successfully`,
-    };
+        revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        return {
+          success: true,
+          message: `Test "${test.title}" created successfully`,
+        };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =

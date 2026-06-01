@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import { withSpan } from "src/lib/observability/with-span";
 import { getAiGradeService } from "src/lib/services-singleton";
 import { z } from "zod";
 
@@ -53,35 +54,46 @@ export async function autoGradeSubmissionAction(
   }
 
   try {
-    const aiGradeService = await getAiGradeService();
+    return await withSpan(
+      "action.autoGradeSubmissionAction",
+      {
+        "lms.action.name": "autoGradeSubmissionAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+        "lms.student.id": parsed.data.studentId,
+      },
+      async () => {
+        const aiGradeService = await getAiGradeService();
 
-    const alreadyExists = await aiGradeService.hasAnySuggestionsForStudent(
-      parsed.data.testId,
-      parsed.data.studentId,
+        const alreadyExists = await aiGradeService.hasAnySuggestionsForStudent(
+          parsed.data.testId,
+          parsed.data.studentId,
+        );
+
+        if (alreadyExists) {
+          return {
+            success: false,
+            message:
+              "Suggestions already exist for this submission. Use Regenerate to create a new round.",
+          };
+        }
+
+        await aiGradeService.generateForStudent(
+          parsed.data.testId,
+          parsed.data.studentId,
+          adminUserId,
+        );
+
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath("/admin/grading");
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        revalidatePath("/admin/dashboard");
+
+        return { success: true, message: "AI suggestions generated" };
+      },
     );
-
-    if (alreadyExists) {
-      return {
-        success: false,
-        message:
-          "Suggestions already exist for this submission. Use Regenerate to create a new round.",
-      };
-    }
-
-    await aiGradeService.generateForStudent(
-      parsed.data.testId,
-      parsed.data.studentId,
-      adminUserId,
-    );
-
-    revalidatePath(
-      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-    );
-    revalidatePath("/admin/grading");
-    revalidatePath(`/admin/grading/${parsed.data.testId}`);
-    revalidatePath("/admin/dashboard");
-
-    return { success: true, message: "AI suggestions generated" };
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {
@@ -140,22 +152,33 @@ export async function regenerateSubmissionAction(
   }
 
   try {
-    const aiGradeService = await getAiGradeService();
-    await aiGradeService.regenerateForStudent(
-      parsed.data.testId,
-      parsed.data.studentId,
-      adminUserId,
-      parsed.data.reason,
-    );
+    return await withSpan(
+      "action.regenerateSubmissionAction",
+      {
+        "lms.action.name": "regenerateSubmissionAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+        "lms.student.id": parsed.data.studentId,
+      },
+      async () => {
+        const aiGradeService = await getAiGradeService();
+        await aiGradeService.regenerateForStudent(
+          parsed.data.testId,
+          parsed.data.studentId,
+          adminUserId,
+          parsed.data.reason,
+        );
 
-    revalidatePath(
-      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-    );
-    revalidatePath("/admin/grading");
-    revalidatePath(`/admin/grading/${parsed.data.testId}`);
-    revalidatePath("/admin/dashboard");
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath("/admin/grading");
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        revalidatePath("/admin/dashboard");
 
-    return { success: true, message: "AI suggestions regenerated" };
+        return { success: true, message: "AI suggestions regenerated" };
+      },
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     return {
@@ -230,31 +253,42 @@ export async function applyAiSuggestionAction(
   }
 
   try {
-    const aiGradeService = await getAiGradeService();
-    await aiGradeService.applySuggestion(
-      parsed.data.suggestionId,
-      adminUserId,
+    return await withSpan(
+      "action.applyAiSuggestionAction",
       {
-        scoreOverride: parsed.data.scoreOverride,
-        feedbackOverride: parsed.data.feedbackOverride,
-        solutionOverride: parsed.data.solutionOverride,
+        "lms.action.name": "applyAiSuggestionAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+        "lms.student.id": parsed.data.studentId,
+      },
+      async () => {
+        const aiGradeService = await getAiGradeService();
+        await aiGradeService.applySuggestion(
+          parsed.data.suggestionId,
+          adminUserId,
+          {
+            scoreOverride: parsed.data.scoreOverride,
+            feedbackOverride: parsed.data.feedbackOverride,
+            solutionOverride: parsed.data.solutionOverride,
+          },
+        );
+
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath("/admin/grading");
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        revalidatePath("/admin/dashboard");
+        revalidatePath(
+          `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+        );
+
+        return {
+          success: true,
+          message: "Suggestion applied as the official grade.",
+        };
       },
     );
-
-    revalidatePath(
-      `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-    );
-    revalidatePath("/admin/grading");
-    revalidatePath(`/admin/grading/${parsed.data.testId}`);
-    revalidatePath("/admin/dashboard");
-    revalidatePath(
-      `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-    );
-
-    return {
-      success: true,
-      message: "Suggestion applied as the official grade.",
-    };
   } catch (error) {
     const message =
       error instanceof Error
