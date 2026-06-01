@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.62",
+    "@opentelemetry/api": "^1.9.1",
     "@react-pdf/renderer": "^4.5.1",
+    "@vercel/otel": "^2.1.2",
     "ai": "^6.0.158",
     "better-auth": "^1.5.4",
     "class-variance-authority": "^0.7.1",
@@ -38,6 +40,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.1",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
