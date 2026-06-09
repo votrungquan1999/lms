@@ -5,14 +5,14 @@ description: Orchestrated feature development with sub-agent phases, quality gat
 
 # Orchestrated Feature Development
 
-A structured workflow that orchestrates specialized node phases through a pipeline with quality gate loops. **Parallel and isolation-critical phases** (research, investigation, validation, quality-gate) run as sub-agents with isolated context. **The sequential implementation loop (TDD steps) runs in the main session** to avoid wasting tokens re-reading the same files on every step.
+A structured workflow that orchestrates specialized node phases through a pipeline with quality gate loops. **Parallel and isolation-critical phases** (research, investigation, validation, quality-gate) run as sub-agents with isolated context. **The sequential implementation loop (BDD scenario steps) runs in the main session** to avoid wasting tokens re-reading the same files on every step.
 
 ## How This Works
 
-This skill acts as an **orchestrator** — it spawns sub-agents for the phases that benefit from isolation or parallelism, runs the TDD loop inline (since each step shares heavy context with the previous one), and passes data between phases via project-local files.
+This skill acts as an **orchestrator** — it spawns sub-agents for the phases that benefit from isolation or parallelism, runs the BDD scenario loop inline (since each step shares heavy context with the previous one), and passes data between phases via project-local files.
 
 ```
-[research] → [plan] → [investigation (parallel)] → [tdd-step] ↔ [quality-gate] → [validation (parallel)] → [summary]
+[research] → [plan] → [investigation (parallel)] → [bdd-step] ↔ [quality-gate] → [validation (parallel)] → [summary]
                               ↑                         ↑              |
                               fix plan if needed         └── loop back ──┘
 ```
@@ -21,8 +21,8 @@ This skill acts as an **orchestrator** — it spawns sub-agents for the phases t
 
 The main session:
 - **Spawns sub-agents** for research, planning, investigation (parallel), quality-gate, and validation (parallel) — these benefit from isolated context or parallelism
-- **Runs the TDD step loop inline** — each step shares heavy context (same plan, same files, same patterns) with the previous one, so isolating each step wastes tokens on re-reading. The investigation phase already produced curated per-step context in `INVESTIGATION_STEP_[N].md`.
-- **Reads state files** to make routing decisions and to drive the TDD loop
+- **Runs the BDD scenario step loop inline** — each step shares heavy context (same plan, same files, same patterns) with the previous one, so isolating each step wastes tokens on re-reading. The investigation phase already produced curated per-step context in `INVESTIGATION_STEP_[N].md`.
+- **Reads state files** to make routing decisions and to drive the BDD scenario loop
 - **Presents sub-agent outputs** to the user by reading and relaying their output files
 - **Fixes state files** when investigation reveals plan issues (update `PLAN_STEPS.md` and `implementation-plan.md`)
 
@@ -57,32 +57,56 @@ The sub-agent will execute the node instructions and return a summary. The orche
 All workflow state is tracked in project-local files (add to `.gitignore`):
 
 - `RESEARCH_OUTPUT.md` — Research findings (written by research node)
+- `RESEARCH_FOLLOWUP_[id].md` — Targeted follow-up research findings (written by follow-up research sub-agents, folded back into `RESEARCH_OUTPUT.md`)
 - `PLAN_STEPS.md` — Step list with affected files and dependencies (written by plan node)
 - `implementation-plan.md` — Full implementation plan (written by plan node)
-- `IMPLEMENTATION_PROGRESS.md` — Progress tracking with test results (written by TDD step node)
+- `IMPLEMENTATION_PROGRESS.md` — Progress tracking with test results (written by BDD scenario step node)
 - `INVESTIGATION_STEP_[N].md` — Per-step investigation findings (written by investigation nodes)
 - `VALIDATION_STEP_[N].md` — Per-step validation results (written by validation nodes)
 
 ---
 
-## Phase 1: Research
+## Phase 1: Research (Convergence Loop)
 
-**Spawn a sub-agent** to run the research phase:
+Research runs as a loop that **keeps spawning targeted sub-agents until no code-answerable threads remain**. The orchestrator never reports "more stuff needs checking" to the user — open code-level threads are resolved by spawning more agents, not by handing them back to the user.
+
+**Round 1 — initial research.** Spawn a sub-agent:
 
 ```
 Agent(
   description: "Research phase",
   prompt: "Read the instructions in [this skill's directory]/nodes/node-research.md
     and execute them for the following feature request: [user's request].
-    Write findings to RESEARCH_OUTPUT.md in the project root.
-    Report back: number of files read, key patterns found, affected areas."
+    You are the INITIAL research agent. Write findings to RESEARCH_OUTPUT.md in the project root.
+    Report back: number of files read, key patterns found, affected areas, and whether
+    the 'Follow-up Investigations Needed' section is empty."
 )
 ```
 
-**After the sub-agent returns**, read `RESEARCH_OUTPUT.md` and present findings to the user.
+**After it returns**, read `RESEARCH_OUTPUT.md` and look at **Follow-up Investigations Needed**.
+
+**Round 2+ — targeted follow-ups (loop).** While that section is non-empty:
+
+1. Spawn **one targeted sub-agent per follow-up item, all in a single message** so they run in parallel:
+   ```
+   Agent(
+     description: "Follow-up research [id]",
+     prompt: "Read the instructions in [this skill's directory]/nodes/node-research.md
+       and execute them. You are a TARGETED FOLLOW-UP agent. Investigate ONLY this item:
+       [the follow-up question + starting files from RESEARCH_OUTPUT.md].
+       Read RESEARCH_OUTPUT.md for context. Write findings to RESEARCH_FOLLOWUP_[id].md.
+       Report back: what you resolved and any new follow-up items you uncovered."
+   )
+   ```
+2. After they return, read every `RESEARCH_FOLLOWUP_[id].md`, **fold their findings into `RESEARCH_OUTPUT.md`**, and rebuild its "Follow-up Investigations Needed" list from any *new* threads the follow-up agents reported (drop the resolved ones).
+3. Repeat from step 1 if the list is non-empty.
+
+**Stop the loop** when "Follow-up Investigations Needed" is empty or after **3 rounds** (safety limit — if still non-empty, note the remaining threads when presenting).
+
+**Then present to the user.** Read the consolidated `RESEARCH_OUTPUT.md` and present findings, including only the **Open Questions for the User** (genuine product/requirement decisions).
 
 **Gate:** Ask the user: "Research complete. Continue to planning, or investigate more?"
-- If "more" → spawn another research sub-agent with expanded scope
+- If "more" → start a new follow-up round with the user's expanded scope as a follow-up item
 - **CRITICAL:** You MUST stop and wait for the user's explicit "continue" before proceeding.
 
 ---
@@ -149,25 +173,25 @@ Agent(
 
 ## Phase 4: Implementation Loop
 
-This is the core loop — it alternates between TDD steps and quality gates.
+This is the core loop — it alternates between BDD scenario steps and quality gates.
 
 ### For Each Step
 
-**4a. TDD Step (run inline in the main session)**
+**4a. BDD Scenario Step (run inline in the main session)**
 
-Do NOT spawn a sub-agent for TDD steps. The main session executes them directly:
+Do NOT spawn a sub-agent for BDD scenario steps. The main session executes them directly:
 
-1. Read `nodes/node-tdd-step.md` for the procedure (only needs to be read once at the start of the loop — keep it in context)
+1. Read `nodes/node-bdd-step.md` for the procedure (only needs to be read once at the start of the loop — keep it in context)
 2. Read `PLAN_STEPS.md` to find the next pending step
 3. Read the corresponding `INVESTIGATION_STEP_[N].md` for the curated context (affected files, existing patterns, gotchas) so you don't have to re-investigate
-4. Execute the red-green-refactor cycle following `node-tdd-step.md`
+4. Execute the scenario test -> implement -> verify cycle following `node-bdd-step.md`
 5. Update `PLAN_STEPS.md` and `IMPLEMENTATION_PROGRESS.md` when done
 
 After each step:
 - If step succeeded → continue to the next pending step (or quality gate)
 - If step had issues → ask user for guidance before continuing
 
-**Why inline:** consecutive TDD steps usually touch the same module and reuse the same imports, types, and helpers. A fresh sub-agent per step would re-read those files every time. Running inline keeps that context warm.
+**Why inline:** consecutive BDD scenario steps usually touch the same module and reuse the same imports, types, and helpers. A fresh sub-agent per step would re-read those files every time. Running inline keeps that context warm.
 
 **4b. Quality Gate Check**
 
@@ -183,7 +207,7 @@ Agent(
 ```
 
 **After the sub-agent returns**, route based on quality result:
-- If `quality: "pass"` → continue to next TDD step
+- If `quality: "pass"` → continue to next BDD scenario step
 - If `quality: "needs-fixes"` → spawn another sub-agent to fix, then re-check
 - **Max 2 quality re-checks** per checkpoint to prevent infinite loops
 
@@ -255,7 +279,7 @@ Present the final summary to the user.
 ## Related Skills
 
 - `@create-implementation-plan` - Used in Phase 2 for plan creation
-- `@tdd-design` - Core TDD methodology used in Phase 4
+- `@bdd-design` - Core BDD scenario methodology used in Phase 4
 - `@test-quality-reviewer` - Used in quality gate checks
 - `@code-refactoring` - Used in quality gate reviews
 - `@context7` - Used for library documentation during research

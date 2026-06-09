@@ -30,9 +30,18 @@ Read the user's feature request from the conversation context.
 
 6. **Count what you read** — track the number of files examined.
 
+7. **Resolve code-answerable questions yourself — do not defer them.**
+   If something can be answered by reading the code (how a function behaves, where a type is defined, whether a pattern already exists, how an existing flow works), keep reading until you have the answer. Do NOT write "this needs further investigation" or "the code should be checked to understand X" for anything you could resolve by reading more files.
+
+   A thread belongs in **Follow-up Investigations Needed** ONLY when it is code-answerable but you genuinely could not finish chasing it in this pass — e.g. the scope is too large for one agent, it branches into a separate subsystem, or you discovered it late. Each such item must be a concrete, self-contained investigation target the next agent can pick up cold (a specific question + where to look), NOT a vague "look into this more."
+
+   A thread belongs in **Open Questions for the User** ONLY when it is a product/requirement decision the code cannot answer (desired behavior, scope boundary, business rule).
+
 ## Output
 
-Write findings to `RESEARCH_OUTPUT.md` in the project root:
+Write findings to `RESEARCH_OUTPUT.md` in the project root.
+
+If you were spawned as a **targeted follow-up agent** (you were given a specific investigation item), instead write to the `RESEARCH_FOLLOWUP_[id].md` file named in your prompt, using the same section structure below. Resolve your assigned item fully; if it uncovers further code-answerable threads, list them under "Follow-up Investigations Needed" so the orchestrator can spawn another round.
 
 ```markdown
 # Research Output
@@ -57,8 +66,15 @@ Write findings to `RESEARCH_OUTPUT.md` in the project root:
 - [How tests are organized in this part of the codebase]
 - [Testing utilities available]
 
-## Unknowns / Questions
-- [Anything unclear that needs user input]
+## Follow-up Investigations Needed
+<!-- Code-answerable threads you could not finish this pass. The orchestrator will spawn a targeted sub-agent per item. Leave empty if research is complete. -->
+- [Concrete question]: [Exact files/dirs/symbols the next agent should start from]
+
+## Open Questions for the User
+<!-- Product/requirement decisions only — NOT things the code can answer. -->
+- [Decision the user must make]
 ```
 
-**CRITICAL:** After writing the output, you MUST PAUSE execution. Ask the user if the research is sufficient and wait for their explicit command to "continue with implementation plan" or "continue" before moving to the next node. Answer any questions the user has about the research during this pause.
+**CRITICAL — pausing depends on who you are:**
+- If you are a **targeted follow-up agent**, do NOT pause for the user. Write your findings file and return a brief summary to the orchestrator (what you resolved, any new follow-up items).
+- If you are the **initial research agent**, write the output. The orchestrator decides whether to spawn follow-up agents or pause for the user — see the skill's Phase 1. Do not invent a user pause yourself; report back to the orchestrator with whether "Follow-up Investigations Needed" is empty.

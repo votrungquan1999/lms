@@ -30,7 +30,8 @@
     "review-changes",
     "root-cause-analysis",
     "structured-brainstorming",
-    "validate-pr-comments"
+    "validate-pr-comments",
+    "ai-kanban-work-card"
   ],
   "workflows": [
     "commit-plan",
