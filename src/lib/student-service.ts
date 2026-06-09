@@ -102,6 +102,20 @@ export class StudentService {
   }
 
   /**
+   * Returns the subset of the given usernames that already exist in the
+   * `student` collection, using a single `$in` query.
+   * @param usernames - Candidate usernames to check.
+   * @returns The usernames that are already taken (empty if none / no input).
+   */
+  async findExistingUsernames(usernames: string[]): Promise<string[]> {
+    if (usernames.length === 0) return [];
+    const docs = await this.students
+      .find({ username: { $in: usernames } })
+      .toArray();
+    return docs.map((doc) => doc.username);
+  }
+
+  /**
    * Finds multiple students by their domain IDs.
    */
   async findByIds(ids: string[]): Promise<Student[]> {

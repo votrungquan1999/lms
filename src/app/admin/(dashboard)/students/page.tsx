@@ -6,9 +6,11 @@ import {
   CardTitle,
 } from "src/components/ui/card";
 import {
+  getCourseService,
   getEnrollmentService,
   getStudentService,
 } from "src/lib/services-singleton";
+import { BulkImportDialog } from "./bulk-import-dialog";
 import { CreateStudentDialog } from "./create-student-dialog";
 
 export const metadata = {
@@ -19,8 +21,14 @@ export const metadata = {
 export default async function StudentsPage() {
   const studentService = await getStudentService();
   const enrollmentService = await getEnrollmentService();
+  const courseService = await getCourseService();
 
   const students = await studentService.listStudents();
+  const courses = await courseService.listCourses();
+  const courseOptions = courses.map((course) => ({
+    id: course.id,
+    title: course.title,
+  }));
 
   // Get enrolled course count per student
   const studentsWithCourses = await Promise.all(
@@ -45,7 +53,10 @@ export default async function StudentsPage() {
             registered
           </p>
         </div>
-        <CreateStudentDialog />
+        <div className="flex items-center gap-2">
+          <BulkImportDialog courses={courseOptions} />
+          <CreateStudentDialog />
+        </div>
       </header>
 
       {studentsWithCourses.length > 0 ? (
