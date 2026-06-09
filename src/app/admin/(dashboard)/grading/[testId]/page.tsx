@@ -17,6 +17,9 @@ export const metadata = {
   description: "Grade student submissions",
 };
 
+// Forced dynamic so each render mints fresh presigned media URLs.
+export const dynamic = "force-dynamic";
+
 /**
  * Variant grading page reachable from the grading hub. Renders the redesigned
  * roster + detail shell. Forwards selection state (`studentId`, etc.) from

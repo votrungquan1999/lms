@@ -2,6 +2,8 @@ import { CompactGradeForm } from "src/app/admin/(dashboard)/courses/[courseId]/t
 import { CollapsibleQuestionDescription } from "src/app/admin/(dashboard)/grading/page-body/grading-detail-question.ui";
 import { StudentStatusBadge } from "src/app/admin/(dashboard)/grading/student-status-badge";
 import { McAnswerChips } from "src/components/mc-answer-chips";
+import { QuestionMedia } from "src/components/question-media.ui";
+import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import {
   getAnswerService,
   getGradeService,
@@ -45,15 +47,19 @@ export async function GradingDetailQuestion({
 }: GradingDetailQuestionProps) {
   const questionService = await getQuestionService();
   const questions = await questionService.listQuestions(test.id);
-  const question = questions.find((q) => q.id === questionId) ?? questions[0];
+  const focused = questions.find((q) => q.id === questionId) ?? questions[0];
 
-  if (!question) {
+  if (!focused) {
     return (
       <p className="text-sm text-muted-foreground">
         No questions on this test yet.
       </p>
     );
   }
+
+  // Mint presigned GET URLs for the focused question's media so the grader
+  // sees exactly what the student saw.
+  const [question] = await attachQuestionMediaUrls([focused]);
 
   const answerService = await getAnswerService();
   const gradeService = await getGradeService();
@@ -82,6 +88,7 @@ export async function GradingDetailQuestion({
         {question.content && (
           <CollapsibleQuestionDescription description={question.content} />
         )}
+        <QuestionMedia media={question.media} />
       </header>
 
       <ul className="space-y-3">

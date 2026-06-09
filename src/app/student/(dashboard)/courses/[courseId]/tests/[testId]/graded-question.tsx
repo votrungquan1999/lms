@@ -1,5 +1,6 @@
 import { MarkdownContent } from "src/components/markdown-content";
 import { McAnswerChips } from "src/components/mc-answer-chips";
+import { QuestionMedia } from "src/components/question-media.ui";
 import { Badge } from "src/components/ui/badge";
 import type { StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
@@ -79,6 +80,7 @@ export function GradedQuestion({
     >
       <QuestionPromptCollapsible>
         <MarkdownContent content={question.content} />
+        <QuestionMedia media={question.media} />
       </QuestionPromptCollapsible>
 
       {!showDiff && studentAnswer && (

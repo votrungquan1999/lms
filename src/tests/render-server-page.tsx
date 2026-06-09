@@ -11,6 +11,7 @@ import { GradeVisibilityService } from "src/lib/grade-visibility-service";
 import { PageGuard } from "src/lib/page-guard";
 import { QuestionService } from "src/lib/question-service";
 import { RedoRequestService } from "src/lib/redo-request-service";
+import type { S3StorageService } from "src/lib/s3-storage-service";
 import { StudentService } from "src/lib/student-service";
 import { TestFeedbackService } from "src/lib/test-feedback-service";
 import { TestService } from "src/lib/test-service";
@@ -32,6 +33,7 @@ export interface TestServices {
   pageGuard: PageGuard;
   questionService: QuestionService;
   redoRequestService: RedoRequestService;
+  s3StorageService: S3StorageService;
   studentService: StudentService;
   testFeedbackService: TestFeedbackService;
   testService: TestService;
@@ -98,6 +100,15 @@ function makeServices(db: Db): TestServices {
   const testFeedbackService = new TestFeedbackService(db);
   const redoRequestService = new RedoRequestService(db);
   const pageGuard = new PageGuard(enrollmentService);
+  // Deterministic fake S3 service — no AWS SDK pulled into jsdom (type-only import).
+  const s3StorageService = {
+    getPresignedUploadUrl: async (key: string, _contentType: string) => ({
+      key,
+      url: `https://fake-s3.local/put/${key}`,
+    }),
+    getPresignedDownloadUrl: async (key: string, _ttlSeconds?: number) =>
+      `https://fake-s3.local/get/${key}`,
+  } as unknown as S3StorageService;
 
   return {
     aiGradeService,
@@ -109,6 +120,7 @@ function makeServices(db: Db): TestServices {
     pageGuard,
     questionService,
     redoRequestService,
+    s3StorageService,
     studentService,
     testFeedbackService,
     testService,
@@ -180,6 +192,7 @@ export function servicesSingletonMockFactory() {
     getPageGuard: async () => getTestServices().pageGuard,
     getQuestionService: async () => getTestServices().questionService,
     getRedoRequestService: async () => getTestServices().redoRequestService,
+    getS3StorageService: async () => getTestServices().s3StorageService,
     getStudentService: async () => getTestServices().studentService,
     getTestFeedbackService: async () => getTestServices().testFeedbackService,
     getTestService: async () => getTestServices().testService,

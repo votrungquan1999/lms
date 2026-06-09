@@ -9,6 +9,7 @@ import {
   BreadcrumbSeparator,
 } from "src/components/ui/breadcrumb";
 import { Progress } from "src/components/ui/progress";
+import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import {
   getAnswerService,
   getCourseService,
@@ -33,6 +34,9 @@ export const metadata = {
   description: "Answer test questions",
 };
 
+// Forced dynamic so each render mints fresh presigned media URLs.
+export const dynamic = "force-dynamic";
+
 export default async function StudentTestDetailPage({
   params,
 }: {
@@ -54,7 +58,9 @@ export default async function StudentTestDetailPage({
   const course = await courseService.getCourse(courseId);
 
   const questionService = await getQuestionService();
-  const questions = await questionService.listQuestions(testId);
+  const questions = await attachQuestionMediaUrls(
+    await questionService.listQuestions(testId),
+  );
 
   // Atomic-reveal gate for MC correct answers. When closed, every option's
   // `isCorrect` is overwritten to `false` before reaching any client component,

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MarkdownContent } from "src/components/markdown-content";
 import { McAnswerChips } from "src/components/mc-answer-chips";
+import { QuestionMedia } from "src/components/question-media.ui";
 import {
   Card,
   CardContent,
@@ -97,6 +98,7 @@ export function TestQuestionsSection({
               </CardHeader>
               <CardContent className="space-y-4">
                 <MarkdownContent content={question.content} />
+                <QuestionMedia media={question.media} />
 
                 {/* ── Answer input (when not submitted, or redo active) ── */}
                 {canAnswer &&

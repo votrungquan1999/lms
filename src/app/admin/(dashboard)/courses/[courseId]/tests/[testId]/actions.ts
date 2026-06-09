@@ -5,48 +5,14 @@ import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import { getQuestionService, getTestService } from "src/lib/services-singleton";
-import { z } from "zod";
-
-const optionSchema = z.object({
-  text: z.string().min(1, "Option text is required"),
-  isCorrect: z.boolean(),
-});
-
-const addQuestionSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("free_text"),
-    testId: z.string().min(1, "Test ID is missing"),
-    courseId: z.string().min(1, "Course ID is missing"),
-    title: z.string().trim().min(1, "Question title is required"),
-    content: z.string().default(""),
-  }),
-  z.object({
-    type: z.literal("single_select"),
-    testId: z.string().min(1, "Test ID is missing"),
-    courseId: z.string().min(1, "Course ID is missing"),
-    title: z.string().trim().min(1, "Question title is required"),
-    content: z.string().default(""),
-    options: z.array(optionSchema).min(2, "At least 2 options are required"),
-  }),
-  z.object({
-    type: z.literal("multi_select"),
-    testId: z.string().min(1, "Test ID is missing"),
-    courseId: z.string().min(1, "Course ID is missing"),
-    title: z.string().trim().min(1, "Question title is required"),
-    content: z.string().default(""),
-    options: z.array(optionSchema).min(2, "At least 2 options are required"),
-    mcGradingStrategy: z
-      .enum(["all_or_nothing", "partial"])
-      .default("all_or_nothing"),
-  }),
-]);
-
-const importQuestionsFileSchema = z.array(
-  z.object({
-    title: z.string().min(1, "Each question must have a title"),
-    content: z.string().min(1, "Each question must have content"),
-  }),
-);
+import {
+  type SubmittedMedia,
+  submittedMediaSchema,
+} from "./question-media.schema";
+import {
+  addQuestionSchema,
+  importQuestionsFileSchema,
+} from "./test-question.schema";
 
 export interface AddQuestionState {
   success: boolean;
@@ -105,6 +71,23 @@ export async function addQuestionAction(
     return { success: false, message: parsed.error.issues[0].message };
   }
 
+  // Parse + validate attached media (already uploaded to S3) if present.
+  const mediaJson = formData.get("media")?.toString();
+  let media: SubmittedMedia = [];
+  if (mediaJson) {
+    let rawMedia: unknown;
+    try {
+      rawMedia = JSON.parse(mediaJson);
+    } catch {
+      return { success: false, message: "Invalid media format" };
+    }
+    const parsedMedia = submittedMediaSchema.safeParse(rawMedia);
+    if (!parsedMedia.success) {
+      return { success: false, message: parsedMedia.error.issues[0].message };
+    }
+    media = parsedMedia.data;
+  }
+
   try {
     return await withSpan(
       "action.addQuestionAction",
@@ -122,6 +105,7 @@ export async function addQuestionAction(
             content: data.content,
             type: "free_text",
             createdBy: adminUserId,
+            media,
           });
         } else if (data.type === "single_select") {
           await questionService.addQuestion(data.testId, {
@@ -130,6 +114,7 @@ export async function addQuestionAction(
             type: "single_select",
             options: data.options,
             createdBy: adminUserId,
+            media,
           });
         } else {
           await questionService.addQuestion(data.testId, {
@@ -139,6 +124,7 @@ export async function addQuestionAction(
             options: data.options,
             mcGradingStrategy: data.mcGradingStrategy,
             createdBy: adminUserId,
+            media,
           });
         }
 
