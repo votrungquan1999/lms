@@ -3,10 +3,44 @@ import type { Collection, Db } from "mongodb";
 export type QuestionType = "free_text" | "single_select" | "multi_select";
 export type McGradingStrategy = "all_or_nothing" | "partial";
 
+/** Allowed MIME types for question media attachments. */
+export enum MediaContentType {
+  PNG = "image/png",
+  JPEG = "image/jpeg",
+  WEBP = "image/webp",
+  MP4 = "video/mp4",
+}
+
 export interface McOption {
   id: string;
   text: string;
   isCorrect: boolean;
+}
+
+/** A media attachment as stored on the question document (the S3 key, never a URL). */
+export interface QuestionMediaDocument {
+  key: string;
+  contentType: MediaContentType;
+  order: number;
+  size: number;
+  fileName: string;
+}
+
+/** Client-facing media attachment; `url` is filled by the render-layer helper (empty until then). */
+export interface QuestionMedia {
+  key: string;
+  url: string;
+  contentType: MediaContentType;
+  order: number;
+}
+
+/** Ordered media attachment supplied when creating a question (keys already uploaded to S3). */
+export interface QuestionMediaInput {
+  key: string;
+  contentType: MediaContentType;
+  order: number;
+  size: number;
+  fileName: string;
 }
 
 // ── Discriminated union for the client-facing Question type ──────────────────
@@ -20,6 +54,8 @@ interface BaseQuestion {
   createdAt: Date;
   /** Scoring weight for weighted average (default 1). */
   weight: number;
+  /** Ordered media attachments (empty when none). */
+  media: QuestionMedia[];
 }
 
 export interface FreeTextQuestion extends BaseQuestion {
@@ -50,6 +86,8 @@ interface BaseAddQuestionInput {
   content: string;
   createdBy: string;
   weight?: number;
+  /** Ordered media attachments already uploaded to S3 (keys, not URLs). */
+  media?: QuestionMediaInput[];
 }
 
 export interface AddFreeTextQuestionInput extends BaseAddQuestionInput {
@@ -93,6 +131,8 @@ export interface QuestionDocument {
   options: McOption[] | null;
   weight: number;
   mcGradingStrategy: McGradingStrategy | null;
+  /** Ordered media attachments (empty when none). */
+  media: QuestionMediaDocument[];
 }
 
 // ── Service ──────────────────────────────────────────────────────────────────
@@ -145,6 +185,7 @@ export class QuestionService {
       weight: input.weight ?? 1,
       mcGradingStrategy:
         "mcGradingStrategy" in input ? (input.mcGradingStrategy ?? null) : null,
+      media: input.media ?? [],
     };
 
     await this.questions.insertOne(doc);
@@ -206,6 +247,7 @@ export class QuestionService {
       options: null,
       weight: 1,
       mcGradingStrategy: null,
+      media: [],
     }));
 
     await this.questions.insertMany(docs);
@@ -256,6 +298,14 @@ export class QuestionService {
     return last.length > 0 ? last[0].order + 1 : 1;
   }
 
+  /**
+   * Maps a stored question document to the client-facing discriminated union.
+   * Media is mapped with an empty `url` placeholder — the render-layer helper
+   * mints the presigned URL. Stays `this`-free so it can be used as a bare
+   * `docs.map(this.toQuestion)` callback.
+   * @param doc - The stored question document.
+   * @returns The client-facing question.
+   */
   private toQuestion(doc: QuestionDocument): Question {
     const base: BaseQuestion = {
       id: doc.id,
@@ -265,6 +315,12 @@ export class QuestionService {
       order: doc.order,
       createdAt: doc.createdAt,
       weight: doc.weight ?? 1,
+      media: (doc.media ?? []).map((m) => ({
+        key: m.key,
+        url: "",
+        contentType: m.contentType,
+        order: m.order,
+      })),
     };
 
     const type: QuestionType = doc.type ?? "free_text";

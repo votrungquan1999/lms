@@ -1,4 +1,5 @@
 import {
+  MediaContentType,
   type MultiSelectQuestion,
   QuestionService,
   type SingleSelectQuestion,
@@ -230,4 +231,74 @@ describe("QuestionService - Integration Tests", () => {
 
     expect(result).toHaveLength(0);
   });
+
+  dbIt(
+    "should persist ordered media keys and round-trip them back in order without a URL",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      await service.addQuestion("test-1", {
+        title: "Diagram question",
+        content: "Study the attached media.",
+        createdBy: "admin-1",
+        media: [
+          {
+            key: "media/questions/first.png",
+            contentType: MediaContentType.PNG,
+            order: 0,
+            size: 1234,
+            fileName: "first.png",
+          },
+          {
+            key: "media/questions/second.mp4",
+            contentType: MediaContentType.MP4,
+            order: 1,
+            size: 5678,
+            fileName: "second.mp4",
+          },
+        ],
+      });
+
+      const [question] = await service.listQuestions("test-1");
+
+      expect(question.media).toEqual([
+        {
+          key: "media/questions/first.png",
+          url: "",
+          contentType: MediaContentType.PNG,
+          order: 0,
+        },
+        {
+          key: "media/questions/second.mp4",
+          url: "",
+          contentType: MediaContentType.MP4,
+          order: 1,
+        },
+      ]);
+    },
+  );
+
+  dbIt(
+    "should return media: [] for a question created without media and for imported questions",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      await service.addQuestion("test-1", {
+        title: "Plain question",
+        content: "No media here.",
+        createdBy: "admin-1",
+      });
+      await service.importQuestions(
+        "test-1",
+        [{ title: "Imported", content: "From file." }],
+        "admin-1",
+      );
+
+      const questions = await service.listQuestions("test-1");
+
+      expect(questions).toHaveLength(2);
+      expect(questions[0].media).toEqual([]);
+      expect(questions[1].media).toEqual([]);
+    },
+  );
 });

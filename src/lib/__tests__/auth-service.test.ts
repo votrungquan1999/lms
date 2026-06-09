@@ -19,6 +19,12 @@ const testConfig: AppConfig = {
   authSecret: "test-secret",
   authAllowedHosts: ["localhost:3000"],
   google: { clientId: "test-client-id", clientSecret: "test-client-secret" },
+  s3: {
+    bucket: "test-bucket",
+    region: "ap-southeast-1",
+    accessKeyId: "test-key",
+    secretAccessKey: "test-secret",
+  },
   adminEmails: [],
   trustedOrigins: [],
 };

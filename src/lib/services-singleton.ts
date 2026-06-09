@@ -1,6 +1,7 @@
 import { GeminiAiClient } from "./ai/ai-client";
 import { AiGradeService } from "./ai-grade-service";
 import { AnswerService } from "./answer-service";
+import { loadConfig } from "./config";
 import { CourseService } from "./course-service";
 import { getDatabase } from "./database";
 import { EnrollmentService } from "./enrollment-service";
@@ -10,6 +11,7 @@ import { tracedService } from "./observability/traced-service";
 import { PageGuard } from "./page-guard";
 import { QuestionService } from "./question-service";
 import { RedoRequestService } from "./redo-request-service";
+import { S3StorageService } from "./s3-storage-service";
 import { StudentService } from "./student-service";
 import { TestFeedbackService } from "./test-feedback-service";
 import { TestService } from "./test-service";
@@ -35,6 +37,7 @@ let testFeedbackService: TestFeedbackService | null = null;
 let testStatusService: TestStatusService | null = null;
 let testSubmissionService: TestSubmissionService | null = null;
 let questionService: QuestionService | null = null;
+let s3StorageService: S3StorageService | null = null;
 let studentService: StudentService | null = null;
 let pageGuard: PageGuard | null = null;
 
@@ -183,6 +186,21 @@ export async function getQuestionService(): Promise<QuestionService> {
     questionService = tracedService(new QuestionService(db), "question");
   }
   return questionService;
+}
+
+/**
+ * Returns the singleton `S3StorageService`, built from S3 config (bucket/region/creds)
+ * and the optional CloudFront delivery config (used to sign read URLs).
+ */
+export async function getS3StorageService(): Promise<S3StorageService> {
+  if (!s3StorageService) {
+    const config = loadConfig();
+    s3StorageService = tracedService(
+      new S3StorageService(config.s3, config.cloudfront),
+      "s3Storage",
+    );
+  }
+  return s3StorageService;
 }
 
 export async function getStudentService(): Promise<StudentService> {
