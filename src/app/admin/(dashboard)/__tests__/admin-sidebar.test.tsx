@@ -43,3 +43,20 @@ describe("Feature: AdminSidebar Need actions group", () => {
     expect(link.getAttribute("href")).toBe("/admin/grading");
   });
 });
+
+describe("Feature: AdminSidebar Question Bank link", () => {
+  // Green-from-first: adding the nav entry IS the implementation; no meaningful
+  // red is possible (per the project TDD rule).
+  it("should render a 'Question Bank' link to /admin/pools", () => {
+    render(
+      <TooltipProvider>
+        <SidebarProvider>
+          <AdminSidebar email="admin@test" />
+        </SidebarProvider>
+      </TooltipProvider>,
+    );
+
+    const link = screen.getByRole("link", { name: /Question Bank/ });
+    expect(link.getAttribute("href")).toBe("/admin/pools");
+  });
+});

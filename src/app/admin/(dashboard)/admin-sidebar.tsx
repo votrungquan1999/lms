@@ -4,6 +4,7 @@ import {
   BookOpen,
   ClipboardCheck,
   LayoutDashboard,
+  Library,
   LogOut,
   Users,
 } from "lucide-react";
@@ -28,6 +29,7 @@ const navItems = [
   { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Students", href: "/admin/students", icon: Users },
   { title: "Courses", href: "/admin/courses", icon: BookOpen },
+  { title: "Question Bank", href: "/admin/pools", icon: Library },
 ];
 
 const needActionsItems = [
