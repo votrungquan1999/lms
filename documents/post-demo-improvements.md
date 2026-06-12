@@ -36,7 +36,7 @@ Collected after the customer demo on 2026-03-22. Items are grouped by priority a
 
 - [ ] Allow a test to be configured for multiple retakes (student can retake if settings allow)
 - [ ] Support random question selection per attempt — define a question pool (e.g., 40 questions), serve a random subset per attempt (e.g., 10) for practice use
-- [ ] Add timed test mode — student has a fixed countdown after clicking Start; test auto-submits when time runs out
+- [x] Add timed test mode — student has a fixed countdown after clicking Start; test auto-submits when time runs out — admin sets `timeLimitMinutes` in the test settings panel; `test_start` records `startedAt` per student; `countdown.state.tsx` renders the live timer and auto-submits at zero; `isPastEnforcementDeadline` (`enforcement-deadline.ts`) gates both the submit and answer-write paths server-side
 
 ### Export
 

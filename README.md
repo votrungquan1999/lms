@@ -21,6 +21,7 @@ A web-based Learning Management System that enables students to login, take test
 - **Atomic Grade Reveal** — Grades and correct answers are only surfaced once *all* questions have a grade; controlled by `showGradeAfterSubmit` and `showCorrectAnswerAfterSubmit` flags
 - **Diff-Based Answer Comparison** — GitHub-style side-by-side diff of student answers vs provided solutions (`react-diff-viewer-continued`)
 - **Programmatic Test Creation** — Fast, typesafe test creation via standalone Bun script (`scripts/create-test.ts`) bypassing the UI
+- **Timed Tests** — Admin sets a per-test time limit; students see a start gate and live countdown, the test auto-submits at zero, and the deadline (`startedAt + timeLimit`, plus a grace window) is enforced server-side on both the submit and answer-write paths
 
 ### Planned
 
