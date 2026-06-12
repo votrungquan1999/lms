@@ -2,8 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Separator } from "src/components/ui/separator";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
-import { getQuestionService, getTestService } from "src/lib/services-singleton";
+import {
+  getPoolQuestionService,
+  getQuestionPoolService,
+  getQuestionService,
+  getTestService,
+} from "src/lib/services-singleton";
 import { AddQuestionForm } from "./add-question-form";
+import { ComposeFromPoolsForm } from "./compose-from-pools-form";
 import { DeleteTestButton } from "./delete-test-button";
 import { ImportQuestionsForm } from "./import-questions-form";
 import { QuestionList } from "./question-list";
@@ -36,6 +42,19 @@ export default async function TestDetailPage({
     await questionService.listQuestions(testId),
   );
 
+  // Pools (with their current sizes) available to compose questions from.
+  const poolService = await getQuestionPoolService();
+  const poolQuestionService = await getPoolQuestionService();
+  const allPools = await poolService.listPools();
+  const composablePools = await Promise.all(
+    allPools.map(async (pool) => ({
+      id: pool.id,
+      name: pool.name,
+      questionCount: (await poolQuestionService.listPoolQuestions(pool.id))
+        .length,
+    })),
+  );
+
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <header className="flex w-full max-w-2xl items-start justify-between">
@@ -64,6 +83,12 @@ export default async function TestDetailPage({
         <AddQuestionForm testId={testId} courseId={courseId} />
 
         <ImportQuestionsForm testId={testId} courseId={courseId} />
+
+        <ComposeFromPoolsForm
+          testId={testId}
+          courseId={courseId}
+          pools={composablePools}
+        />
 
         <div>
           <Link
