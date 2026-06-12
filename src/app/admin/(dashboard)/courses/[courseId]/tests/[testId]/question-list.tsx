@@ -1,4 +1,5 @@
 import { MarkdownContent } from "src/components/markdown-content";
+import { QuestionMedia } from "src/components/question-media.ui";
 import {
   Card,
   CardContent,
@@ -36,8 +37,9 @@ export function QuestionList({ questions }: { questions: Question[] }) {
                 {question.title}
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <MarkdownContent content={preview} compact />
+              <QuestionMedia media={question.media} />
             </CardContent>
           </Card>
         );

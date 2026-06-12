@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Separator } from "src/components/ui/separator";
+import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import { getQuestionService, getTestService } from "src/lib/services-singleton";
 import { AddQuestionForm } from "./add-question-form";
 import { DeleteTestButton } from "./delete-test-button";
@@ -12,6 +13,10 @@ export const metadata = {
   title: "Test Questions — LMS Admin",
   description: "Manage test questions",
 };
+
+// Presigned media URLs are short-lived, so render dynamically to mint fresh
+// ones on each request (mirrors the student test-taking page).
+export const dynamic = "force-dynamic";
 
 export default async function TestDetailPage({
   params,
@@ -27,7 +32,9 @@ export default async function TestDetailPage({
   }
 
   const questionService = await getQuestionService();
-  const questions = await questionService.listQuestions(testId);
+  const questions = await attachQuestionMediaUrls(
+    await questionService.listQuestions(testId),
+  );
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
