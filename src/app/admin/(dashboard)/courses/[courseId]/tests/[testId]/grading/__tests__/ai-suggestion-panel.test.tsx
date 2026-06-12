@@ -1,9 +1,11 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: test fixture indexing */
 // @vitest-environment jsdom
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
+import { TestStatus } from "src/lib/test-status-service";
 import { describe, expect, it } from "vitest";
 import { AiSuggestionPanel } from "../ai-suggestion-panel";
+import { AutoGradeWithAiButton } from "../auto-grade-with-ai-button";
 
 /**
  * Feature: AI Suggestion Panel for Admin Grading Page (Step 7)
@@ -66,6 +68,7 @@ describe("Feature: AiSuggestionPanel history expansion (Step 7)", () => {
         testId="test-1"
         courseId="course-1"
         studentId="student-1"
+        questionId="q-1"
         suggestions={suggestions}
         defaultHistoryOpen={true}
       />,
@@ -99,6 +102,86 @@ describe("Feature: AiSuggestionPanel history expansion (Step 7)", () => {
   });
 });
 
+describe("Feature: AiSuggestionPanel per-question regenerate control (Step A3)", () => {
+  it("given a panel for one question, when the panel renders and the regenerate trigger is clicked, then a dialog opens with a reason field and a hidden questionId input scoped to THIS question", () => {
+    // Given: a panel for question q-42 with a single suggestion.
+    const suggestions: AiGradeSuggestion[] = [
+      buildSuggestion({ id: "sugg-1", questionId: "q-42", score: 80 }),
+    ];
+
+    render(
+      <AiSuggestionPanel
+        testId="test-1"
+        courseId="course-1"
+        studentId="student-1"
+        questionId="q-42"
+        suggestions={suggestions}
+      />,
+    );
+
+    // Then: a per-question regenerate trigger lives inside this panel.
+    const panel = screen.getByTestId("ai-suggestion-panel");
+    const trigger = within(panel).getByTestId("ai-regenerate-question-trigger");
+    expect(trigger).toBeInTheDocument();
+
+    // When: the teacher opens it.
+    fireEvent.click(trigger);
+
+    // Then: a dialog exposes a Reason field for the regenerate justification.
+    const reasonField = screen.getByLabelText(/reason/i);
+    expect(reasonField).toBeInTheDocument();
+
+    // Then: the form carries THIS question's id (pins per-question scope).
+    // The Dialog portals into document.body, so query the document, not the
+    // render container.
+    const questionIdInput = document.querySelector<HTMLInputElement>(
+      'input[name="questionId"]',
+    );
+    expect(questionIdInput).not.toBeNull();
+    expect(questionIdInput!.value).toBe("q-42");
+  });
+
+  it("given the per-question regenerate control and the whole-submission auto-grade control rendered together, when both render, then each is present and independent (no regression to the whole-submission control)", () => {
+    // Given: a panel (with its per-question regenerate trigger) and the
+    // whole-submission Auto-grade button rendered side by side, as the
+    // grading page composes them.
+    const suggestions: AiGradeSuggestion[] = [
+      buildSuggestion({ id: "sugg-1", questionId: "q-42" }),
+    ];
+
+    render(
+      <div>
+        <AutoGradeWithAiButton
+          testId="test-1"
+          courseId="course-1"
+          studentId="student-1"
+          status={TestStatus.Submitted}
+          hasExistingSuggestions={false}
+        />
+        <AiSuggestionPanel
+          testId="test-1"
+          courseId="course-1"
+          studentId="student-1"
+          questionId="q-42"
+          suggestions={suggestions}
+        />
+      </div>,
+    );
+
+    // Then: the whole-submission control still renders unchanged.
+    expect(
+      screen.getByRole("button", { name: /auto-grade with ai/i }),
+    ).toBeInTheDocument();
+
+    // Then: the per-question regenerate trigger renders inside the panel,
+    // distinct from the whole-submission control.
+    const panel = screen.getByTestId("ai-suggestion-panel");
+    expect(
+      within(panel).getByTestId("ai-regenerate-question-trigger"),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("Feature: AiSuggestionPanel solution preview", () => {
   it("given a suggestion whose solution field is set, when the panel renders, then the row exposes a solution preview block containing the solution text; a sibling row with no solution renders no preview block", () => {
     const suggestions: AiGradeSuggestion[] = [
@@ -122,6 +205,7 @@ describe("Feature: AiSuggestionPanel solution preview", () => {
         testId="test-1"
         courseId="course-1"
         studentId="student-1"
+        questionId="q-1"
         suggestions={suggestions}
         defaultHistoryOpen={true}
       />,
@@ -173,6 +257,7 @@ describe("Feature: AiSuggestionPanel stale-suggestion badge (Step 8)", () => {
         testId="test-1"
         courseId="course-1"
         studentId="student-1"
+        questionId="q-1"
         suggestions={suggestions}
         latestAnswerId="current-answer-1"
         defaultHistoryOpen={true}

@@ -8,11 +8,14 @@ import {
   type ApplyAiSuggestionState,
   applyAiSuggestionAction,
 } from "./ai-grade-actions";
+import { RegenerateQuestionDialog } from "./regenerate-question-dialog";
 
 interface AiSuggestionPanelProps {
   testId: string;
   courseId: string;
   studentId: string;
+  /** The question this panel grades — scopes the per-question regenerate. */
+  questionId: string;
   /**
    * Full suggestion history for this question, newest-first
    * (`generatedAt` desc). When empty the component renders nothing.
@@ -56,6 +59,7 @@ export function AiSuggestionPanel({
   testId,
   courseId,
   studentId,
+  questionId,
   suggestions,
   latestAnswerId = null,
   defaultHistoryOpen = false,
@@ -81,7 +85,17 @@ export function AiSuggestionPanel({
       className="mt-2 rounded-md border border-border bg-card p-3 space-y-2"
       data-testid="ai-suggestion-panel"
     >
-      <p className="text-xs font-medium text-muted-foreground">AI suggestion</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-muted-foreground">
+          AI suggestion
+        </p>
+        <RegenerateQuestionDialog
+          testId={testId}
+          courseId={courseId}
+          studentId={studentId}
+          questionId={questionId}
+        />
+      </div>
       <SuggestionRow
         suggestion={latest}
         testId={testId}

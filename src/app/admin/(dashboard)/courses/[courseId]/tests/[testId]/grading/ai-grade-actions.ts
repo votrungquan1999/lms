@@ -188,6 +188,94 @@ export async function regenerateSubmissionAction(
   }
 }
 
+const regenerateQuestionSchema = z.object({
+  testId: z.string().min(1),
+  courseId: z.string().min(1),
+  studentId: z.string().min(1),
+  questionId: z.string().min(1),
+  reason: z.string().trim().min(1, "Reason is required").max(500),
+});
+
+export interface RegenerateQuestionState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: regenerates the AI suggestion for a SINGLE question of one
+ * student's submission. Requires a non-empty trimmed reason (Zod-enforced,
+ * capped at 500 chars). Delegates to `AiGradeService.regenerateForQuestion`,
+ * which appends one new `ai_grade` row for that question only. Revalidates
+ * admin paths only — suggestions stay admin-side until Apply promotes them.
+ *
+ * Returns state via the `useActionState` contract; never throws.
+ */
+export async function regenerateQuestionAction(
+  _prevState: RegenerateQuestionState | null,
+  formData: FormData,
+): Promise<RegenerateQuestionState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  const parsed = regenerateQuestionSchema.safeParse({
+    testId: formData.get("testId"),
+    courseId: formData.get("courseId"),
+    studentId: formData.get("studentId"),
+    questionId: formData.get("questionId"),
+    reason: formData.get("reason"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+
+  try {
+    return await withSpan(
+      "action.regenerateQuestionAction",
+      {
+        "lms.action.name": "regenerateQuestionAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+        "lms.student.id": parsed.data.studentId,
+        "lms.question.id": parsed.data.questionId,
+      },
+      async () => {
+        const aiGradeService = await getAiGradeService();
+        await aiGradeService.regenerateForQuestion(
+          parsed.data.testId,
+          parsed.data.studentId,
+          parsed.data.questionId,
+          adminUserId,
+          parsed.data.reason,
+        );
+
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath("/admin/grading");
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        revalidatePath("/admin/dashboard");
+
+        return { success: true, message: "AI suggestions regenerated" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    return {
+      success: false,
+      message: "AI grading failed. Please try again.",
+    };
+  }
+}
+
 const applyAiSuggestionSchema = z.object({
   testId: z.string().min(1),
   courseId: z.string().min(1),

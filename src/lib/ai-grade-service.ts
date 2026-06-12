@@ -140,6 +140,65 @@ export class AiGradeService {
     );
   }
 
+  /**
+   * Regenerates the AI suggestion for a SINGLE free-text question, leaving every
+   * other question's suggestions untouched. Appends a new row (history is
+   * append-only) and forwards the question's prior grade as context. Same skip
+   * rules as the batch path: a non-free-text, blank, or already-human-graded
+   * question yields no suggestion. Caller (action) validates `reason`.
+   * @param testId - The test.
+   * @param studentId - The student whose answer is being re-graded.
+   * @param questionId - The single question to regenerate.
+   * @param byAdminId - The admin triggering the regenerate.
+   * @param reason - Why the teacher is regenerating (forwarded to the AI client).
+   */
+  async regenerateForQuestion(
+    testId: string,
+    studentId: string,
+    questionId: string,
+    byAdminId: string,
+    reason: string,
+  ): Promise<AiGradeSuggestion[]> {
+    const candidates = await this.buildCandidates(testId, studentId);
+    const scoped = candidates.filter((c) => c.questionId === questionId);
+    if (scoped.length === 0) return [];
+
+    const priorGrades: AiGradeBatchPriorGrade[] = [];
+    for (const candidate of scoped) {
+      const prior = await this.getLatestSuggestion(
+        testId,
+        candidate.questionId,
+        studentId,
+      );
+      if (prior) {
+        priorGrades.push({
+          questionId: candidate.questionId,
+          score: prior.score,
+          feedback: prior.feedback,
+          solution: prior.solution,
+        });
+      }
+    }
+
+    const aiResults = await this.aiClient.gradeFreeTextBatch(
+      scoped.map((c) => ({
+        questionId: c.questionId,
+        questionContent: c.questionContent,
+        studentAnswer: c.studentAnswer,
+      })),
+      { reason, priorGrades },
+    );
+
+    return this.persistSuggestions(
+      testId,
+      studentId,
+      byAdminId,
+      scoped,
+      aiResults,
+      reason,
+    );
+  }
+
   /** Shared filter: free_text ∩ non-blank-answer ∩ no-existing-grade. */
   private async buildCandidates(
     testId: string,

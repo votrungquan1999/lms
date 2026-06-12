@@ -1025,6 +1025,104 @@ describe("AiGradeService.regenerateForStudent - Step 5 (prior solution forwarded
   );
 });
 
+describe("AiGradeService.regenerateForQuestion - Step A1 (single-question scope)", () => {
+  dbIt(
+    "given two answered ungraded free-text questions each with an initial suggestion, when regenerating scoped to Q1 with a reason, then Q1 gets one new appended suggestion carrying the reason while Q2 is left with its single original suggestion untouched",
+    async ({ db }) => {
+      // Given: a stub AI client whose first call returns the initial score and
+      // whose later calls (regenerate) return a different score so the new row
+      // is distinguishable from the prior one.
+      let callIndex = 0;
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
+          const isRegenerate = callIndex > 0;
+          callIndex += 1;
+          return items.map((item) => ({
+            questionId: item.questionId,
+            score: isRegenerate ? 55 : 90,
+            feedback: isRegenerate ? "Reconsidered." : "Initial.",
+            solution: "",
+          }));
+        },
+      };
+
+      const services = buildCoreServices(db, { aiClient: stubAiClient });
+      const { testService, questionService, answerService, aiGradeService } =
+        services;
+
+      const test = await testService.createTest("course-1", {
+        title: "AI Grade Step A1",
+        description: "",
+        createdBy: "admin-1",
+      });
+
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Explain recursion.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+
+      const q2 = await questionService.addQuestion(test.id, {
+        title: "Q2",
+        content: "Explain Big O.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "A function that calls itself." },
+      });
+
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q2.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Asymptotic upper bound." },
+      });
+
+      // Given: an initial suggestion exists for BOTH questions.
+      const initial = await aiGradeService.generateForStudent(
+        test.id,
+        "student-1",
+        "admin-1",
+      );
+      expect(initial).toHaveLength(2);
+
+      // When: a teacher regenerates ONLY Q1 with a reason.
+      const reason = "AI under-credited the base-case explanation";
+      const regenerated = await aiGradeService.regenerateForQuestion(
+        test.id,
+        "student-1",
+        q1.id,
+        "admin-2",
+        reason,
+      );
+
+      // Then: exactly one suggestion comes back — for Q1 — carrying the reason
+      // and the regenerate score.
+      expect(regenerated).toHaveLength(1);
+      expect(regenerated[0]!.questionId).toBe(q1.id);
+      expect(regenerated[0]!.score).toBe(55);
+      expect(regenerated[0]!.regenerateReason).toBe(reason);
+
+      // Then: Q1 now has two rows (original + regenerate); Q2 is undisturbed
+      // with its single original row.
+      const grouped = await aiGradeService.getSuggestionsForStudent(
+        test.id,
+        "student-1",
+      );
+      expect(grouped.get(q1.id)).toHaveLength(2);
+      expect(grouped.get(q2.id)).toHaveLength(1);
+      expect(grouped.get(q2.id)![0]!.regenerateReason).toBeNull();
+      expect(grouped.get(q2.id)![0]!.score).toBe(90);
+    },
+  );
+});
+
 describe("AiGradeService.generateForStudent - Step 4 (solution persistence)", () => {
   dbIt(
     "given the AI client returns a per-item solution, when generating, then the inserted ai_grade doc AND the returned suggestion both carry that solution string",
@@ -1138,7 +1236,9 @@ describe("AiGradeService.generateForStudent - Step 4 (solution persistence)", ()
         .collection<AiGradeSuggestionDocument>("ai_grade")
         .find({ testId: test.id, studentId: "student-1" })
         .toArray();
-      expect(rows[0]!.solution).toBe("def total(nums):\n    return sum(nums)\n");
+      expect(rows[0]!.solution).toBe(
+        "def total(nums):\n    return sum(nums)\n",
+      );
     },
   );
 });

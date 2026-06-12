@@ -222,6 +222,7 @@ export async function GradingDetailStudent({
                     testId={testId}
                     courseId={courseId}
                     studentId={student.id}
+                    questionId={question.id}
                     suggestions={aiSuggestions}
                     latestAnswerId={
                       latestAnswerIdByQuestion.get(question.id) ?? null
