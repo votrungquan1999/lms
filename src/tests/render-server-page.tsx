@@ -9,6 +9,8 @@ import { EnrollmentService } from "src/lib/enrollment-service";
 import { GradeService } from "src/lib/grade-service";
 import { GradeVisibilityService } from "src/lib/grade-visibility-service";
 import { PageGuard } from "src/lib/page-guard";
+import { PoolQuestionService } from "src/lib/pool-question-service";
+import { QuestionPoolService } from "src/lib/question-pool-service";
 import { QuestionService } from "src/lib/question-service";
 import { RedoRequestService } from "src/lib/redo-request-service";
 import type { S3StorageService } from "src/lib/s3-storage-service";
@@ -31,6 +33,8 @@ export interface TestServices {
   gradeService: GradeService;
   gradeVisibilityService: GradeVisibilityService;
   pageGuard: PageGuard;
+  poolQuestionService: PoolQuestionService;
+  questionPoolService: QuestionPoolService;
   questionService: QuestionService;
   redoRequestService: RedoRequestService;
   s3StorageService: S3StorageService;
@@ -52,6 +56,8 @@ let currentServices: TestServices | null = null;
 
 function makeServices(db: Db): TestServices {
   const questionService = new QuestionService(db);
+  const questionPoolService = new QuestionPoolService(db);
+  const poolQuestionService = new PoolQuestionService(db);
   const testService = new TestService(db);
   const testStartService = new TestStartService(db);
   const answerService = new AnswerService(
@@ -118,6 +124,8 @@ function makeServices(db: Db): TestServices {
     gradeService,
     gradeVisibilityService,
     pageGuard,
+    poolQuestionService,
+    questionPoolService,
     questionService,
     redoRequestService,
     s3StorageService,
@@ -190,6 +198,8 @@ export function servicesSingletonMockFactory() {
     getGradeVisibilityService: async () =>
       getTestServices().gradeVisibilityService,
     getPageGuard: async () => getTestServices().pageGuard,
+    getPoolQuestionService: async () => getTestServices().poolQuestionService,
+    getQuestionPoolService: async () => getTestServices().questionPoolService,
     getQuestionService: async () => getTestServices().questionService,
     getRedoRequestService: async () => getTestServices().redoRequestService,
     getS3StorageService: async () => getTestServices().s3StorageService,

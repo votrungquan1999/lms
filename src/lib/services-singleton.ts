@@ -9,6 +9,8 @@ import { GradeService } from "./grade-service";
 import { GradeVisibilityService } from "./grade-visibility-service";
 import { tracedService } from "./observability/traced-service";
 import { PageGuard } from "./page-guard";
+import { PoolQuestionService } from "./pool-question-service";
+import { QuestionPoolService } from "./question-pool-service";
 import { QuestionService } from "./question-service";
 import { RedoRequestService } from "./redo-request-service";
 import { S3StorageService } from "./s3-storage-service";
@@ -37,6 +39,8 @@ let testFeedbackService: TestFeedbackService | null = null;
 let testStatusService: TestStatusService | null = null;
 let testSubmissionService: TestSubmissionService | null = null;
 let questionService: QuestionService | null = null;
+let questionPoolService: QuestionPoolService | null = null;
+let poolQuestionService: PoolQuestionService | null = null;
 let s3StorageService: S3StorageService | null = null;
 let studentService: StudentService | null = null;
 let pageGuard: PageGuard | null = null;
@@ -186,6 +190,28 @@ export async function getQuestionService(): Promise<QuestionService> {
     questionService = tracedService(new QuestionService(db), "question");
   }
   return questionService;
+}
+
+export async function getPoolQuestionService(): Promise<PoolQuestionService> {
+  if (!poolQuestionService) {
+    const db = await getDatabase();
+    poolQuestionService = tracedService(
+      new PoolQuestionService(db),
+      "poolQuestion",
+    );
+  }
+  return poolQuestionService;
+}
+
+export async function getQuestionPoolService(): Promise<QuestionPoolService> {
+  if (!questionPoolService) {
+    const db = await getDatabase();
+    questionPoolService = tracedService(
+      new QuestionPoolService(db),
+      "questionPool",
+    );
+  }
+  return questionPoolService;
 }
 
 /**

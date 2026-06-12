@@ -1,3 +1,4 @@
+import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
 import {
   MediaContentType,
   type MultiSelectQuestion,
@@ -301,4 +302,167 @@ describe("QuestionService - Integration Tests", () => {
       expect(questions[1].media).toEqual([]);
     },
   );
+
+  // Deterministic sampler for compose tests — takes the first `count`, no RNG.
+  const takeFirst = <T>(items: T[], count: number): T[] =>
+    items.slice(0, count);
+
+  dbIt(
+    "composeFromPools snapshots the drawn pool questions into the test with fresh ids and copied media",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const composed = await service.composeFromPools(
+        "test-1",
+        [
+          {
+            count: 1,
+            questions: [
+              {
+                title: "Pool single",
+                content: "pick one",
+                type: "single_select",
+                options: [
+                  { id: "pool-opt-a", text: "A", isCorrect: true },
+                  { id: "pool-opt-b", text: "B", isCorrect: false },
+                ],
+                weight: 2,
+                mcGradingStrategy: "all_or_nothing",
+                media: [
+                  {
+                    key: "pools/p1/diagram.png",
+                    contentType: MediaContentType.PNG,
+                    order: 0,
+                    size: 100,
+                    fileName: "diagram.png",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        "admin-1",
+        takeFirst,
+      );
+
+      expect(composed).toHaveLength(1);
+
+      const stored = await service.listQuestions("test-1");
+      expect(stored).toHaveLength(1);
+
+      const q = stored[0];
+      expect(q.type).toBe("single_select");
+      if (q.type !== "single_select") throw new Error("type narrow");
+      expect(q.testId).toBe("test-1");
+      expect(q.title).toBe("Pool single");
+      expect(q.weight).toBe(2);
+      // Every option id is regenerated on copy — none reuse the pool's ids.
+      const poolOptionIds = new Set(["pool-opt-a", "pool-opt-b"]);
+      expect(q.options.every((o) => !poolOptionIds.has(o.id))).toBe(true);
+      expect(q.options.filter((o) => o.isCorrect)).toHaveLength(1);
+      // Media key is copied verbatim (shared S3, read-only).
+      expect(q.media).toHaveLength(1);
+      expect(q.media[0].key).toBe("pools/p1/diagram.png");
+    },
+  );
+
+  dbIt(
+    "composeFromPools appends after existing questions, draws across pools, and caps count at the pool size",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      await service.addQuestion("test-1", {
+        title: "Existing",
+        content: "already here",
+        createdBy: "admin-1",
+      });
+
+      const poolA: PoolQuestionSnapshotInput[] = [
+        freeTextSnapshot("A1"),
+        freeTextSnapshot("A2"),
+      ];
+      const poolB: PoolQuestionSnapshotInput[] = [freeTextSnapshot("B1")];
+
+      await service.composeFromPools(
+        "test-1",
+        [
+          { count: 1, questions: poolA },
+          // Requests 5 but pool only has 1 — capped to all available.
+          { count: 5, questions: poolB },
+        ],
+        "admin-1",
+        takeFirst,
+      );
+
+      const stored = await service.listQuestions("test-1");
+
+      expect(stored.map((s) => s.title)).toEqual(["Existing", "A1", "B1"]);
+      expect(stored.map((s) => s.order)).toEqual([1, 2, 3]);
+    },
+  );
+
+  dbIt(
+    "composeFromPools with all counts zero stores nothing",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const composed = await service.composeFromPools(
+        "test-1",
+        [{ count: 0, questions: [freeTextSnapshot("X")] }],
+        "admin-1",
+        takeFirst,
+      );
+
+      expect(composed).toEqual([]);
+      expect(await service.listQuestions("test-1")).toHaveLength(0);
+    },
+  );
+
+  // B4 — verification-only. The student question path (page → listQuestions)
+  // has zero per-student branching, so a composed set is identical for every
+  // reader. No production change drives this; it is green-from-first, locking
+  // in the "every enrolled student sees the same composed set" invariant.
+  dbIt(
+    "a composed set is identical across repeated reads (every student sees the same questions)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      await service.composeFromPools(
+        "test-1",
+        [
+          {
+            count: 2,
+            questions: [
+              freeTextSnapshot("Q1"),
+              freeTextSnapshot("Q2"),
+              freeTextSnapshot("Q3"),
+            ],
+          },
+        ],
+        "admin-1",
+        takeFirst,
+      );
+
+      const readForStudentA = await service.listQuestions("test-1");
+      const readForStudentB = await service.listQuestions("test-1");
+
+      expect(readForStudentA.map((q) => q.id)).toEqual(
+        readForStudentB.map((q) => q.id),
+      );
+      expect(readForStudentA.map((q) => q.title)).toEqual(["Q1", "Q2"]);
+    },
+  );
 });
+
+/** Builds a minimal free-text pool-question snapshot input for compose tests. */
+function freeTextSnapshot(title: string): PoolQuestionSnapshotInput {
+  return {
+    title,
+    content: "",
+    type: "free_text",
+    options: null,
+    weight: 1,
+    mcGradingStrategy: null,
+    media: [],
+  };
+}

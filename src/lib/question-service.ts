@@ -1,4 +1,10 @@
 import type { Collection, Db } from "mongodb";
+import {
+  type ComposePoolSelection,
+  type PoolQuestionSnapshotInput,
+  type QuestionSampler,
+  shuffleAndTake,
+} from "src/lib/question-compose";
 
 export type QuestionType = "free_text" | "single_select" | "multi_select";
 export type McGradingStrategy = "all_or_nothing" | "partial";
@@ -248,6 +254,63 @@ export class QuestionService {
       weight: 1,
       mcGradingStrategy: null,
       media: [],
+    }));
+
+    await this.questions.insertMany(docs);
+
+    return docs.map(this.toQuestion);
+  }
+
+  /**
+   * Composes a test from pool selections by snapshotting the chosen pool
+   * questions into this test's own `question` collection. Each selection draws
+   * `count` questions from its pool's pre-fetched list (via `sampler`). Copies
+   * are frozen at this moment — fresh ids, fresh option ids, the composing
+   * admin as `createdBy`, media keys shared read-only, no live backlink to the
+   * pool. New questions are appended after any existing test questions.
+   *
+   * @param testId - The test to compose into.
+   * @param selections - Per-pool question lists and draw counts.
+   * @param createdBy - The composing admin's id.
+   * @param sampler - Selection strategy; defaults to Fisher-Yates shuffle+take.
+   * @returns The composed questions in their stored order.
+   */
+  async composeFromPools(
+    testId: string,
+    selections: ComposePoolSelection[],
+    createdBy: string,
+    sampler: QuestionSampler = shuffleAndTake,
+  ): Promise<Question[]> {
+    const drawn: PoolQuestionSnapshotInput[] = selections.flatMap((selection) =>
+      sampler(selection.questions, selection.count),
+    );
+
+    if (drawn.length === 0) {
+      return [];
+    }
+
+    const startOrder = await this.getNextOrder(testId);
+
+    const docs: QuestionDocument[] = drawn.map((item, index) => ({
+      id: crypto.randomUUID(),
+      testId,
+      title: item.title,
+      content: item.content,
+      order: startOrder + index,
+      createdAt: new Date(),
+      createdBy,
+      updatedAt: null,
+      updatedBy: null,
+      type: item.type,
+      // Regenerate option ids so the copy shares no references with the pool.
+      options:
+        item.options != null
+          ? item.options.map((o) => ({ ...o, id: crypto.randomUUID() }))
+          : null,
+      weight: item.weight,
+      mcGradingStrategy: item.mcGradingStrategy,
+      // Media keys are copied verbatim — shared S3 objects, read-only.
+      media: item.media.map((m) => ({ ...m })),
     }));
 
     await this.questions.insertMany(docs);
