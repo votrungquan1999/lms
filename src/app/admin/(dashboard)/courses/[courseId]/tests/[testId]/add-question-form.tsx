@@ -12,6 +12,16 @@ import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
 import { type AddQuestionState, addQuestionAction } from "./actions";
+import type { SubmittedMedia } from "./question-media.schema";
+import {
+  QuestionMediaPickerProvider,
+  useQuestionMediaPickerActions,
+} from "./question-media-picker.state";
+import {
+  QuestionMediaFileInput,
+  QuestionMediaFileList,
+  QuestionTypeSidebar,
+} from "./question-media-picker.ui";
 
 type QuestionType = "free_text" | "single_select" | "multi_select";
 
@@ -32,9 +42,17 @@ const TYPE_DESCRIPTIONS: Record<QuestionType, string> = {
   multi_select: "Multiple correct options — auto-graded on submission.",
 };
 
+/** The two blank options a fresh MC question starts with. */
+const INITIAL_OPTIONS: OptionDraft[] = [
+  { text: "", isCorrect: false },
+  { text: "", isCorrect: false },
+];
+
 /**
- * Admin form for adding a question to a test.
- * Layout: sidebar (type picker) on the left, form panel on the right.
+ * Admin form for adding a question to a test. Wraps the form body in the media
+ * picker provider so the submit handler can upload selected media.
+ * @param testId - The test the question is added to.
+ * @param courseId - The owning course (for revalidation paths).
  */
 export function AddQuestionForm({
   testId,
@@ -43,11 +61,30 @@ export function AddQuestionForm({
   testId: string;
   courseId: string;
 }) {
+  return (
+    <QuestionMediaPickerProvider>
+      <AddQuestionFormInner testId={testId} courseId={courseId} />
+    </QuestionMediaPickerProvider>
+  );
+}
+
+/**
+ * Form body for adding a question. Runs inside QuestionMediaPickerProvider so
+ * the submit handler can read selected files and upload them before creating
+ * the question.
+ * Layout: sidebar (type picker) on the left, form panel on the right.
+ */
+function AddQuestionFormInner({
+  testId,
+  courseId,
+}: {
+  testId: string;
+  courseId: string;
+}) {
+  const { uploadSelectedFiles, reset: resetMedia } =
+    useQuestionMediaPickerActions();
   const [questionType, setQuestionType] = useState<QuestionType>("free_text");
-  const [options, setOptions] = useState<OptionDraft[]>([
-    { text: "", isCorrect: false },
-    { text: "", isCorrect: false },
-  ]);
+  const [options, setOptions] = useState<OptionDraft[]>(INITIAL_OPTIONS);
 
   const [successCount, setSuccessCount] = useState(0);
 
@@ -59,13 +96,23 @@ export function AddQuestionForm({
     if (questionType !== "free_text") {
       rawFormData.set("options", JSON.stringify(options));
     }
+
+    // Upload media to S3 before creating the question. A failure here aborts
+    // the submit — the question is never created and the files are retained.
+    let submittedMedia: SubmittedMedia;
+    try {
+      submittedMedia = await uploadSelectedFiles();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Media upload failed";
+      return { success: false, message };
+    }
+    rawFormData.set("media", JSON.stringify(submittedMedia));
     const result = await addQuestionAction(_prevState, rawFormData);
     if (result.success) {
       setSuccessCount((c) => c + 1);
-      setOptions([
-        { text: "", isCorrect: false },
-        { text: "", isCorrect: false },
-      ]);
+      setOptions(INITIAL_OPTIONS);
+      resetMedia();
     }
     return result;
   }, null);
@@ -100,24 +147,11 @@ export function AddQuestionForm({
       <CardContent>
         <div className="flex gap-0 rounded-lg border overflow-hidden">
           {/* ── Left sidebar: type picker ───────────────────────────────── */}
-          <aside className="w-40 shrink-0 border-r bg-muted/40 flex flex-col">
-            {(Object.keys(TYPE_LABELS) as QuestionType[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setQuestionType(t)}
-                className={[
-                  "px-4 py-3 text-left text-sm font-medium transition-colors",
-                  "border-b last:border-b-0",
-                  questionType === t
-                    ? "bg-background text-primary border-l-2 border-l-primary pl-[14px]"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                ].join(" ")}
-              >
-                {TYPE_LABELS[t]}
-              </button>
-            ))}
-          </aside>
+          <QuestionTypeSidebar
+            options={Object.entries(TYPE_LABELS) as [QuestionType, string][]}
+            value={questionType}
+            onSelect={setQuestionType}
+          />
 
           {/* ── Right panel: question form ──────────────────────────────── */}
           <div className="flex-1 p-5">
@@ -223,6 +257,12 @@ export function AddQuestionForm({
                   </Button>
                 </div>
               )}
+
+              {/* Media picker */}
+              <div className="space-y-2">
+                <QuestionMediaFileInput />
+                <QuestionMediaFileList />
+              </div>
 
               <Button type="submit" disabled={isPending} className="w-full">
                 {isPending ? "Adding…" : "Add Question"}
