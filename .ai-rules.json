@@ -11,7 +11,8 @@
     "testing-guidelines",
     "typescript-conventions",
     "url-state-management",
-    "brainstorming-patterns"
+    "brainstorming-patterns",
+    "knowledge-base"
   ],
   "skills": [
     "bdd-design",
@@ -31,7 +32,9 @@
     "root-cause-analysis",
     "structured-brainstorming",
     "validate-pr-comments",
-    "ai-kanban-work-card"
+    "ai-kanban-work-card",
+    "knowledge-base",
+    "setup-private-skills"
   ],
   "workflows": [
     "commit-plan",
@@ -39,5 +42,8 @@
     "repo-knowledge",
     "review-changes",
     "structured-brainstorming"
+  ],
+  "scope": [
+    "personal"
   ]
 }
