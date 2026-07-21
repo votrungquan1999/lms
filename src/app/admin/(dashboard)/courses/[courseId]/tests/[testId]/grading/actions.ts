@@ -6,15 +6,13 @@ import { redirect } from "next/navigation";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import {
+  getAnnotationService,
   getGradeService,
-  getQuestionService,
   getRedoRequestService,
   getTestFeedbackService,
   getTestService,
-  getTestStatusService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
-import { TestStatus } from "src/lib/test-status-service";
 import { z } from "zod";
 
 const gradeQuestionSchema = z.object({
@@ -34,7 +32,30 @@ const testFeedbackSchema = z.object({
   feedback: z.string().min(1, "Feedback is required"),
 });
 
+const annotationPointSchema = z.object({ x: z.number(), y: z.number() });
+const annotationStrokeSchema = z.object({
+  color: z.string().min(1),
+  points: z.array(annotationPointSchema),
+});
+const saveAnnotationsSchema = z.object({
+  testId: z.string().min(1),
+  courseId: z.string().min(1),
+  questionId: z.string().min(1),
+  studentId: z.string().min(1),
+  annotations: z.array(
+    z.object({
+      mediaKey: z.string().min(1),
+      strokes: z.array(annotationStrokeSchema),
+    }),
+  ),
+});
+
 export interface GradeQuestionState {
+  success: boolean;
+  message: string;
+}
+
+export interface SaveAnnotationsState {
   success: boolean;
   message: string;
 }
@@ -112,6 +133,84 @@ export async function gradeQuestionAction(
     return {
       success: false,
       message: error instanceof Error ? error.message : "Failed to save grade",
+    };
+  }
+}
+
+/**
+ * Server action: saves a grader's vector annotations over a student's answer
+ * photos. Admin-guarded; accepts a JSON-encoded annotation entry array.
+ * @param input - Target ids and the JSON-encoded annotation entries.
+ * @returns Success or a failure message.
+ */
+export async function saveAnnotationsAction(input: {
+  testId: string;
+  courseId: string;
+  questionId: string;
+  studentId: string;
+  annotationsJson: string;
+}): Promise<SaveAnnotationsState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  let rawAnnotations: unknown;
+  try {
+    rawAnnotations = JSON.parse(input.annotationsJson);
+  } catch {
+    return { success: false, message: "Invalid annotations format" };
+  }
+
+  const parsed = saveAnnotationsSchema.safeParse({
+    testId: input.testId,
+    courseId: input.courseId,
+    questionId: input.questionId,
+    studentId: input.studentId,
+    annotations: rawAnnotations,
+  });
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+
+  try {
+    return await withSpan(
+      "action.saveAnnotationsAction",
+      {
+        "lms.action.name": "saveAnnotationsAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.student.id": parsed.data.studentId,
+      },
+      async () => {
+        const annotationService = await getAnnotationService();
+        await annotationService.saveAnnotations({
+          testId: parsed.data.testId,
+          questionId: parsed.data.questionId,
+          studentId: parsed.data.studentId,
+          gradedBy: adminUserId,
+          annotations: parsed.data.annotations,
+        });
+
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+
+        return { success: true, message: "Annotations saved" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Failed to save annotations",
     };
   }
 }
@@ -449,15 +548,26 @@ const saveAndJumpToNextSchema = z.object({
 });
 
 /**
+ * Returns the items after `currentId` in list order, or the full list if
+ * `currentId` isn't found (defensive fallback — shouldn't happen since the
+ * caller's own id is always a member of its own candidate list).
+ */
+function candidatesAfter(candidates: string[], currentId: string): string[] {
+  const currentIndex = candidates.indexOf(currentId);
+  return currentIndex >= 0 ? candidates.slice(currentIndex + 1) : candidates;
+}
+
+/**
  * Server action: grades a question for the current student and then redirects
- * to the next ungraded item.
+ * to the next item to grade.
  *
- * - Student-mode: jumps to the next student in `candidateIds` (after the
- *   current student) whose post-save `TestStatus === Submitted`.
+ * - Student-mode: stays on the SAME student and jumps to the next question in
+ *   `candidateIds` (an ordered list of that student's form-bearing question
+ *   ids) positioned after the current `questionId`. Purely positional — no
+ *   DB lookups. If there is no next question, redirects back without a
+ *   `#question-<id>` fragment (stop; no next-student jump).
  * - Question-mode: jumps to the next student in `candidateIds` whose grade
- *   for the active question is still missing after this save.
- *
- * If no next ungraded item exists, redirects back to the current URL.
+ *   for the active question is still missing after this save. Unchanged.
  *
  * IMPORTANT: `redirect()` throws `NEXT_REDIRECT` and is called OUTSIDE the
  * try/catch wrapping the persist so the redirect propagates correctly.
@@ -523,27 +633,27 @@ export async function saveAndJumpToNextAction(formData: FormData) {
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-  const currentIndex = candidates.indexOf(parsed.data.currentStudentId);
-  const after =
-    currentIndex >= 0 ? candidates.slice(currentIndex + 1) : candidates;
 
-  let nextStudentId: string | undefined;
+  let redirectTarget: string;
   if (parsed.data.mode === "student") {
-    const testStatusService = await getTestStatusService();
-    const questionService = await getQuestionService();
-    const questions = await questionService.listQuestions(parsed.data.testId);
-    for (const id of after) {
-      const status = await testStatusService.getStatus(
-        parsed.data.testId,
-        id,
-        questions.length,
-      );
-      if (status === TestStatus.Submitted) {
-        nextStudentId = id;
-        break;
-      }
-    }
+    // Positional only: candidates are this student's ordered form-bearing
+    // question ids, so "next" is just the id right after the current one.
+    const nextQuestionId = candidatesAfter(
+      candidates,
+      parsed.data.questionId,
+    )[0];
+
+    const params = new URLSearchParams();
+    params.set("studentId", parsed.data.studentId);
+    if (parsed.data.sort) params.set("sort", parsed.data.sort);
+    const base = `${parsed.data.returnPath}?${params.toString()}`;
+    redirectTarget = nextQuestionId
+      ? `${base}#question-${nextQuestionId}`
+      : base;
   } else {
+    const after = candidatesAfter(candidates, parsed.data.currentStudentId);
+
+    let nextStudentId: string | undefined;
     for (const id of after) {
       const grade = await gradeService.getGrade(
         parsed.data.testId,
@@ -555,19 +665,14 @@ export async function saveAndJumpToNextAction(formData: FormData) {
         break;
       }
     }
-  }
 
-  const params = new URLSearchParams();
-  if (parsed.data.mode === "question") {
+    const params = new URLSearchParams();
     params.set("mode", "question");
     params.set("questionId", parsed.data.questionId);
+    params.set("studentId", nextStudentId ?? parsed.data.currentStudentId);
+    if (parsed.data.sort) params.set("sort", parsed.data.sort);
+    redirectTarget = `${parsed.data.returnPath}?${params.toString()}`;
   }
-  if (nextStudentId) params.set("studentId", nextStudentId);
-  else params.set("studentId", parsed.data.currentStudentId);
-  if (parsed.data.sort) params.set("sort", parsed.data.sort);
 
-  const qs = params.toString();
-  redirect(
-    qs.length > 0 ? `${parsed.data.returnPath}?${qs}` : parsed.data.returnPath,
-  );
+  redirect(redirectTarget);
 }

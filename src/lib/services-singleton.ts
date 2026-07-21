@@ -1,5 +1,6 @@
 import { GeminiAiClient } from "./ai/ai-client";
 import { AiGradeService } from "./ai-grade-service";
+import { AnnotationService } from "./annotation-service";
 import { AnswerService } from "./answer-service";
 import { loadConfig } from "./config";
 import { CourseService } from "./course-service";
@@ -31,6 +32,7 @@ let answerService: AnswerService | null = null;
 let courseService: CourseService | null = null;
 let enrollmentService: EnrollmentService | null = null;
 let gradeService: GradeService | null = null;
+let annotationService: AnnotationService | null = null;
 let gradeVisibilityService: GradeVisibilityService | null = null;
 let redoRequestService: RedoRequestService | null = null;
 let testStartService: TestStartService | null = null;
@@ -117,6 +119,14 @@ export async function getGradeService(): Promise<GradeService> {
     );
   }
   return gradeService;
+}
+
+export async function getAnnotationService(): Promise<AnnotationService> {
+  if (!annotationService) {
+    const db = await getDatabase();
+    annotationService = tracedService(new AnnotationService(db), "annotation");
+  }
+  return annotationService;
 }
 
 /**

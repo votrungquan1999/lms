@@ -1,10 +1,17 @@
+import { AnnotationOverlay } from "src/components/annotation-overlay";
 import { MarkdownContent } from "src/components/markdown-content";
 import { McAnswerChips } from "src/components/mc-answer-chips";
 import { QuestionMedia } from "src/components/question-media.ui";
 import { Badge } from "src/components/ui/badge";
+import type { AnnotationEntry } from "src/lib/annotation-service";
+import type { AnswerImage } from "src/lib/answer-image-urls";
 import type { StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
-import type { McOption, Question } from "src/lib/question-service";
+import {
+  isMcQuestion,
+  type McOption,
+  type Question,
+} from "src/lib/question-service";
 import { TestStatus } from "src/lib/test-status-service";
 import { isTextEquivalent } from "src/lib/text-normalization";
 import { cn } from "src/lib/utils";
@@ -28,6 +35,10 @@ interface GradedQuestionProps {
   options: McOption[];
   correctAnswersVisible: boolean;
   testStatus: TestStatus;
+  /** Minted photo URLs for image answers (empty/undefined otherwise). */
+  answerImages?: AnswerImage[];
+  /** Grader's annotations over the image answer, loaded separately from the grade. */
+  annotations?: AnnotationEntry[];
 }
 
 /**
@@ -46,6 +57,8 @@ export function GradedQuestion({
   options,
   correctAnswersVisible,
   testStatus,
+  answerImages,
+  annotations,
 }: GradedQuestionProps) {
   const tone = getScoreTone(grade.score);
   const studentText =
@@ -58,6 +71,14 @@ export function GradedQuestion({
     !!grade.solution &&
     !!studentAnswer &&
     !isTextEquivalent(studentText, grade.solution);
+
+  // Narrow on the discriminant once (TS needs it to access `.explanation`),
+  // then gate server-side (like grade.feedback) so the string never enters
+  // the RSC payload when the reveal is closed — mirrors the isCorrect strip.
+  const mcExplanation = isMcQuestion(question)
+    ? question.explanation
+    : undefined;
+  const showExplanation = correctAnswersVisible && !!mcExplanation;
 
   return (
     <GradedQuestionShell
@@ -96,6 +117,20 @@ export function GradedQuestion({
             />
           ) : studentAnswer.type === "free_text" ? (
             <p className="whitespace-pre-wrap text-sm">{studentText}</p>
+          ) : studentAnswer.type === "image" ? (
+            <div className="grid gap-3">
+              {(answerImages ?? []).map((photo) => (
+                <AnnotationOverlay
+                  key={photo.key}
+                  src={photo.url}
+                  alt="Your submitted work"
+                  strokes={
+                    annotations?.find((a) => a.mediaKey === photo.key)
+                      ?.strokes ?? []
+                  }
+                />
+              ))}
+            </div>
           ) : null}
         </div>
       )}
@@ -115,6 +150,14 @@ export function GradedQuestion({
               Teacher Feedback
             </p>
             <p className="whitespace-pre-wrap text-sm">{grade.feedback}</p>
+          </div>
+        )}
+        {showExplanation && (
+          <div>
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              Explanation
+            </p>
+            <p className="whitespace-pre-wrap text-sm">{mcExplanation}</p>
           </div>
         )}
         {showDiff && grade.solution && (

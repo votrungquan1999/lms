@@ -1,10 +1,15 @@
 import { CompactGradeForm } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
+import { AnnotationTool } from "src/app/admin/(dashboard)/grading/page-body/annotation-tool";
 import { CollapsibleQuestionDescription } from "src/app/admin/(dashboard)/grading/page-body/grading-detail-question.ui";
 import { StudentStatusBadge } from "src/app/admin/(dashboard)/grading/student-status-badge";
 import { McAnswerChips } from "src/components/mc-answer-chips";
+import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
 import { QuestionMedia } from "src/components/question-media.ui";
+import { attachAnswerImageUrls } from "src/lib/answer-image-urls";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
+import { isMcQuestion } from "src/lib/question-service";
 import {
+  getAnnotationService,
   getAnswerService,
   getGradeService,
   getQuestionService,
@@ -60,9 +65,12 @@ export async function GradingDetailQuestion({
   // Mint presigned GET URLs for the focused question's media so the grader
   // sees exactly what the student saw.
   const [question] = await attachQuestionMediaUrls([focused]);
+  // MC questions are auto-graded — read-only display, no editable form.
+  const isMc = isMcQuestion(question);
 
   const answerService = await getAnswerService();
   const gradeService = await getGradeService();
+  const annotationService = await getAnnotationService();
   const testStatusService = await getTestStatusService();
 
   const rows = await Promise.all(
@@ -75,7 +83,24 @@ export async function GradingDetailQuestion({
         s.id,
         questions.length,
       );
-      return { student: s, answer: answer?.answer, grade, status };
+      // Mint presigned URLs for image-answer photos + load their annotations
+      // (stored separately from the grade) so the grader sees both.
+      const answerImages =
+        answer?.answer.type === "image"
+          ? await attachAnswerImageUrls(answer.answer.mediaKeys)
+          : [];
+      const annotations =
+        answer?.answer.type === "image"
+          ? await annotationService.getAnnotations(test.id, question.id, s.id)
+          : [];
+      return {
+        student: s,
+        answer: answer?.answer,
+        grade,
+        status,
+        answerImages,
+        annotations,
+      };
     }),
   );
 
@@ -92,61 +117,78 @@ export async function GradingDetailQuestion({
       </header>
 
       <ul className="space-y-3">
-        {rows.map(({ student, answer, grade, status }) => (
-          <li
-            key={student.id}
-            data-testid={`student-card-${student.id}`}
-            className="rounded-md border border-border bg-card p-3 space-y-2"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">
-                {student.name}{" "}
-                <span className="text-xs font-normal text-muted-foreground">
-                  @{student.username}
-                </span>
-              </p>
-              <StudentStatusBadge status={status} />
-            </div>
+        {rows.map(
+          ({ student, answer, grade, status, answerImages, annotations }) => (
+            <li
+              key={student.id}
+              data-testid={`student-card-${student.id}`}
+              className="rounded-md border border-border bg-card p-3 space-y-2"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  {student.name}{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    @{student.username}
+                  </span>
+                </p>
+                <StudentStatusBadge status={status} />
+              </div>
 
-            {answer === undefined ? (
-              <p className="text-xs italic text-muted-foreground">
-                No answer submitted (counts as 0).
-              </p>
-            ) : answer.type === "mc" ? (
-              <McAnswerChips
-                options={
-                  question.type === "single_select" ||
-                  question.type === "multi_select"
-                    ? question.options
-                    : []
-                }
-                selectedIds={answer.selectedIds}
-              />
-            ) : (
-              <pre className="whitespace-pre-wrap text-sm">{answer.text}</pre>
-            )}
+              {answer === undefined ? (
+                // MC's "Not answered — 0" (below) already covers this case —
+                // showing the generic line too would just duplicate it.
+                !isMc && (
+                  <p className="text-xs italic text-muted-foreground">
+                    No answer submitted (counts as 0).
+                  </p>
+                )
+              ) : answer.type === "mc" ? (
+                <McAnswerChips
+                  options={isMcQuestion(question) ? question.options : []}
+                  selectedIds={answer.selectedIds}
+                />
+              ) : answer.type === "free_text" ? (
+                <pre className="whitespace-pre-wrap text-sm">{answer.text}</pre>
+              ) : (
+                <AnnotationTool
+                  testId={test.id}
+                  courseId={courseId}
+                  questionId={question.id}
+                  studentId={student.id}
+                  photos={answerImages}
+                  initialAnnotations={annotations}
+                />
+              )}
 
-            <CompactGradeForm
-              testId={test.id}
-              courseId={courseId}
-              questionId={question.id}
-              studentId={student.id}
-              questionTitle={question.title}
-              questionOrder={question.order}
-              existingScore={grade?.score ?? null}
-              existingFeedback={grade?.feedback ?? null}
-              existingSolution={grade?.solution ?? null}
-              studentStatus={status}
-              saveAndNext={{
-                candidateIds: students.map((s) => s.id).join(","),
-                currentStudentId: student.id,
-                returnPath: basePath,
-                mode: "question" as const,
-                sort,
-              }}
-            />
-          </li>
-        ))}
+              {isMc ? (
+                <McReadOnlyScore
+                  selectedIds={answer?.type === "mc" ? answer.selectedIds : []}
+                  score={grade?.score ?? null}
+                />
+              ) : (
+                <CompactGradeForm
+                  testId={test.id}
+                  courseId={courseId}
+                  questionId={question.id}
+                  studentId={student.id}
+                  questionTitle={question.title}
+                  questionOrder={question.order}
+                  existingScore={grade?.score ?? null}
+                  existingFeedback={grade?.feedback ?? null}
+                  existingSolution={grade?.solution ?? null}
+                  studentStatus={status}
+                  saveAndNext={{
+                    candidateIds: students.map((s) => s.id).join(","),
+                    currentStudentId: student.id,
+                    returnPath: basePath,
+                    mode: "question" as const,
+                    sort,
+                  }}
+                />
+              )}
+            </li>
+          ),
+        )}
       </ul>
     </div>
   );

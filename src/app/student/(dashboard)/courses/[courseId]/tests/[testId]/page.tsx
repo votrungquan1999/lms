@@ -9,8 +9,14 @@ import {
   BreadcrumbSeparator,
 } from "src/components/ui/breadcrumb";
 import { Progress } from "src/components/ui/progress";
+import type { AnnotationEntry } from "src/lib/annotation-service";
+import {
+  type AnswerImage,
+  attachAnswerImageUrls,
+} from "src/lib/answer-image-urls";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import {
+  getAnnotationService,
   getAnswerService,
   getCourseService,
   getGradeService,
@@ -98,6 +104,29 @@ export default async function StudentTestDetailPage({
     testStatus,
   );
   const gradeMap = new Map(grades.map((g) => [g.questionId, g]));
+
+  // Mint photo URLs for image answers whose grade is revealed, plus the
+  // grader's annotations (stored separately from the grade) over those photos.
+  // Same reveal gate as grades — annotations stay hidden until release.
+  const annotationService = await getAnnotationService();
+  const answerImagesMap = new Map<string, AnswerImage[]>();
+  const annotationsMap = new Map<string, AnnotationEntry[]>();
+  for (const [questionId, ans] of answerMap) {
+    if (ans.type === "image" && gradeMap.has(questionId)) {
+      answerImagesMap.set(
+        questionId,
+        await attachAnswerImageUrls(ans.mediaKeys),
+      );
+      annotationsMap.set(
+        questionId,
+        await annotationService.getAnnotations(
+          testId,
+          questionId,
+          session.studentId,
+        ),
+      );
+    }
+  }
 
   const average = await gradeService.getStudentAverageScore(
     testId,
@@ -241,6 +270,8 @@ export default async function StudentTestDetailPage({
             questions={questions}
             answerMap={answerMap}
             gradeMap={gradeMap}
+            answerImagesMap={answerImagesMap}
+            annotationsMap={annotationsMap}
             testStatus={testStatus}
             isSubmitted={isSubmitted}
             hasActiveRedo={!!activeRedoRequest}

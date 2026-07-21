@@ -3,6 +3,7 @@ import type { Db, MongoClient } from "mongodb";
 import { MongoClient as MongoClientCtor } from "mongodb";
 import { GeminiAiClient } from "src/lib/ai/ai-client";
 import { AiGradeService } from "src/lib/ai-grade-service";
+import { AnnotationService } from "src/lib/annotation-service";
 import { AnswerService } from "src/lib/answer-service";
 import { CourseService } from "src/lib/course-service";
 import { EnrollmentService } from "src/lib/enrollment-service";
@@ -27,6 +28,7 @@ import { TestSubmissionService } from "src/lib/test-submission-service";
  */
 export interface TestServices {
   aiGradeService: AiGradeService;
+  annotationService: AnnotationService;
   answerService: AnswerService;
   courseService: CourseService;
   enrollmentService: EnrollmentService;
@@ -100,6 +102,7 @@ function makeServices(db: Db): TestServices {
     answerService,
     gradeService,
   );
+  const annotationService = new AnnotationService(db);
   const courseService = new CourseService(db);
   const enrollmentService = new EnrollmentService(db);
   const studentService = new StudentService(db);
@@ -118,6 +121,7 @@ function makeServices(db: Db): TestServices {
 
   return {
     aiGradeService,
+    annotationService,
     answerService,
     courseService,
     enrollmentService,
@@ -191,6 +195,7 @@ export function getTestServices(): TestServices {
 export function servicesSingletonMockFactory() {
   return {
     getAiGradeService: async () => getTestServices().aiGradeService,
+    getAnnotationService: async () => getTestServices().annotationService,
     getAnswerService: async () => getTestServices().answerService,
     getCourseService: async () => getTestServices().courseService,
     getEnrollmentService: async () => getTestServices().enrollmentService,

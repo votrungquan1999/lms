@@ -1,12 +1,14 @@
 import { AiSuggestionPanel } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-suggestion-panel";
 import { AutoGradeWithAiButton } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/auto-grade-with-ai-button";
 import {
+  CompactGradeForm,
   FreeTextQuestionGradeForm,
   McQuestionGradeForm,
   OverallFeedbackForm,
   RequestRedoButton,
 } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { ReleaseGradeForStudentControl } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/release-grade-for-student";
+import { AnnotationTool } from "src/app/admin/(dashboard)/grading/page-body/annotation-tool";
 import {
   Card,
   CardContent,
@@ -14,8 +16,15 @@ import {
   CardTitle,
 } from "src/components/ui/card";
 import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
+import type { AnnotationEntry } from "src/lib/annotation-service";
+import {
+  type AnswerImage,
+  attachAnswerImageUrls,
+} from "src/lib/answer-image-urls";
+import { isMcQuestion } from "src/lib/question-service";
 import {
   getAiGradeService,
+  getAnnotationService,
   getAnswerService,
   getGradeService,
   getQuestionService,
@@ -32,11 +41,6 @@ interface GradingDetailStudentProps {
   test: Test;
   courseId: string;
   student: { id: string; name: string; username: string };
-  /**
-   * Roster student ids in current sort order — used to build the candidate
-   * list for the Save & Next form action.
-   */
-  candidateIds: string[];
   /** Base path the page is rendered at (no query string). */
   basePath: string;
   /** Current `?sort=` value, preserved in the Save & Next redirect target. */
@@ -53,7 +57,6 @@ export async function GradingDetailStudent({
   test,
   courseId,
   student,
-  candidateIds,
   basePath,
   sort,
 }: GradingDetailStudentProps) {
@@ -77,6 +80,25 @@ export async function GradingDetailStudent({
   const gradeService = await getGradeService();
   const grades = await gradeService.getGrades(testId, student.id);
   const gradeMap = new Map(grades.map((g) => [g.questionId, g]));
+
+  // Pre-load photo URLs + annotations for image answers (the map callback
+  // below is synchronous). Annotations live in their own collection, separate
+  // from the grade.
+  const annotationService = await getAnnotationService();
+  const answerImagesMap = new Map<string, AnswerImage[]>();
+  const annotationsMap = new Map<string, AnnotationEntry[]>();
+  for (const [questionId, ans] of rawAnswerMap) {
+    if (ans.type === "image") {
+      answerImagesMap.set(
+        questionId,
+        await attachAnswerImageUrls(ans.mediaKeys),
+      );
+      annotationsMap.set(
+        questionId,
+        await annotationService.getAnnotations(testId, questionId, student.id),
+      );
+    }
+  }
 
   const testFeedbackService = await getTestFeedbackService();
   const testFeedback = await testFeedbackService.getTestFeedback(
@@ -119,6 +141,22 @@ export async function GradingDetailStudent({
       : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
   const hasAnswers = latestAnswers.length > 0;
   const hasActiveRedoRequest = activeRedoRequest !== null;
+
+  // Ordered ids of the questions that actually render a Save & Next button
+  // today: non-MC questions with a non-empty free-text answer (MC is
+  // read-only; unanswered free-text and image_answer render no button).
+  // Must mirror FreeTextQuestionGradeForm's `{answerText && ...}` gate below
+  // exactly, or Save & Next could target a question with nothing to land on.
+  const formBearingQuestionIds = questions
+    .filter((question) => {
+      if (isMcQuestion(question)) {
+        return false;
+      }
+      const rawAnswer = rawAnswerMap.get(question.id);
+      return rawAnswer?.type === "free_text" && !!rawAnswer.text;
+    })
+    .map((question) => question.id)
+    .join(",");
 
   return (
     <div
@@ -181,8 +219,9 @@ export async function GradingDetailStudent({
               existingFeedback: grade?.feedback ?? null,
               existingSolution: grade?.solution ?? null,
               studentStatus: status,
+              id: `question-${question.id}`,
               saveAndNext: {
-                candidateIds: candidateIds.join(","),
+                candidateIds: formBearingQuestionIds,
                 currentStudentId: student.id,
                 returnPath: basePath,
                 mode: "student" as const,
@@ -190,10 +229,7 @@ export async function GradingDetailStudent({
               },
             };
 
-            if (
-              question.type === "single_select" ||
-              question.type === "multi_select"
-            ) {
+            if (isMcQuestion(question)) {
               return (
                 <McQuestionGradeForm
                   key={question.id}
@@ -206,17 +242,71 @@ export async function GradingDetailStudent({
               );
             }
 
+            if (question.type === "image_answer") {
+              const photos = answerImagesMap.get(question.id) ?? [];
+              return (
+                <div
+                  key={question.id}
+                  id={`question-${question.id}`}
+                  className="rounded-lg border p-4 space-y-3"
+                  data-testid="grade-card"
+                >
+                  <h4 className="font-medium text-sm">
+                    <span className="text-muted-foreground">
+                      #{question.order}
+                    </span>{" "}
+                    {question.title}
+                  </h4>
+                  {photos.length > 0 ? (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Student Answer:
+                      </p>
+                      <AnnotationTool
+                        testId={testId}
+                        courseId={courseId}
+                        questionId={question.id}
+                        studentId={student.id}
+                        photos={photos}
+                        initialAnnotations={
+                          annotationsMap.get(question.id) ?? []
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-xs italic text-muted-foreground">
+                      No answer submitted
+                    </p>
+                  )}
+                  {photos.length > 0 && (
+                    <CompactGradeForm
+                      testId={testId}
+                      courseId={courseId}
+                      questionId={question.id}
+                      studentId={student.id}
+                      questionTitle={question.title}
+                      questionOrder={question.order}
+                      existingScore={grade?.score ?? null}
+                      existingFeedback={grade?.feedback ?? null}
+                      existingSolution={grade?.solution ?? null}
+                      studentStatus={status}
+                    />
+                  )}
+                </div>
+              );
+            }
+
             const aiSuggestions: AiGradeSuggestion[] =
               aiSuggestionsByQuestion.get(question.id) ?? [];
 
             return (
-              <div key={question.id} className="space-y-2">
-                <FreeTextQuestionGradeForm
-                  {...sharedProps}
-                  answerText={
-                    rawAnswer?.type === "free_text" ? rawAnswer.text : null
-                  }
-                />
+              <FreeTextQuestionGradeForm
+                key={question.id}
+                {...sharedProps}
+                answerText={
+                  rawAnswer?.type === "free_text" ? rawAnswer.text : null
+                }
+              >
                 {aiSuggestions.length > 0 && (
                   <AiSuggestionPanel
                     testId={testId}
@@ -229,7 +319,7 @@ export async function GradingDetailStudent({
                     }
                   />
                 )}
-              </div>
+              </FreeTextQuestionGradeForm>
             );
           })}
 

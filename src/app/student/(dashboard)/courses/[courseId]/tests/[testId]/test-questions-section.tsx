@@ -9,9 +9,11 @@ import {
   CardTitle,
 } from "src/components/ui/card";
 import { Separator } from "src/components/ui/separator";
+import type { AnnotationEntry } from "src/lib/annotation-service";
+import type { AnswerImage } from "src/lib/answer-image-urls";
 import type { StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
-import type { Question } from "src/lib/question-service";
+import { isMcQuestion, type Question } from "src/lib/question-service";
 import type { TestStatus } from "src/lib/test-status-service";
 import { AnswerForm } from "./answer-form";
 import { GradedQuestion } from "./graded-question";
@@ -23,6 +25,8 @@ interface TestQuestionsSectionProps {
   questions: Question[];
   answerMap: Map<string, StudentAnswer>;
   gradeMap: Map<string, Grade>;
+  answerImagesMap: Map<string, AnswerImage[]>;
+  annotationsMap: Map<string, AnnotationEntry[]>;
   testStatus: TestStatus;
   isSubmitted: boolean;
   hasActiveRedo: boolean;
@@ -42,6 +46,8 @@ export function TestQuestionsSection({
   questions,
   answerMap,
   gradeMap,
+  answerImagesMap,
+  annotationsMap,
   testStatus,
   isSubmitted,
   hasActiveRedo,
@@ -55,21 +61,17 @@ export function TestQuestionsSection({
         questions.map((question) => {
           const grade = gradeMap.get(question.id);
           const studentAnswer = answerMap.get(question.id);
-          const isMC =
-            question.type === "single_select" ||
-            question.type === "multi_select";
+          const isMC = isMcQuestion(question);
 
           // For MC questions, build the option list that's safe to ship to
           // the client. When the gate is closed, every option's `isCorrect`
           // becomes `false` so selected chips render in the neutral
           // "selected + !isCorrect" path without revealing the answer key.
-          const safeOptions =
-            question.type === "single_select" ||
-            question.type === "multi_select"
-              ? correctAnswersVisible
-                ? question.options
-                : question.options.map((o) => ({ ...o, isCorrect: false }))
-              : [];
+          const safeOptions = isMcQuestion(question)
+            ? correctAnswersVisible
+              ? question.options
+              : question.options.map((o) => ({ ...o, isCorrect: false }))
+            : [];
 
           // Read-only graded view: collapsible card tinted by score band.
           // (During a redo, canAnswer is true so the answer form is shown
@@ -85,6 +87,8 @@ export function TestQuestionsSection({
                 options={safeOptions}
                 correctAnswersVisible={correctAnswersVisible}
                 testStatus={testStatus}
+                answerImages={answerImagesMap.get(question.id)}
+                annotations={annotationsMap.get(question.id)}
               />
             );
           }
@@ -113,6 +117,18 @@ export function TestQuestionsSection({
                         studentAnswer?.type === "mc"
                           ? studentAnswer.selectedIds
                           : []
+                      }
+                    />
+                  ) : question.type === "image_answer" ? (
+                    <AnswerForm
+                      testId={testId}
+                      courseId={courseId}
+                      questionId={question.id}
+                      questionType="image_answer"
+                      existingImageCount={
+                        studentAnswer?.type === "image"
+                          ? studentAnswer.mediaKeys.length
+                          : 0
                       }
                     />
                   ) : (

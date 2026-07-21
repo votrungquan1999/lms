@@ -6,6 +6,7 @@ import type {
   AiGradeBatchOutput,
 } from "src/lib/ai/ai-client";
 import { AiGradeService } from "src/lib/ai-grade-service";
+import { AnnotationService } from "src/lib/annotation-service";
 import { AnswerService } from "src/lib/answer-service";
 import { GradeService } from "src/lib/grade-service";
 import { GradeVisibilityService } from "src/lib/grade-visibility-service";
@@ -25,6 +26,7 @@ export interface CoreServices {
   testService: TestService;
   gradeVisibilityService: GradeVisibilityService;
   gradeService: GradeService;
+  annotationService: AnnotationService;
   testSubmissionService: TestSubmissionService;
   testStartService: TestStartService;
   aiGradeService: AiGradeService;
@@ -90,6 +92,7 @@ export function buildCoreServices(
     answerService,
     gradeVisibilityService,
   );
+  const annotationService = new AnnotationService(db);
   testSubmissionService = new TestSubmissionService(
     db,
     gradeService,
@@ -113,6 +116,7 @@ export function buildCoreServices(
     testService,
     gradeVisibilityService,
     gradeService,
+    annotationService,
     testSubmissionService,
     testStartService,
     aiGradeService,
