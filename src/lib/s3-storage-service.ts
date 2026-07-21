@@ -77,21 +77,34 @@ export class S3StorageService {
   }
 
   /**
-   * Mints a signed GET URL an `<img>`/`<video>` can load directly. Uses a
-   * CloudFront signed URL when CloudFront delivery is configured (link lifetime
-   * is independent of the OIDC session); otherwise falls back to an S3 presigned
-   * GET (local dev).
+   * Mints a signed GET URL an `<img>`/`<video>` can load directly, or a forced
+   * file download when `options.fileName` is given. Uses a CloudFront signed URL
+   * when CloudFront delivery is configured (link lifetime is independent of the
+   * OIDC session); otherwise falls back to an S3 presigned GET (local dev).
    * @param key - The stored S3 object key.
    * @param ttlSeconds - URL lifetime in seconds; defaults to the ~4h render TTL.
+   * @param options - When `fileName` is set, the URL forces an attachment
+   *   download (`Content-Disposition: attachment`) with that name.
    * @returns The signed GET URL.
    */
   async getPresignedDownloadUrl(
     key: string,
     ttlSeconds: number = DEFAULT_DOWNLOAD_TTL_SECONDS,
+    options?: { fileName?: string },
   ): Promise<string> {
+    const contentDisposition = options?.fileName
+      ? `attachment; filename="${options.fileName}"`
+      : undefined;
+
     if (this.cloudfront) {
+      const baseUrl = `https://${this.cloudfront.domain}/${key}`;
+      // CloudFront honors response-content-disposition only if the distribution
+      // forwards that query string to the origin; otherwise it is ignored.
+      const url = contentDisposition
+        ? `${baseUrl}?response-content-disposition=${encodeURIComponent(contentDisposition)}`
+        : baseUrl;
       return getCloudFrontSignedUrl({
-        url: `https://${this.cloudfront.domain}/${key}`,
+        url,
         keyPairId: this.cloudfront.keyPairId,
         privateKey: this.cloudfront.privateKey,
         dateLessThan: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
@@ -101,6 +114,7 @@ export class S3StorageService {
     const command = new GetObjectCommand({
       Bucket: this.config.bucket,
       Key: key,
+      ResponseContentDisposition: contentDisposition,
     });
 
     return getSignedUrl(this.client, command, { expiresIn: ttlSeconds });

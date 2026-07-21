@@ -154,4 +154,22 @@ describe("S3StorageService.getPresignedDownloadUrl", () => {
     const [, , options] = vi.mocked(getSignedUrl).mock.calls[0];
     expect(options).toEqual({ expiresIn: 600 });
   });
+
+  it("forces an attachment download with the file name when a fileName is given", async () => {
+    // Given an S3 storage service
+    const service = new S3StorageService(testS3Config);
+
+    // When a download URL is requested for a material with a display file name
+    await service.getPresignedDownloadUrl(
+      "materials/courses/c1/abc.pdf",
+      600,
+      { fileName: "syllabus.pdf" },
+    );
+
+    // Then the GET is signed to deliver the object as a named attachment
+    const [, signedCommand] = vi.mocked(getSignedUrl).mock.calls[0];
+    expect((signedCommand as GetObjectCommand).input).toMatchObject({
+      ResponseContentDisposition: 'attachment; filename="syllabus.pdf"',
+    });
+  });
 });
