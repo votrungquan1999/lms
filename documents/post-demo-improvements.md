@@ -12,17 +12,18 @@ Collected after the customer demo on 2026-03-22. Items are grouped by priority a
 
 - [x] Clear the add-question form automatically after a question is successfully added — `key={successCount}` remount in `add-question-form.tsx`
 - [x] Allow `content` field to be empty (some questions rely only on a title or image) — `content: z.string().default("")` in the add-question action; grading view guards on truthy content
-- [ ] Allow teacher to upload images for individual questions — blocked on file-storage infrastructure (none exists yet)
+- [x] Allow teacher to upload images for individual questions — media attachments via S3 presigned uploads + CloudFront; ordered media shown to students and graders (`PLAN_STEPS.md` steps 1–7)
 
 ### Teacher — Grading
 
 - [x] Display MC question answers in a visual format on the grading page (highlight selected choice(s)) instead of raw text — `mc-answer-chips.tsx`
 - [x] Allow teacher to mark a student's test as "needs redo", prompting the student to resubmit — `redo-request-service.ts` + grading/student UI
-- [ ] Allow teacher to regenerate AI grading for a single question, not just re-run AI grading for the whole test/list — per-question regenerate control on the grading page so a teacher can re-grade one question's answer without redoing the entire submission
+- [x] Allow teacher to regenerate AI grading for a single question, not just re-run AI grading for the whole test/list — per-question regenerate control on the grading page (steps A1–A3 in `tmp/pools-and-per-question-ai/PLAN_STEPS.md`)
 
 ### Teacher — Results & Export
 
-- [ ] Allow teacher to export student results for a test (scores, feedback, per-question breakdown) as CSV/Excel
+- [x] Export a single student's results as a PDF report — admin picks one student + one or more tests and downloads a rendered PDF (`courses/[courseId]/results-report/` page + `download/route.ts`)
+- [ ] Export a whole class's results as CSV/Excel (gradebook view: all students × scores/feedback/per-question breakdown in one sheet) — distinct from the shipped per-student PDF report above; `xlsx` is currently used only for student import, not export
 
 ---
 
@@ -30,12 +31,12 @@ Collected after the customer demo on 2026-03-22. Items are grouped by priority a
 
 ### Teacher — Student Management
 
-- [ ] Bulk-create students by uploading a CSV/Excel file (columns: name, username, password) — reduces onboarding friction for classroom teachers adding a whole class at once. Builds on the existing admin-only `registerStudent` flow; needs row validation, duplicate-username handling, and a per-row success/error report.
+- [x] Bulk-create students by uploading a CSV/Excel file (columns: name, username, password) — `students/parse-import-file.ts` (lazy-loads `xlsx`) + `bulk-import-dialog.ui.tsx`; reduces onboarding friction for classroom teachers adding a whole class at once
 
 ### Test Settings
 
 - [ ] Allow a test to be configured for multiple retakes (student can retake if settings allow)
-- [ ] Support random question selection per attempt — define a question pool (e.g., 40 questions), serve a random subset per attempt (e.g., 10) for practice use
+- [ ] Support random question selection per attempt — serve a random subset per attempt (e.g., 10 of 40) for practice use. NOTE: global question pools now exist (`tmp/pools-and-per-question-ai/PLAN_STEPS.md` steps B1–B5c), but a test composed from pools currently snapshots a fixed set at creation — every student gets the same questions. This item is the remaining per-attempt randomization on top of that pool model.
 - [x] Add timed test mode — student has a fixed countdown after clicking Start; test auto-submits when time runs out — admin sets `timeLimitMinutes` in the test settings panel; `test_start` records `startedAt` per student; `countdown.state.tsx` renders the live timer and auto-submits at zero; `isPastEnforcementDeadline` (`enforcement-deadline.ts`) gates both the submit and answer-write paths server-side
 
 ### Export
