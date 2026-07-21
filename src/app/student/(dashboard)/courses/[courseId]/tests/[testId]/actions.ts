@@ -13,6 +13,7 @@ import {
 } from "src/lib/services-singleton";
 import type { StudentSession } from "src/lib/session";
 import { z } from "zod";
+import { MAX_ANSWER_IMAGES } from "./answer-image-upload.schema";
 
 const submitAnswerSchema = z.object({
   testId: z.string().min(1, "Test ID is missing"),
@@ -22,6 +23,7 @@ const submitAnswerSchema = z.object({
   // For MC, 'selectedIds' contains a JSON array of option IDs; 'answer' may be absent.
   answer: z.string().optional(),
   selectedIds: z.string().optional(), // JSON-encoded string[] for MC
+  mediaKeys: z.string().optional(), // JSON-encoded string[] for image answers
 });
 
 export interface SubmitAnswerState {
@@ -54,16 +56,18 @@ export async function submitAnswerAction(
     questionId: formData.get("questionId"),
     answer: formData.get("answer") ?? undefined,
     selectedIds: formData.get("selectedIds") ?? undefined,
+    mediaKeys: formData.get("mediaKeys") ?? undefined,
   });
 
   if (!parsed.success) {
     return { success: false, message: parsed.error.issues[0].message };
   }
 
-  const { testId, courseId, questionId, answer, selectedIds } = parsed.data;
+  const { testId, courseId, questionId, answer, selectedIds, mediaKeys } =
+    parsed.data;
 
   // Validate that at least one answer type is provided
-  if (!answer && !selectedIds) {
+  if (!answer && !selectedIds && !mediaKeys) {
     return { success: false, message: "Answer cannot be empty" };
   }
 
@@ -85,12 +89,48 @@ export async function submitAnswerAction(
         "lms.test.id": testId,
         "lms.course.id": courseId,
         "lms.student.id": studentId,
-        "lms.answer.type": selectedIds ? "mc" : "free_text",
+        "lms.answer.type": mediaKeys
+          ? "image"
+          : selectedIds
+            ? "mc"
+            : "free_text",
       },
       async () => {
         const answerService = await getAnswerService();
 
-        if (selectedIds) {
+        if (mediaKeys) {
+          // Image answer (photos of handwritten work)
+          let keys: string[];
+          try {
+            keys = JSON.parse(mediaKeys);
+          } catch {
+            return { success: false, message: "Invalid photo upload format" };
+          }
+
+          // The client sends raw S3 keys; validate them before persisting.
+          // Reading these keys later mints signed GET URLs, so an unchecked
+          // key is a read-scope IDOR over the whole bucket. Keys must live
+          // under the caller's own namespace and stay within the photo cap.
+          const ownPrefix = `answers/${studentId}/`;
+          const keysValid =
+            keys.length > 0 &&
+            keys.length <= MAX_ANSWER_IMAGES &&
+            keys.every(
+              (k) =>
+                k.startsWith(ownPrefix) &&
+                !k.slice(ownPrefix.length).includes("/"),
+            );
+          if (!keysValid) {
+            return { success: false, message: "Invalid photo upload" };
+          }
+
+          await answerService.submitAnswer({
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "image", mediaKeys: keys },
+          });
+        } else if (selectedIds) {
           // MC answer
           let ids: string[];
           try {

@@ -6,7 +6,11 @@ import {
   shuffleAndTake,
 } from "src/lib/question-compose";
 
-export type QuestionType = "free_text" | "single_select" | "multi_select";
+export type QuestionType =
+  | "free_text"
+  | "single_select"
+  | "multi_select"
+  | "image_answer";
 export type McGradingStrategy = "all_or_nothing" | "partial";
 
 /** Allowed MIME types for question media attachments. */
@@ -68,22 +72,57 @@ export interface FreeTextQuestion extends BaseQuestion {
   type: "free_text";
 }
 
+/**
+ * A question answered by uploading photo(s) of handwritten work — the student
+ * submits images instead of typing. Has no options (graded manually).
+ */
+export interface ImageAnswerQuestion extends BaseQuestion {
+  type: "image_answer";
+}
+
 export interface SingleSelectQuestion extends BaseQuestion {
   type: "single_select";
   options: McOption[];
   mcGradingStrategy: McGradingStrategy;
+  /** Optional teacher note shown to the student once correct answers are revealed. */
+  explanation?: string;
 }
 
 export interface MultiSelectQuestion extends BaseQuestion {
   type: "multi_select";
   options: McOption[];
   mcGradingStrategy: McGradingStrategy;
+  /** Optional teacher note shown to the student once correct answers are revealed. */
+  explanation?: string;
 }
 
 export type Question =
   | FreeTextQuestion
   | SingleSelectQuestion
-  | MultiSelectQuestion;
+  | MultiSelectQuestion
+  | ImageAnswerQuestion;
+
+/**
+ * True for the auto-graded multiple-choice question types (`single_select` /
+ * `multi_select`). Single source of truth for "is this MC?" — use this instead
+ * of repeating the `type === "single_select" || type === "multi_select"` check.
+ * A type predicate so callers narrowing a discriminated union keep that narrowing.
+ */
+export function isMcQuestionType(
+  type: QuestionType,
+): type is "single_select" | "multi_select" {
+  return type === "single_select" || type === "multi_select";
+}
+
+/**
+ * Type-guard variant of {@link isMcQuestionType}: narrows a `Question` to its
+ * MC union so `.options` / `.explanation` are accessible without a manual cast.
+ */
+export function isMcQuestion(
+  question: Question,
+): question is SingleSelectQuestion | MultiSelectQuestion {
+  return isMcQuestionType(question.type);
+}
 
 // ── Input types ──────────────────────────────────────────────────────────────
 
@@ -100,22 +139,29 @@ export interface AddFreeTextQuestionInput extends BaseAddQuestionInput {
   type?: "free_text";
 }
 
+export interface AddImageAnswerQuestionInput extends BaseAddQuestionInput {
+  type: "image_answer";
+}
+
 export interface AddSingleSelectQuestionInput extends BaseAddQuestionInput {
   type: "single_select";
   options: Omit<McOption, "id">[];
   mcGradingStrategy?: McGradingStrategy;
+  explanation?: string;
 }
 
 export interface AddMultiSelectQuestionInput extends BaseAddQuestionInput {
   type: "multi_select";
   options: Omit<McOption, "id">[];
   mcGradingStrategy: McGradingStrategy;
+  explanation?: string;
 }
 
 export type AddQuestionInput =
   | AddFreeTextQuestionInput
   | AddSingleSelectQuestionInput
-  | AddMultiSelectQuestionInput;
+  | AddMultiSelectQuestionInput
+  | AddImageAnswerQuestionInput;
 
 // ── Document (flat, for MongoDB storage) ────────────────────────────────────
 
@@ -137,6 +183,8 @@ export interface QuestionDocument {
   options: McOption[] | null;
   weight: number;
   mcGradingStrategy: McGradingStrategy | null;
+  /** Optional teacher note shown to the student once correct answers are revealed (MC only). */
+  explanation: string | null;
   /** Ordered media attachments (empty when none). */
   media: QuestionMediaDocument[];
 }
@@ -162,6 +210,10 @@ export class QuestionService {
     testId: string,
     input: AddFreeTextQuestionInput,
   ): Promise<FreeTextQuestion>;
+  async addQuestion(
+    testId: string,
+    input: AddImageAnswerQuestionInput,
+  ): Promise<ImageAnswerQuestion>;
   async addQuestion(
     testId: string,
     input: AddQuestionInput,
@@ -191,6 +243,7 @@ export class QuestionService {
       weight: input.weight ?? 1,
       mcGradingStrategy:
         "mcGradingStrategy" in input ? (input.mcGradingStrategy ?? null) : null,
+      explanation: "explanation" in input ? (input.explanation ?? null) : null,
       media: input.media ?? [],
     };
 
@@ -253,6 +306,7 @@ export class QuestionService {
       options: null,
       weight: 1,
       mcGradingStrategy: null,
+      explanation: null,
       media: [],
     }));
 
@@ -309,6 +363,7 @@ export class QuestionService {
           : null,
       weight: item.weight,
       mcGradingStrategy: item.mcGradingStrategy,
+      explanation: item.explanation,
       // Media keys are copied verbatim — shared S3 objects, read-only.
       media: item.media.map((m) => ({ ...m })),
     }));
@@ -394,6 +449,7 @@ export class QuestionService {
         type: "single_select",
         options: doc.options,
         mcGradingStrategy: doc.mcGradingStrategy ?? "all_or_nothing",
+        explanation: doc.explanation ?? undefined,
       } satisfies SingleSelectQuestion;
     }
 
@@ -403,7 +459,12 @@ export class QuestionService {
         type: "multi_select",
         options: doc.options,
         mcGradingStrategy: doc.mcGradingStrategy ?? "all_or_nothing",
+        explanation: doc.explanation ?? undefined,
       } satisfies MultiSelectQuestion;
+    }
+
+    if (type === "image_answer") {
+      return { ...base, type: "image_answer" } satisfies ImageAnswerQuestion;
     }
 
     return { ...base, type: "free_text" } satisfies FreeTextQuestion;

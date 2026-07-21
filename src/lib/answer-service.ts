@@ -8,7 +8,8 @@ import type { TestStartService } from "./test-start-service";
 
 export type StudentAnswer =
   | { type: "free_text"; text: string }
-  | { type: "mc"; selectedIds: string[] };
+  | { type: "mc"; selectedIds: string[] }
+  | { type: "image"; mediaKeys: string[] };
 
 /**
  * Answer document stored in the `answer` collection.
@@ -90,6 +91,13 @@ export class AnswerService {
       throw new Error("Time limit exceeded");
     }
 
+    // An image answer must carry at least one uploaded photo.
+    if (input.answer.type === "image" && input.answer.mediaKeys.length === 0) {
+      throw new Error(
+        "Image answer must include at least one photo. To leave a question unanswered, do not submit an answer for it.",
+      );
+    }
+
     // Validate MC answers against the question's actual options
     if (input.answer.type === "mc") {
       const { selectedIds } = input.answer;
@@ -104,7 +112,11 @@ export class AnswerService {
         .listQuestions(input.testId)
         .then((qs) => qs.find((q) => q.id === input.questionId));
 
-      if (!question || question.type === "free_text") {
+      if (
+        !question ||
+        question.type === "free_text" ||
+        question.type === "image_answer"
+      ) {
         throw new Error("Question not found or is not an MC question");
       }
 

@@ -2,9 +2,15 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "src/components/ui/button";
+import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
 import type { McOption } from "src/lib/question-service";
 import { type SubmitAnswerState, submitAnswerAction } from "./actions";
+import {
+  AnswerImagePickerProvider,
+  useAnswerImagePickerActions,
+  useAnswerImagePickerState,
+} from "./answer-image-picker.state";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,22 +34,51 @@ interface McProps extends BaseProps {
   existingAnswer?: never;
 }
 
-type AnswerFormProps = FreeTextProps | McProps;
+interface ImageProps extends BaseProps {
+  questionType: "image_answer";
+  /** Number of photos the student previously submitted (0 when none). */
+  existingImageCount: number;
+  options?: never;
+  existingAnswer?: never;
+}
+
+type AnswerFormProps = FreeTextProps | McProps | ImageProps;
 
 // ── Component ────────────────────────────────────────────────────────────────
 
+/**
+ * Student answer form. Wraps the body in the answer-image picker provider so
+ * image-answer questions can upload photos before submitting.
+ * @param props - Discriminated by `questionType`.
+ */
 export function AnswerForm(props: AnswerFormProps) {
+  return (
+    <AnswerImagePickerProvider>
+      <AnswerFormInner {...props} />
+    </AnswerImagePickerProvider>
+  );
+}
+
+function AnswerFormInner(props: AnswerFormProps) {
   const { testId, courseId, questionId, questionType } = props;
-  const isMC = questionType !== "free_text";
+  // Inline discriminant (not the isMcQuestionType helper): this exact aliased
+  // form is what lets TS narrow the AnswerFormProps union to the MC variant.
+  const isMC =
+    questionType === "single_select" || questionType === "multi_select";
+  const isImage = questionType === "image_answer";
+  const imagePicker = useAnswerImagePickerState();
+  const imageActions = useAnswerImagePickerActions();
 
   // For MC questions, track currently selected option IDs
   const [selectedIds, setSelectedIds] = useState<string[]>(
     isMC ? props.existingSelectedIds : [],
   );
 
-  const [isEditing, setIsEditing] = useState(
-    isMC ? props.existingSelectedIds.length === 0 : !props.existingAnswer,
-  );
+  const [isEditing, setIsEditing] = useState(() => {
+    if (isMC) return props.existingSelectedIds.length === 0;
+    if (isImage) return props.existingImageCount === 0;
+    return !props.existingAnswer;
+  });
 
   const [state, formAction, isPending] = useActionState<
     SubmitAnswerState | null,
@@ -51,6 +86,20 @@ export function AnswerForm(props: AnswerFormProps) {
   >(async (_prevState, rawFormData) => {
     if (isMC) {
       rawFormData.set("selectedIds", JSON.stringify(selectedIds));
+    }
+    if (isImage) {
+      // Upload the selected photos to S3, then attach their keys to the answer.
+      // A failure here aborts the submit — the answer is never created.
+      let mediaKeys: string[];
+      try {
+        mediaKeys = await imageActions.uploadSelectedFiles();
+      } catch (err) {
+        return {
+          success: false,
+          message: err instanceof Error ? err.message : "Photo upload failed",
+        };
+      }
+      rawFormData.set("mediaKeys", JSON.stringify(mediaKeys));
     }
     const result = await submitAnswerAction(_prevState, rawFormData);
     if (result.success) {
@@ -88,8 +137,23 @@ export function AnswerForm(props: AnswerFormProps) {
     );
   }
 
+  // ── Image-answer read-only view ──────────────────────────────────────────
+  if (isImage && !isEditing) {
+    return (
+      <div className="space-y-3">
+        <div className="rounded-md border bg-muted/50 p-3 text-sm">
+          {props.existingImageCount} photo
+          {props.existingImageCount === 1 ? "" : "s"} submitted.
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+          Edit Answer
+        </Button>
+      </div>
+    );
+  }
+
   // ── Free-text read-only view ─────────────────────────────────────────────
-  if (!isMC && !isEditing) {
+  if (questionType === "free_text" && !isEditing) {
     return (
       <div className="space-y-3">
         <div className="rounded-md border bg-muted/50 p-3">
@@ -145,6 +209,49 @@ export function AnswerForm(props: AnswerFormProps) {
             );
           })}
         </div>
+      ) : isImage ? (
+        // Image-answer input: photo picker
+        <div className="space-y-2">
+          <label htmlFor="answer-photos" className="text-sm font-medium">
+            Your photos
+          </label>
+          <Input
+            id="answer-photos"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            multiple
+            onChange={(event) => {
+              imageActions.addFiles(Array.from(event.target.files ?? []));
+              event.target.value = "";
+            }}
+          />
+          {imagePicker.selectedFiles.length > 0 && (
+            <ul className="grid gap-1" aria-label="Selected photos">
+              {imagePicker.selectedFiles.map((selected) => (
+                <li
+                  key={selected.id}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <span>{selected.file.name}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Remove ${selected.file.name}`}
+                    onClick={() => imageActions.removeFile(selected.id)}
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {imagePicker.validationError && (
+            <p className="text-sm text-destructive">
+              {imagePicker.validationError}
+            </p>
+          )}
+        </div>
       ) : (
         // Free-text input
         <Textarea
@@ -163,7 +270,9 @@ export function AnswerForm(props: AnswerFormProps) {
 
         {(isMC
           ? props.existingSelectedIds.length > 0
-          : !!props.existingAnswer) && (
+          : isImage
+            ? props.existingImageCount > 0
+            : !!props.existingAnswer) && (
           <Button
             type="button"
             variant="ghost"

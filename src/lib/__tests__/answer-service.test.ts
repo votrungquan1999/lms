@@ -12,6 +12,56 @@ const dbIt = withTestDb(it);
 
 describe("AnswerService - Integration Tests", () => {
   dbIt(
+    "should store an image answer as { type: 'image', mediaKeys } and reject an empty one",
+    async ({ db }) => {
+      const questionService = new QuestionService(db);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
+
+      const imageQuestion = await questionService.addQuestion("test-1", {
+        title: "Solve",
+        content: "Upload your work",
+        createdBy: "admin",
+        type: "image_answer",
+      });
+
+      // A photo answer is stored verbatim
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: imageQuestion.id,
+        studentId: "student-1",
+        answer: {
+          type: "image",
+          mediaKeys: ["answers/student-1/a.png", "answers/student-1/b.png"],
+        },
+      });
+
+      const [latest] = await answerService.getLatestAnswers(
+        "test-1",
+        "student-1",
+      );
+      expect(latest.answer).toEqual({
+        type: "image",
+        mediaKeys: ["answers/student-1/a.png", "answers/student-1/b.png"],
+      });
+
+      // An image answer with no photos is rejected
+      await expect(
+        answerService.submitAnswer({
+          testId: "test-1",
+          questionId: imageQuestion.id,
+          studentId: "student-2",
+          answer: { type: "image", mediaKeys: [] },
+        }),
+      ).rejects.toThrow();
+    },
+  );
+
+  dbIt(
     "should store MC answer as { type: 'mc', selectedIds } and free-text as { type: 'free_text', text }",
     async ({ db }) => {
       const questionService = new QuestionService(db);

@@ -158,7 +158,11 @@ function resolveAnswer(
   if (!answer) return [];
   if (answer.type === "free_text") return [answer.text];
 
-  if (question.type === "free_text") return [];
+  if (question.type === "free_text" || question.type === "image_answer") {
+    return [];
+  }
+  // Only MC answers resolve to option texts; image answers have none.
+  if (answer.type !== "mc") return [];
   const selected = new Set(answer.selectedIds);
   return question.options
     .filter((option) => selected.has(option.id))
