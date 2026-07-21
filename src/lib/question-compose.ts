@@ -18,6 +18,8 @@ export interface PoolQuestionSnapshotInput {
   options: McOption[] | null;
   weight: number;
   mcGradingStrategy: McGradingStrategy | null;
+  /** Optional teacher note shown to the student once correct answers are revealed (MC only). */
+  explanation: string | null;
   media: QuestionMediaInput[];
 }
 

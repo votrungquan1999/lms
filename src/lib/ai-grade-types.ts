@@ -4,7 +4,7 @@
  * (prefixed with `ai:`) so it lines up with the human-authored convention
  * used by GradeService.
  */
-export const AI_MODEL_NAME = "gemini-2.5-flash";
+export const AI_MODEL_NAME = "gemini-3.5-flash";
 
 /**
  * Audit string written to `gradedBy` on every AI suggestion row. Mirrors the
@@ -36,7 +36,7 @@ export interface AiGradeSuggestionDocument {
   solution?: string;
   /** Snapshot of the answer the AI was shown — drives the stale check (Step 8). */
   gradedAgainstAnswerId: string;
-  /** Raw model name, e.g. `"gemini-2.5-flash"`. */
+  /** Raw model name, e.g. `"gemini-3.5-flash"`. */
   model: string;
   /** Audit string mirroring `gradedBy` on the human grade collection. */
   gradedBy: string;

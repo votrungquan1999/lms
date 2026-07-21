@@ -19,6 +19,7 @@ export const addPoolQuestionSchema = z.discriminatedUnion("type", [
     title: z.string().trim().min(1, "Question title is required"),
     content: z.string().default(""),
     options: z.array(optionSchema).min(2, "At least 2 options are required"),
+    explanation: z.string().trim().optional(),
   }),
   z.object({
     type: z.literal("multi_select"),
@@ -29,5 +30,6 @@ export const addPoolQuestionSchema = z.discriminatedUnion("type", [
     mcGradingStrategy: z
       .enum(["all_or_nothing", "partial"])
       .default("all_or_nothing"),
+    explanation: z.string().trim().optional(),
   }),
 ]);

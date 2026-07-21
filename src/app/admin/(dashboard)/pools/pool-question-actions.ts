@@ -56,6 +56,7 @@ export async function addPoolQuestionAction(
     title: formData.get("title"),
     content: formData.get("content"),
     ...(options !== undefined && { options }),
+    explanation: formData.get("explanation")?.toString(),
   });
 
   if (!parsed.success) {
@@ -104,6 +105,8 @@ export async function addPoolQuestionAction(
             options: data.options,
             createdBy: adminUserId,
             media,
+            // Blank/whitespace-only explanation normalizes to "absent" (persisted null).
+            explanation: data.explanation || undefined,
           });
         } else {
           await poolQuestionService.addPoolQuestion(data.poolId, {
@@ -114,6 +117,7 @@ export async function addPoolQuestionAction(
             mcGradingStrategy: data.mcGradingStrategy,
             createdBy: adminUserId,
             media,
+            explanation: data.explanation || undefined,
           });
         }
         revalidatePath(`/admin/pools/${data.poolId}`);

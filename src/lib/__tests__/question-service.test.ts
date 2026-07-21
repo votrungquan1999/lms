@@ -40,6 +40,41 @@ describe("QuestionService - Integration Tests", () => {
   );
 
   dbIt(
+    "should persist and read back an explanation on a single_select question, leaving it undefined when omitted",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      await service.addQuestion("test-1", {
+        title: "What is 2 + 2?",
+        content: "Choose the correct answer.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "3", isCorrect: false },
+          { text: "4", isCorrect: true },
+        ],
+        explanation: "4 is the sum of 2 and 2.",
+      });
+      await service.addQuestion("test-1", {
+        title: "What is 3 + 3?",
+        content: "Choose the correct answer.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "6", isCorrect: true },
+          { text: "5", isCorrect: false },
+        ],
+      });
+
+      const [withExplanation, withoutExplanation] =
+        (await service.listQuestions("test-1")) as SingleSelectQuestion[];
+
+      expect(withExplanation.explanation).toBe("4 is the sum of 2 and 2.");
+      expect(withoutExplanation.explanation).toBeUndefined();
+    },
+  );
+
+  dbIt(
     "should reject single_select creation when no option is marked correct",
     async ({ db }) => {
       const service = new QuestionService(db);
@@ -148,6 +183,22 @@ describe("QuestionService - Integration Tests", () => {
     expect(question.content).toBe(markdownContent);
     expect(question.order).toBe(1);
   });
+
+  dbIt(
+    "should store an image_answer question and map it back as image_answer",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Solve the integral",
+        content: "Upload a photo of your handwritten solution.",
+        createdBy: "admin-1",
+        type: "image_answer",
+      });
+
+      expect(question.type).toBe("image_answer");
+    },
+  );
 
   dbIt("should assign increasing order numbers", async ({ db }) => {
     const service = new QuestionService(db);
@@ -328,6 +379,7 @@ describe("QuestionService - Integration Tests", () => {
                 ],
                 weight: 2,
                 mcGradingStrategy: "all_or_nothing",
+                explanation: null,
                 media: [
                   {
                     key: "pools/p1/diagram.png",
@@ -363,6 +415,47 @@ describe("QuestionService - Integration Tests", () => {
       // Media key is copied verbatim (shared S3, read-only).
       expect(q.media).toHaveLength(1);
       expect(q.media[0].key).toBe("pools/p1/diagram.png");
+    },
+  );
+
+  dbIt(
+    "composeFromPools carries a pooled single_select question's explanation into the composed test question",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      await service.composeFromPools(
+        "test-1",
+        [
+          {
+            count: 1,
+            questions: [
+              {
+                title: "Pool single with explanation",
+                content: "pick one",
+                type: "single_select",
+                options: [
+                  { id: "pool-opt-a", text: "A", isCorrect: true },
+                  { id: "pool-opt-b", text: "B", isCorrect: false },
+                ],
+                weight: 1,
+                mcGradingStrategy: "all_or_nothing",
+                explanation: "A is correct because it is the capital.",
+                media: [],
+              },
+            ],
+          },
+        ],
+        "admin-1",
+        takeFirst,
+      );
+
+      const [composed] = (await service.listQuestions(
+        "test-1",
+      )) as SingleSelectQuestion[];
+
+      expect(composed.explanation).toBe(
+        "A is correct because it is the capital.",
+      );
     },
   );
 
@@ -463,6 +556,7 @@ function freeTextSnapshot(title: string): PoolQuestionSnapshotInput {
     options: null,
     weight: 1,
     mcGradingStrategy: null,
+    explanation: null,
     media: [],
   };
 }

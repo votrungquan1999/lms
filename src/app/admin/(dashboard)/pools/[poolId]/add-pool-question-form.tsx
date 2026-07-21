@@ -241,6 +241,24 @@ function AddPoolQuestionFormInner({ poolId }: { poolId: string }) {
                 </div>
               )}
 
+              {/* Optional explanation, shown to the student once correct answers are revealed */}
+              {isMC && (
+                <div className="space-y-2">
+                  <Label htmlFor="question-explanation">
+                    Explanation{" "}
+                    <span className="text-xs text-muted-foreground">
+                      (optional)
+                    </span>
+                  </Label>
+                  <Textarea
+                    id="question-explanation"
+                    name="explanation"
+                    placeholder="Explain why the correct answer is correct…"
+                    rows={3}
+                  />
+                </div>
+              )}
+
               <div className="space-y-2">
                 <QuestionMediaFileInput />
                 <QuestionMediaFileList />

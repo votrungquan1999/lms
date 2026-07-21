@@ -73,6 +73,30 @@ describe("addPoolQuestionAction", () => {
     ).toHaveLength(0);
   });
 
+  it("normalizes a whitespace-only explanation to absent rather than persisting the whitespace", async () => {
+    const form = new FormData();
+    form.set("type", "single_select");
+    form.set("poolId", "pool-1");
+    form.set("title", "Capital of France");
+    form.set("content", "Pick one");
+    form.set(
+      "options",
+      JSON.stringify([
+        { text: "Paris", isCorrect: true },
+        { text: "Berlin", isCorrect: false },
+      ]),
+    );
+    form.set("explanation", "   ");
+
+    const result = await addPoolQuestionAction(null, form);
+
+    expect(result.success).toBe(true);
+    const [question] =
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1");
+    if (question.type !== "single_select") throw new Error("type narrow");
+    expect(question.explanation).toBeUndefined();
+  });
+
   it("rejects a non-admin caller and stores nothing", async () => {
     requireAdminSession.mockRejectedValueOnce(new Error("forbidden"));
 

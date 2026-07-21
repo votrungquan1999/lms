@@ -92,7 +92,7 @@ describe("AiGradeService.generateForStudent - Step 1", () => {
       expect(sugQ1.score).toBe(85);
       expect(sugQ1.feedback).toBe("Solid explanation.");
       expect(sugQ1.gradedAgainstAnswerId).toBe(a1.id);
-      expect(sugQ1.model).toBe("gemini-2.5-flash");
+      expect(sugQ1.model).toBe("gemini-3.5-flash");
       expect(sugQ1.generatedAt).toBeInstanceOf(Date);
       expect(sugQ1.appliedAt).toBeNull();
       expect(sugQ1.appliedBy).toBeNull();
@@ -415,8 +415,8 @@ describe("AiGradeService.applySuggestion - Step 6 (apply-over-human-grade refusa
         score: 30,
         feedback: "AI thinks this is mediocre.",
         gradedAgainstAnswerId: "answer-snapshot-1",
-        model: "gemini-2.5-flash",
-        gradedBy: "ai:gemini-2.5-flash",
+        model: "gemini-3.5-flash",
+        gradedBy: "ai:gemini-3.5-flash",
         generatedByAdminId: "admin-1",
         generatedAt: now,
         regenerateReason: null,
@@ -748,8 +748,8 @@ describe("AiGradeService.applySuggestion - Step 7 (switch applied back to a non-
         score: 60,
         feedback: "first try",
         gradedAgainstAnswerId: "answer-snapshot-1",
-        model: "gemini-2.5-flash",
-        gradedBy: "ai:gemini-2.5-flash",
+        model: "gemini-3.5-flash",
+        gradedBy: "ai:gemini-3.5-flash",
         generatedByAdminId: "admin-1",
         generatedAt: olderTime,
         regenerateReason: null,
@@ -765,8 +765,8 @@ describe("AiGradeService.applySuggestion - Step 7 (switch applied back to a non-
         score: 80,
         feedback: "second try",
         gradedAgainstAnswerId: "answer-snapshot-1",
-        model: "gemini-2.5-flash",
-        gradedBy: "ai:gemini-2.5-flash",
+        model: "gemini-3.5-flash",
+        gradedBy: "ai:gemini-3.5-flash",
         generatedByAdminId: "admin-2",
         generatedAt: newerTime,
         regenerateReason: "regen reason",
@@ -860,8 +860,8 @@ describe("AiGradeService.applySuggestion - Step 7 (solutionOverride precedence)"
         feedback: "ok",
         solution: "ai-solution",
         gradedAgainstAnswerId: "answer-snap-1",
-        model: "gemini-2.5-flash",
-        gradedBy: "ai:gemini-2.5-flash",
+        model: "gemini-3.5-flash",
+        gradedBy: "ai:gemini-3.5-flash",
         generatedByAdminId: "admin-1",
         generatedAt: new Date(),
         regenerateReason: null,
@@ -926,8 +926,8 @@ describe("AiGradeService.applySuggestion - Step 6 (solution into grade row)", ()
         feedback: "ok",
         solution: aiSolution,
         gradedAgainstAnswerId: "answer-snap-1",
-        model: "gemini-2.5-flash",
-        gradedBy: "ai:gemini-2.5-flash",
+        model: "gemini-3.5-flash",
+        gradedBy: "ai:gemini-3.5-flash",
         generatedByAdminId: "admin-1",
         generatedAt: new Date(),
         regenerateReason: null,

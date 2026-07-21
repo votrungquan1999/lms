@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { McAnswerChips } from "src/components/mc-answer-chips";
+import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,7 +40,11 @@ import {
  * action. See `saveAndJumpToNextAction` for the semantics.
  */
 export interface SaveAndNextNavigation {
-  /** Comma-separated student ids in current roster sort order. */
+  /**
+   * Comma-separated ids in navigation order. Meaning depends on `mode`:
+   * student ids in roster sort order for `"question"`; this student's
+   * ordered form-bearing question ids for `"student"`.
+   */
   candidateIds: string;
   /** The student id currently focused (the one being graded right now). */
   currentStudentId: string;
@@ -64,6 +69,8 @@ interface BaseGradeFormProps {
   studentStatus?: TestStatus;
   /** When present, renders a "Save & Next" button alongside the save. */
   saveAndNext?: SaveAndNextNavigation;
+  /** DOM id on the outer wrapper — scroll target for `#question-<id>` links. */
+  id?: string;
 }
 
 // ── Shared primitive: score / feedback / solution inputs ──────────────────────
@@ -140,12 +147,16 @@ function GradeInputs({
 interface FreeTextQuestionGradeFormProps extends BaseGradeFormProps {
   /** The student's plain-text answer, or null if not submitted. */
   answerText: string | null;
+  /** Extra content (e.g. an AI suggestion panel) rendered inside the box. */
+  children?: React.ReactNode;
 }
 
 export function FreeTextQuestionGradeForm({
   answerText,
   questionTitle,
   questionOrder,
+  children,
+  id,
   ...rest
 }: FreeTextQuestionGradeFormProps) {
   const answerDisplay = answerText ? (
@@ -162,7 +173,11 @@ export function FreeTextQuestionGradeForm({
   );
 
   return (
-    <div className="rounded-lg border p-4 space-y-3" data-testid="grade-card">
+    <div
+      id={id}
+      className="rounded-lg border p-4 space-y-3"
+      data-testid="grade-card"
+    >
       <h4 className="font-medium text-sm">
         <span className="text-muted-foreground">#{questionOrder}</span>{" "}
         {questionTitle}
@@ -175,6 +190,7 @@ export function FreeTextQuestionGradeForm({
           {...rest}
         />
       )}
+      {children}
     </div>
   );
 }
@@ -193,7 +209,8 @@ export function McQuestionGradeForm({
   options,
   questionTitle,
   questionOrder,
-  ...rest
+  existingScore,
+  id,
 }: McQuestionGradeFormProps) {
   const answerDisplay = (
     <div className="space-y-1">
@@ -205,17 +222,17 @@ export function McQuestionGradeForm({
   );
 
   return (
-    <div className="rounded-lg border p-4 space-y-3" data-testid="grade-card">
+    <div
+      id={id}
+      className="rounded-lg border p-4 space-y-3"
+      data-testid="grade-card"
+    >
       <h4 className="font-medium text-sm">
         <span className="text-muted-foreground">#{questionOrder}</span>{" "}
         {questionTitle}
       </h4>
       {answerDisplay}
-      <GradeFormInner
-        questionTitle={questionTitle}
-        questionOrder={questionOrder}
-        {...rest}
-      />
+      <McReadOnlyScore selectedIds={selectedIds} score={existingScore} />
     </div>
   );
 }

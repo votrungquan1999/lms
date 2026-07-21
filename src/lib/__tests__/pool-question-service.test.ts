@@ -1,4 +1,7 @@
-import { PoolQuestionService } from "src/lib/pool-question-service";
+import {
+  PoolQuestionService,
+  type PoolSingleSelectQuestion,
+} from "src/lib/pool-question-service";
 import { MediaContentType } from "src/lib/question-service";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
@@ -47,6 +50,37 @@ describe("PoolQuestionService", () => {
       expect(question.options.every((o) => o.id.length > 0)).toBe(true);
       expect(question.options.filter((o) => o.isCorrect)).toHaveLength(1);
       expect(question.mcGradingStrategy).toBe("all_or_nothing");
+    },
+  );
+
+  dbIt(
+    "persists and reads back an explanation on a single_select pool question, including via listSnapshotInputs",
+    async ({ db }) => {
+      const service = new PoolQuestionService(db);
+
+      await service.addPoolQuestion("pool-1", {
+        type: "single_select",
+        title: "Capital of France",
+        content: "Pick one",
+        createdBy: "admin-1",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "Berlin", isCorrect: false },
+        ],
+        explanation: "Paris has been the capital since the 12th century.",
+      });
+
+      const [question] = (await service.listPoolQuestions(
+        "pool-1",
+      )) as PoolSingleSelectQuestion[];
+      const [snapshot] = await service.listSnapshotInputs("pool-1");
+
+      expect(question.explanation).toBe(
+        "Paris has been the capital since the 12th century.",
+      );
+      expect(snapshot.explanation).toBe(
+        "Paris has been the capital since the 12th century.",
+      );
     },
   );
 

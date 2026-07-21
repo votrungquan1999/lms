@@ -45,7 +45,8 @@ export async function addQuestionAction(
   const type = (formData.get("type") ?? "free_text").toString() as
     | "free_text"
     | "single_select"
-    | "multi_select";
+    | "multi_select"
+    | "image_answer";
 
   // Parse MC options if present
   const optionsJson = formData.get("options")?.toString();
@@ -65,6 +66,7 @@ export async function addQuestionAction(
     title: formData.get("title"),
     content: formData.get("content"),
     ...(options !== undefined && { options }),
+    explanation: formData.get("explanation")?.toString(),
   });
 
   if (!parsed.success) {
@@ -107,6 +109,14 @@ export async function addQuestionAction(
             createdBy: adminUserId,
             media,
           });
+        } else if (data.type === "image_answer") {
+          await questionService.addQuestion(data.testId, {
+            title: data.title,
+            content: data.content,
+            type: "image_answer",
+            createdBy: adminUserId,
+            media,
+          });
         } else if (data.type === "single_select") {
           await questionService.addQuestion(data.testId, {
             title: data.title,
@@ -115,6 +125,8 @@ export async function addQuestionAction(
             options: data.options,
             createdBy: adminUserId,
             media,
+            // Blank/whitespace-only explanation normalizes to "absent" (persisted null).
+            explanation: data.explanation || undefined,
           });
         } else {
           await questionService.addQuestion(data.testId, {
@@ -125,6 +137,7 @@ export async function addQuestionAction(
             mcGradingStrategy: data.mcGradingStrategy,
             createdBy: adminUserId,
             media,
+            explanation: data.explanation || undefined,
           });
         }
 

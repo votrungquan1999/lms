@@ -11,6 +11,7 @@ import {
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
+import { isMcQuestionType } from "src/lib/question-service";
 import { type AddQuestionState, addQuestionAction } from "./actions";
 import type { SubmittedMedia } from "./question-media.schema";
 import {
@@ -23,7 +24,11 @@ import {
   QuestionTypeSidebar,
 } from "./question-media-picker.ui";
 
-type QuestionType = "free_text" | "single_select" | "multi_select";
+type QuestionType =
+  | "free_text"
+  | "single_select"
+  | "multi_select"
+  | "image_answer";
 
 interface OptionDraft {
   text: string;
@@ -34,12 +39,15 @@ const TYPE_LABELS: Record<QuestionType, string> = {
   free_text: "Free Text",
   single_select: "Single Select",
   multi_select: "Multi Select",
+  image_answer: "Image Answer",
 };
 
 const TYPE_DESCRIPTIONS: Record<QuestionType, string> = {
   free_text: "Open-ended answer — graded manually by the teacher.",
   single_select: "One correct option — auto-graded on submission.",
   multi_select: "Multiple correct options — auto-graded on submission.",
+  image_answer:
+    "Student uploads photo(s) of handwritten work — graded manually.",
 };
 
 /** The two blank options a fresh MC question starts with. */
@@ -93,7 +101,7 @@ function AddQuestionFormInner({
     FormData
   >(async (_prevState, rawFormData) => {
     rawFormData.set("type", questionType);
-    if (questionType !== "free_text") {
+    if (isMcQuestionType(questionType)) {
       rawFormData.set("options", JSON.stringify(options));
     }
 
@@ -137,7 +145,7 @@ function AddQuestionFormInner({
       ),
     );
 
-  const isMC = questionType !== "free_text";
+  const isMC = isMcQuestionType(questionType);
 
   return (
     <Card className="w-full">
@@ -255,6 +263,24 @@ function AddQuestionFormInner({
                   >
                     + Add Option
                   </Button>
+                </div>
+              )}
+
+              {/* Optional explanation, shown to the student once correct answers are revealed */}
+              {isMC && (
+                <div className="space-y-2">
+                  <Label htmlFor="question-explanation">
+                    Explanation{" "}
+                    <span className="text-xs text-muted-foreground">
+                      (optional)
+                    </span>
+                  </Label>
+                  <Textarea
+                    id="question-explanation"
+                    name="explanation"
+                    placeholder="Explain why the correct answer is correct…"
+                    rows={3}
+                  />
                 </div>
               )}
 

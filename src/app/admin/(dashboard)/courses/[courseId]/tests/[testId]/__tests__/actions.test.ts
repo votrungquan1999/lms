@@ -1,4 +1,7 @@
-import { MediaContentType } from "src/lib/question-service";
+import {
+  MediaContentType,
+  type SingleSelectQuestion,
+} from "src/lib/question-service";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -140,6 +143,59 @@ describe("Feature: teacher attaches media to a question", () => {
       const questions =
         await getTestServices().questionService.listQuestions("test-1");
       expect(questions).toHaveLength(0);
+    });
+  });
+
+  describe("creating a single_select question with an explanation", () => {
+    it("persists the submitted explanation on the created question", async () => {
+      const formData = new FormData();
+      formData.set("type", "single_select");
+      formData.set("testId", "test-1");
+      formData.set("courseId", "course-1");
+      formData.set("title", "What is 2 + 2?");
+      formData.set("content", "Choose the correct answer.");
+      formData.set(
+        "options",
+        JSON.stringify([
+          { text: "3", isCorrect: false },
+          { text: "4", isCorrect: true },
+        ]),
+      );
+      formData.set("explanation", "4 is the sum of 2 and 2.");
+
+      const result = await addQuestionAction(null, formData);
+
+      expect(result.success).toBe(true);
+      const [question] =
+        await getTestServices().questionService.listQuestions("test-1");
+      expect(question.type).toBe("single_select");
+      expect((question as SingleSelectQuestion).explanation).toBe(
+        "4 is the sum of 2 and 2.",
+      );
+    });
+
+    it("normalizes a whitespace-only explanation to absent rather than persisting the whitespace", async () => {
+      const formData = new FormData();
+      formData.set("type", "single_select");
+      formData.set("testId", "test-1");
+      formData.set("courseId", "course-1");
+      formData.set("title", "What is 2 + 2?");
+      formData.set("content", "Choose the correct answer.");
+      formData.set(
+        "options",
+        JSON.stringify([
+          { text: "3", isCorrect: false },
+          { text: "4", isCorrect: true },
+        ]),
+      );
+      formData.set("explanation", "   ");
+
+      const result = await addQuestionAction(null, formData);
+
+      expect(result.success).toBe(true);
+      const [question] =
+        await getTestServices().questionService.listQuestions("test-1");
+      expect((question as SingleSelectQuestion).explanation).toBeUndefined();
     });
   });
 

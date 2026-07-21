@@ -26,7 +26,7 @@ function buildSuggestion(
     score: 70,
     feedback: "default feedback",
     gradedAgainstAnswerId: "answer-1",
-    model: "gemini-2.5-flash",
+    model: "gemini-3.5-flash",
     generatedAt: new Date("2026-01-01T00:00:00Z"),
     regenerateReason: null,
     appliedAt: null,

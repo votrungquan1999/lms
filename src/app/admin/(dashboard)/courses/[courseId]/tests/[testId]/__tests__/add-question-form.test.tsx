@@ -36,6 +36,38 @@ describe("Feature: Add Question Form", () => {
     });
   });
 
+  describe("Scenario: Admin adds an image-answer question", () => {
+    it("offers the image-answer type, hides the options builder, and submits type image_answer", async () => {
+      // Given the add-question form
+      const user = userEvent.setup();
+      vi.mocked(addQuestionAction).mockResolvedValue({
+        success: true,
+        message: "Question added successfully",
+      });
+      render(<AddQuestionForm testId="test-1" courseId="course-1" />);
+
+      // When the admin selects the Image Answer type
+      await user.click(screen.getByRole("button", { name: "Image Answer" }));
+
+      // Then no multiple-choice options builder is shown
+      expect(
+        screen.queryByRole("button", { name: "+ Add Option" }),
+      ).not.toBeInTheDocument();
+
+      // And submitting creates an image_answer question
+      await user.type(
+        screen.getByLabelText("Question Title"),
+        "Solve the integral",
+      );
+      await user.click(screen.getByRole("button", { name: "Add Question" }));
+
+      await waitFor(() => expect(addQuestionAction).toHaveBeenCalled());
+      const formData = vi.mocked(addQuestionAction).mock.calls[0][1];
+      expect(formData.get("type")).toBe("image_answer");
+      expect(formData.get("options")).toBeNull();
+    });
+  });
+
   describe("Scenario: Content textarea is configured for markdown", () => {
     it("should have sufficient rows for pasting markdown", () => {
       // Setup & Action

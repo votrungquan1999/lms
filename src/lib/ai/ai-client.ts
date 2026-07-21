@@ -74,7 +74,7 @@ export interface AiClient {
 }
 
 /** Gemini model id used for the live grading path. */
-const GEMINI_MODEL_ID = "gemini-2.5-flash";
+const GEMINI_MODEL_ID = "gemini-3.5-flash";
 
 /**
  * Live Gemini-backed `AiClient` implementation.

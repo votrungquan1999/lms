@@ -32,12 +32,16 @@ export interface PoolSingleSelectQuestion extends BasePoolQuestion {
   type: "single_select";
   options: McOption[];
   mcGradingStrategy: McGradingStrategy;
+  /** Optional teacher note shown to the student once correct answers are revealed. */
+  explanation?: string;
 }
 
 export interface PoolMultiSelectQuestion extends BasePoolQuestion {
   type: "multi_select";
   options: McOption[];
   mcGradingStrategy: McGradingStrategy;
+  /** Optional teacher note shown to the student once correct answers are revealed. */
+  explanation?: string;
 }
 
 export type PoolQuestion =
@@ -65,6 +69,7 @@ export interface AddPoolSingleSelectQuestionInput
   type: "single_select";
   options: Omit<McOption, "id">[];
   mcGradingStrategy?: McGradingStrategy;
+  explanation?: string;
 }
 
 export interface AddPoolMultiSelectQuestionInput
@@ -72,6 +77,7 @@ export interface AddPoolMultiSelectQuestionInput
   type: "multi_select";
   options: Omit<McOption, "id">[];
   mcGradingStrategy: McGradingStrategy;
+  explanation?: string;
 }
 
 export type AddPoolQuestionInput =
@@ -99,6 +105,8 @@ export interface PoolQuestionDocument {
   options: McOption[] | null;
   weight: number;
   mcGradingStrategy: McGradingStrategy | null;
+  /** Optional teacher note shown to the student once correct answers are revealed (MC only). */
+  explanation: string | null;
   media: QuestionMediaDocument[];
 }
 
@@ -157,6 +165,7 @@ export class PoolQuestionService {
       weight: input.weight ?? 1,
       mcGradingStrategy:
         "mcGradingStrategy" in input ? (input.mcGradingStrategy ?? null) : null,
+      explanation: "explanation" in input ? (input.explanation ?? null) : null,
       media: input.media ?? [],
     };
 
@@ -198,6 +207,7 @@ export class PoolQuestionService {
       options: doc.options,
       weight: doc.weight ?? 1,
       mcGradingStrategy: doc.mcGradingStrategy,
+      explanation: doc.explanation,
       media: (doc.media ?? []).map((m) => ({
         key: m.key,
         contentType: m.contentType,
@@ -277,6 +287,7 @@ export class PoolQuestionService {
         type: "single_select",
         options: doc.options,
         mcGradingStrategy: doc.mcGradingStrategy ?? "all_or_nothing",
+        explanation: doc.explanation ?? undefined,
       } satisfies PoolSingleSelectQuestion;
     }
 
@@ -286,6 +297,7 @@ export class PoolQuestionService {
         type: "multi_select",
         options: doc.options,
         mcGradingStrategy: doc.mcGradingStrategy ?? "all_or_nothing",
+        explanation: doc.explanation ?? undefined,
       } satisfies PoolMultiSelectQuestion;
     }
 

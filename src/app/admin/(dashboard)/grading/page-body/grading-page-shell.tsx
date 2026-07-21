@@ -137,7 +137,6 @@ export async function GradingPageShell({
         test,
         courseId,
         student: focused,
-        candidateIds: sortedStudentIds,
         basePath,
         sort: selection.sort,
       })
