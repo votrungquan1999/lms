@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Button } from "src/components/ui/button";
 import { Card, CardHeader, CardTitle } from "src/components/ui/card";
 import { Separator } from "src/components/ui/separator";
+import { attachCourseMaterialUrls } from "src/lib/course-material-urls";
 import {
   getCourseService,
   getEnrollmentService,
@@ -14,12 +15,16 @@ import {
 import { TestStatus } from "src/lib/test-status-service";
 import { CreateTestDialog } from "./create-test-form";
 import { ManageEnrollmentsDialog } from "./enroll-student-form";
+import { MaterialsSection } from "./materials-section";
 import { DeleteTestButton } from "./tests/[testId]/delete-test-button";
 
 export const metadata = {
   title: "Course Detail — LMS Admin",
   description: "Manage course enrollments and tests",
 };
+
+// Materials render short-lived presigned download URLs minted per request.
+export const dynamic = "force-dynamic";
 
 const statusLabels: Record<TestStatus, string> = {
   [TestStatus.NotStarted]: "Not Started",
@@ -41,6 +46,8 @@ export default async function CourseDetailPage({
   if (!course) {
     notFound();
   }
+
+  const materials = await attachCourseMaterialUrls(course.materials);
 
   const testService = await getTestService();
   const tests = await testService.listTests(courseId);
@@ -137,6 +144,10 @@ export default async function CourseDetailPage({
             </p>
           )}
         </div>
+
+        <Separator />
+
+        <MaterialsSection courseId={courseId} materials={materials} />
 
         <Separator />
 

@@ -9,6 +9,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "src/components/ui/breadcrumb";
+import { attachCourseMaterialUrls } from "src/lib/course-material-urls";
 import {
   getCourseService,
   getGradeService,
@@ -20,12 +21,16 @@ import {
 import { TestStatus } from "src/lib/test-status-service";
 import { EmptyState } from "../../_ui/empty-state.ui";
 import { PageHeader } from "../../_ui/page-header.ui";
+import { MaterialsList } from "./materials-list";
 import { TestRow } from "./test-row.ui";
 
 export const metadata = {
   title: "Course — LMS",
   description: "View course tests",
 };
+
+// Materials render short-lived presigned download URLs minted per request.
+export const dynamic = "force-dynamic";
 
 /**
  * Course detail page: a header with course info and progress summary, plus the
@@ -47,6 +52,8 @@ export default async function StudentCourseDetailPage({
   if (!course) {
     notFound();
   }
+
+  const materials = await attachCourseMaterialUrls(course.materials);
 
   const testService = await getTestService();
   const tests = await testService.listTests(courseId);
@@ -104,6 +111,13 @@ export default async function StudentCourseDetailPage({
           </p>
         )}
       </PageHeader>
+
+      {materials.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">Materials</h2>
+          <MaterialsList materials={materials} />
+        </section>
+      )}
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">Tests</h2>
