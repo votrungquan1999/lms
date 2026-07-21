@@ -58,6 +58,17 @@ async function main() {
       showGradeAfterSubmit: definition.test.showGradeAfterSubmit,
     });
 
+    // createTest can't set the time limit; the settings path owns it. Apply it
+    // only when requested, preserving the reveal flags createTest just resolved.
+    if (definition.test.timeLimitMinutes != null) {
+      await testService.updateTestSettings(test.id, {
+        showGradeAfterSubmit: test.showGradeAfterSubmit,
+        showCorrectAnswerAfterSubmit: test.showCorrectAnswerAfterSubmit,
+        timeLimitMinutes: definition.test.timeLimitMinutes,
+        updatedBy: SCRIPT_AUTHOR,
+      });
+    }
+
     // Create questions with explicit type narrowing (same pattern as actions.ts)
     let created = 0;
     for (const q of definition.questions) {

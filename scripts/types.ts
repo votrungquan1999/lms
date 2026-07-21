@@ -32,6 +32,8 @@ export interface TestDefinition {
     description: string;
     showCorrectAnswerAfterSubmit?: boolean;
     showGradeAfterSubmit?: boolean;
+    /** Exam time limit in minutes; omit for an untimed test. */
+    timeLimitMinutes?: number;
   };
 
   /** Ordered list of questions to create in the test. */

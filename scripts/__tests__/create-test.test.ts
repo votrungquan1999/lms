@@ -344,6 +344,60 @@ export default {
     },
   );
 
+  dbIt(
+    "should create a test with the time limit specified in the data file",
+    async ({ db, client }) => {
+      // Given: a course exists
+      const courseService = new CourseService(db);
+      const course = await courseService.createCourse({
+        title: "Timed Course",
+        description: "",
+        createdBy: "admin",
+      });
+
+      // And: a data file that sets a 90-minute time limit
+      const dataFileContent = `
+import type { TestDefinition } from "../types";
+
+export default {
+  courseId: "${course.id}",
+  test: {
+    title: "Timed Test",
+    description: "Has a 90-minute limit",
+    timeLimitMinutes: 90,
+  },
+  questions: [
+    { type: "free_text" as const, title: "Q1", content: "Content 1" },
+  ],
+} satisfies TestDefinition;
+`;
+      const dataFilePath = writeTempDataFile(
+        `temp-timed-${Date.now()}.ts`,
+        dataFileContent,
+      );
+      tempFiles.push(dataFilePath);
+
+      // When: the script is run
+      const mongoUri = `${client.options.hosts
+        .map((h) => `mongodb://${h.host}:${h.port}`)
+        .join(",")}/${db.databaseName}`;
+
+      const result = await runCreateTestScript(dataFilePath, mongoUri);
+
+      // Then: the script exits successfully
+      expect(
+        result.exitCode,
+        `Script failed:\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
+      ).toBe(0);
+
+      // And: the created test carries the 90-minute limit
+      const testService = new TestService(db);
+      const tests = await testService.listTests(course.id);
+      expect(tests).toHaveLength(1);
+      expect(tests[0].timeLimitMinutes).toBe(90);
+    },
+  );
+
   it("should show usage instructions when run without arguments", async () => {
     // When: the script is run without a data file path
     const result = await runCreateTestScript(
