@@ -33,6 +33,8 @@ This Skill provides a structured approach for implementing features and tasks in
 
 Throughout this skill, `<ws>` refers to that working directory. Scoping artifacts under `./tmp/<identifier>/` lets multiple tasks run in parallel without their plan/progress files colliding.
 
+**Before creating `<ws>` or writing anything, check whether it already holds artifacts from unrelated work.** If it does, **STOP and ask the user** how to proceed — never overwrite another task's artifacts.
+
 **Step 1: Understand the Context**
 
 Before creating your plan, read as many relevant files as possible to understand:

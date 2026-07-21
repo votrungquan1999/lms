@@ -4,44 +4,42 @@
   "categories": [
     "component-architecture",
     "database-patterns",
+    "knowledge-base",
     "meta-rules",
     "react-hooks",
     "react-server-components",
     "styling-tailwind",
     "testing-guidelines",
     "typescript-conventions",
-    "url-state-management",
-    "brainstorming-patterns",
-    "knowledge-base"
+    "url-state-management"
   ],
+  "workflows": [],
   "skills": [
+    "ai-kanban-track-session",
+    "ai-kanban-work-card",
     "bdd-design",
     "code-refactoring",
+    "commit-plan",
     "context7",
     "create-implementation-plan",
-    "tdd-design",
-    "test-quality-reviewer",
-    "web-search",
     "create-pr",
-    "orchestrated-feature-dev",
-    "commit-plan",
     "feature-development-workflow",
     "find-patterns",
+    "knowledge-base",
+    "orchestrated-feature-dev",
     "repo-knowledge",
     "review-changes",
     "root-cause-analysis",
+    "setup-private-skills",
     "structured-brainstorming",
+    "tdd-design",
+    "test-quality-reviewer",
     "validate-pr-comments",
-    "ai-kanban-work-card",
-    "knowledge-base",
-    "setup-private-skills"
+    "web-search",
+    "pr-comment-triage"
   ],
-  "workflows": [
-    "commit-plan",
-    "feature-development",
-    "repo-knowledge",
-    "review-changes",
-    "structured-brainstorming"
+  "hooks": [
+    "kanban-track"
   ],
   "scope": [
     "personal"
