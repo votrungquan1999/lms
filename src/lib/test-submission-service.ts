@@ -92,8 +92,10 @@ export class TestSubmissionService {
       releasedBy: null,
     });
 
-    // Auto-grade applicable questions
-    await this.gradeService.autoGradeTest(testId, studentId);
+    // Practice tests are purely formative — never create grades (D2/D9).
+    if (!test?.isPractice) {
+      await this.gradeService.autoGradeTest(testId, studentId);
+    }
   }
 
   /**

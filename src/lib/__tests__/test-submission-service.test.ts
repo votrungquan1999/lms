@@ -656,6 +656,58 @@ describe("TestSubmissionService - Edge Cases", () => {
   );
 
   dbIt(
+    "submitTest on a practice test with an MC question creates no grades and keeps the status as submitted (not graded)",
+    async ({ db }) => {
+      const {
+        questionService,
+        answerService,
+        gradeService,
+        testService,
+        testSubmissionService,
+      } = buildCoreServices(db);
+      const testStatusService = new TestStatusService(
+        answerService,
+        testSubmissionService,
+        gradeService,
+      );
+
+      const test = await testService.createTest("course-1", {
+        title: "Practice Test",
+        description: "",
+        createdBy: "admin-1",
+        isPractice: true,
+      });
+
+      const question = (await questionService.addQuestion(test.id, {
+        title: "Q?",
+        content: "Choose.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "A", isCorrect: true },
+          { text: "B", isCorrect: false },
+        ],
+      })) as SingleSelectQuestion;
+      const correctId = question.options.find((o) => o.isCorrect)!.id;
+
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: question.id,
+        studentId: "student-1",
+        answer: { type: "mc", selectedIds: [correctId] },
+      });
+
+      await testSubmissionService.submitTest(test.id, "student-1");
+
+      const grades = await gradeService.getGrades(test.id, "student-1");
+      expect(grades).toHaveLength(0);
+
+      const status = await testStatusService.getStatus(test.id, "student-1", 1);
+      expect(status).toBe("submitted");
+    },
+  );
+
+  dbIt(
     "submitTest with 2 MC questions where only one is answered auto-grades the answered question and leaves the other with no grade",
     async ({ db }) => {
       const {

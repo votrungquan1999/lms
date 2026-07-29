@@ -185,7 +185,7 @@ export async function GradingDetailStudent({
                 studentId={student.id}
                 hasActiveRedoRequest={hasActiveRedoRequest}
               />
-              {status === TestStatus.Submitted && (
+              {!test.isPractice && status === TestStatus.Submitted && (
                 <AutoGradeWithAiButton
                   testId={testId}
                   courseId={courseId}
