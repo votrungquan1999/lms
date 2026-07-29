@@ -99,6 +99,41 @@ describe("Feature: Test Settings Panel — admin edits visibility flags", () => 
     );
   });
 
+  it("Admin toggles practice mode on, submits, and DB reflects the change", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+
+    const ui = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    const practiceCheckbox = screen.getByRole("checkbox", {
+      name: /practice test/i,
+    });
+    expect(practiceCheckbox).not.toBeChecked();
+
+    await user.click(practiceCheckbox);
+    await user.click(screen.getByRole("button", { name: /save settings/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/saved/i);
+    });
+
+    const after = await services.testService.getTest(test.id);
+    expect(after?.isPractice).toBe(true);
+  });
+
   it("renders the formatted release dates in muted text when both are set", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({

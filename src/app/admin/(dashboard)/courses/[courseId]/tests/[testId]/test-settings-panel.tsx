@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "src/components/ui/button";
 import { Checkbox } from "src/components/ui/checkbox";
 import { Input } from "src/components/ui/input";
@@ -13,6 +13,7 @@ interface TestSettingsPanelProps {
   showGradeAfterSubmit: boolean;
   showCorrectAnswerAfterSubmit: boolean;
   timeLimitMinutes: number | null;
+  isPractice: boolean;
   gradesReleasedAt: Date | null;
   correctAnswersReleasedAt: Date | null;
 }
@@ -25,7 +26,9 @@ function formatReleaseLine(label: string, date: Date | null): string {
 
 /**
  * Inline admin panel that lets an admin edit a test's visibility flags
- * (`showGradeAfterSubmit`, `showCorrectAnswerAfterSubmit`).
+ * (`showGradeAfterSubmit`, `showCorrectAnswerAfterSubmit`, `isPractice`) and
+ * time limit. Practice and a time limit are mutually exclusive (R10): checking
+ * Practice disables the time-limit input so the forbidden combo can't be sent.
  */
 export function TestSettingsPanel({
   courseId,
@@ -33,6 +36,7 @@ export function TestSettingsPanel({
   showGradeAfterSubmit,
   showCorrectAnswerAfterSubmit,
   timeLimitMinutes,
+  isPractice,
   gradesReleasedAt,
   correctAnswersReleasedAt,
 }: TestSettingsPanelProps) {
@@ -40,6 +44,7 @@ export function TestSettingsPanel({
     setTestSettingsAction,
     null,
   );
+  const [practice, setPractice] = useState(isPractice);
 
   return (
     <div className="rounded-lg border bg-card p-4 text-card-foreground">
@@ -72,6 +77,19 @@ export function TestSettingsPanel({
           </Label>
         </div>
 
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="is-practice"
+            name="isPractice"
+            value="true"
+            checked={practice}
+            onCheckedChange={(checked) => setPractice(checked === true)}
+          />
+          <Label htmlFor="is-practice">
+            Practice test (no grades, reveal-on-answer)
+          </Label>
+        </div>
+
         <div className="space-y-1">
           <Label htmlFor="time-limit-minutes">Time limit (minutes)</Label>
           <Input
@@ -82,9 +100,12 @@ export function TestSettingsPanel({
             step={1}
             placeholder="Untimed"
             defaultValue={timeLimitMinutes ?? ""}
+            disabled={practice}
           />
           <p className="text-xs text-muted-foreground">
-            Leave blank for an untimed test.
+            {practice
+              ? "Practice tests can't be timed."
+              : "Leave blank for an untimed test."}
           </p>
         </div>
 

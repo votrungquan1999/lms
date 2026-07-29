@@ -76,6 +76,7 @@ export default async function TestDetailPage({
           showGradeAfterSubmit={test.showGradeAfterSubmit}
           showCorrectAnswerAfterSubmit={test.showCorrectAnswerAfterSubmit}
           timeLimitMinutes={test.timeLimitMinutes}
+          isPractice={test.isPractice}
           gradesReleasedAt={test.gradesReleasedAt}
           correctAnswersReleasedAt={test.correctAnswersReleasedAt}
         />

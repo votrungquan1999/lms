@@ -18,6 +18,9 @@ vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("notFound called");
   }),
+  // withSpan's catch branch calls this on every thrown error; a real
+  // no-op for generic errors, so it must be present in the mock too.
+  unstable_rethrow: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({
@@ -109,6 +112,7 @@ describe("Feature: Test Settings Panel — admin sets a time limit", () => {
       showGradeAfterSubmit: true,
       showCorrectAnswerAfterSubmit: true,
       timeLimitMinutes: 30,
+      isPractice: false,
       updatedBy: "admin",
     });
 
@@ -147,6 +151,7 @@ describe("Feature: Test Settings Panel — admin sets a time limit", () => {
       showGradeAfterSubmit: true,
       showCorrectAnswerAfterSubmit: true,
       timeLimitMinutes: 20,
+      isPractice: false,
       updatedBy: "admin",
     });
 
@@ -162,6 +167,43 @@ describe("Feature: Test Settings Panel — admin sets a time limit", () => {
     expect(result.success).toBe(false);
     expect(result.message).toMatch(/positive whole number/i);
     const after = await services.testService.getTest(test.id);
+    expect(after?.timeLimitMinutes).toBe(20);
+  });
+
+  it("rejects turning on practice mode while a time limit is set, and leaves the saved value unchanged", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.testService.updateTestSettings(test.id, {
+      showGradeAfterSubmit: true,
+      showCorrectAnswerAfterSubmit: true,
+      timeLimitMinutes: 20,
+      isPractice: false,
+      updatedBy: "admin",
+    });
+
+    const formData = new FormData();
+    formData.set("testId", test.id);
+    formData.set("courseId", course.id);
+    formData.set("showGradeAfterSubmit", "true");
+    formData.set("showCorrectAnswerAfterSubmit", "true");
+    formData.set("timeLimitMinutes", "20");
+    formData.set("isPractice", "true");
+
+    const result = await setTestSettingsAction(null, formData);
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/practice test cannot have a time limit/i);
+    const after = await services.testService.getTest(test.id);
+    expect(after?.isPractice).toBe(false);
     expect(after?.timeLimitMinutes).toBe(20);
   });
 });

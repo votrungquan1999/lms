@@ -17,6 +17,7 @@ const setTestSettingsSchema = z.object({
   courseId: z.string().min(1, "Course ID is missing"),
   showGradeAfterSubmit: z.boolean(),
   showCorrectAnswerAfterSubmit: z.boolean(),
+  isPractice: z.boolean(),
   // Blank/absent ⇒ untimed (null). Otherwise a positive whole number.
   // Preprocessed before coercion because `Number("") === 0` would otherwise
   // turn a blank field into 0 and collide with the positive-only rule.
@@ -56,6 +57,7 @@ export async function setTestSettingsAction(
     showCorrectAnswerAfterSubmit:
       formData.get("showCorrectAnswerAfterSubmit") === "true",
     timeLimitMinutes: formData.get("timeLimitMinutes"),
+    isPractice: formData.get("isPractice") === "true",
   });
 
   if (!parsed.success) {
@@ -77,6 +79,7 @@ export async function setTestSettingsAction(
           showCorrectAnswerAfterSubmit:
             parsed.data.showCorrectAnswerAfterSubmit,
           timeLimitMinutes: parsed.data.timeLimitMinutes,
+          isPractice: parsed.data.isPractice,
           updatedBy: adminUserId,
         });
 
