@@ -182,6 +182,34 @@ describe("AnswerService - Integration Tests", () => {
   });
 
   dbIt(
+    "should reject a blank/whitespace-only free_text answer and store nothing",
+    async ({ db }) => {
+      const questionService = new QuestionService(db);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
+
+      await expect(
+        answerService.submitAnswer({
+          testId: "test-1",
+          questionId: "q-1",
+          studentId: "student-1",
+          answer: { type: "free_text", text: "   " },
+        }),
+      ).rejects.toThrow("Free-text answer cannot be blank.");
+
+      const latest = await answerService.getLatestAnswers(
+        "test-1",
+        "student-1",
+      );
+      expect(latest).toHaveLength(0);
+    },
+  );
+
+  dbIt(
     "should reject a duplicate submission when answer is identical to the latest",
     async ({ db }) => {
       const questionService = new QuestionService(db);
@@ -370,6 +398,59 @@ describe("AnswerService - MC Answer Validation", () => {
           answer: { type: "mc", selectedIds: [] },
         }),
       ).rejects.toThrow("at least one selected option");
+    },
+  );
+});
+
+// ── Attempt counts ───────────────────────────────────────────────────────────
+
+describe("AnswerService - Attempt Counts", () => {
+  dbIt(
+    "returns per-question submission counts scoped to one student",
+    async ({ db }) => {
+      const questionService = new QuestionService(db);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
+
+      // student-1 submits twice on q-1, once on q-2
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        answer: { type: "free_text", text: "First" },
+      });
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Second" },
+      });
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-2",
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Only attempt for q2" },
+      });
+
+      // student-2 submits on q-1 too — must not leak into student-1's counts
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-2",
+        answer: { type: "free_text", text: "Other student" },
+      });
+
+      const counts = await answerService.getAttemptCounts(
+        "test-1",
+        "student-1",
+      );
+
+      expect(counts.get("q-1")).toBe(2);
+      expect(counts.get("q-2")).toBe(1);
     },
   );
 });

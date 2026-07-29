@@ -91,6 +91,14 @@ export class AnswerService {
       throw new Error("Time limit exceeded");
     }
 
+    // A free-text answer must contain non-whitespace content — otherwise a
+    // blank submit could unlock a practice reveal for free (R5).
+    if (input.answer.type === "free_text" && input.answer.text.trim() === "") {
+      throw new Error(
+        "Free-text answer cannot be blank. To leave a question unanswered, do not submit an answer for it.",
+      );
+    }
+
     // An image answer must carry at least one uploaded photo.
     if (input.answer.type === "image" && input.answer.mediaKeys.length === 0) {
       throw new Error(
@@ -182,6 +190,30 @@ export class AnswerService {
       .toArray();
 
     return docs.map(this.toAnswer);
+  }
+
+  /**
+   * Returns the number of accepted submissions per question in a test,
+   * for a specific student. Spans all answer types (mc/free_text/image).
+   */
+  async getAttemptCounts(
+    testId: string,
+    studentId: string,
+  ): Promise<Map<string, number>> {
+    const pipeline = [
+      { $match: { testId, studentId } },
+      { $group: { _id: "$questionId", count: { $sum: 1 } } },
+    ];
+
+    const results = await this.answers
+      .aggregate<{ _id: string; count: number }>(pipeline)
+      .toArray();
+
+    const counts = new Map<string, number>();
+    for (const r of results) {
+      counts.set(r._id, r.count);
+    }
+    return counts;
   }
 
   private toAnswer(doc: AnswerDocument): Answer {

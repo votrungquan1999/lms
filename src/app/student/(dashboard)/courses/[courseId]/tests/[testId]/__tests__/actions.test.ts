@@ -176,3 +176,34 @@ describe("submitAnswerAction — image answer mediaKeys", () => {
     );
   });
 });
+
+function submitFreeTextFormData(answer: string) {
+  const fd = new FormData();
+  fd.set("testId", "test-1");
+  fd.set("courseId", "course-1");
+  fd.set("questionId", "q-1");
+  fd.set("answer", answer);
+  return fd;
+}
+
+describe("submitAnswerAction — free_text blank guard", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects a whitespace-only free_text answer without calling the answer service", async () => {
+    // Given an enrolled student who submits only whitespace.
+    requireStudentSession.mockResolvedValue({ studentId: "stu-1" });
+    isEnrolled.mockResolvedValue(true);
+
+    // When submitting a whitespace-only answer.
+    const result = await submitAnswerAction(
+      null,
+      submitFreeTextFormData("   "),
+    );
+
+    // Then it is rejected early — no round trip to the answer service.
+    expect(result.success).toBe(false);
+    expect(submitAnswer).not.toHaveBeenCalled();
+  });
+});

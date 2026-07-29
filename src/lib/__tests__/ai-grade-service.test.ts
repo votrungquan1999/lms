@@ -5,6 +5,7 @@ import type {
   AiGradeBatchOptions,
 } from "src/lib/ai/ai-client";
 import type { AiGradeSuggestionDocument } from "src/lib/ai-grade-types";
+import type { AnswerDocument } from "src/lib/answer-service";
 import type { GradeDocument } from "src/lib/grade-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
@@ -178,12 +179,16 @@ describe("AiGradeService.generateForStudent - Step 3 (skip filter)", () => {
         answer: { type: "free_text", text: "Self-referential function." },
       });
 
-      // Q2: whitespace-only answer (3 spaces — must trip the .trim() check)
-      await answerService.submitAnswer({
+      // Q2: whitespace-only answer (3 spaces — must trip the .trim() check
+      // in AiGradeService). submitAnswer now rejects blank free_text (R5),
+      // so seed this scenario by inserting the answer doc directly.
+      await db.collection<AnswerDocument>("answer").insertOne({
+        id: crypto.randomUUID(),
         testId: test.id,
         questionId: q2.id,
         studentId: "student-1",
         answer: { type: "free_text", text: "   " },
+        submittedAt: new Date(),
       });
 
       // Q3: NO submitAnswer call at all

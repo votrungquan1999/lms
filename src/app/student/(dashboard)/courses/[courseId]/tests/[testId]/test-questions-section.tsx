@@ -32,6 +32,12 @@ interface TestQuestionsSectionProps {
   hasActiveRedo: boolean;
   canAnswer: boolean;
   correctAnswersVisible: boolean;
+  /** Whole-test practice flag — drives the MC reveal-gate branch below. */
+  isPractice: boolean;
+  /** Per-question practice reveal gate: isPractice && this question answered. */
+  revealMap: Map<string, boolean>;
+  /** Per-question submission counts, for the practice "Attempt N" indicator. */
+  attemptCountMap: Map<string, number>;
   gradeCount: number;
 }
 
@@ -53,6 +59,9 @@ export function TestQuestionsSection({
   hasActiveRedo,
   canAnswer,
   correctAnswersVisible,
+  isPractice,
+  revealMap,
+  attemptCountMap,
   gradeCount,
 }: TestQuestionsSectionProps) {
   return (
@@ -63,15 +72,42 @@ export function TestQuestionsSection({
           const studentAnswer = answerMap.get(question.id);
           const isMC = isMcQuestion(question);
 
+          // MC reveal gate: in practice, per-question (overrides the per-test
+          // flag per D5); outside practice, the existing per-test flag.
+          // `revealMap` is always false when !isPractice, so the two arms
+          // can't be collapsed into one shared boolean.
+          const mcRevealOpen = isPractice
+            ? (revealMap.get(question.id) ?? false)
+            : correctAnswersVisible;
+
           // For MC questions, build the option list that's safe to ship to
           // the client. When the gate is closed, every option's `isCorrect`
           // becomes `false` so selected chips render in the neutral
           // "selected + !isCorrect" path without revealing the answer key.
           const safeOptions = isMcQuestion(question)
-            ? correctAnswersVisible
+            ? mcRevealOpen
               ? question.options
               : question.options.map((o) => ({ ...o, isCorrect: false }))
             : [];
+
+          // Practice-only MC reveal: `revealMap` already encodes
+          // isPractice && answered, so no separate isPractice check needed
+          // here (unlike mcRevealOpen above, which also serves non-practice).
+          const hasMcReveal =
+            isMC &&
+            revealMap.get(question.id) === true &&
+            studentAnswer?.type === "mc";
+
+          // Free_text reveal gate. Asserts `revealMap` directly (like
+          // `hasMcReveal`) rather than trusting the page-level scrub — so a
+          // future caller that skips the scrub can't leak the model answer.
+          // The field-presence check stays for the R4 graceful partial: no
+          // card at all when neither referenceAnswer nor explanation is authored.
+          const hasFreeTextReveal =
+            question.type === "free_text" &&
+            revealMap.get(question.id) === true &&
+            !!studentAnswer &&
+            !!(question.referenceAnswer || question.explanation);
 
           // Read-only graded view: collapsible card tinted by score band.
           // (During a redo, canAnswer is true so the answer form is shown
@@ -161,6 +197,70 @@ export function TestQuestionsSection({
                         {studentAnswer.text}
                       </p>
                     ) : null}
+                  </div>
+                )}
+
+                {/* ── Practice-mode reveal (free_text and MC) ──
+                    free_text: `question.referenceAnswer`/`.explanation` only
+                    survive the page-level scrub when the reveal gate is
+                    open, so presence here already implies isPractice +
+                    answered. Graceful partial (R4): render whichever
+                    field(s) are authored; render nothing if neither is (no
+                    card at all — frozen decision, doesn't extend to MC since
+                    MC's chip content always exists once answered).
+                    MC: `hasMcReveal` gates a NEW surface (D5) — the existing
+                    "Submitted answer display" chips above are gated on the
+                    whole-test `isSubmitted` flag, which stays false
+                    throughout the practice pre-finalize loop, so they can't
+                    serve as this reveal. */}
+                {(hasFreeTextReveal || hasMcReveal) && (
+                  <div className="rounded-md border bg-muted/40 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Practice Reveal
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Attempt {attemptCountMap.get(question.id) ?? 0}
+                      </p>
+                    </div>
+                    {hasFreeTextReveal && (
+                      <>
+                        {question.type === "free_text" &&
+                          question.referenceAnswer && (
+                            <div>
+                              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                Model Answer
+                              </p>
+                              <p className="whitespace-pre-wrap text-sm">
+                                {question.referenceAnswer}
+                              </p>
+                            </div>
+                          )}
+                        {question.type === "free_text" &&
+                          question.explanation && (
+                            <div>
+                              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                Explanation
+                              </p>
+                              <p className="whitespace-pre-wrap text-sm">
+                                {question.explanation}
+                              </p>
+                            </div>
+                          )}
+                      </>
+                    )}
+                    {hasMcReveal && studentAnswer?.type === "mc" && (
+                      <div>
+                        <p className="mb-1 text-xs font-medium text-muted-foreground">
+                          Result
+                        </p>
+                        <McAnswerChips
+                          selectedIds={studentAnswer.selectedIds}
+                          options={safeOptions}
+                          showCorrectAnswers
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>

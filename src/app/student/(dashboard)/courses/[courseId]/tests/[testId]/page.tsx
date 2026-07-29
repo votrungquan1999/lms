@@ -82,6 +82,29 @@ export default async function StudentTestDetailPage({
   // Map questionId → StudentAnswer object
   const answerMap = new Map(latestAnswers.map((a) => [a.questionId, a.answer]));
 
+  // Per-question submission counts, for the practice "Attempt N" indicator.
+  const attemptCountMap = await answerService.getAttemptCounts(
+    testId,
+    session.studentId,
+  );
+
+  // Per-question practice-mode reveal gate: open only once the test is a
+  // practice test AND the student has answered that specific question.
+  // Closed for every question when the test isn't practice (D8 fail-closed).
+  const revealMap = new Map(
+    questions.map((q) => [q.id, test.isPractice && answerMap.has(q.id)]),
+  );
+
+  // Scrub the authored referenceAnswer/explanation off any free_text
+  // question whose reveal gate is closed, before it reaches any client
+  // component — mirrors the MC isCorrect/safeOptions scrub in
+  // test-questions-section.tsx.
+  const revealedQuestions = questions.map((q) =>
+    q.type === "free_text" && !revealMap.get(q.id)
+      ? { ...q, referenceAnswer: undefined, explanation: undefined }
+      : q,
+  );
+
   const testSubmissionService = await getTestSubmissionService();
   const isSubmitted = await testSubmissionService.isTestSubmitted(
     testId,
@@ -267,7 +290,7 @@ export default async function StudentTestDetailPage({
           <TestQuestionsSection
             testId={testId}
             courseId={courseId}
-            questions={questions}
+            questions={revealedQuestions}
             answerMap={answerMap}
             gradeMap={gradeMap}
             answerImagesMap={answerImagesMap}
@@ -277,6 +300,9 @@ export default async function StudentTestDetailPage({
             hasActiveRedo={!!activeRedoRequest}
             canAnswer={canAnswer}
             correctAnswersVisible={correctAnswersVisible}
+            isPractice={test.isPractice}
+            revealMap={revealMap}
+            attemptCountMap={attemptCountMap}
             gradeCount={grades.length}
           />
         </>

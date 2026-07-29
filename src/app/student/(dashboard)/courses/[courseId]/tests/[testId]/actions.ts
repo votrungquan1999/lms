@@ -63,8 +63,10 @@ export async function submitAnswerAction(
     return { success: false, message: parsed.error.issues[0].message };
   }
 
-  const { testId, courseId, questionId, answer, selectedIds, mediaKeys } =
-    parsed.data;
+  const { testId, courseId, questionId, selectedIds, mediaKeys } = parsed.data;
+  // Trim free-text before the emptiness check so a whitespace-only answer
+  // (e.g. " ") is rejected here, not just at the service layer.
+  const answer = parsed.data.answer?.trim();
 
   // Validate that at least one answer type is provided
   if (!answer && !selectedIds && !mediaKeys) {
