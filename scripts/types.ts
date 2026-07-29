@@ -32,6 +32,8 @@ export interface TestDefinition {
     description: string;
     showCorrectAnswerAfterSubmit?: boolean;
     showGradeAfterSubmit?: boolean;
+    /** Practice mode: per-question reveal + retries, no grades. Mutually exclusive with a time limit. */
+    isPractice?: boolean;
     /** Exam time limit in minutes; omit for an untimed test. */
     timeLimitMinutes?: number;
   };

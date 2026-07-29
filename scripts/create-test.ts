@@ -56,6 +56,7 @@ async function main() {
       showCorrectAnswerAfterSubmit:
         definition.test.showCorrectAnswerAfterSubmit,
       showGradeAfterSubmit: definition.test.showGradeAfterSubmit,
+      isPractice: definition.test.isPractice,
     });
 
     // createTest can't set the time limit; the settings path owns it. Apply it

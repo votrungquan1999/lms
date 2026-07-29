@@ -22,6 +22,7 @@ export default {
       "Practice exercise, no time limit. Exercises go from easy to hard. Part A: 20 concept multiple-choice questions. Part B: 9 short programs. Use ONLY: input, print, variables, arithmetic, comparison, and, or, not, and if/elif/else. Do NOT use loops, functions, lists, or built-in helpers like max()/min().\n*Bài luyện tập, không giới hạn thời gian. Các bài đi từ dễ đến khó. Phần A: 20 câu trắc nghiệm khái niệm. Phần B: 9 chương trình ngắn. CHỈ dùng: input, print, biến, phép toán, so sánh, and, or, not, và if/elif/else. KHÔNG dùng vòng lặp, hàm, danh sách, hay các hàm có sẵn như max()/min().*",
     showCorrectAnswerAfterSubmit: true,
     showGradeAfterSubmit: true,
+    isPractice: true,
   },
   questions: [
     // ==================== PART A — CONCEPT MC (weight 2 each) ====================
@@ -330,6 +331,13 @@ else:
 \`\`\`
 Odd
 \`\`\``,
+      referenceAnswer: `n = int(input())
+if n % 2 == 0:
+    print("Even")
+else:
+    print("Odd")`,
+      explanation: `Read the input as an int, then use \`%\` to test divisibility by 2 — \`n % 2 == 0\` is the standard even check. Only two outcomes exist, so \`if/else\` covers both.
+*Đọc số nguyên rồi dùng \`%\` để kiểm tra chia hết cho 2 — \`n % 2 == 0\` là cách kiểm tra số chẵn chuẩn.*`,
       weight: 4,
     },
     {
@@ -348,6 +356,14 @@ Odd
 \`\`\`
 9
 \`\`\``,
+      referenceAnswer: `a = int(input())
+b = int(input())
+if a >= b:
+    print(a)
+else:
+    print(b)`,
+      explanation: `Compare the two values directly with \`>=\`; using \`>=\` (not \`>\`) naturally handles the tie case by falling into the \`a\` branch, matching the "if equal, print that value" rule.
+*So sánh trực tiếp bằng \`>=\`; dùng \`>=\` (không phải \`>\`) để xử lý luôn trường hợp bằng nhau.*`,
       weight: 4,
     },
     {
@@ -365,6 +381,15 @@ Odd
 \`\`\`
 Negative
 \`\`\``,
+      referenceAnswer: `n = int(input())
+if n > 0:
+    print("Positive")
+elif n < 0:
+    print("Negative")
+else:
+    print("Zero")`,
+      explanation: `Three mutually exclusive outcomes map directly onto \`if/elif/else\`: check \`> 0\` first, then \`< 0\`, and let \`else\` catch the remaining case (\`== 0\`).
+*Ba kết quả loại trừ lẫn nhau ánh xạ trực tiếp vào \`if/elif/else\`: kiểm tra \`> 0\` trước, rồi \`< 0\`, còn lại là \`== 0\`.*`,
       weight: 4,
     },
 
@@ -384,6 +409,19 @@ Negative
 \`\`\`
 B
 \`\`\``,
+      referenceAnswer: `score = int(input())
+if score >= 90:
+    print("A")
+elif score >= 80:
+    print("B")
+elif score >= 70:
+    print("C")
+elif score >= 60:
+    print("D")
+else:
+    print("F")`,
+      explanation: `Check thresholds from highest to lowest with \`elif\` — since \`elif\` stops at the first true branch, checking 90 first (before 80/70/60) is what keeps an 84 from also matching a lower bound.
+*Kiểm tra ngưỡng từ cao xuống thấp bằng \`elif\` — vì \`elif\` dừng ở nhánh đúng đầu tiên nên phải kiểm tra 90 trước.*`,
       weight: 5,
     },
     {
@@ -401,6 +439,15 @@ B
 \`\`\`
 7
 \`\`\``,
+      referenceAnswer: `age = int(input())
+if age < 12:
+    print(5)
+elif age >= 65:
+    print(7)
+else:
+    print(10)`,
+      explanation: `Check the two special-price cases first (\`< 12\`, then \`>= 65\`); anyone left over falls to the \`else\` at the regular price of 10.
+*Kiểm tra hai trường hợp giá đặc biệt trước (\`< 12\`, rồi \`>= 65\`); còn lại rơi vào \`else\` với giá 10.*`,
       weight: 5,
     },
     {
@@ -418,6 +465,13 @@ B
 \`\`\`
 Leap
 \`\`\``,
+      referenceAnswer: `year = int(input())
+if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
+    print("Leap")
+else:
+    print("Not leap")`,
+      explanation: `The rule is a straight conjunction: divisible by 4 AND (not divisible by 100 OR divisible by 400). Translate it directly into one boolean expression with \`and\`/\`or\`.
+*Quy tắc là một phép AND trực tiếp: chia hết cho 4 VÀ (không chia hết cho 100 HOẶC chia hết cho 400) — dịch thẳng thành một biểu thức boolean.*`,
       weight: 5,
     },
 
@@ -439,6 +493,17 @@ Leap
 \`\`\`
 9
 \`\`\``,
+      referenceAnswer: `a = int(input())
+b = int(input())
+c = int(input())
+if a >= b and a >= c:
+    print(a)
+elif b >= a and b >= c:
+    print(b)
+else:
+    print(c)`,
+      explanation: `Without \`max()\`, find the largest by pairwise comparison: \`a\` wins if it is \`>=\` both others; otherwise check \`b\` the same way; whatever remains (\`c\`) must be the largest. Using \`>=\` (not \`>\`) keeps ties correct.
+*Không dùng \`max()\`: so sánh từng số với hai số còn lại để tìm số lớn nhất; dùng \`>=\` để xử lý trường hợp bằng nhau.*`,
       weight: 6,
     },
     {
@@ -458,6 +523,19 @@ Leap
 \`\`\`
 Isosceles
 \`\`\``,
+      referenceAnswer: `a = int(input())
+b = int(input())
+c = int(input())
+if a + b <= c or a + c <= b or b + c <= a:
+    print("Not a triangle")
+elif a == b and b == c:
+    print("Equilateral")
+elif a == b or b == c or a == c:
+    print("Isosceles")
+else:
+    print("Scalene")`,
+      explanation: `First rule out invalid triangles with the triangle inequality (any two sides must outlast the third). Once valid, classify by counting equal pairs: all three equal is \`Equilateral\`, exactly one equal pair (checked with \`or\` across the three possible pairs) is \`Isosceles\`, otherwise \`Scalene\`.
+*Trước tiên loại các bộ không tạo được tam giác bằng bất đẳng thức tam giác, rồi phân loại theo số cặp cạnh bằng nhau.*`,
       weight: 6,
     },
     {
@@ -478,6 +556,20 @@ Góc phần tư: 1 = (x>0, y>0), 2 = (x<0, y>0), 3 = (x<0, y<0), 4 = (x>0, y<0).
 \`\`\`
 2
 \`\`\``,
+      referenceAnswer: `x = int(input())
+y = int(input())
+if x == 0 or y == 0:
+    print("On an axis")
+elif x > 0 and y > 0:
+    print(1)
+elif x < 0 and y > 0:
+    print(2)
+elif x < 0 and y < 0:
+    print(3)
+else:
+    print(4)`,
+      explanation: `Check the axis case first (\`x == 0 or y == 0\`) since it overrides all four quadrants, then test the sign combinations of \`x\` and \`y\` with \`elif\` to pick the quadrant.
+*Kiểm tra trường hợp nằm trên trục trước, rồi xét dấu của \`x\` và \`y\` để xác định góc phần tư.*`,
       weight: 6,
     },
   ],
