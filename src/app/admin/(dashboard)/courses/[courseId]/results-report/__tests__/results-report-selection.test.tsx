@@ -30,6 +30,7 @@ function makeTests(): Test[] {
     showCorrectAnswerAfterSubmit: true,
     showGradeAfterSubmit: true,
     timeLimitMinutes: null,
+    isPractice: false,
     correctAnswersReleasedAt: null,
     gradesReleasedAt: null,
     createdAt: new Date(),

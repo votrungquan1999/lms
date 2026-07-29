@@ -154,12 +154,74 @@ describe("TestService", () => {
         showGradeAfterSubmit: false,
         showCorrectAnswerAfterSubmit: false,
         timeLimitMinutes: null,
+        isPractice: false,
         updatedBy: "admin2",
       });
 
       const after = await testService.getTest(test.id);
       expect(after?.showGradeAfterSubmit).toBe(false);
       expect(after?.showCorrectAnswerAfterSubmit).toBe(false);
+    },
+  );
+
+  dbIt(
+    "updateTestSettings persists isPractice: true and it stays marked after a re-fetch",
+    async ({ db }) => {
+      const courseService = new CourseService(db);
+      const testService = new TestService(db);
+
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "Desc",
+        createdBy: "admin",
+      });
+
+      const test = await testService.createTest(course.id, {
+        title: "Test",
+        description: "",
+        createdBy: "admin",
+      });
+
+      await testService.updateTestSettings(test.id, {
+        showGradeAfterSubmit: true,
+        showCorrectAnswerAfterSubmit: true,
+        timeLimitMinutes: null,
+        isPractice: true,
+        updatedBy: "admin",
+      });
+
+      const after = await testService.getTest(test.id);
+      expect(after?.isPractice).toBe(true);
+    },
+  );
+
+  dbIt(
+    "updateTestSettings rejects turning on practice mode while a time limit is set",
+    async ({ db }) => {
+      const courseService = new CourseService(db);
+      const testService = new TestService(db);
+
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "Desc",
+        createdBy: "admin",
+      });
+
+      const test = await testService.createTest(course.id, {
+        title: "Test",
+        description: "",
+        createdBy: "admin",
+      });
+
+      await expect(
+        testService.updateTestSettings(test.id, {
+          showGradeAfterSubmit: true,
+          showCorrectAnswerAfterSubmit: true,
+          timeLimitMinutes: 30,
+          isPractice: true,
+          updatedBy: "admin",
+        }),
+      ).rejects.toThrow("A practice test cannot have a time limit.");
     },
   );
 
@@ -182,6 +244,7 @@ describe("TestService", () => {
       showGradeAfterSubmit: true,
       showCorrectAnswerAfterSubmit: true,
       timeLimitMinutes: 30,
+      isPractice: false,
       updatedBy: "admin",
     });
 
@@ -210,12 +273,14 @@ describe("TestService", () => {
         showGradeAfterSubmit: true,
         showCorrectAnswerAfterSubmit: true,
         timeLimitMinutes: 30,
+        isPractice: false,
         updatedBy: "admin",
       });
       await testService.updateTestSettings(test.id, {
         showGradeAfterSubmit: true,
         showCorrectAnswerAfterSubmit: true,
         timeLimitMinutes: null,
+        isPractice: false,
         updatedBy: "admin",
       });
 
@@ -242,6 +307,73 @@ describe("TestService", () => {
     const fetched = await testService.getTest(test.id);
     expect(fetched?.timeLimitMinutes).toBeNull();
   });
+
+  dbIt("a newly created test defaults to non-practice", async ({ db }) => {
+    const courseService = new CourseService(db);
+    const testService = new TestService(db);
+
+    const course = await courseService.createCourse({
+      title: "Course",
+      description: "Desc",
+      createdBy: "admin",
+    });
+    const test = await testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+
+    expect(test.isPractice).toBe(false);
+  });
+
+  dbIt(
+    "createTest persists an explicit isPractice: true and it stays marked after a re-fetch",
+    async ({ db }) => {
+      const courseService = new CourseService(db);
+      const testService = new TestService(db);
+
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "Desc",
+        createdBy: "admin",
+      });
+      const test = await testService.createTest(course.id, {
+        title: "Test",
+        description: "",
+        createdBy: "admin",
+        isPractice: true,
+      });
+
+      expect(test.isPractice).toBe(true);
+
+      const fetched = await testService.getTest(test.id);
+      expect(fetched?.isPractice).toBe(true);
+    },
+  );
+
+  dbIt(
+    "createTest rejects a practice test that also has a time limit",
+    async ({ db }) => {
+      const courseService = new CourseService(db);
+      const testService = new TestService(db);
+
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "Desc",
+        createdBy: "admin",
+      });
+
+      await expect(
+        testService.createTest(course.id, {
+          title: "Test",
+          description: "",
+          createdBy: "admin",
+          isPractice: true,
+          timeLimitMinutes: 30,
+        }),
+      ).rejects.toThrow("A practice test cannot have a time limit.");
+    },
+  );
 
   dbIt(
     "listAllTests should return every non-deleted test across all courses",

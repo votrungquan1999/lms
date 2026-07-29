@@ -12,6 +12,8 @@ export interface TestDocument {
   showGradeAfterSubmit: boolean;
   /** Exam time limit in minutes; null means untimed. */
   timeLimitMinutes: number | null;
+  /** When true, this is a formative practice test: no grades, reveal-on-answer. */
+  isPractice: boolean;
   correctAnswersReleasedAt: Date | null;
   gradesReleasedAt: Date | null;
   createdAt: Date;
@@ -34,6 +36,8 @@ export interface Test {
   showGradeAfterSubmit: boolean;
   /** Exam time limit in minutes; null means untimed. */
   timeLimitMinutes: number | null;
+  /** When true, this is a formative practice test: no grades, reveal-on-answer. */
+  isPractice: boolean;
   correctAnswersReleasedAt: Date | null;
   gradesReleasedAt: Date | null;
   createdAt: Date;
@@ -48,6 +52,10 @@ export interface CreateTestInput {
   createdBy: string;
   showCorrectAnswerAfterSubmit?: boolean;
   showGradeAfterSubmit?: boolean;
+  /** Defaults to false. When true, forbids a non-null timeLimitMinutes (R10). */
+  isPractice?: boolean;
+  /** Exam time limit in minutes; null/omitted means untimed. Mutually exclusive with isPractice (R10). */
+  timeLimitMinutes?: number | null;
 }
 
 /**
@@ -57,6 +65,7 @@ export interface UpdateTestSettingsInput {
   showGradeAfterSubmit: boolean;
   showCorrectAnswerAfterSubmit: boolean;
   timeLimitMinutes: number | null;
+  isPractice: boolean;
   updatedBy: string;
 }
 
@@ -71,6 +80,10 @@ export class TestService {
   }
 
   async createTest(courseId: string, input: CreateTestInput): Promise<Test> {
+    if (input.isPractice && input.timeLimitMinutes != null) {
+      throw new Error("A practice test cannot have a time limit.");
+    }
+
     const doc: TestDocument = {
       id: crypto.randomUUID(),
       courseId,
@@ -78,7 +91,8 @@ export class TestService {
       description: input.description,
       showCorrectAnswerAfterSubmit: input.showCorrectAnswerAfterSubmit ?? true,
       showGradeAfterSubmit: input.showGradeAfterSubmit ?? true,
-      timeLimitMinutes: null,
+      timeLimitMinutes: input.timeLimitMinutes ?? null,
+      isPractice: input.isPractice ?? false,
       correctAnswersReleasedAt: null,
       gradesReleasedAt: null,
       createdAt: new Date(),
@@ -130,6 +144,7 @@ export class TestService {
       showCorrectAnswerAfterSubmit: doc.showCorrectAnswerAfterSubmit,
       showGradeAfterSubmit: doc.showGradeAfterSubmit,
       timeLimitMinutes: doc.timeLimitMinutes ?? null,
+      isPractice: doc.isPractice ?? false,
       correctAnswersReleasedAt: doc.correctAnswersReleasedAt,
       gradesReleasedAt: doc.gradesReleasedAt,
       createdAt: doc.createdAt,
@@ -145,6 +160,10 @@ export class TestService {
     testId: string,
     input: UpdateTestSettingsInput,
   ): Promise<void> {
+    if (input.isPractice && input.timeLimitMinutes != null) {
+      throw new Error("A practice test cannot have a time limit.");
+    }
+
     await this.tests.updateOne(
       { id: testId },
       {
@@ -152,6 +171,7 @@ export class TestService {
           showGradeAfterSubmit: input.showGradeAfterSubmit,
           showCorrectAnswerAfterSubmit: input.showCorrectAnswerAfterSubmit,
           timeLimitMinutes: input.timeLimitMinutes,
+          isPractice: input.isPractice,
           updatedAt: new Date(),
           updatedBy: input.updatedBy,
         },

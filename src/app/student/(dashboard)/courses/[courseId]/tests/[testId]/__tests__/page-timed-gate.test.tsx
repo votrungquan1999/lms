@@ -69,6 +69,7 @@ async function seedTest(timeLimitMinutes: number | null) {
       showGradeAfterSubmit: true,
       showCorrectAnswerAfterSubmit: true,
       timeLimitMinutes,
+      isPractice: false,
       updatedBy: "admin",
     });
   }

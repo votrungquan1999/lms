@@ -23,6 +23,7 @@ async function seedTimedTest(db: Db) {
     showGradeAfterSubmit: true,
     showCorrectAnswerAfterSubmit: true,
     timeLimitMinutes: LIMIT,
+    isPractice: false,
     updatedBy: "admin",
   });
   await setup.testStartService.recordStart(test.id, "stu-1", T1);
