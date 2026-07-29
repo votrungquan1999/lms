@@ -92,6 +92,12 @@ describe("Feature: practice tests suppress the grading footguns (AI-grade + redo
     ).toBeNull();
   });
 
+  it("hides the Request Redo button for a practice test (redo reopens a graded test — practice has no grades to redo against)", async () => {
+    await renderGradingDetail(true);
+
+    expect(screen.queryByRole("button", { name: /request redo/i })).toBeNull();
+  });
+
   it("shows both grading controls for a non-practice submitted test (proves the practice gate is conditional, not an unconditional hide)", async () => {
     await renderGradingDetail(false);
 

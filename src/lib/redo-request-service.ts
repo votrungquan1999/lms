@@ -1,4 +1,5 @@
 import type { Collection, Db } from "mongodb";
+import type { TestService } from "./test-service";
 
 /**
  * A redo request document stored in the `redo_request` collection.
@@ -41,19 +42,29 @@ export interface RedoRequest {
 export class RedoRequestService {
   private readonly redoRequests: Collection<RedoRequestDocument>;
 
-  constructor(db: Db) {
+  constructor(
+    db: Db,
+    private readonly testService: TestService,
+  ) {
     this.redoRequests = db.collection<RedoRequestDocument>("redo_request");
   }
 
   /**
    * Creates a new active redo request for the given (testId, studentId) pair.
    * If an active request already exists it is left in place (idempotent insert).
+   * Rejects for a practice test (R11) — redo reopens a graded test for
+   * revision, and a practice test has no grades to redo against.
    */
   async requestRedo(
     testId: string,
     studentId: string,
     requestedBy: string,
   ): Promise<RedoRequest> {
+    const test = await this.testService.getTest(testId);
+    if (test?.isPractice) {
+      throw new Error("Cannot request a redo on a practice test");
+    }
+
     const doc: RedoRequestDocument = {
       id: crypto.randomUUID(),
       testId,

@@ -165,9 +165,8 @@ async function main() {
     // Lazy wiring mirrors services-singleton.ts to break the cycle:
     // GradeService → GradeVisibilityService → TestSubmissionService → GradeService.
     let testSubmissionService!: TestSubmissionService;
-    const gradeVisibilityService = new GradeVisibilityService(
-      testService,
-      () => Promise.resolve(testSubmissionService),
+    const gradeVisibilityService = new GradeVisibilityService(testService, () =>
+      Promise.resolve(testSubmissionService),
     );
     const gradeService = new GradeService(
       db,
@@ -176,7 +175,7 @@ async function main() {
       gradeVisibilityService,
     );
     testSubmissionService = new TestSubmissionService(db, gradeService);
-    const redoRequestService = new RedoRequestService(db);
+    const redoRequestService = new RedoRequestService(db, testService);
 
     // Course.
     await ensureCourse(db);
@@ -200,7 +199,9 @@ async function main() {
     await ensureQuestions(questionService, testVisible.id);
     await ensureQuestions(questionService, TEST_HIDDEN_ID);
 
-    const visibleQuestions = await questionService.listQuestions(testVisible.id);
+    const visibleQuestions = await questionService.listQuestions(
+      testVisible.id,
+    );
     const visibleFreeText = visibleQuestions[0];
     const visibleSingle = visibleQuestions[1] as SingleSelectQuestion;
     const visibleMulti = visibleQuestions[2] as MultiSelectQuestion;
@@ -212,7 +213,9 @@ async function main() {
     }
 
     for (const seedStudent of STUDENTS) {
-      const existing = await studentService.findByUsername(seedStudent.username);
+      const existing = await studentService.findByUsername(
+        seedStudent.username,
+      );
       if (existing) {
         // Idempotent path: skip state seeding for already-seeded students.
         // AnswerService and TestSubmissionService both throw on duplicates,
@@ -686,7 +689,8 @@ async function applyScenario(input: ScenarioInput): Promise<void> {
         studentId: student.id,
         gradedAgainstAnswerId: round1Answer.id,
         score: 55,
-        feedback: "Too terse. Expand on what 'linear' means and why constants don't matter.",
+        feedback:
+          "Too terse. Expand on what 'linear' means and why constants don't matter.",
         solution:
           "O(n) is linear time. It is an asymptotic upper bound describing how the runtime grows as the input size n increases — in this case, in direct proportion to n. Constant factors and lower-order terms are dropped because they become negligible for large n.",
         regenerateReason: null,

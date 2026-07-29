@@ -251,7 +251,7 @@ export async function getRedoRequestService(): Promise<RedoRequestService> {
   if (!redoRequestService) {
     const db = await getDatabase();
     redoRequestService = tracedService(
-      new RedoRequestService(db),
+      new RedoRequestService(db, await getTestService()),
       "redoRequest",
     );
   }

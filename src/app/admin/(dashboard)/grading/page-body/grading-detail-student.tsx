@@ -179,12 +179,14 @@ export async function GradingDetailStudent({
               >
                 {gradedCount}/{answeredCount} graded
               </span>
-              <RequestRedoButton
-                testId={testId}
-                courseId={courseId}
-                studentId={student.id}
-                hasActiveRedoRequest={hasActiveRedoRequest}
-              />
+              {!test.isPractice && (
+                <RequestRedoButton
+                  testId={testId}
+                  courseId={courseId}
+                  studentId={student.id}
+                  hasActiveRedoRequest={hasActiveRedoRequest}
+                />
+              )}
               {!test.isPractice && status === TestStatus.Submitted && (
                 <AutoGradeWithAiButton
                   testId={testId}

@@ -107,7 +107,7 @@ function makeServices(db: Db): TestServices {
   const enrollmentService = new EnrollmentService(db);
   const studentService = new StudentService(db);
   const testFeedbackService = new TestFeedbackService(db);
-  const redoRequestService = new RedoRequestService(db);
+  const redoRequestService = new RedoRequestService(db, testService);
   const pageGuard = new PageGuard(enrollmentService);
   // Deterministic fake S3 service — no AWS SDK pulled into jsdom (type-only import).
   const s3StorageService = {
