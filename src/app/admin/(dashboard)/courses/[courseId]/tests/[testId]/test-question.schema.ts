@@ -13,6 +13,8 @@ export const addQuestionSchema = z.discriminatedUnion("type", [
     courseId: z.string().min(1, "Course ID is missing"),
     title: z.string().trim().min(1, "Question title is required"),
     content: z.string().default(""),
+    referenceAnswer: z.string().trim().optional(),
+    explanation: z.string().trim().optional(),
   }),
   z.object({
     type: z.literal("single_select"),

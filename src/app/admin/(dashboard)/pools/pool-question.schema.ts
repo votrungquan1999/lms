@@ -12,6 +12,8 @@ export const addPoolQuestionSchema = z.discriminatedUnion("type", [
     poolId: z.string().min(1, "Pool ID is missing"),
     title: z.string().trim().min(1, "Question title is required"),
     content: z.string().default(""),
+    referenceAnswer: z.string().trim().optional(),
+    explanation: z.string().trim().optional(),
   }),
   z.object({
     type: z.literal("single_select"),

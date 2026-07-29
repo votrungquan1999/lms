@@ -57,6 +57,7 @@ export async function addPoolQuestionAction(
     content: formData.get("content"),
     ...(options !== undefined && { options }),
     explanation: formData.get("explanation")?.toString(),
+    referenceAnswer: formData.get("referenceAnswer")?.toString(),
   });
 
   if (!parsed.success) {
@@ -96,6 +97,9 @@ export async function addPoolQuestionAction(
             type: "free_text",
             createdBy: adminUserId,
             media,
+            // Blank/whitespace-only values normalize to "absent" (persisted null).
+            referenceAnswer: data.referenceAnswer || undefined,
+            explanation: data.explanation || undefined,
           });
         } else if (data.type === "single_select") {
           await poolQuestionService.addPoolQuestion(data.poolId, {

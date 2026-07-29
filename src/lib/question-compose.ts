@@ -18,8 +18,10 @@ export interface PoolQuestionSnapshotInput {
   options: McOption[] | null;
   weight: number;
   mcGradingStrategy: McGradingStrategy | null;
-  /** Optional teacher note shown to the student once correct answers are revealed (MC only). */
+  /** Optional teacher note shown to the student once the answer is revealed (MC or free_text). */
   explanation: string | null;
+  /** Authored model answer for a free_text question, surfaced in practice-mode reveal. */
+  referenceAnswer: string | null;
   media: QuestionMediaInput[];
 }
 

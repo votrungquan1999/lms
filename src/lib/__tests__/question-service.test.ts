@@ -1,5 +1,6 @@
 import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
 import {
+  type FreeTextQuestion,
   MediaContentType,
   type MultiSelectQuestion,
   QuestionService,
@@ -71,6 +72,39 @@ describe("QuestionService - Integration Tests", () => {
 
       expect(withExplanation.explanation).toBe("4 is the sum of 2 and 2.");
       expect(withoutExplanation.explanation).toBeUndefined();
+    },
+  );
+
+  dbIt(
+    "should persist and read back a referenceAnswer and explanation on a free_text question, leaving them undefined when omitted",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      await service.addQuestion("test-1", {
+        title: "Explain photosynthesis.",
+        content: "Write a short paragraph.",
+        createdBy: "admin-1",
+        type: "free_text",
+        referenceAnswer: "Plants convert light into chemical energy.",
+        explanation: "Focus on the role of chlorophyll.",
+      });
+      await service.addQuestion("test-1", {
+        title: "Explain gravity.",
+        content: "Write a short paragraph.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+
+      const [withFields, withoutFields] = (await service.listQuestions(
+        "test-1",
+      )) as FreeTextQuestion[];
+
+      expect(withFields.referenceAnswer).toBe(
+        "Plants convert light into chemical energy.",
+      );
+      expect(withFields.explanation).toBe("Focus on the role of chlorophyll.");
+      expect(withoutFields.referenceAnswer).toBeUndefined();
+      expect(withoutFields.explanation).toBeUndefined();
     },
   );
 
@@ -380,6 +414,7 @@ describe("QuestionService - Integration Tests", () => {
                 weight: 2,
                 mcGradingStrategy: "all_or_nothing",
                 explanation: null,
+                referenceAnswer: null,
                 media: [
                   {
                     key: "pools/p1/diagram.png",
@@ -440,6 +475,7 @@ describe("QuestionService - Integration Tests", () => {
                 weight: 1,
                 mcGradingStrategy: "all_or_nothing",
                 explanation: "A is correct because it is the capital.",
+                referenceAnswer: null,
                 media: [],
               },
             ],
@@ -456,6 +492,43 @@ describe("QuestionService - Integration Tests", () => {
       expect(composed.explanation).toBe(
         "A is correct because it is the capital.",
       );
+    },
+  );
+
+  dbIt(
+    "composeFromPools carries a pooled free_text question's referenceAnswer into the composed test question",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      await service.composeFromPools(
+        "test-1",
+        [
+          {
+            count: 1,
+            questions: [
+              {
+                title: "Pool free_text with referenceAnswer",
+                content: "explain",
+                type: "free_text",
+                options: null,
+                weight: 1,
+                mcGradingStrategy: null,
+                explanation: null,
+                referenceAnswer: "The model answer from the pool.",
+                media: [],
+              },
+            ],
+          },
+        ],
+        "admin-1",
+        takeFirst,
+      );
+
+      const [composed] = (await service.listQuestions(
+        "test-1",
+      )) as FreeTextQuestion[];
+
+      expect(composed.referenceAnswer).toBe("The model answer from the pool.");
     },
   );
 
@@ -557,6 +630,7 @@ function freeTextSnapshot(title: string): PoolQuestionSnapshotInput {
     weight: 1,
     mcGradingStrategy: null,
     explanation: null,
+    referenceAnswer: null,
     media: [],
   };
 }

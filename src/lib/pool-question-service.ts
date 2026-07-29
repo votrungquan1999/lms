@@ -26,6 +26,10 @@ interface BasePoolQuestion {
 
 export interface PoolFreeTextQuestion extends BasePoolQuestion {
   type: "free_text";
+  /** Authored model answer, surfaced to the student in practice-mode reveal. */
+  referenceAnswer?: string;
+  /** Optional teacher note shown to the student once the answer is revealed. */
+  explanation?: string;
 }
 
 export interface PoolSingleSelectQuestion extends BasePoolQuestion {
@@ -62,6 +66,8 @@ interface BaseAddPoolQuestionInput {
 
 export interface AddPoolFreeTextQuestionInput extends BaseAddPoolQuestionInput {
   type?: "free_text";
+  referenceAnswer?: string;
+  explanation?: string;
 }
 
 export interface AddPoolSingleSelectQuestionInput
@@ -105,8 +111,10 @@ export interface PoolQuestionDocument {
   options: McOption[] | null;
   weight: number;
   mcGradingStrategy: McGradingStrategy | null;
-  /** Optional teacher note shown to the student once correct answers are revealed (MC only). */
+  /** Optional teacher note shown to the student once the answer is revealed (MC or free_text). */
   explanation: string | null;
+  /** Authored model answer for a free_text question, surfaced in practice-mode reveal. */
+  referenceAnswer: string | null;
   media: QuestionMediaDocument[];
 }
 
@@ -166,6 +174,8 @@ export class PoolQuestionService {
       mcGradingStrategy:
         "mcGradingStrategy" in input ? (input.mcGradingStrategy ?? null) : null,
       explanation: "explanation" in input ? (input.explanation ?? null) : null,
+      referenceAnswer:
+        "referenceAnswer" in input ? (input.referenceAnswer ?? null) : null,
       media: input.media ?? [],
     };
 
@@ -208,6 +218,7 @@ export class PoolQuestionService {
       weight: doc.weight ?? 1,
       mcGradingStrategy: doc.mcGradingStrategy,
       explanation: doc.explanation,
+      referenceAnswer: doc.referenceAnswer,
       media: (doc.media ?? []).map((m) => ({
         key: m.key,
         contentType: m.contentType,
@@ -301,6 +312,11 @@ export class PoolQuestionService {
       } satisfies PoolMultiSelectQuestion;
     }
 
-    return { ...base, type: "free_text" } satisfies PoolFreeTextQuestion;
+    return {
+      ...base,
+      type: "free_text",
+      referenceAnswer: doc.referenceAnswer ?? undefined,
+      explanation: doc.explanation ?? undefined,
+    } satisfies PoolFreeTextQuestion;
   }
 }

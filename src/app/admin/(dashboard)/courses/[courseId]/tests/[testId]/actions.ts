@@ -67,6 +67,7 @@ export async function addQuestionAction(
     content: formData.get("content"),
     ...(options !== undefined && { options }),
     explanation: formData.get("explanation")?.toString(),
+    referenceAnswer: formData.get("referenceAnswer")?.toString(),
   });
 
   if (!parsed.success) {
@@ -108,6 +109,9 @@ export async function addQuestionAction(
             type: "free_text",
             createdBy: adminUserId,
             media,
+            // Blank/whitespace-only values normalize to "absent" (persisted null).
+            referenceAnswer: data.referenceAnswer || undefined,
+            explanation: data.explanation || undefined,
           });
         } else if (data.type === "image_answer") {
           await questionService.addQuestion(data.testId, {

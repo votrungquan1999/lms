@@ -70,6 +70,10 @@ interface BaseQuestion {
 
 export interface FreeTextQuestion extends BaseQuestion {
   type: "free_text";
+  /** Authored model answer, surfaced to the student in practice-mode reveal. */
+  referenceAnswer?: string;
+  /** Optional teacher note shown to the student once the answer is revealed. */
+  explanation?: string;
 }
 
 /**
@@ -137,6 +141,8 @@ interface BaseAddQuestionInput {
 
 export interface AddFreeTextQuestionInput extends BaseAddQuestionInput {
   type?: "free_text";
+  referenceAnswer?: string;
+  explanation?: string;
 }
 
 export interface AddImageAnswerQuestionInput extends BaseAddQuestionInput {
@@ -183,8 +189,10 @@ export interface QuestionDocument {
   options: McOption[] | null;
   weight: number;
   mcGradingStrategy: McGradingStrategy | null;
-  /** Optional teacher note shown to the student once correct answers are revealed (MC only). */
+  /** Optional teacher note shown to the student once the answer is revealed (MC or free_text). */
   explanation: string | null;
+  /** Authored model answer for a free_text question, surfaced in practice-mode reveal. */
+  referenceAnswer: string | null;
   /** Ordered media attachments (empty when none). */
   media: QuestionMediaDocument[];
 }
@@ -244,6 +252,8 @@ export class QuestionService {
       mcGradingStrategy:
         "mcGradingStrategy" in input ? (input.mcGradingStrategy ?? null) : null,
       explanation: "explanation" in input ? (input.explanation ?? null) : null,
+      referenceAnswer:
+        "referenceAnswer" in input ? (input.referenceAnswer ?? null) : null,
       media: input.media ?? [],
     };
 
@@ -307,6 +317,7 @@ export class QuestionService {
       weight: 1,
       mcGradingStrategy: null,
       explanation: null,
+      referenceAnswer: null,
       media: [],
     }));
 
@@ -364,6 +375,7 @@ export class QuestionService {
       weight: item.weight,
       mcGradingStrategy: item.mcGradingStrategy,
       explanation: item.explanation,
+      referenceAnswer: item.referenceAnswer,
       // Media keys are copied verbatim — shared S3 objects, read-only.
       media: item.media.map((m) => ({ ...m })),
     }));
@@ -467,6 +479,11 @@ export class QuestionService {
       return { ...base, type: "image_answer" } satisfies ImageAnswerQuestion;
     }
 
-    return { ...base, type: "free_text" } satisfies FreeTextQuestion;
+    return {
+      ...base,
+      type: "free_text",
+      referenceAnswer: doc.referenceAnswer ?? undefined,
+      explanation: doc.explanation ?? undefined,
+    } satisfies FreeTextQuestion;
   }
 }

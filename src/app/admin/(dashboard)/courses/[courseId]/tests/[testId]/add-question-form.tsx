@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { OptionalTextField } from "src/components/optional-text-field";
 import { Button } from "src/components/ui/button";
 import {
   Card,
@@ -268,18 +269,28 @@ function AddQuestionFormInner({
 
               {/* Optional explanation, shown to the student once correct answers are revealed */}
               {isMC && (
-                <div className="space-y-2">
-                  <Label htmlFor="question-explanation">
-                    Explanation{" "}
-                    <span className="text-xs text-muted-foreground">
-                      (optional)
-                    </span>
-                  </Label>
-                  <Textarea
+                <OptionalTextField
+                  id="question-explanation"
+                  name="explanation"
+                  label="Explanation"
+                  placeholder="Explain why the correct answer is correct…"
+                />
+              )}
+
+              {/* Model answer + explanation, shown to the student in practice mode after they answer */}
+              {questionType === "free_text" && (
+                <div className="space-y-4">
+                  <OptionalTextField
+                    id="question-reference-answer"
+                    name="referenceAnswer"
+                    label="Model Answer"
+                    placeholder="Write a sample correct answer…"
+                  />
+                  <OptionalTextField
                     id="question-explanation"
                     name="explanation"
-                    placeholder="Explain why the correct answer is correct…"
-                    rows={3}
+                    label="Explanation"
+                    placeholder="Explain what makes a good answer…"
                   />
                 </div>
               )}

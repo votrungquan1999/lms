@@ -1,4 +1,5 @@
 import {
+  type FreeTextQuestion,
   MediaContentType,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
@@ -196,6 +197,34 @@ describe("Feature: teacher attaches media to a question", () => {
       const [question] =
         await getTestServices().questionService.listQuestions("test-1");
       expect((question as SingleSelectQuestion).explanation).toBeUndefined();
+    });
+  });
+
+  describe("creating a free_text question with a referenceAnswer and explanation", () => {
+    it("persists both fields on the created question", async () => {
+      const formData = new FormData();
+      formData.set("type", "free_text");
+      formData.set("testId", "test-1");
+      formData.set("courseId", "course-1");
+      formData.set("title", "Explain photosynthesis.");
+      formData.set("content", "Write a short paragraph.");
+      formData.set(
+        "referenceAnswer",
+        "Plants convert light into chemical energy.",
+      );
+      formData.set("explanation", "Focus on the role of chlorophyll.");
+
+      const result = await addQuestionAction(null, formData);
+
+      expect(result.success).toBe(true);
+      const [question] =
+        await getTestServices().questionService.listQuestions("test-1");
+      expect((question as FreeTextQuestion).referenceAnswer).toBe(
+        "Plants convert light into chemical energy.",
+      );
+      expect((question as FreeTextQuestion).explanation).toBe(
+        "Focus on the role of chlorophyll.",
+      );
     });
   });
 

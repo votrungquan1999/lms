@@ -97,6 +97,27 @@ describe("addPoolQuestionAction", () => {
     expect(question.explanation).toBeUndefined();
   });
 
+  it("persists a referenceAnswer and explanation on a free_text pool question", async () => {
+    const form = new FormData();
+    form.set("type", "free_text");
+    form.set("poolId", "pool-1");
+    form.set("title", "Explain photosynthesis");
+    form.set("content", "Write a short paragraph.");
+    form.set("referenceAnswer", "Plants convert light into chemical energy.");
+    form.set("explanation", "Focus on the role of chlorophyll.");
+
+    const result = await addPoolQuestionAction(null, form);
+
+    expect(result.success).toBe(true);
+    const [question] =
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1");
+    if (question.type !== "free_text") throw new Error("type narrow");
+    expect(question.referenceAnswer).toBe(
+      "Plants convert light into chemical energy.",
+    );
+    expect(question.explanation).toBe("Focus on the role of chlorophyll.");
+  });
+
   it("rejects a non-admin caller and stores nothing", async () => {
     requireAdminSession.mockRejectedValueOnce(new Error("forbidden"));
 
