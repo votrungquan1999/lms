@@ -12,7 +12,11 @@ import {
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { addQuestionAction, updateQuestionAction } from "../actions";
+import {
+  addQuestionAction,
+  deleteQuestionAction,
+  updateQuestionAction,
+} from "../actions";
 import { requestUploadSlotsAction } from "../question-media-actions";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
@@ -588,5 +592,60 @@ describe("Feature: a teacher changes a question's type (Step 28)", () => {
       .findOne({ id: question.id });
     expect(doc?.type).toBe("free_text");
     expect(doc?.options).toBeNull();
+  });
+});
+
+/** Builds the FormData the delete-question button submits. */
+function buildDeleteQuestionFormData(questionId: string): FormData {
+  const formData = new FormData();
+  formData.set("questionId", questionId);
+  formData.set("testId", "test-1");
+  formData.set("courseId", "course-1");
+  return formData;
+}
+
+describe("Feature: a teacher deletes a question from a test (Step 29)", () => {
+  it("soft-deletes the question so it no longer appears in the test's question list", async () => {
+    const question = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      },
+    );
+
+    const result = await deleteQuestionAction(
+      null,
+      buildDeleteQuestionFormData(question.id),
+    );
+
+    expect(result.success).toBe(true);
+    const remaining =
+      await getTestServices().questionService.listQuestions("test-1");
+    expect(remaining).toEqual([]);
+  });
+
+  it("refuses a non-admin caller and persists nothing", async () => {
+    const question = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      },
+    );
+    requireAdminSession.mockRejectedValue(new Error("not admin"));
+
+    const result = await deleteQuestionAction(
+      null,
+      buildDeleteQuestionFormData(question.id),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Unauthorized");
+    const remaining =
+      await getTestServices().questionService.listQuestions("test-1");
+    expect(remaining).toHaveLength(1);
   });
 });

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   type FreeTextQuestion,
   MediaContentType,
@@ -16,10 +17,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestDetailPage from "../page";
 import { QuestionList } from "../question-list";
 
+const mockRequireAdminSession = vi.fn();
+
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("notFound called");
+  }),
+  unstable_rethrow: vi.fn(),
+}));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue(new Map()),
+}));
+vi.mock("src/lib/auth-singleton", () => ({
+  getAuthService: vi.fn().mockResolvedValue({
+    requireAdminSession: (...args: unknown[]) =>
+      mockRequireAdminSession(...args),
   }),
 }));
 
@@ -279,6 +293,133 @@ describe("Feature: Test detail page wires the answered-student count", () => {
 
     expect(
       screen.getByText(/1 student has answered this/i),
+    ).toBeInTheDocument();
+  });
+});
+
+/**
+ * Feature: A teacher deletes a question from a test, told what it does to
+ * the marks of students who already answered it (Step 29 / D37/D47).
+ */
+describe("Feature: a teacher deletes a question from a test", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("removes the question from the test on confirm", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    await user.click(screen.getByRole("button", { name: /delete question/i }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: /^delete$/i,
+      }),
+    );
+
+    // Wait on the rendered success message, not a direct DB poll — the
+    // delete also writes a change-log row after the tombstone commits, and
+    // a DB-only wait can observe the tombstone before that write settles,
+    // racing this test's own teardown (which closes the DB connection).
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/deleted/i);
+    });
+
+    const remaining = await services.questionService.listQuestions(test.id);
+    expect(remaining).toEqual([]);
+    expect(question.id).toBeDefined();
+  });
+
+  it("names that affected students' scores will change (not go to zero) when the question has been answered", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Explain gravity",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+    });
+
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "free_text", text: "My attempt" },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    await user.click(screen.getByRole("button", { name: /delete question/i }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/change/i);
+    expect(dialog).not.toHaveTextContent(/to zero/i);
+  });
+
+  it("shows a delete control for an image_answer question too, which has no edit panel", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(test.id, {
+      title: "Solve the integral",
+      content: "Upload a photo of your handwritten solution.",
+      createdBy: "admin",
+      type: "image_answer",
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    expect(
+      screen.getByRole("button", { name: /delete question/i }),
     ).toBeInTheDocument();
   });
 });

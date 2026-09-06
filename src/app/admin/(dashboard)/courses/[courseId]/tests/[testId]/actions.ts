@@ -421,3 +421,62 @@ export async function deleteTestAction(
     return { success: false, message };
   }
 }
+
+export interface DeleteQuestionState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: soft-deletes a question from a test (Step 29 / D37/D47).
+ */
+export async function deleteQuestionAction(
+  _prevState: DeleteQuestionState | null,
+  formData: FormData,
+): Promise<DeleteQuestionState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  const questionId = formData.get("questionId")?.toString() ?? "";
+  const testId = formData.get("testId")?.toString() ?? "";
+  const courseId = formData.get("courseId")?.toString() ?? "";
+
+  if (!questionId || !testId || !courseId) {
+    return {
+      success: false,
+      message: "Question ID, Test ID or Course ID is missing",
+    };
+  }
+
+  try {
+    return await withSpan(
+      "action.deleteQuestionAction",
+      {
+        "lms.action.name": "deleteQuestionAction",
+        "lms.question.id": questionId,
+        "lms.test.id": testId,
+      },
+      async () => {
+        const questionService = await getQuestionService();
+        await questionService.deleteQuestion(questionId, adminUserId);
+
+        revalidatePath(`/admin/courses/${courseId}/tests/${testId}`);
+
+        return { success: true, message: "Question deleted" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to delete question";
+    return { success: false, message };
+  }
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import type * as React from "react";
 import { useActionState, useRef, useState } from "react";
 import { OptionalTextField } from "src/components/optional-text-field";
@@ -12,6 +13,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "src/components/ui/alert-dialog";
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
@@ -24,7 +26,11 @@ import {
   type Question,
   type QuestionType,
 } from "src/lib/question-service";
-import { type UpdateQuestionState, updateQuestionAction } from "./actions";
+import {
+  deleteQuestionAction,
+  type UpdateQuestionState,
+  updateQuestionAction,
+} from "./actions";
 
 interface QuestionEditPanelProps {
   question: Question;
@@ -531,5 +537,94 @@ export function QuestionEditPanel({
         </AlertDialogContent>
       </AlertDialog>
     </form>
+  );
+}
+
+interface DeleteQuestionButtonProps {
+  questionId: string;
+  testId: string;
+  courseId: string;
+  /** Distinct answered-student count for this question (Step 23) — wording depends on it. */
+  answeredCount: number;
+}
+
+/**
+ * Delete control for a question (Step 29 / D37/D47). Rendered unconditionally
+ * for every question type in `question-list.tsx` — unlike `QuestionEditPanel`,
+ * which only exists for free_text/MC, delete must also reach `image_answer`
+ * questions. The delete is soft; the confirmation names the real consequence
+ * (D33 vs this step's own hazard are NOT the same): a deleted question leaves
+ * both halves of `getAverageScore`, so an affected student's overall score
+ * CHANGES — it does not reset to zero.
+ */
+export function DeleteQuestionButton({
+  questionId,
+  testId,
+  courseId,
+  answeredCount,
+}: DeleteQuestionButtonProps) {
+  const [state, formAction, isPending] = useActionState(
+    deleteQuestionAction,
+    null,
+  );
+
+  return (
+    <>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="size-4" />
+            <span className="sr-only">Delete question</span>
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this question?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the question from the test; it can't be restored.
+              {answeredCount > 0 &&
+                ` ${
+                  answeredCount === 1
+                    ? "1 student has"
+                    : `${answeredCount} students have`
+                } already answered it — deleting it changes their overall score; it does not become zero.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <form action={formAction}>
+            <input type="hidden" name="questionId" value={questionId} />
+            <input type="hidden" name="testId" value={testId} />
+            <input type="hidden" name="courseId" value={courseId} />
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={isPending}
+                >
+                  {isPending ? "Deleting..." : "Delete"}
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </form>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {state?.success && (
+        <output className="mt-2 block text-sm text-emerald-600">
+          {state.message}
+        </output>
+      )}
+      {state && !state.success && (
+        <div className="mt-2 text-sm text-destructive" role="alert">
+          {state.message}
+        </div>
+      )}
+    </>
   );
 }

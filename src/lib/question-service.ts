@@ -322,6 +322,9 @@ export interface QuestionDocument {
   answerRevealMode: AnswerRevealMode | null;
   /** Ordered media attachments (empty when none). */
   media: QuestionMediaDocument[];
+  /** Soft-delete marker (D47) — non-null means this question is a tombstone. */
+  deletedAt: Date | null;
+  deletedBy: string | null;
 }
 
 // ── Service ──────────────────────────────────────────────────────────────────
@@ -406,6 +409,8 @@ export class QuestionService {
       answerRevealMode:
         "answerRevealMode" in input ? (input.answerRevealMode ?? null) : null,
       media: input.media ?? [],
+      deletedAt: null,
+      deletedBy: null,
     };
 
     await this.questions.insertOne(doc);
@@ -442,6 +447,8 @@ export class QuestionService {
       referenceAnswer: null,
       answerRevealMode: null, // bulk JSON import carries no per-question override
       media: [],
+      deletedAt: null,
+      deletedBy: null,
     }));
 
     await this.questions.insertMany(docs);
@@ -502,6 +509,8 @@ export class QuestionService {
       answerRevealMode: item.answerRevealMode,
       // Media keys are copied verbatim — shared S3 objects, read-only.
       media: item.media.map((m) => ({ ...m })),
+      deletedAt: null,
+      deletedBy: null,
     }));
 
     await this.questions.insertMany(docs);
@@ -681,9 +690,84 @@ export class QuestionService {
     });
   }
 
+  /**
+   * Soft-deletes a question (D37/D47): stamps `deletedAt`/`deletedBy` rather
+   * than removing the row, so `answer`/`grade` rows pointing at it stay
+   * resolvable for audit purposes. Records its own change-log row carrying
+   * the whole question as `before` — the strand stays diagnosable even if
+   * the tombstone is later purged.
+   * @param questionId - The question to delete.
+   * @param deletedBy - The admin performing the delete.
+   */
+  async deleteQuestion(questionId: string, deletedBy: string): Promise<void> {
+    const before = await this.questions.findOne({ id: questionId });
+    if (!before) {
+      return;
+    }
+
+    const now = new Date();
+    await this.questions.updateOne(
+      { id: questionId },
+      {
+        $set: {
+          deletedAt: now,
+          deletedBy,
+          updatedAt: now,
+          updatedBy: deletedBy,
+        },
+      },
+    );
+
+    if (!this.changeLogService) {
+      return;
+    }
+
+    const answeredStudentCount = this.getAnswerService
+      ? ((
+          await (
+            await this.getAnswerService()
+          ).countAnsweredStudentsByQuestionIds([questionId])
+        ).get(questionId) ?? 0)
+      : 0;
+
+    // Named fields only — `_id` is Mongo's own bookkeeping, not part of the
+    // question's identity, so it's left out of the domain-level audit trail.
+    const beforeDoc: Record<string, unknown> = {
+      id: before.id,
+      testId: before.testId,
+      title: before.title,
+      content: before.content,
+      order: before.order,
+      createdAt: before.createdAt,
+      createdBy: before.createdBy,
+      updatedAt: before.updatedAt,
+      updatedBy: before.updatedBy,
+      type: before.type,
+      options: before.options,
+      weight: before.weight,
+      mcGradingStrategy: before.mcGradingStrategy,
+      explanation: before.explanation,
+      referenceAnswer: before.referenceAnswer,
+      answerRevealMode: before.answerRevealMode,
+      media: before.media,
+    };
+
+    await this.changeLogService.recordChange({
+      questionId,
+      testId: before.testId,
+      poolId: null,
+      changedBy: deletedBy,
+      action: "delete",
+      changedFields: Object.keys(beforeDoc),
+      before: beforeDoc,
+      after: {},
+      answeredStudentCount,
+    });
+  }
+
   async listQuestions(testId: string): Promise<Question[]> {
     const docs = await this.questions
-      .find({ testId })
+      .find({ testId, deletedAt: null })
       .sort({ order: 1 })
       .toArray();
 
@@ -699,7 +783,7 @@ export class QuestionService {
     }
 
     const pipeline = [
-      { $match: { testId: { $in: testIds } } },
+      { $match: { testId: { $in: testIds }, deletedAt: null } },
       { $group: { _id: "$testId", count: { $sum: 1 } } },
     ];
 
@@ -715,8 +799,11 @@ export class QuestionService {
   }
 
   private async getNextOrder(testId: string): Promise<number> {
+    // Excludes tombstones (D47) — this is what lets a REPLACE renumber from
+    // 1. Accepted consequence: a live question can share an order with a
+    // deleted one, which is why restoring a delete is not supported.
     const last = await this.questions
-      .find({ testId })
+      .find({ testId, deletedAt: null })
       .sort({ order: -1 })
       .limit(1)
       .toArray();

@@ -17,7 +17,7 @@ Extend the question system to support multiple choice questions alongside existi
 - [x] Admin specifies a list of options (minimum 2, add/remove dynamically)
 - [x] Admin marks exactly one option as the correct answer (radio button in the form)
 - [x] Question is displayed with radio buttons on the student side
-- [x] System validates that exactly one option is marked correct on creation
+- [x] System validates that exactly one option is marked correct, both on creation and whenever the option list is later edited
 
 ### Admin — Multi-Select Questions
 
@@ -25,7 +25,7 @@ Extend the question system to support multiple choice questions alongside existi
 - [x] Admin specifies a list of options (minimum 2)
 - [x] Admin marks one or more options as correct (checkboxes in the form)
 - [x] Question is displayed with checkboxes on the student side
-- [x] System validates that at least one option is marked correct on creation
+- [x] System validates that at least one option is marked correct, both on creation and whenever the option list is later edited
 
 ### Admin — Question Type Picker UI
 
@@ -60,6 +60,15 @@ Extend the question system to support multiple choice questions alongside existi
 - [x] Admin grading page shows the student's MC answer as human-readable option text (e.g., `[MC] Paris`)
 - [x] MC questions with auto-grades show `value="100"` pre-filled in the score input; admin can override
 
+### Admin — Correcting or Removing a Question After Creation
+
+- [x] Admin can correct a question's title, body, model answer, explanation and answer-reveal setting after it has been created — a question is not write-once
+- [x] Admin can rewrite an MC question's option list; an option that is not removed keeps its id (so a typo fix does not detach any student's saved answer), while a genuinely new option gets a fresh id
+- [x] Admin can change a question's type; fields the new type cannot hold are cleared, not left dormant
+- [x] Admin can delete a question from a test (soft delete — the row is not removed, so audit data on it is preserved)
+- [x] A confirmation names the real consequence before any of the above saves over an already-answered question: an option rewrite may strand a saved selection, a type change invalidates every existing answer for that question, and a delete changes affected students' overall scores (it does not reset them to zero)
+- [x] Every such edit or delete is recorded in an append-only change log, capturing who changed what, when, and the before/after values — this is what makes stranded or deleted data diagnosable after the fact
+
 ### Data Model
 
 - [x] Questions have a `type` field: `free_text` | `single_select` | `multi_select`
@@ -68,3 +77,5 @@ Extend the question system to support multiple choice questions alongside existi
 - [x] Existing free-text questions continue to work unchanged (backward compatible)
 - [x] Student answers for MC questions stored as `{ type: "mc"; selectedIds: string[] }` (discriminated union)
 - [x] Legacy plain-string answers are coerced to `{ type: "free_text"; text: string }` on read
+- [x] Questions carry `deletedAt`/`deletedBy` (soft delete); every read path (`listQuestions`, `countByTestIds`) and the next-order calculation exclude tombstones
+- [x] Restoring a deleted question is not supported — a live question may share its `order` number with an earlier tombstone

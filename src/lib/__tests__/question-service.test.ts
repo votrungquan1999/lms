@@ -1504,6 +1504,175 @@ describe("composeFromPools isolation (Step 22 — regression pin, no production 
   );
 });
 
+describe("deleteQuestion — a teacher deletes a question from a test (Step 29 / D37/D47)", () => {
+  dbIt(
+    "soft-deletes the question: stamps deletedAt/deletedBy and excludes it from listQuestions",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      });
+
+      await service.deleteQuestion(question.id, "admin-2");
+
+      const remaining = await service.listQuestions("test-1");
+      expect(remaining).toEqual([]);
+
+      const doc = await db
+        .collection<QuestionDocument>("question")
+        .findOne({ id: question.id });
+      expect(doc?.deletedAt).toBeInstanceOf(Date);
+      expect(doc?.deletedBy).toBe("admin-2");
+    },
+  );
+
+  dbIt("excludes a deleted question from countByTestIds", async ({ db }) => {
+    const service = new QuestionService(db);
+
+    const question = await service.addQuestion("test-1", {
+      title: "Q1",
+      content: "First",
+      createdBy: "admin-1",
+    });
+    await service.addQuestion("test-1", {
+      title: "Q2",
+      content: "Second",
+      createdBy: "admin-1",
+    });
+
+    await service.deleteQuestion(question.id, "admin-2");
+
+    const counts = await service.countByTestIds(["test-1"]);
+    expect(counts.get("test-1")).toBe(1);
+  });
+
+  dbIt(
+    "assigns the next order based on non-deleted questions only, letting a new question reuse a deleted one's order (Step 29 — the accepted consequence of a tombstone-excluding getNextOrder)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      await service.addQuestion("test-1", {
+        title: "Q1",
+        content: "First",
+        createdBy: "admin-1",
+      });
+      const q2 = await service.addQuestion("test-1", {
+        title: "Q2",
+        content: "Second",
+        createdBy: "admin-1",
+      });
+      expect(q2.order).toBe(2);
+
+      await service.deleteQuestion(q2.id, "admin-2");
+
+      const q3 = await service.addQuestion("test-1", {
+        title: "Q3",
+        content: "Third",
+        createdBy: "admin-1",
+      });
+      // Reuses order 2 — the tombstoned Q2's slot — since getNextOrder only
+      // looks at live questions. Restoring a deleted question is therefore
+      // not supported: a live row can now share an order with a tombstone.
+      expect(q3.order).toBe(2);
+    },
+  );
+
+  dbIt(
+    "records the delete as its own change-log row carrying the whole question document as before, with an empty after",
+    async ({ db }) => {
+      const changeLogService = new QuestionChangeLogService(db);
+      const service = new QuestionService(db, changeLogService);
+
+      const question = (await service.addQuestion("test-1", {
+        title: "Pick the capital",
+        content: "Choose one.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "London", isCorrect: false },
+        ],
+        explanation: "Paris is the capital of France.",
+      })) as SingleSelectQuestion;
+
+      await service.deleteQuestion(question.id, "admin-2");
+
+      const row = await db
+        .collection("questionChangeLog")
+        .findOne({ questionId: question.id });
+
+      expect(row).toMatchObject({
+        action: "delete",
+        changedBy: "admin-2",
+        testId: "test-1",
+        poolId: null,
+        after: {},
+      });
+      expect(row?.before).toMatchObject({
+        id: question.id,
+        title: "Pick the capital",
+        type: "single_select",
+        explanation: "Paris is the capital of France.",
+      });
+      const strandedOptions = (row?.before as { options: McOption[] }).options;
+      expect(strandedOptions.find((o) => o.text === "Paris")?.isCorrect).toBe(
+        true,
+      );
+    },
+  );
+
+  dbIt(
+    "records the real answered-student count on delete, not a false zero (Step 29 — wires the getAnswerService thunk)",
+    async ({ db }) => {
+      const changeLogService = new QuestionChangeLogService(db);
+      const testService = new TestService(db);
+      const testStartService = new TestStartService(db);
+      const questionService = new QuestionService(db, changeLogService);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        testService,
+        testStartService,
+      );
+      const questionServiceWithLogging = new QuestionService(
+        db,
+        changeLogService,
+        () => Promise.resolve(answerService),
+      );
+
+      const question = await questionServiceWithLogging.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      });
+
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: question.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Attempt" },
+      });
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: question.id,
+        studentId: "student-2",
+        answer: { type: "free_text", text: "Attempt" },
+      });
+
+      await questionServiceWithLogging.deleteQuestion(question.id, "admin-2");
+
+      const row = await db
+        .collection("questionChangeLog")
+        .findOne({ questionId: question.id });
+
+      expect(row?.answeredStudentCount).toBe(2);
+    },
+  );
+});
+
 describe("checkMcOptions — the shared MC option-count rule", () => {
   it("rejects a single_select with no correct option by default, matching today's rule", () => {
     const error = checkMcOptions("single_select", [

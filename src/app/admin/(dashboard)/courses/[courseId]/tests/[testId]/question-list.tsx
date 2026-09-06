@@ -9,7 +9,7 @@ import {
 } from "src/components/ui/card";
 import { isMcQuestion, type Question } from "src/lib/question-service";
 import type { AnswerRevealMode } from "src/lib/test-service";
-import { QuestionEditPanel } from "./question-edit.state";
+import { DeleteQuestionButton, QuestionEditPanel } from "./question-edit.state";
 
 /** Renders a free_text question's reveal-mode override as read-only text; absent means it inherits the test's own choice. */
 function answerRevealModeLabel(mode: AnswerRevealMode | undefined): string {
@@ -69,12 +69,22 @@ export function QuestionList({
         return (
           <Card key={question.id}>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <span className="text-muted-foreground">#{question.order}</span>{" "}
-                {question.title}
-                {needsAnswerKey(question) && (
-                  <Badge variant="destructive">Needs an answer key</Badge>
-                )}
+              <CardTitle className="flex items-center justify-between gap-2 text-base">
+                <span className="flex items-center gap-2">
+                  <span className="text-muted-foreground">
+                    #{question.order}
+                  </span>{" "}
+                  {question.title}
+                  {needsAnswerKey(question) && (
+                    <Badge variant="destructive">Needs an answer key</Badge>
+                  )}
+                </span>
+                <DeleteQuestionButton
+                  questionId={question.id}
+                  testId={question.testId}
+                  courseId={courseId}
+                  answeredCount={answeredCount}
+                />
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
