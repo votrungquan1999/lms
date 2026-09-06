@@ -132,11 +132,17 @@ describe("Feature: Question read-visibility", () => {
 
       render(<QuestionList questions={[question]} courseId="course-1" />);
 
+      // Scoped to the read-only <p> summary — the same value also legitimately
+      // appears as the editable field's defaultValue in the panel below it.
       expect(
-        screen.getByText(/plants convert light into chemical energy/i),
+        screen.getByText(/plants convert light into chemical energy/i, {
+          selector: "p",
+        }),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/focus on the role of chlorophyll/i),
+        screen.getByText(/focus on the role of chlorophyll/i, {
+          selector: "p",
+        }),
       ).toBeInTheDocument();
       expect(screen.getByText("Plain")).toBeInTheDocument();
     });

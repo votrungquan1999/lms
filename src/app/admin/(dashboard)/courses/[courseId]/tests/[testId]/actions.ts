@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
+import type { UpdateQuestionInput } from "src/lib/question-service";
 import { getQuestionService, getTestService } from "src/lib/services-singleton";
 import {
   type SubmittedMedia,
@@ -48,7 +49,9 @@ export async function updateQuestionAction(
     questionId: formData.get("questionId"),
     testId: formData.get("testId"),
     courseId: formData.get("courseId"),
-    answerRevealMode: formData.get("answerRevealMode"),
+    answerRevealMode: formData.get("answerRevealMode") ?? undefined,
+    referenceAnswer: formData.get("referenceAnswer") ?? undefined,
+    explanation: formData.get("explanation") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -67,16 +70,32 @@ export async function updateQuestionAction(
         const questionService = await getQuestionService();
         const data = parsed.data;
 
+        // Each field is only touched when its control actually rendered
+        // (D8: `answerRevealMode`/`referenceAnswer` are free-text-only) —
+        // absent from FormData means "leave unchanged", not "clear".
+        const input: UpdateQuestionInput = {};
+        if (data.answerRevealMode !== undefined) {
+          // "inherit" is the form's sentinel for explicitly clearing the
+          // override back to the test's own default (D2) — never `undefined`.
+          input.answerRevealMode =
+            data.answerRevealMode === "inherit" ? null : data.answerRevealMode;
+        }
+        if (data.referenceAnswer !== undefined) {
+          // Blank normalizes to "cleared" (null), matching addQuestionAction's
+          // `data.referenceAnswer || undefined` rule — never a stored "".
+          input.referenceAnswer =
+            data.referenceAnswer.trim() === ""
+              ? null
+              : data.referenceAnswer.trim();
+        }
+        if (data.explanation !== undefined) {
+          input.explanation =
+            data.explanation.trim() === "" ? null : data.explanation.trim();
+        }
+
         await questionService.updateQuestion(
           data.questionId,
-          {
-            // "inherit" is the form's sentinel for explicitly clearing the
-            // override back to the test's own default (D2) — never `undefined`.
-            answerRevealMode:
-              data.answerRevealMode === "inherit"
-                ? null
-                : data.answerRevealMode,
-          },
+          input,
           adminUserId,
         );
 

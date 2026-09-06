@@ -7,6 +7,8 @@ interface OptionalTextFieldProps {
   label: string;
   placeholder: string;
   rows?: number;
+  /** Pre-fills the field for editing an existing value; omit for a blank create-time field. */
+  defaultValue?: string;
 }
 
 /**
@@ -20,6 +22,7 @@ export function OptionalTextField({
   label,
   placeholder,
   rows = 3,
+  defaultValue,
 }: OptionalTextFieldProps) {
   return (
     <div className="space-y-2">
@@ -27,7 +30,13 @@ export function OptionalTextField({
         {label}{" "}
         <span className="text-xs text-muted-foreground">(optional)</span>
       </Label>
-      <Textarea id={id} name={name} placeholder={placeholder} rows={rows} />
+      <Textarea
+        id={id}
+        name={name}
+        placeholder={placeholder}
+        rows={rows}
+        defaultValue={defaultValue}
+      />
     </div>
   );
 }

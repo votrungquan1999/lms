@@ -722,6 +722,125 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       expect(updated.answerRevealMode).toBeUndefined();
     },
   );
+
+  dbIt(
+    "corrects a free_text question's model answer and explanation (Step 20)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      });
+
+      await service.updateQuestion(
+        question.id,
+        {
+          referenceAnswer: "Objects with mass attract each other.",
+          explanation: "Newton's law of universal gravitation.",
+        },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as FreeTextQuestion[];
+      expect(updated.referenceAnswer).toBe(
+        "Objects with mass attract each other.",
+      );
+      expect(updated.explanation).toBe(
+        "Newton's law of universal gravitation.",
+      );
+    },
+  );
+
+  dbIt(
+    "clears a model answer and explanation back to absent, not empty string (Step 20)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+        referenceAnswer: "Objects with mass attract each other.",
+        explanation: "Newton's law of universal gravitation.",
+      });
+
+      await service.updateQuestion(
+        question.id,
+        { referenceAnswer: null, explanation: null },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as FreeTextQuestion[];
+      expect(updated.referenceAnswer).toBeUndefined();
+      expect(updated.explanation).toBeUndefined();
+    },
+  );
+
+  dbIt(
+    "leaves referenceAnswer and answerRevealMode untouched when only explanation is corrected (Step 20)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+        answerRevealMode: "diff",
+        referenceAnswer: "Objects with mass attract each other.",
+        explanation: "Newton's law of universal gravitation.",
+      });
+
+      await service.updateQuestion(
+        question.id,
+        { explanation: "Newton's law, corrected." },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as FreeTextQuestion[];
+      // The absent keys must be left alone, not wiped to null (D2/D9 contract).
+      expect(updated.answerRevealMode).toBe("diff");
+      expect(updated.referenceAnswer).toBe(
+        "Objects with mass attract each other.",
+      );
+    },
+  );
+
+  dbIt(
+    "corrects a multiple-choice question's explanation — the column it shares with free_text (Step 20)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "What is 2 + 2?",
+        content: "Choose the correct answer.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "3", isCorrect: false },
+          { text: "4", isCorrect: true },
+        ],
+      });
+
+      await service.updateQuestion(
+        question.id,
+        { explanation: "4 is the sum of 2 and 2." },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as SingleSelectQuestion[];
+      expect(updated.explanation).toBe("4 is the sum of 2 and 2.");
+    },
+  );
 });
 
 describe("checkMcOptions — the shared MC option-count rule", () => {

@@ -225,6 +225,10 @@ export type AddQuestionInput =
  */
 export interface UpdateQuestionInput {
   answerRevealMode?: AnswerRevealMode | null;
+  /** Free-text model answer. `null` clears it back to absent. */
+  referenceAnswer?: string | null;
+  /** Teacher note shown once the answer is revealed; shared by MC and free_text. `null` clears it. */
+  explanation?: string | null;
 }
 
 /**
@@ -456,6 +460,12 @@ export class QuestionService {
     };
     if ("answerRevealMode" in input) {
       set.answerRevealMode = input.answerRevealMode ?? null;
+    }
+    if ("referenceAnswer" in input) {
+      set.referenceAnswer = input.referenceAnswer ?? null;
+    }
+    if ("explanation" in input) {
+      set.explanation = input.explanation ?? null;
     }
 
     await this.questions.updateOne({ id: questionId }, { $set: set });

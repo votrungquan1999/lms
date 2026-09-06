@@ -48,16 +48,22 @@ export const addQuestionSchema = z.discriminatedUnion("type", [
 ]);
 
 /**
- * Schema validating a question-edit form submission. Grows with Steps 20/26-28
- * as more fields become editable; for now it wires only `answerRevealMode`
- * (D52/D29). `"inherit"` is the form's sentinel for clearing the override back
- * to the test's own default — a real, reachable state distinct from unset.
+ * Schema validating a question-edit form submission. Grows with Steps 26-28
+ * as more fields become editable (D52/D29). Each editable field is optional
+ * here because the panel renders a different subset per question type
+ * (`answerRevealMode`/`referenceAnswer` are free-text-only per D8) — a field
+ * absent from FormData stays absent from the parsed data, which the action
+ * reads as "leave unchanged" rather than "clear". `"inherit"` is the form's
+ * sentinel for explicitly clearing the reveal override back to the test's
+ * own default — a real, reachable state distinct from unset.
  */
 export const editQuestionSchema = z.object({
   questionId: z.string().min(1, "Question ID is missing"),
   testId: z.string().min(1, "Test ID is missing"),
   courseId: z.string().min(1, "Course ID is missing"),
-  answerRevealMode: z.enum(["inherit", "diff", "plain"]),
+  answerRevealMode: z.enum(["inherit", "diff", "plain"]).optional(),
+  referenceAnswer: z.string().optional(),
+  explanation: z.string().optional(),
 });
 
 /** Schema validating the JSON file body for bulk question import. */
