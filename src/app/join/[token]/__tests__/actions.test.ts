@@ -421,3 +421,120 @@ describe("Feature: only a signed-in student can request to join a course", () =>
     ).toBe(0);
   });
 });
+
+/**
+ * Feature: a student who is already in the course, or already waiting on a
+ * request, is told so instead of queueing a duplicate
+ * As a signed-in student who is already enrolled, or already has a pending
+ * request, for the course behind this invite link
+ * I want to be told my existing status
+ * So that the admin queue never fills with requests from people who are
+ * already members or already waiting
+ */
+describe("Feature: a student who is already in the course, or already waiting on a request, is told so instead of queueing a duplicate", () => {
+  it("tells an already-enrolled student they're already in the course, and files no request", async () => {
+    // Given a course the signed-in student is ALREADY enrolled in
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    const student = await (
+      authHolder.authService as AuthService
+    ).registerStudent({
+      name: "Enrolled Student",
+      username: "enrolled-student",
+      password: "correct-horse-1",
+      createdBy: "self-signup",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin-1",
+    );
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "requireStudentSession",
+    ).mockResolvedValue(
+      new StudentSession({
+        userId: "auth-user-1",
+        username: student.username,
+        studentId: student.id,
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+
+    // When they submit the request-to-join action anyway
+    const result = await requestToJoinAction(null, formData);
+
+    // Then they're told they're already enrolled, and no request is filed
+    expect(result.message).toBe(
+      `You're already enrolled in "Intro to Algorithms".`,
+    );
+    const pending = await services.courseJoinRequestService.getPendingRequest(
+      course.id,
+      student.id,
+    );
+    expect(pending).toBeNull();
+  });
+});
+
+describe("Feature: a student who already has a pending request is told so, and no duplicate is queued", () => {
+  it("tells a student with a pending request it's already waiting, and creates no second request", async () => {
+    // Given a course the signed-in student has ALREADY requested to join
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    const student = await (
+      authHolder.authService as AuthService
+    ).registerStudent({
+      name: "Waiting Student",
+      username: "waiting-student",
+      password: "correct-horse-1",
+      createdBy: "self-signup",
+    });
+    const firstRequest = await services.courseJoinRequestService.createRequest({
+      courseId: course.id,
+      studentId: student.id,
+    });
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "requireStudentSession",
+    ).mockResolvedValue(
+      new StudentSession({
+        userId: "auth-user-1",
+        username: student.username,
+        studentId: student.id,
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+
+    // When they submit the request-to-join action again
+    const result = await requestToJoinAction(null, formData);
+
+    // Then they're told it's already waiting, and no second row is created
+    expect(result.message).toBe(
+      `Your request to join "Intro to Algorithms" is already waiting for admin approval.`,
+    );
+    const allRequestsForStudent = await db
+      .collection("course_join_request")
+      .find({ courseId: course.id, studentId: student.id })
+      .toArray();
+    expect(allRequestsForStudent).toHaveLength(1);
+    expect(allRequestsForStudent[0].id).toBe(firstRequest.id);
+  });
+});

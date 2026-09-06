@@ -6,6 +6,7 @@ import { withSpan } from "src/lib/observability/with-span";
 import {
   getCourseJoinRequestService,
   getCourseService,
+  getEnrollmentService,
   getStudentService,
 } from "src/lib/services-singleton";
 import { USERNAME_PATTERN } from "src/lib/username";
@@ -289,7 +290,36 @@ export async function requestToJoinAction(
           return { success: false, message: INVALID_INVITE_MESSAGE };
         }
 
+        // Existence-equals-membership (enrollment-service.ts) — an enrolled
+        // student is told so directly, never handed a second pending request.
+        const enrollmentService = await getEnrollmentService();
+        const alreadyEnrolled = await enrollmentService.isEnrolled(
+          course.id,
+          studentId,
+        );
+        if (alreadyEnrolled) {
+          return {
+            success: true,
+            message: `You're already enrolled in "${course.title}".`,
+          };
+        }
+
+        // Pre-checked so the reply can say "already waiting" instead of the
+        // generic success message — this is for the MESSAGE only.
+        // createRequest has no unique index, so a lost race here can still
+        // insert a second Pending row.
         const joinRequestService = await getCourseJoinRequestService();
+        const existingPending = await joinRequestService.getPendingRequest(
+          course.id,
+          studentId,
+        );
+        if (existingPending) {
+          return {
+            success: true,
+            message: `Your request to join "${course.title}" is already waiting for admin approval.`,
+          };
+        }
+
         await joinRequestService.createRequest({
           courseId: course.id,
           studentId,
