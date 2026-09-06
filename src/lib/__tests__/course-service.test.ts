@@ -99,3 +99,25 @@ describe("Feature: an admin issues a fresh join link, and the previous one stops
     },
   );
 });
+
+/**
+ * Feature: an admin switches a course's join link off entirely
+ * As an admin
+ * I want turning off a link for a gone course to fail loudly
+ * So that a stale "success" is never reported for a course that isn't there
+ */
+describe("Feature: an admin switches a course's join link off entirely", () => {
+  dbIt(
+    "throws instead of reporting success for a nonexistent course",
+    async ({ db }) => {
+      // Given no course exists with this ID
+      const courseService = new CourseService(db);
+
+      // When turning off its join link
+      // Then it throws rather than silently reporting success
+      await expect(
+        courseService.disableInviteToken("nonexistent-course-id"),
+      ).rejects.toThrow("Course not found");
+    },
+  );
+});

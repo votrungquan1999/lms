@@ -243,4 +243,21 @@ export class CourseService {
     }
     return token;
   }
+
+  /**
+   * Switches a course's join link off. Clearing back to `null` is
+   * indistinguishable from "never minted" — the next request for a link
+   * mints a fresh one (D2/D6: no separate enabled/disabled flag exists).
+   * @param courseId - The course to switch the join link off for.
+   * @throws If the course does not exist.
+   */
+  async disableInviteToken(courseId: string): Promise<void> {
+    const result = await this.courses.updateOne(
+      { id: courseId },
+      { $set: { inviteToken: null } },
+    );
+    if (result.matchedCount === 0) {
+      throw new Error("Course not found");
+    }
+  }
 }

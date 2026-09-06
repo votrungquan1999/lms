@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button } from "src/components/ui/button";
 import {
+  disableInviteLinkAction,
   getInviteLinkAction,
   type InviteLinkState,
   regenerateInviteLinkAction,
@@ -31,6 +32,10 @@ export function ShareInviteLink({
     InviteLinkState | null,
     FormData
   >(regenerateInviteLinkAction, null);
+  const [disableState, disableAction, disablePending] = useActionState<
+    InviteLinkState | null,
+    FormData
+  >(disableInviteLinkAction, null);
 
   // Relative path only — deterministic on server and client, so hydration
   // never mismatches. The absolute URL is built on demand when copying.
@@ -66,20 +71,38 @@ export function ShareInviteLink({
               {copied ? "Copied!" : "Copy"}
             </Button>
           </div>
-          <form action={regenAction}>
-            <input type="hidden" name="courseId" value={courseId} />
-            <Button
-              type="submit"
-              variant="outline"
-              size="sm"
-              disabled={regenPending}
-            >
-              {regenPending ? "Regenerating…" : "Regenerate Link"}
-            </Button>
-          </form>
+          <div className="flex gap-2">
+            <form action={regenAction}>
+              <input type="hidden" name="courseId" value={courseId} />
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                disabled={regenPending}
+              >
+                {regenPending ? "Regenerating…" : "Regenerate Link"}
+              </Button>
+            </form>
+            <form action={disableAction}>
+              <input type="hidden" name="courseId" value={courseId} />
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                disabled={disablePending}
+              >
+                {disablePending ? "Turning off…" : "Turn Off Link"}
+              </Button>
+            </form>
+          </div>
           {regenState && !regenState.success && (
             <p role="alert" className="text-xs text-destructive">
               {regenState.message}
+            </p>
+          )}
+          {disableState && !disableState.success && (
+            <p role="alert" className="text-xs text-destructive">
+              {disableState.message}
             </p>
           )}
         </div>

@@ -16,7 +16,11 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
-import { getInviteLinkAction, regenerateInviteLinkAction } from "../actions";
+import {
+  disableInviteLinkAction,
+  getInviteLinkAction,
+  regenerateInviteLinkAction,
+} from "../actions";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -179,6 +183,79 @@ describe("Feature: an admin issues a fresh join link, and the previous one stops
     await regenerateInviteLinkAction(null, formData);
 
     // Then the course page is revalidated so the new link actually shows
+    expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${course.id}`);
+  });
+});
+
+/**
+ * Feature: an admin switches a course's join link off entirely
+ * As an admin
+ * I want to turn off a course's join link
+ * So that nobody can use it any more
+ */
+describe("Feature: an admin switches a course's join link off entirely", () => {
+  it("clears the stored token so no link resolves to this course any more", async () => {
+    // Given a course with an existing join link
+    const { courseService } = getTestServices();
+    const course = await courseService.createCourse({
+      title: "Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    await courseService.getOrCreateInviteToken(course.id);
+
+    const formData = new FormData();
+    formData.set("courseId", course.id);
+
+    // When the admin turns off the join link
+    const result = await disableInviteLinkAction(null, formData);
+
+    // Then the stored token is cleared
+    expect(result.success).toBe(true);
+    const persisted = await courseService.getCourse(course.id);
+    expect(persisted?.inviteToken).toBeNull();
+  });
+
+  it("rejects a non-admin caller and leaves the stored token unchanged", async () => {
+    // Given a course with an existing join link
+    const { courseService } = getTestServices();
+    const course = await courseService.createCourse({
+      title: "Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await courseService.getOrCreateInviteToken(course.id);
+
+    const formData = new FormData();
+    formData.set("courseId", course.id);
+
+    // When a non-admin caller attempts to turn off the join link
+    requireAdminSession.mockRejectedValueOnce(new Error("not admin"));
+    const result = await disableInviteLinkAction(null, formData);
+
+    // Then it is rejected and the token is still active
+    expect(result.success).toBe(false);
+    const persisted = await courseService.getCourse(course.id);
+    expect(persisted?.inviteToken).toBe(token);
+  });
+
+  it("revalidates the course page after turning off the join link", async () => {
+    // Given a course with an existing join link
+    const { courseService } = getTestServices();
+    const course = await courseService.createCourse({
+      title: "Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    await courseService.getOrCreateInviteToken(course.id);
+
+    const formData = new FormData();
+    formData.set("courseId", course.id);
+
+    // When the admin turns off the join link
+    await disableInviteLinkAction(null, formData);
+
+    // Then the course page is revalidated so the dead link stops showing
     expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${course.id}`);
   });
 });

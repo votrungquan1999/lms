@@ -200,6 +200,59 @@ export async function regenerateInviteLinkAction(
   }
 }
 
+/**
+ * Server action: switches a course's join link off entirely — nobody can
+ * use it any more. Never logs or spans the token itself.
+ */
+export async function disableInviteLinkAction(
+  _prevState: InviteLinkState | null,
+  formData: FormData,
+): Promise<InviteLinkState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  try {
+    await authService.requireAdminSession(requestHeaders);
+  } catch {
+    return {
+      success: false,
+      message: "Unauthorized: admin access required",
+    };
+  }
+
+  const parsed = inviteLinkCourseSchema.safeParse({
+    courseId: formData.get("courseId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: parsed.error.issues[0].message,
+    };
+  }
+
+  try {
+    return await withSpan(
+      "action.disableInviteLinkAction",
+      {
+        "lms.action.name": "disableInviteLinkAction",
+        "lms.course.id": parsed.data.courseId,
+      },
+      async () => {
+        const courseService = await getCourseService();
+        await courseService.disableInviteToken(parsed.data.courseId);
+        revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        return { success: true, message: "Join link turned off" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to turn off join link";
+    return { success: false, message };
+  }
+}
+
 const createTestSchema = z.object({
   courseId: z.string().min(1, "Course ID is missing"),
   title: z.string().trim().min(1, "Test title is required"),
