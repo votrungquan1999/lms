@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test as setup } from "@playwright/test";
+import { MongoClient } from "mongodb";
+import { E2E_MONGODB_URI } from "./mongodb-uri";
 
 const authDir = path.join(__dirname, "../playwright/.auth");
 // Must follow playwright.config.ts's E2E_PORT, or this spec would drive a
@@ -41,6 +43,24 @@ setup.describe("auth setup", () => {
         },
       );
       expect(signInResponse.ok()).toBeTruthy();
+    }
+
+    // The role model defaults every signup to "student" (input: false on the
+    // role field blocks setting it through the signup body itself), so the
+    // bootstrapped user needs a direct write to actually be an admin. The
+    // "admin" literal must track Role.Admin in src/lib/session.ts (D40).
+    const client = new MongoClient(E2E_MONGODB_URI);
+    try {
+      await client.connect();
+      const result = await client
+        .db()
+        .collection("user")
+        .updateOne({ email: ADMIN_EMAIL }, { $set: { role: "admin" } });
+      // A 0-match write leaves this user "student" and every admin test fails
+      // far away with no pointer back to this step — fail loudly here instead.
+      expect(result.matchedCount).toBe(1);
+    } finally {
+      await client.close();
     }
 
     // Navigate to verify session is active

@@ -1,17 +1,12 @@
 import { MongoClient } from "mongodb";
-
-// Overridable so two checkouts of this repo can run e2e at once. Both used to
-// hardcode `lms_e2e` and drop every collection at startup, so a concurrent run
-// in another worktree silently deleted this one's data mid-flight.
-const DB_NAME = process.env.E2E_DB_NAME ?? "lms_e2e";
-const MONGODB_URI = `mongodb://localhost:27017/${DB_NAME}`;
+import { E2E_DB_NAME, E2E_MONGODB_URI } from "./mongodb-uri";
 
 /**
  * Global setup — runs once before all tests.
  * Clears the test database to ensure a clean state for each test run.
  */
 async function globalSetup() {
-  const client = new MongoClient(MONGODB_URI);
+  const client = new MongoClient(E2E_MONGODB_URI);
 
   try {
     await client.connect();
@@ -23,7 +18,7 @@ async function globalSetup() {
       await db.dropCollection(collection.name);
     }
 
-    console.log(`[e2e global-setup] Cleared database: ${DB_NAME}`);
+    console.log(`[e2e global-setup] Cleared database: ${E2E_DB_NAME}`);
   } finally {
     await client.close();
   }
