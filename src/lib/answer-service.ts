@@ -216,6 +216,39 @@ export class AnswerService {
     return counts;
   }
 
+  /**
+   * Batch-counts distinct students who have answered each of the given
+   * questions. `answer` is append-only, so a naive row count overstates a
+   * revised answer as multiple students — this groups by student first.
+   */
+  async countAnsweredStudentsByQuestionIds(
+    questionIds: string[],
+  ): Promise<Map<string, number>> {
+    if (questionIds.length === 0) {
+      return new Map();
+    }
+
+    const pipeline = [
+      { $match: { questionId: { $in: questionIds } } },
+      // Collapse to one row per (question, student) before counting, so a
+      // student's revision history (append-only) is never counted twice.
+      {
+        $group: { _id: { questionId: "$questionId", studentId: "$studentId" } },
+      },
+      { $group: { _id: "$_id.questionId", count: { $sum: 1 } } },
+    ];
+
+    const results = await this.answers
+      .aggregate<{ _id: string; count: number }>(pipeline)
+      .toArray();
+
+    const counts = new Map<string, number>();
+    for (const r of results) {
+      counts.set(r._id, r.count);
+    }
+    return counts;
+  }
+
   private toAnswer(doc: AnswerDocument): Answer {
     return {
       id: doc.id,

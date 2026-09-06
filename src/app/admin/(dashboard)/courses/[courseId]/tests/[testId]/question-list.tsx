@@ -28,15 +28,25 @@ export function needsAnswerKey(question: Question): boolean {
   return isMcQuestion(question) && question.options.every((o) => !o.isCorrect);
 }
 
+/** Renders the distinct answered-student count (Step 23), singular-aware. */
+function answeredStudentCountLabel(count: number): string {
+  return count === 1
+    ? "1 student has answered this"
+    : `${count} students have answered this`;
+}
+
 /**
  * Server component: renders a list of questions for a test.
  */
 export function QuestionList({
   questions,
   courseId,
+  answeredCounts = new Map(),
 }: {
   questions: Question[];
   courseId: string;
+  /** Distinct answered-student count per question id (Step 23 / D49). Absent id means nobody has answered yet. */
+  answeredCounts?: Map<string, number>;
 }) {
   if (questions.length === 0) {
     return (
@@ -54,6 +64,7 @@ export function QuestionList({
           question.content.length > 200
             ? `${question.content.slice(0, 200)}…`
             : question.content;
+        const answeredCount = answeredCounts.get(question.id) ?? 0;
 
         return (
           <Card key={question.id}>
@@ -67,6 +78,11 @@ export function QuestionList({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {answeredCount > 0 && (
+                <p className="text-sm font-medium text-amber-600">
+                  {answeredStudentCountLabel(answeredCount)}
+                </p>
+              )}
               <MarkdownContent content={preview} compact />
               <QuestionMedia media={question.media} />
               {question.type === "free_text" && (

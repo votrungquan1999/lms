@@ -6,8 +6,22 @@ import {
   type Question,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
-import { describe, expect, it } from "vitest";
+import {
+  getTestServices,
+  servicesSingletonMockFactory,
+  setupTestDb,
+  teardownTestDb,
+} from "src/tests/render-server-page";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import TestDetailPage from "../page";
 import { QuestionList } from "../question-list";
+
+vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
+vi.mock("next/navigation", () => ({
+  notFound: vi.fn(() => {
+    throw new Error("notFound called");
+  }),
+}));
 
 /** Builds a minimal single_select question, media-free, for the flag tests. */
 function singleSelectQuestion(
@@ -162,5 +176,106 @@ describe("Feature: Question read-visibility", () => {
       expect(screen.getByText(/7.*correct/i)).toBeInTheDocument();
       expect(screen.getByText(/all.or.nothing/i)).toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * Feature: A teacher can see how many students have already answered a
+ * question before they change anything about it (Step 23)
+ */
+describe("Feature: Question card shows the answered-student count", () => {
+  describe("Scenario: three distinct students have answered a question", () => {
+    it("shows the count on the question card", () => {
+      const question = freeTextQuestion();
+
+      render(
+        <QuestionList
+          questions={[question]}
+          courseId="course-1"
+          answeredCounts={new Map([[question.id, 3]])}
+        />,
+      );
+
+      expect(
+        screen.getByText(/3 students have answered this/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("Scenario: nobody has answered a question yet", () => {
+    it("shows no answered-count text on the card", () => {
+      const question = freeTextQuestion();
+
+      render(
+        <QuestionList
+          questions={[question]}
+          courseId="course-1"
+          answeredCounts={new Map()}
+        />,
+      );
+
+      expect(
+        screen.queryByText(/students? have answered this/i),
+      ).not.toBeInTheDocument();
+    });
+  });
+});
+
+/**
+ * Feature: the admin test page wires the real answered-student count into
+ * the question list (Step 23) — proves `countAnsweredStudentsByQuestionIds`
+ * is actually called with every question on the test and its result reaches
+ * the rendered card, not just that the component can render a passed-in map.
+ */
+describe("Feature: Test detail page wires the answered-student count", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("counts a student's revised answer once, from the real database", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+    });
+
+    // Same student revises their answer — append-only storage means two rows.
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "free_text", text: "First attempt" },
+    });
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "free_text", text: "Revised attempt" },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    expect(
+      screen.getByText(/1 student has answered this/i),
+    ).toBeInTheDocument();
   });
 });

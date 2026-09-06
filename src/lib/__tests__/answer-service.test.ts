@@ -454,3 +454,104 @@ describe("AnswerService - Attempt Counts", () => {
     },
   );
 });
+
+// ── Answered-student counts (Step 23 / D49) ─────────────────────────────────
+
+describe("AnswerService - Answered Student Counts", () => {
+  dbIt(
+    "counts a student who revised twice as one answered student, not two rows",
+    async ({ db }) => {
+      const questionService = new QuestionService(db);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
+
+      // answer is append-only — a revision inserts a second row for the same student
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        answer: { type: "free_text", text: "First attempt" },
+      });
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Revised attempt" },
+      });
+
+      const counts = await answerService.countAnsweredStudentsByQuestionIds([
+        "q-1",
+      ]);
+
+      expect(counts.get("q-1")).toBe(1);
+    },
+  );
+
+  dbIt(
+    "batches counts across every requested question, scoped per question",
+    async ({ db }) => {
+      const questionService = new QuestionService(db);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db),
+        new TestStartService(db),
+      );
+
+      // q-1: two distinct students answer (one of them twice)
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        answer: { type: "free_text", text: "First" },
+      });
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Revised" },
+      });
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-2",
+        answer: { type: "free_text", text: "Other student" },
+      });
+      // q-2: one student answers, q-3 requested but never answered
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: "q-2",
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Only attempt for q2" },
+      });
+
+      const counts = await answerService.countAnsweredStudentsByQuestionIds([
+        "q-1",
+        "q-2",
+        "q-3",
+      ]);
+
+      expect(counts.get("q-1")).toBe(2);
+      expect(counts.get("q-2")).toBe(1);
+      expect(counts.has("q-3")).toBe(false);
+    },
+  );
+
+  dbIt("returns an empty map for an empty question id list", async ({ db }) => {
+    const questionService = new QuestionService(db);
+    const answerService = new AnswerService(
+      db,
+      questionService,
+      new TestService(db),
+      new TestStartService(db),
+    );
+
+    const counts = await answerService.countAnsweredStudentsByQuestionIds([]);
+
+    expect(counts.size).toBe(0);
+  });
+});

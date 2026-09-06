@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Separator } from "src/components/ui/separator";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import {
+  getAnswerService,
   getPoolQuestionService,
   getQuestionPoolService,
   getQuestionService,
@@ -44,6 +45,13 @@ export default async function TestDetailPage({
   // D44: no student-facing guard exists, so this count is the prominent
   // mitigation — the per-card badge alone is easy to miss on a long list.
   const needsAnswerKeyCount = questions.filter(needsAnswerKey).length;
+
+  // D49: one batch call for every question on the test, shared by the edit
+  // modal (Step 25) and the import/REPLACE warnings (Steps 33-34).
+  const answerService = await getAnswerService();
+  const answeredCounts = await answerService.countAnsweredStudentsByQuestionIds(
+    questions.map((q) => q.id),
+  );
 
   // Pools (with their current sizes) available to compose questions from.
   const poolService = await getQuestionPoolService();
@@ -122,7 +130,11 @@ export default async function TestDetailPage({
 
         <Separator />
 
-        <QuestionList questions={questions} courseId={courseId} />
+        <QuestionList
+          questions={questions}
+          courseId={courseId}
+          answeredCounts={answeredCounts}
+        />
       </section>
     </div>
   );
