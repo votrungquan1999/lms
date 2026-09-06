@@ -3,7 +3,7 @@
 import { createContext, useContext, useReducer } from "react";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
 import { parseQuestionsAction } from "./actions";
-import { extractTextFromDocx } from "./document-extract";
+import { extractTextFromDocx, extractTextFromPdf } from "./document-extract";
 
 /** One parsed question in the review list, keyed by a stable client id. */
 export interface ImportQuestionDraft extends ParsedQuestion {
@@ -33,6 +33,9 @@ const initialState: ImportAiState = {
   error: null,
   isBusy: false,
 };
+
+/** D41 — matches the existing course-material upload limit. */
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 /**
  * Reduces the AI-import stage machine: file → busy → error, matching the
@@ -85,14 +88,24 @@ export function ImportAiProvider({
    */
   async function selectFile(file: File): Promise<void> {
     const extension = file.name.split(".").pop()?.toLowerCase();
-    if (extension !== "docx") {
-      dispatch({ type: "ERROR", message: "Upload a .docx file." });
+    if (extension !== "docx" && extension !== "pdf") {
+      dispatch({ type: "ERROR", message: "Upload a .docx or .pdf file." });
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      dispatch({
+        type: "ERROR",
+        message: "The file must be 10 MB or smaller.",
+      });
       return;
     }
 
     dispatch({ type: "BUSY" });
 
-    const text = await extractTextFromDocx(file);
+    const text =
+      extension === "docx"
+        ? await extractTextFromDocx(file)
+        : await extractTextFromPdf(file);
 
     const result = await parseQuestionsAction(text);
     if (!result.success || !result.questions) {

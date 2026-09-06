@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "dev:e2e": "MONGODB_URI=mongodb://localhost:27017/lms_e2e AUTH_ALLOWED_HOSTS=localhost:3001 TRUSTED_ORIGINS=http://localhost:3001 next dev --port 3001"
+    "dev:e2e": "MONGODB_URI=mongodb://localhost:27017/lms_e2e AUTH_ALLOWED_HOSTS=localhost:3001 TRUSTED_ORIGINS=http://localhost:3001 E2E_MOCK_AI=1 GOOGLE_GENERATIVE_AI_API_KEY=e2e-mock-key S3_BUCKET_NAME=e2e-mock-bucket AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=e2e-mock-key-id AWS_SECRET_ACCESS_KEY=e2e-mock-secret next dev --port 3001"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.95",
@@ -60,6 +60,7 @@
     "@vitejs/plugin-react": "^5.1.4",
     "babel-plugin-react-compiler": "1.0.0",
     "jsdom": "^28.1.0",
+    "msw": "^2.15.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.0.18"
