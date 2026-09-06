@@ -1,11 +1,16 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
 import { questionImportItemSchema } from "src/lib/ai/question-import-schema";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
-import { getQuestionParseClient } from "src/lib/services-singleton";
+import type { QuestionService } from "src/lib/question-service";
+import {
+  getQuestionParseClient,
+  getQuestionService,
+} from "src/lib/services-singleton";
 import { z } from "zod";
 
 /** Caps the text sent to Gemini — see D41 (a long exam paper stays affordable). */
@@ -153,5 +158,134 @@ export async function retryQuestionAction(
       success: false,
       message: "AI retry failed. Please try again.",
     };
+  }
+}
+
+export interface ImportAiQuestionsState {
+  success: boolean;
+  message: string;
+  importedCount?: number;
+}
+
+/**
+ * Writes one reviewed draft via `addQuestion`, branching per type so each
+ * call matches one of its overloads exactly (a union input type does not —
+ * `addQuestion`'s overloads are not selectable from a widened union).
+ * `mcGradingStrategy` for `multi_select` has no source in the AI-extracted
+ * shape, so it defaults to `all_or_nothing`, matching the manual add form's
+ * own default.
+ * @param questionService - The service to write through.
+ * @param testId - The test to add the question to.
+ * @param question - One reviewed question, already validated by the caller.
+ * @param createdBy - The importing admin's id.
+ */
+async function addReviewedQuestion(
+  questionService: QuestionService,
+  testId: string,
+  question: ParsedQuestion,
+  createdBy: string,
+): Promise<void> {
+  if (question.type === "single_select") {
+    await questionService.addQuestion(testId, {
+      type: "single_select",
+      title: question.title,
+      content: question.content,
+      options: question.options ?? [],
+      explanation: question.explanation,
+      createdBy,
+    });
+    return;
+  }
+  if (question.type === "multi_select") {
+    await questionService.addQuestion(testId, {
+      type: "multi_select",
+      title: question.title,
+      content: question.content,
+      options: question.options ?? [],
+      mcGradingStrategy: "all_or_nothing",
+      explanation: question.explanation,
+      createdBy,
+    });
+    return;
+  }
+  await questionService.addQuestion(testId, {
+    type: "free_text",
+    title: question.title,
+    content: question.content,
+    referenceAnswer: question.referenceAnswer,
+    explanation: question.explanation,
+    createdBy,
+  });
+}
+
+/**
+ * Server action: writes the teacher's reviewed AI-import list onto the test,
+ * in review order.
+ *
+ * D37 (REPLACE-or-APPEND) is NOT implemented here: REPLACE needs Step 29's
+ * delete-question capability, which does not exist in this codebase yet
+ * (confirmed: no `deleteQuestion`/`removeQuestion` anywhere). This action only
+ * appends. REPLACE's delete-then-insert attaches immediately below, between
+ * the (already mode-agnostic) validation pass and the write loop, once a
+ * `questionService.deleteQuestion`-equivalent exists — see COMMIT_PLAN.md's
+ * ordering note and DECISIONS.md D37/D45.
+ * @param testId - The test to import onto.
+ * @param courseId - Used only to revalidate the test's admin page.
+ * @param questions - The reviewed list, in the order the teacher left it.
+ */
+export async function importAiQuestionsAction(
+  testId: string,
+  courseId: string,
+  questions: ParsedQuestion[],
+): Promise<ImportAiQuestionsState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  try {
+    return await withSpan(
+      "action.importAiQuestionsAction",
+      {
+        "lms.action.name": "importAiQuestionsAction",
+        "lms.test.id": testId,
+        "lms.course.id": courseId,
+        "lms.import.question_count": questions.length,
+      },
+      async () => {
+        const questionService = await getQuestionService();
+
+        // Sequential, never Promise.all/.map(async...): getNextOrder is a
+        // fresh read-then-write per call, so parallel addQuestion calls race
+        // on the same "current max order" and silently break ordering.
+        for (const question of questions) {
+          await addReviewedQuestion(
+            questionService,
+            testId,
+            question,
+            adminUserId,
+          );
+        }
+
+        revalidatePath(`/admin/courses/${courseId}/tests/${testId}`);
+
+        return {
+          success: true,
+          message: `Imported ${questions.length} question(s)`,
+          importedCount: questions.length,
+        };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to import questions";
+    return { success: false, message };
   }
 }
