@@ -231,6 +231,9 @@ export interface UpdateQuestionInput {
   referenceAnswer?: string | null;
   /** Teacher note shown once the answer is revealed; shared by MC and free_text. `null` clears it. */
   explanation?: string | null;
+  /** Always required on the document — no clear state, unlike the fields above. */
+  title?: string;
+  content?: string;
 }
 
 /**
@@ -485,6 +488,12 @@ export class QuestionService {
     if ("explanation" in input) {
       set.explanation = input.explanation ?? null;
     }
+    if ("title" in input && input.title !== undefined) {
+      set.title = input.title;
+    }
+    if ("content" in input && input.content !== undefined) {
+      set.content = input.content;
+    }
 
     await this.questions.updateOne({ id: questionId }, { $set: set });
 
@@ -508,11 +517,13 @@ export class QuestionService {
       return;
     }
 
-    // Grows with Steps 26-28 as more fields become editable (D52).
+    // Grows with Steps 27-28 as more fields become editable (D52).
     const trackedFields = [
       "answerRevealMode",
       "referenceAnswer",
       "explanation",
+      "title",
+      "content",
     ] as const;
 
     const changedFields: string[] = [];

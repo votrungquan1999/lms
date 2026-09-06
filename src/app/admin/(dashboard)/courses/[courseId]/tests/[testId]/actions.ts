@@ -52,6 +52,8 @@ export async function updateQuestionAction(
     answerRevealMode: formData.get("answerRevealMode") ?? undefined,
     referenceAnswer: formData.get("referenceAnswer") ?? undefined,
     explanation: formData.get("explanation") ?? undefined,
+    title: formData.get("title") ?? undefined,
+    content: formData.get("content") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -91,6 +93,14 @@ export async function updateQuestionAction(
         if (data.explanation !== undefined) {
           input.explanation =
             data.explanation.trim() === "" ? null : data.explanation.trim();
+        }
+        // title/content have no clear state (D8 doesn't apply) — the schema
+        // already refused a blank title, so whatever arrives here is set as-is.
+        if (data.title !== undefined) {
+          input.title = data.title;
+        }
+        if (data.content !== undefined) {
+          input.content = data.content;
         }
 
         await questionService.updateQuestion(

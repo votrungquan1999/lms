@@ -341,3 +341,68 @@ describe("Feature: a teacher corrects how a question shows its answer (Step 19)"
     expect(unchanged.answerRevealMode).toBeUndefined();
   });
 });
+
+/** Builds the FormData the question-edit panel submits for a title/content correction. */
+function buildTitleContentEditFormData(
+  questionId: string,
+  title: string,
+  content: string,
+): FormData {
+  const formData = new FormData();
+  formData.set("questionId", questionId);
+  formData.set("testId", "test-1");
+  formData.set("courseId", "course-1");
+  formData.set("title", title);
+  formData.set("content", content);
+  return formData;
+}
+
+describe("Feature: a teacher fixes a question's title and body (Step 26)", () => {
+  it("persists a corrected title and content", async () => {
+    const question = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      },
+    );
+
+    const result = await updateQuestionAction(
+      null,
+      buildTitleContentEditFormData(
+        question.id,
+        "Explain gravity (revised)",
+        "Write two sentences.",
+      ),
+    );
+
+    expect(result.success).toBe(true);
+    const [updated] =
+      await getTestServices().questionService.listQuestions("test-1");
+    expect(updated.title).toBe("Explain gravity (revised)");
+    expect(updated.content).toBe("Write two sentences.");
+  });
+
+  it("rejects a blank title and persists nothing", async () => {
+    const question = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      },
+    );
+
+    const result = await updateQuestionAction(
+      null,
+      buildTitleContentEditFormData(question.id, "   ", "Write two sentences."),
+    );
+
+    expect(result.success).toBe(false);
+    const [unchanged] =
+      await getTestServices().questionService.listQuestions("test-1");
+    expect(unchanged.title).toBe("Explain gravity");
+    expect(unchanged.content).toBe("In your own words.");
+  });
+});

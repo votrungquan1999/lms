@@ -64,6 +64,12 @@ export const editQuestionSchema = z.object({
   answerRevealMode: z.enum(["inherit", "diff", "plain"]).optional(),
   referenceAnswer: z.string().optional(),
   explanation: z.string().optional(),
+  // Title/content have no "clear" state (D8's absent-means-inherit contract
+  // doesn't apply — every question requires both), so title is validated
+  // non-blank the same way addQuestionSchema's own title field is; addQuestion
+  // never validates this today, so the edit path can't assume the service will.
+  title: z.string().trim().min(1, "Question title is required").optional(),
+  content: z.string().optional(),
 });
 
 /** Schema validating the JSON file body for bulk question import. */

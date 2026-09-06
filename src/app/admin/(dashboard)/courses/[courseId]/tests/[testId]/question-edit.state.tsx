@@ -14,8 +14,10 @@ import {
   AlertDialogTitle,
 } from "src/components/ui/alert-dialog";
 import { Button } from "src/components/ui/button";
+import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
+import { Textarea } from "src/components/ui/textarea";
 import { isMcQuestion, type Question } from "src/lib/question-service";
 import { updateQuestionAction } from "./actions";
 
@@ -29,14 +31,24 @@ interface QuestionEditPanelProps {
 /**
  * Reads the panel's current (uncontrolled) field values from `formData` and
  * names which ones actually differ from `question`'s stored values — the
- * words the D50 confirmation shows. Grows with Steps 26-28 as more fields
- * become editable; only free_text/explanation fields exist in this batch.
+ * words the D50 confirmation shows. Grows with Steps 27-28 as more fields
+ * become editable (options, type).
  */
 function deriveChangedFieldLabels(
   question: Question,
   formData: FormData,
 ): string[] {
   const labels: string[] = [];
+
+  const title = formData.get("title")?.toString().trim();
+  if (title !== undefined && title !== question.title) {
+    labels.push("the title");
+  }
+
+  const content = formData.get("content")?.toString();
+  if (content !== undefined && content !== question.content) {
+    labels.push("the question body");
+  }
 
   if (question.type === "free_text") {
     const rawReveal = formData.get("answerRevealMode")?.toString();
@@ -65,9 +77,10 @@ function deriveChangedFieldLabels(
 
 /**
  * Inline per-question edit panel, following `TestSettingsPanel`'s shape.
- * The reveal-mode override and model answer render only for free_text
- * questions (D8); explanation is a column shared by MC and free_text, so
- * both branches get it. Grows with Steps 26-28 as more fields become editable.
+ * Title/content are always editable (Step 26 — no question type is
+ * exempt). The reveal-mode override and model answer render only for
+ * free_text questions (D8); explanation is a column shared by MC and
+ * free_text, so both branches get it. Grows with Steps 27-28 (options, type).
  *
  * D29/D50: when at least one student has already answered AND the save
  * would actually change something, Save opens a confirmation naming the
@@ -134,6 +147,26 @@ export function QuestionEditPanel({
       <input type="hidden" name="questionId" value={question.id} />
       <input type="hidden" name="testId" value={question.testId} />
       <input type="hidden" name="courseId" value={courseId} />
+
+      <div className="space-y-1">
+        <Label htmlFor={`title-${question.id}`}>Title</Label>
+        <Input
+          id={`title-${question.id}`}
+          name="title"
+          type="text"
+          defaultValue={question.title}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor={`content-${question.id}`}>Content (Markdown)</Label>
+        <Textarea
+          id={`content-${question.id}`}
+          name="content"
+          rows={4}
+          className="font-mono text-sm"
+          defaultValue={question.content}
+        />
+      </div>
 
       {isFreeText && (
         <>

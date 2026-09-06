@@ -848,6 +848,56 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
     },
   );
 
+  dbIt("corrects a question's title and content (Step 26)", async ({ db }) => {
+    const service = new QuestionService(db);
+
+    const question = await service.addQuestion("test-1", {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin-1",
+    });
+
+    await service.updateQuestion(
+      question.id,
+      {
+        title: "Explain gravity (revised)",
+        content: "Write two sentences.",
+      },
+      "admin-2",
+    );
+
+    const [updated] = await service.listQuestions("test-1");
+    expect(updated.title).toBe("Explain gravity (revised)");
+    expect(updated.content).toBe("Write two sentences.");
+  });
+
+  dbIt(
+    "leaves title and content untouched when only another field is corrected (Step 26 — absent-key pin)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      });
+
+      // title/content are absent from this input — only explanation changes.
+      await service.updateQuestion(
+        question.id,
+        { explanation: "Focus on mass, not weight." },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as FreeTextQuestion[];
+      expect(updated.title).toBe("Explain gravity");
+      expect(updated.content).toBe("In your own words.");
+      expect(updated.explanation).toBe("Focus on mass, not weight.");
+    },
+  );
+
   dbIt(
     "leaves a student's submitted answer and grade byte-identical (Step 21 — regression pin, no production change)",
     async ({ db }) => {

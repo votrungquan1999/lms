@@ -102,7 +102,7 @@ describe("Feature: Question edit panel — answer-reveal override", () => {
  */
 function editPanelField(
   questionId: string,
-  field: "reference-answer" | "explanation",
+  field: "reference-answer" | "explanation" | "title" | "content",
 ) {
   const el = document.getElementById(`${field}-${questionId}`);
   if (!el) {
@@ -407,6 +407,54 @@ describe("Feature: Question edit panel warns before saving an answered question"
     );
   });
 
+  it("still shows the confirmation when Enter is pressed inside the Title field, not just on a Save click", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+    });
+
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "free_text", text: "My attempt" },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    await user.clear(editPanelField(question.id, "title"));
+    // Enter is an implicit form submission (Title is the only text-ish
+    // field) — it must hit the same gate as a Save click, not bypass it.
+    await user.type(
+      editPanelField(question.id, "title"),
+      "Explain gravity (revised){Enter}",
+    );
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/title/i);
+
+    const [beforeConfirm] = await services.questionService.listQuestions(
+      test.id,
+    );
+    expect(beforeConfirm.title).toBe("Explain gravity");
+  });
+
   it("does not warn when a student has answered but the teacher saves without changing anything", async () => {
     const user = userEvent.setup();
     const services = getTestServices();
@@ -446,5 +494,74 @@ describe("Feature: Question edit panel warns before saving an answered question"
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
     });
+  });
+});
+
+/**
+ * Feature: A teacher can fix a question's title and body after students
+ * have answered it (Step 26).
+ */
+describe("Feature: Question edit panel — title and content", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("shows the current title and body, and saves a correction to them", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    // Given: the panel shows the question's current wording
+    expect(editPanelField(question.id, "title")).toHaveValue("Explain gravity");
+    expect(editPanelField(question.id, "content")).toHaveValue(
+      "In your own words.",
+    );
+
+    // When: the teacher corrects both and saves — nobody has answered yet,
+    // so this submits immediately with no confirmation (Step 25).
+    await user.clear(editPanelField(question.id, "title"));
+    await user.type(
+      editPanelField(question.id, "title"),
+      "Explain gravity (revised)",
+    );
+    await user.clear(editPanelField(question.id, "content"));
+    await user.type(
+      editPanelField(question.id, "content"),
+      "Write two sentences.",
+    );
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const [updated] = await services.questionService.listQuestions(test.id);
+    expect(updated.title).toBe("Explain gravity (revised)");
+    expect(updated.content).toBe("Write two sentences.");
   });
 });
