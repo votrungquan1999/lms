@@ -22,6 +22,7 @@ import { TestService } from "./test-service";
 import { TestStartService } from "./test-start-service";
 import { TestStatusService } from "./test-status-service";
 import { TestSubmissionService } from "./test-submission-service";
+import { UserRoleService } from "./user-role-service";
 
 /**
  * Lazy singletons for domain services.
@@ -49,6 +50,7 @@ let poolQuestionService: PoolQuestionService | null = null;
 let s3StorageService: S3StorageService | null = null;
 let studentService: StudentService | null = null;
 let pageGuard: PageGuard | null = null;
+let userRoleService: UserRoleService | null = null;
 
 export async function getPageGuard(): Promise<PageGuard> {
   if (!pageGuard) {
@@ -301,4 +303,12 @@ export async function getTestStartService(): Promise<TestStartService> {
     testStartService = tracedService(new TestStartService(db), "testStart");
   }
   return testStartService;
+}
+
+export async function getUserRoleService(): Promise<UserRoleService> {
+  if (!userRoleService) {
+    const db = await getDatabase();
+    userRoleService = tracedService(new UserRoleService(db), "userRole");
+  }
+  return userRoleService;
 }

@@ -22,6 +22,7 @@ import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
 import { TestStatusService } from "src/lib/test-status-service";
 import { TestSubmissionService } from "src/lib/test-submission-service";
+import { UserRoleService } from "src/lib/user-role-service";
 
 /**
  * Real services constructed against a per-test isolated MongoDB.
@@ -48,6 +49,7 @@ export interface TestServices {
   testStartService: TestStartService;
   testStatusService: TestStatusService;
   testSubmissionService: TestSubmissionService;
+  userRoleService: UserRoleService;
 }
 
 interface TestDbHandle {
@@ -123,6 +125,7 @@ function makeServices(db: Db): TestServices {
   const testFeedbackService = new TestFeedbackService(db);
   const redoRequestService = new RedoRequestService(db, testService);
   const pageGuard = new PageGuard(enrollmentService);
+  const userRoleService = new UserRoleService(db);
   // Deterministic fake S3 service — no AWS SDK pulled into jsdom (type-only import).
   const s3StorageService = {
     getPresignedUploadUrl: async (key: string, _contentType: string) => ({
@@ -154,6 +157,7 @@ function makeServices(db: Db): TestServices {
     testStartService,
     testStatusService,
     testSubmissionService,
+    userRoleService,
   };
 }
 
@@ -232,5 +236,6 @@ export function servicesSingletonMockFactory() {
     getTestStatusService: async () => getTestServices().testStatusService,
     getTestSubmissionService: async () =>
       getTestServices().testSubmissionService,
+    getUserRoleService: async () => getTestServices().userRoleService,
   };
 }

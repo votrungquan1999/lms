@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Library,
   LogOut,
+  ShieldCheck,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -36,7 +37,13 @@ const needActionsItems = [
   { title: "Grading", href: "/admin/grading", icon: ClipboardCheck },
 ];
 
-export function AdminSidebar({ email }: { email: string }) {
+export function AdminSidebar({
+  email,
+  isOwner = false,
+}: {
+  email: string;
+  isOwner?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -112,6 +119,28 @@ export function AdminSidebar({ email }: { email: string }) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isOwner && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Owner</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith("/admin/user-roles")}
+                    tooltip="User Roles"
+                  >
+                    <Link href="/admin/user-roles">
+                      <ShieldCheck />
+                      <span>User Roles</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>
