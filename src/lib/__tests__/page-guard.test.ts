@@ -32,10 +32,12 @@ vi.mock("next/headers", () => ({
 
 // Mock auth service (Better Auth layer)
 const mockGetSession = vi.fn();
+const mockIsAdminEmail = vi.fn();
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: () =>
     Promise.resolve({
       getSession: mockGetSession,
+      isAdminEmail: mockIsAdminEmail,
     }),
 }));
 
@@ -126,6 +128,74 @@ describe("PageGuard.requireAdminLogin", () => {
 
       expect(session.role).toBe("admin");
       expect(session.email).toBe("admin@example.com");
+    },
+  );
+});
+
+describe("PageGuard.requireRoleManagerLogin", () => {
+  dbIt(
+    "should redirect to /admin/login when no session exists",
+    async ({ db }) => {
+      const guard = new PageGuard(new EnrollmentService(db));
+      mockGetSession.mockResolvedValue(null);
+
+      await expect(guard.requireRoleManagerLogin()).rejects.toThrow("REDIRECT");
+      expect(mockRedirect).toHaveBeenCalledWith("/admin/login");
+    },
+  );
+
+  dbIt(
+    "should call forbidden when session role is not admin",
+    async ({ db }) => {
+      const guard = new PageGuard(new EnrollmentService(db));
+      mockGetSession.mockResolvedValue({ role: "student", userId: "user-1" });
+
+      await expect(guard.requireRoleManagerLogin()).rejects.toThrow(
+        "FORBIDDEN",
+      );
+      expect(mockForbidden).toHaveBeenCalled();
+    },
+  );
+
+  // D24's whole point: a recorded Admin role is NOT enough on its own to
+  // reach the screen that hands out admin access — the email must also be
+  // an owner. Without this test, deleting the isAdminEmail check (or
+  // dropping its `await`) leaves every other guard test green.
+  dbIt(
+    "should call forbidden when session role is admin but the email is not an owner",
+    async ({ db }) => {
+      const guard = new PageGuard(new EnrollmentService(db));
+      mockGetSession.mockResolvedValue({
+        role: "admin",
+        userId: "admin-1",
+        email: "not-an-owner@example.com",
+      });
+      mockIsAdminEmail.mockResolvedValue(false);
+
+      await expect(guard.requireRoleManagerLogin()).rejects.toThrow(
+        "FORBIDDEN",
+      );
+      expect(mockForbidden).toHaveBeenCalled();
+      expect(mockIsAdminEmail).toHaveBeenCalledWith("not-an-owner@example.com");
+    },
+  );
+
+  dbIt(
+    "should return AdminSession when authenticated as an admin who is also an owner",
+    async ({ db }) => {
+      const guard = new PageGuard(new EnrollmentService(db));
+      mockGetSession.mockResolvedValue({
+        role: "admin",
+        userId: "owner-1",
+        email: "owner@example.com",
+      });
+      mockIsAdminEmail.mockResolvedValue(true);
+
+      const session = await guard.requireRoleManagerLogin();
+
+      expect(session.role).toBe("admin");
+      expect(session.email).toBe("owner@example.com");
+      expect(mockForbidden).not.toHaveBeenCalled();
     },
   );
 });
