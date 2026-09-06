@@ -1,4 +1,6 @@
 import type { Collection, Db } from "mongodb";
+import type { AnswerService } from "src/lib/answer-service";
+import type { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import {
   type ComposePoolSelection,
   type PoolQuestionSnapshotInput,
@@ -276,7 +278,21 @@ export interface QuestionDocument {
 export class QuestionService {
   private readonly questions: Collection<QuestionDocument>;
 
-  constructor(db: Db) {
+  /**
+   * `changeLogService` and `getAnswerService` are optional so every existing
+   * direct `new QuestionService(db)` call site keeps compiling and logs
+   * nothing (D48 requires a real log; the many unit tests that never touch
+   * `updateQuestion` don't need one wired). `getAnswerService` is a lazy
+   * getter, not an instance — `AnswerService` itself depends on
+   * `QuestionService`, so passing an instance here would be a construction
+   * cycle. Mirrors `GradeVisibilityService`'s `getTestSubmissionService`
+   * thunk in `services-singleton.ts`.
+   */
+  constructor(
+    db: Db,
+    private readonly changeLogService?: QuestionChangeLogService,
+    private readonly getAnswerService?: () => Promise<AnswerService>,
+  ) {
     this.questions = db.collection<QuestionDocument>("question");
   }
 
@@ -454,6 +470,8 @@ export class QuestionService {
     input: UpdateQuestionInput,
     updatedBy: string,
   ): Promise<void> {
+    const before = await this.questions.findOne({ id: questionId });
+
     const set: Partial<QuestionDocument> = {
       updatedAt: new Date(),
       updatedBy,
@@ -469,6 +487,70 @@ export class QuestionService {
     }
 
     await this.questions.updateOne({ id: questionId }, { $set: set });
+
+    if (before) {
+      await this.logRealChanges(before, set, updatedBy);
+    }
+  }
+
+  /**
+   * Diffs `set` against `before` and writes one change-log row when at least
+   * one tracked field actually differs (D48/D50) — a no-op save (every
+   * incoming value already matches what's stored) writes nothing, so the log
+   * stays readable as a record of real edits.
+   */
+  private async logRealChanges(
+    before: QuestionDocument,
+    set: Partial<QuestionDocument>,
+    changedBy: string,
+  ): Promise<void> {
+    if (!this.changeLogService) {
+      return;
+    }
+
+    // Grows with Steps 26-28 as more fields become editable (D52).
+    const trackedFields = [
+      "answerRevealMode",
+      "referenceAnswer",
+      "explanation",
+    ] as const;
+
+    const changedFields: string[] = [];
+    const beforeValues: Record<string, unknown> = {};
+    const afterValues: Record<string, unknown> = {};
+    for (const field of trackedFields) {
+      if (field in set && set[field] !== before[field]) {
+        changedFields.push(field);
+        beforeValues[field] = before[field];
+        afterValues[field] = set[field];
+      }
+    }
+
+    if (changedFields.length === 0) {
+      return;
+    }
+
+    // Snapshotted here (D48) because it cannot be recomputed once the
+    // question has moved on.
+    const answeredStudentCount = this.getAnswerService
+      ? ((
+          await (
+            await this.getAnswerService()
+          ).countAnsweredStudentsByQuestionIds([before.id])
+        ).get(before.id) ?? 0)
+      : 0;
+
+    await this.changeLogService.recordChange({
+      questionId: before.id,
+      testId: before.testId,
+      poolId: null,
+      changedBy,
+      action: "update",
+      changedFields,
+      before: beforeValues,
+      after: afterValues,
+      answeredStudentCount,
+    });
   }
 
   async listQuestions(testId: string): Promise<Question[]> {

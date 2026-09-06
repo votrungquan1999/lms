@@ -10,6 +10,7 @@ import { AnnotationService } from "src/lib/annotation-service";
 import { AnswerService } from "src/lib/answer-service";
 import { GradeService } from "src/lib/grade-service";
 import { GradeVisibilityService } from "src/lib/grade-visibility-service";
+import { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
@@ -22,6 +23,7 @@ import { TestSubmissionService } from "src/lib/test-submission-service";
  */
 export interface CoreServices {
   questionService: QuestionService;
+  questionChangeLogService: QuestionChangeLogService;
   answerService: AnswerService;
   testService: TestService;
   gradeVisibilityService: GradeVisibilityService;
@@ -72,10 +74,19 @@ export function buildCoreServices(
   db: Db,
   opts: BuildCoreServicesOptions = {},
 ): CoreServices {
-  const questionService = new QuestionService(db);
+  const questionChangeLogService = new QuestionChangeLogService(db);
+  // Lazy thunk — AnswerService itself depends on QuestionService, so passing
+  // an instance here would be a construction cycle (see QuestionService's
+  // constructor JSDoc). Same shape as the testSubmissionService thunk below.
+  let answerService!: AnswerService;
+  const questionService = new QuestionService(
+    db,
+    questionChangeLogService,
+    () => Promise.resolve(answerService),
+  );
   const testService = new TestService(db);
   const testStartService = new TestStartService(db);
-  const answerService = new AnswerService(
+  answerService = new AnswerService(
     db,
     questionService,
     testService,
@@ -112,6 +123,7 @@ export function buildCoreServices(
 
   return {
     questionService,
+    questionChangeLogService,
     answerService,
     testService,
     gradeVisibilityService,

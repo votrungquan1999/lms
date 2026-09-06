@@ -11,6 +11,7 @@ import { GradeService } from "src/lib/grade-service";
 import { GradeVisibilityService } from "src/lib/grade-visibility-service";
 import { PageGuard } from "src/lib/page-guard";
 import { PoolQuestionService } from "src/lib/pool-question-service";
+import { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import { QuestionPoolService } from "src/lib/question-pool-service";
 import { QuestionService } from "src/lib/question-service";
 import { RedoRequestService } from "src/lib/redo-request-service";
@@ -36,6 +37,7 @@ export interface TestServices {
   gradeVisibilityService: GradeVisibilityService;
   pageGuard: PageGuard;
   poolQuestionService: PoolQuestionService;
+  questionChangeLogService: QuestionChangeLogService;
   questionPoolService: QuestionPoolService;
   questionService: QuestionService;
   redoRequestService: RedoRequestService;
@@ -57,12 +59,21 @@ let currentDb: TestDbHandle | null = null;
 let currentServices: TestServices | null = null;
 
 function makeServices(db: Db): TestServices {
-  const questionService = new QuestionService(db);
+  const questionChangeLogService = new QuestionChangeLogService(db);
+  // Lazy thunk — AnswerService itself depends on QuestionService, so passing
+  // an instance here would be a construction cycle (see QuestionService's
+  // constructor JSDoc, and the TestSubmissionService thunk just below).
+  let answerService!: AnswerService;
+  const questionService = new QuestionService(
+    db,
+    questionChangeLogService,
+    () => Promise.resolve(answerService),
+  );
   const questionPoolService = new QuestionPoolService(db);
   const poolQuestionService = new PoolQuestionService(db);
   const testService = new TestService(db);
   const testStartService = new TestStartService(db);
-  const answerService = new AnswerService(
+  answerService = new AnswerService(
     db,
     questionService,
     testService,
@@ -129,6 +140,7 @@ function makeServices(db: Db): TestServices {
     gradeVisibilityService,
     pageGuard,
     poolQuestionService,
+    questionChangeLogService,
     questionPoolService,
     questionService,
     redoRequestService,
@@ -204,6 +216,8 @@ export function servicesSingletonMockFactory() {
       getTestServices().gradeVisibilityService,
     getPageGuard: async () => getTestServices().pageGuard,
     getPoolQuestionService: async () => getTestServices().poolQuestionService,
+    getQuestionChangeLogService: async () =>
+      getTestServices().questionChangeLogService,
     getQuestionPoolService: async () => getTestServices().questionPoolService,
     getQuestionService: async () => getTestServices().questionService,
     getRedoRequestService: async () => getTestServices().redoRequestService,

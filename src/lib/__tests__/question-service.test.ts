@@ -1,6 +1,8 @@
 import type { AnswerDocument } from "src/lib/answer-service";
+import { AnswerService } from "src/lib/answer-service";
 import type { GradeDocument } from "src/lib/grade-service";
 import { PoolQuestionService } from "src/lib/pool-question-service";
+import { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
 import {
   checkMcOptions,
@@ -11,6 +13,8 @@ import {
   QuestionService,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
+import { TestService } from "src/lib/test-service";
+import { TestStartService } from "src/lib/test-start-service";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -906,6 +910,100 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       // or an extra row; _id is Mongo-injected, so pin it as expect.anything().
       expect(answerAfter).toEqual({ ...answerDoc, _id: expect.anything() });
       expect(gradeAfter).toEqual({ ...gradeDoc, _id: expect.anything() });
+    },
+  );
+});
+
+describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => {
+  dbIt(
+    "logs the changed fields, their before/after values and the current answered-student count",
+    async ({ db }) => {
+      const changeLogService = new QuestionChangeLogService(db);
+      const testService = new TestService(db);
+      const testStartService = new TestStartService(db);
+      const questionService = new QuestionService(db, changeLogService);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        testService,
+        testStartService,
+      );
+      // `getAnswerService` is a lazy getter (see the constructor's own
+      // JSDoc) — here it just always resolves to the one instance above.
+      const questionServiceWithLogging = new QuestionService(
+        db,
+        changeLogService,
+        () => Promise.resolve(answerService),
+      );
+
+      const question = await questionServiceWithLogging.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      });
+
+      // Two distinct students have answered by the time the edit happens.
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: question.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Attempt" },
+      });
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: question.id,
+        studentId: "student-2",
+        answer: { type: "free_text", text: "Attempt" },
+      });
+
+      await questionServiceWithLogging.updateQuestion(
+        question.id,
+        { referenceAnswer: "Objects with mass attract each other." },
+        "admin-2",
+      );
+
+      const row = await db
+        .collection("questionChangeLog")
+        .findOne({ questionId: question.id });
+
+      expect(row).toMatchObject({
+        questionId: question.id,
+        testId: "test-1",
+        changedBy: "admin-2",
+        action: "update",
+        changedFields: ["referenceAnswer"],
+        before: { referenceAnswer: null },
+        after: { referenceAnswer: "Objects with mass attract each other." },
+        answeredStudentCount: 2,
+      });
+    },
+  );
+
+  dbIt(
+    "writes no row when the save doesn't actually change anything",
+    async ({ db }) => {
+      const changeLogService = new QuestionChangeLogService(db);
+      const questionService = new QuestionService(db, changeLogService);
+
+      const question = await questionService.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+        referenceAnswer: "Same answer",
+      });
+
+      // Same value the question already holds — nothing actually changes.
+      await questionService.updateQuestion(
+        question.id,
+        { referenceAnswer: "Same answer" },
+        "admin-2",
+      );
+
+      const row = await db
+        .collection("questionChangeLog")
+        .findOne({ questionId: question.id });
+
+      expect(row).toBeNull();
     },
   );
 });

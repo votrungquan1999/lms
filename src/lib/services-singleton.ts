@@ -11,6 +11,7 @@ import { GradeVisibilityService } from "./grade-visibility-service";
 import { tracedService } from "./observability/traced-service";
 import { PageGuard } from "./page-guard";
 import { PoolQuestionService } from "./pool-question-service";
+import { QuestionChangeLogService } from "./question-change-log-service";
 import { QuestionPoolService } from "./question-pool-service";
 import { QuestionService } from "./question-service";
 import { RedoRequestService } from "./redo-request-service";
@@ -41,6 +42,7 @@ let testFeedbackService: TestFeedbackService | null = null;
 let testStatusService: TestStatusService | null = null;
 let testSubmissionService: TestSubmissionService | null = null;
 let questionService: QuestionService | null = null;
+let questionChangeLogService: QuestionChangeLogService | null = null;
 let questionParseClient: QuestionParseClient | null = null;
 let questionPoolService: QuestionPoolService | null = null;
 let poolQuestionService: PoolQuestionService | null = null;
@@ -195,12 +197,33 @@ export async function getTestStatusService(): Promise<TestStatusService> {
   return testStatusService;
 }
 
+/**
+ * Constructed WITH `getAnswerService` as a lazy thunk, not an instance —
+ * `AnswerService` itself depends on `QuestionService`, so passing an
+ * instance here would be a construction cycle. Same shape as
+ * `getGradeVisibilityService`'s `getTestSubmissionService` thunk below.
+ */
 export async function getQuestionService(): Promise<QuestionService> {
   if (!questionService) {
     const db = await getDatabase();
-    questionService = tracedService(new QuestionService(db), "question");
+    const changeLogService = await getQuestionChangeLogService();
+    questionService = tracedService(
+      new QuestionService(db, changeLogService, getAnswerService),
+      "question",
+    );
   }
   return questionService;
+}
+
+export async function getQuestionChangeLogService(): Promise<QuestionChangeLogService> {
+  if (!questionChangeLogService) {
+    const db = await getDatabase();
+    questionChangeLogService = tracedService(
+      new QuestionChangeLogService(db),
+      "questionChangeLog",
+    );
+  }
+  return questionChangeLogService;
 }
 
 /**
