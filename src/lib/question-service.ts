@@ -5,6 +5,7 @@ import {
   type QuestionSampler,
   shuffleAndTake,
 } from "src/lib/question-compose";
+import type { AnswerRevealMode } from "src/lib/test-service";
 
 export type QuestionType =
   | "free_text"
@@ -74,6 +75,8 @@ export interface FreeTextQuestion extends BaseQuestion {
   referenceAnswer?: string;
   /** Optional teacher note shown to the student once the answer is revealed. */
   explanation?: string;
+  /** Overrides the test's answerRevealMode for this question; absent means inherit the test. */
+  answerRevealMode?: AnswerRevealMode;
 }
 
 /**
@@ -143,6 +146,8 @@ export interface AddFreeTextQuestionInput extends BaseAddQuestionInput {
   type?: "free_text";
   referenceAnswer?: string;
   explanation?: string;
+  /** Overrides the test's answerRevealMode for this question; absent means inherit the test. */
+  answerRevealMode?: AnswerRevealMode;
 }
 
 export interface AddImageAnswerQuestionInput extends BaseAddQuestionInput {
@@ -193,6 +198,8 @@ export interface QuestionDocument {
   explanation: string | null;
   /** Authored model answer for a free_text question, surfaced in practice-mode reveal. */
   referenceAnswer: string | null;
+  /** Per-question override of the test's answerRevealMode; null means inherit the test. */
+  answerRevealMode: AnswerRevealMode | null;
   /** Ordered media attachments (empty when none). */
   media: QuestionMediaDocument[];
 }
@@ -254,6 +261,8 @@ export class QuestionService {
       explanation: "explanation" in input ? (input.explanation ?? null) : null,
       referenceAnswer:
         "referenceAnswer" in input ? (input.referenceAnswer ?? null) : null,
+      answerRevealMode:
+        "answerRevealMode" in input ? (input.answerRevealMode ?? null) : null,
       media: input.media ?? [],
     };
 
@@ -318,6 +327,7 @@ export class QuestionService {
       mcGradingStrategy: null,
       explanation: null,
       referenceAnswer: null,
+      answerRevealMode: null, // bulk JSON import carries no per-question override
       media: [],
     }));
 
@@ -376,6 +386,7 @@ export class QuestionService {
       mcGradingStrategy: item.mcGradingStrategy,
       explanation: item.explanation,
       referenceAnswer: item.referenceAnswer,
+      answerRevealMode: null, // TODO(step 5): copy from the pool snapshot
       // Media keys are copied verbatim — shared S3 objects, read-only.
       media: item.media.map((m) => ({ ...m })),
     }));
@@ -484,6 +495,8 @@ export class QuestionService {
       type: "free_text",
       referenceAnswer: doc.referenceAnswer ?? undefined,
       explanation: doc.explanation ?? undefined,
+      // Never a concrete default (D2/D9): absent means "inherit the test".
+      answerRevealMode: doc.answerRevealMode ?? undefined,
     } satisfies FreeTextQuestion;
   }
 }

@@ -11,6 +11,7 @@ import {
 } from "src/components/ui/card";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
 import { isMcQuestionType } from "src/lib/question-service";
 import { type AddQuestionState, addQuestionAction } from "./actions";
@@ -292,6 +293,38 @@ function AddQuestionFormInner({
                     label="Explanation"
                     placeholder="Explain what makes a good answer…"
                   />
+                  <div className="space-y-1">
+                    <Label>
+                      Answer display for this question{" "}
+                      <span className="text-xs text-muted-foreground">
+                        (optional)
+                      </span>
+                    </Label>
+                    {/* No defaultValue: nothing checked means "inherit the test's setting". */}
+                    <RadioGroup name="answerRevealMode">
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem
+                          value="diff"
+                          id="question-answer-reveal-diff"
+                        />
+                        <Label htmlFor="question-answer-reveal-diff">
+                          Compare side by side
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem
+                          value="plain"
+                          id="question-answer-reveal-plain"
+                        />
+                        <Label htmlFor="question-answer-reveal-plain">
+                          Write out the correct answer
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                    <p className="text-xs text-muted-foreground">
+                      Leave unselected to use the test's own setting.
+                    </p>
+                  </div>
                 </div>
               )}
 

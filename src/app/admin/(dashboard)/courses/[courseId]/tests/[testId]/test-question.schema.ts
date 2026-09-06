@@ -15,6 +15,7 @@ export const addQuestionSchema = z.discriminatedUnion("type", [
     content: z.string().default(""),
     referenceAnswer: z.string().trim().optional(),
     explanation: z.string().trim().optional(),
+    answerRevealMode: z.enum(["diff", "plain"]).optional(),
   }),
   z.object({
     type: z.literal("single_select"),
