@@ -5,7 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 const { diffProps } = vi.hoisted(() => ({ diffProps: vi.fn() }));
 
 vi.mock("react-diff-viewer-continued", () => ({
-  default: (props: { oldValue: string; newValue: string }) => {
+  default: (props: {
+    oldValue: string;
+    newValue: string;
+    rightTitle?: string;
+  }) => {
     diffProps(props);
     return null;
   },
@@ -36,5 +40,23 @@ describe("DiffViewer", () => {
     expect(props?.oldValue).toBe("def f():\n    return 1\n");
     expect(props?.newValue).toBe("def f():\n    return 1\n");
     expect(props?.oldValue).toBe(props?.newValue);
+  });
+
+  it("passes rightTitle through when provided, defaulting to 'Correct Solution' when omitted", () => {
+    diffProps.mockClear();
+
+    // Given: no rightTitle prop (the graded view's usage)
+    render(<DiffViewer studentAnswer="a" solution="b" />);
+    // Then: the diff library gets the existing default label
+    expect(diffProps.mock.calls[0]?.[0]?.rightTitle).toBe("Correct Solution");
+
+    diffProps.mockClear();
+
+    // Given: an explicit rightTitle (the practice view's usage)
+    render(
+      <DiffViewer studentAnswer="a" solution="b" rightTitle="Model Answer" />,
+    );
+    // Then: the diff library gets the caller's label instead
+    expect(diffProps.mock.calls[0]?.[0]?.rightTitle).toBe("Model Answer");
   });
 });

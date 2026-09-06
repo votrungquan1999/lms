@@ -16,7 +16,9 @@ import type { Grade } from "src/lib/grade-service";
 import { isMcQuestion, type Question } from "src/lib/question-service";
 import type { AnswerRevealMode } from "src/lib/test-service";
 import type { TestStatus } from "src/lib/test-status-service";
+import { isTextEquivalent } from "src/lib/text-normalization";
 import { AnswerForm } from "./answer-form";
+import { DiffViewer } from "./diff-viewer";
 import { GradedQuestion } from "./graded-question";
 import { SubmitTestButton } from "./submit-test-button";
 
@@ -240,9 +242,22 @@ export function TestQuestionsSection({
                               <p className="mb-1 text-xs font-medium text-muted-foreground">
                                 Model Answer
                               </p>
-                              <p className="whitespace-pre-wrap text-sm">
-                                {question.referenceAnswer}
-                              </p>
+                              {mode === "diff" &&
+                              studentAnswer?.type === "free_text" &&
+                              !isTextEquivalent(
+                                studentAnswer.text,
+                                question.referenceAnswer,
+                              ) ? (
+                                <DiffViewer
+                                  studentAnswer={studentAnswer.text}
+                                  solution={question.referenceAnswer}
+                                  rightTitle="Model Answer"
+                                />
+                              ) : (
+                                <p className="whitespace-pre-wrap text-sm">
+                                  {question.referenceAnswer}
+                                </p>
+                              )}
                             </div>
                           )}
                         {question.type === "free_text" &&
