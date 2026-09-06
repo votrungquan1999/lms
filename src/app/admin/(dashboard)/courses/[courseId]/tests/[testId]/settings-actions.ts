@@ -18,6 +18,7 @@ const setTestSettingsSchema = z.object({
   showGradeAfterSubmit: z.boolean(),
   showCorrectAnswerAfterSubmit: z.boolean(),
   isPractice: z.boolean(),
+  answerRevealMode: z.enum(["diff", "plain"]),
   // Blank/absent ⇒ untimed (null). Otherwise a positive whole number.
   // Preprocessed before coercion because `Number("") === 0` would otherwise
   // turn a blank field into 0 and collide with the positive-only rule.
@@ -58,6 +59,7 @@ export async function setTestSettingsAction(
       formData.get("showCorrectAnswerAfterSubmit") === "true",
     timeLimitMinutes: formData.get("timeLimitMinutes"),
     isPractice: formData.get("isPractice") === "true",
+    answerRevealMode: formData.get("answerRevealMode"),
   });
 
   if (!parsed.success) {
@@ -80,6 +82,7 @@ export async function setTestSettingsAction(
             parsed.data.showCorrectAnswerAfterSubmit,
           timeLimitMinutes: parsed.data.timeLimitMinutes,
           isPractice: parsed.data.isPractice,
+          answerRevealMode: parsed.data.answerRevealMode,
           updatedBy: adminUserId,
         });
 

@@ -155,6 +155,7 @@ describe("TestService", () => {
         showCorrectAnswerAfterSubmit: false,
         timeLimitMinutes: null,
         isPractice: false,
+        answerRevealMode: "diff",
         updatedBy: "admin2",
       });
 
@@ -187,6 +188,7 @@ describe("TestService", () => {
         showCorrectAnswerAfterSubmit: true,
         timeLimitMinutes: null,
         isPractice: true,
+        answerRevealMode: "diff",
         updatedBy: "admin",
       });
 
@@ -219,6 +221,7 @@ describe("TestService", () => {
           showCorrectAnswerAfterSubmit: true,
           timeLimitMinutes: 30,
           isPractice: true,
+          answerRevealMode: "diff",
           updatedBy: "admin",
         }),
       ).rejects.toThrow("A practice test cannot have a time limit.");
@@ -245,6 +248,7 @@ describe("TestService", () => {
       showCorrectAnswerAfterSubmit: true,
       timeLimitMinutes: 30,
       isPractice: false,
+      answerRevealMode: "diff",
       updatedBy: "admin",
     });
 
@@ -274,6 +278,7 @@ describe("TestService", () => {
         showCorrectAnswerAfterSubmit: true,
         timeLimitMinutes: 30,
         isPractice: false,
+        answerRevealMode: "diff",
         updatedBy: "admin",
       });
       await testService.updateTestSettings(test.id, {
@@ -281,6 +286,7 @@ describe("TestService", () => {
         showCorrectAnswerAfterSubmit: true,
         timeLimitMinutes: null,
         isPractice: false,
+        answerRevealMode: "diff",
         updatedBy: "admin",
       });
 

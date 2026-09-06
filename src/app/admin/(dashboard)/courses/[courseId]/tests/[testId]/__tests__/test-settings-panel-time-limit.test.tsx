@@ -113,6 +113,7 @@ describe("Feature: Test Settings Panel — admin sets a time limit", () => {
       showCorrectAnswerAfterSubmit: true,
       timeLimitMinutes: 30,
       isPractice: false,
+      answerRevealMode: "diff",
       updatedBy: "admin",
     });
 
@@ -152,6 +153,7 @@ describe("Feature: Test Settings Panel — admin sets a time limit", () => {
       showCorrectAnswerAfterSubmit: true,
       timeLimitMinutes: 20,
       isPractice: false,
+      answerRevealMode: "diff",
       updatedBy: "admin",
     });
 
@@ -161,6 +163,7 @@ describe("Feature: Test Settings Panel — admin sets a time limit", () => {
     formData.set("showGradeAfterSubmit", "true");
     formData.set("showCorrectAnswerAfterSubmit", "true");
     formData.set("timeLimitMinutes", "0");
+    formData.set("answerRevealMode", "diff");
 
     const result = await setTestSettingsAction(null, formData);
 
@@ -187,6 +190,7 @@ describe("Feature: Test Settings Panel — admin sets a time limit", () => {
       showCorrectAnswerAfterSubmit: true,
       timeLimitMinutes: 20,
       isPractice: false,
+      answerRevealMode: "diff",
       updatedBy: "admin",
     });
 
@@ -197,6 +201,7 @@ describe("Feature: Test Settings Panel — admin sets a time limit", () => {
     formData.set("showCorrectAnswerAfterSubmit", "true");
     formData.set("timeLimitMinutes", "20");
     formData.set("isPractice", "true");
+    formData.set("answerRevealMode", "diff");
 
     const result = await setTestSettingsAction(null, formData);
 

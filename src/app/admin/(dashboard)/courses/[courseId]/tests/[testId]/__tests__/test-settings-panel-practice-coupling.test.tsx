@@ -22,6 +22,7 @@ function renderPanel(overrides?: {
       showCorrectAnswerAfterSubmit
       timeLimitMinutes={overrides?.timeLimitMinutes ?? 30}
       isPractice={overrides?.isPractice ?? false}
+      answerRevealMode="diff"
       gradesReleasedAt={null}
       correctAnswersReleasedAt={null}
     />,

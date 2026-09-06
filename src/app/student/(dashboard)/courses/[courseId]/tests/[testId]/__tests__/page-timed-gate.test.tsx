@@ -70,6 +70,7 @@ async function seedTest(timeLimitMinutes: number | null) {
       showCorrectAnswerAfterSubmit: true,
       timeLimitMinutes,
       isPractice: false,
+      answerRevealMode: "diff",
       updatedBy: "admin",
     });
   }

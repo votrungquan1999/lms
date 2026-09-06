@@ -1,6 +1,13 @@
 import type { Collection, Db } from "mongodb";
 
 /**
+ * How a student sees their free-text answer once it's revealed: lined up
+ * side-by-side against the correct answer ("diff"), or the correct answer
+ * written out plainly ("plain").
+ */
+export type AnswerRevealMode = "diff" | "plain";
+
+/**
  * Test document stored in the `test` collection.
  */
 export interface TestDocument {
@@ -10,6 +17,7 @@ export interface TestDocument {
   description: string;
   showCorrectAnswerAfterSubmit: boolean;
   showGradeAfterSubmit: boolean;
+  answerRevealMode: AnswerRevealMode;
   /** Exam time limit in minutes; null means untimed. */
   timeLimitMinutes: number | null;
   /** When true, this is a formative practice test: no grades, reveal-on-answer. */
@@ -38,6 +46,7 @@ export interface Test {
   timeLimitMinutes: number | null;
   /** When true, this is a formative practice test: no grades, reveal-on-answer. */
   isPractice: boolean;
+  answerRevealMode: AnswerRevealMode;
   correctAnswersReleasedAt: Date | null;
   gradesReleasedAt: Date | null;
   createdAt: Date;
@@ -56,6 +65,8 @@ export interface CreateTestInput {
   isPractice?: boolean;
   /** Exam time limit in minutes; null/omitted means untimed. Mutually exclusive with isPractice (R10). */
   timeLimitMinutes?: number | null;
+  /** Defaults to "plain" (D7) — new tests default to the correct answer written out plainly. */
+  answerRevealMode?: AnswerRevealMode;
 }
 
 /**
@@ -66,6 +77,7 @@ export interface UpdateTestSettingsInput {
   showCorrectAnswerAfterSubmit: boolean;
   timeLimitMinutes: number | null;
   isPractice: boolean;
+  answerRevealMode: AnswerRevealMode;
   updatedBy: string;
 }
 
@@ -93,6 +105,8 @@ export class TestService {
       showGradeAfterSubmit: input.showGradeAfterSubmit ?? true,
       timeLimitMinutes: input.timeLimitMinutes ?? null,
       isPractice: input.isPractice ?? false,
+      // Placeholder default; Step 2 pins the real create-time default (D7/D9).
+      answerRevealMode: input.answerRevealMode ?? "diff",
       correctAnswersReleasedAt: null,
       gradesReleasedAt: null,
       createdAt: new Date(),
@@ -145,6 +159,8 @@ export class TestService {
       showGradeAfterSubmit: doc.showGradeAfterSubmit,
       timeLimitMinutes: doc.timeLimitMinutes ?? null,
       isPractice: doc.isPractice ?? false,
+      // Placeholder default; Step 3 pins the real read-time default (D7/D9).
+      answerRevealMode: doc.answerRevealMode ?? "diff",
       correctAnswersReleasedAt: doc.correctAnswersReleasedAt,
       gradesReleasedAt: doc.gradesReleasedAt,
       createdAt: doc.createdAt,
@@ -172,6 +188,7 @@ export class TestService {
           showCorrectAnswerAfterSubmit: input.showCorrectAnswerAfterSubmit,
           timeLimitMinutes: input.timeLimitMinutes,
           isPractice: input.isPractice,
+          answerRevealMode: input.answerRevealMode,
           updatedAt: new Date(),
           updatedBy: input.updatedBy,
         },

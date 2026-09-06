@@ -24,6 +24,7 @@ async function seedTimedTest(db: Db) {
     showCorrectAnswerAfterSubmit: true,
     timeLimitMinutes: LIMIT,
     isPractice: false,
+    answerRevealMode: "diff",
     updatedBy: "admin",
   });
   await setup.testStartService.recordStart(test.id, "stu-1", T1);

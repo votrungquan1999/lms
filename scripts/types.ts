@@ -10,6 +10,7 @@ import type {
   AddMultiSelectQuestionInput,
   AddSingleSelectQuestionInput,
 } from "../src/lib/question-service";
+import type { AnswerRevealMode } from "../src/lib/test-service";
 
 // ── Question definition (service input types minus `createdBy`) ──────────────
 
@@ -36,6 +37,8 @@ export interface TestDefinition {
     isPractice?: boolean;
     /** Exam time limit in minutes; omit for an untimed test. */
     timeLimitMinutes?: number;
+    /** Omit to default to "plain" (D7). */
+    answerRevealMode?: AnswerRevealMode;
   };
 
   /** Ordered list of questions to create in the test. */

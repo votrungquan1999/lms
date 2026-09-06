@@ -57,15 +57,18 @@ async function main() {
         definition.test.showCorrectAnswerAfterSubmit,
       showGradeAfterSubmit: definition.test.showGradeAfterSubmit,
       isPractice: definition.test.isPractice,
+      answerRevealMode: definition.test.answerRevealMode,
     });
 
     // createTest can't set the time limit; the settings path owns it. Apply it
-    // only when requested, preserving the reveal flags createTest just resolved.
+    // only when requested, forwarding answerRevealMode so this $set doesn't
+    // clobber it (isPractice has the same gap here — out of scope for now).
     if (definition.test.timeLimitMinutes != null) {
       await testService.updateTestSettings(test.id, {
         showGradeAfterSubmit: test.showGradeAfterSubmit,
         showCorrectAnswerAfterSubmit: test.showCorrectAnswerAfterSubmit,
         timeLimitMinutes: definition.test.timeLimitMinutes,
+        answerRevealMode: test.answerRevealMode,
         updatedBy: SCRIPT_AUTHOR,
       });
     }

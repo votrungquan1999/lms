@@ -31,6 +31,7 @@ function makeTests(): Test[] {
     showGradeAfterSubmit: true,
     timeLimitMinutes: null,
     isPractice: false,
+    answerRevealMode: "diff" as const,
     correctAnswersReleasedAt: null,
     gradesReleasedAt: null,
     createdAt: new Date(),

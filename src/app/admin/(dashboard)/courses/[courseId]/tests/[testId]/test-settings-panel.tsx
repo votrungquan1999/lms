@@ -5,6 +5,8 @@ import { Button } from "src/components/ui/button";
 import { Checkbox } from "src/components/ui/checkbox";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
+import type { AnswerRevealMode } from "src/lib/test-service";
 import { setTestSettingsAction } from "./settings-actions";
 
 interface TestSettingsPanelProps {
@@ -14,6 +16,7 @@ interface TestSettingsPanelProps {
   showCorrectAnswerAfterSubmit: boolean;
   timeLimitMinutes: number | null;
   isPractice: boolean;
+  answerRevealMode: AnswerRevealMode;
   gradesReleasedAt: Date | null;
   correctAnswersReleasedAt: Date | null;
 }
@@ -26,9 +29,10 @@ function formatReleaseLine(label: string, date: Date | null): string {
 
 /**
  * Inline admin panel that lets an admin edit a test's visibility flags
- * (`showGradeAfterSubmit`, `showCorrectAnswerAfterSubmit`, `isPractice`) and
- * time limit. Practice and a time limit are mutually exclusive (R10): checking
- * Practice disables the time-limit input so the forbidden combo can't be sent.
+ * (`showGradeAfterSubmit`, `showCorrectAnswerAfterSubmit`, `isPractice`),
+ * time limit, and answer reveal mode (side-by-side vs. plain). Practice and a
+ * time limit are mutually exclusive (R10): checking Practice disables the
+ * time-limit input so the forbidden combo can't be sent.
  */
 export function TestSettingsPanel({
   courseId,
@@ -37,6 +41,7 @@ export function TestSettingsPanel({
   showCorrectAnswerAfterSubmit,
   timeLimitMinutes,
   isPractice,
+  answerRevealMode,
   gradesReleasedAt,
   correctAnswersReleasedAt,
 }: TestSettingsPanelProps) {
@@ -88,6 +93,29 @@ export function TestSettingsPanel({
           <Label htmlFor="is-practice">
             Practice test (no grades, reveal-on-answer)
           </Label>
+        </div>
+
+        <div className="space-y-1">
+          <Label>How students see their answer</Label>
+          <RadioGroup name="answerRevealMode" defaultValue={answerRevealMode}>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="diff" id="answer-reveal-diff" />
+              <Label htmlFor="answer-reveal-diff">
+                Side-by-side comparison
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="plain" id="answer-reveal-plain" />
+              <Label htmlFor="answer-reveal-plain">
+                Correct answer written out plainly
+              </Label>
+            </div>
+          </RadioGroup>
+          <p className="text-xs text-muted-foreground">
+            Turn on side-by-side comparison when you want the student to see
+            exactly where their answer differs from yours — it appears when the
+            score is not 100%.
+          </p>
         </div>
 
         <div className="space-y-1">
