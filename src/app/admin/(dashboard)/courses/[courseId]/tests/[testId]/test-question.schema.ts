@@ -47,6 +47,19 @@ export const addQuestionSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+/**
+ * Schema validating a question-edit form submission. Grows with Steps 20/26-28
+ * as more fields become editable; for now it wires only `answerRevealMode`
+ * (D52/D29). `"inherit"` is the form's sentinel for clearing the override back
+ * to the test's own default — a real, reachable state distinct from unset.
+ */
+export const editQuestionSchema = z.object({
+  questionId: z.string().min(1, "Question ID is missing"),
+  testId: z.string().min(1, "Test ID is missing"),
+  courseId: z.string().min(1, "Course ID is missing"),
+  answerRevealMode: z.enum(["inherit", "diff", "plain"]),
+});
+
 /** Schema validating the JSON file body for bulk question import. */
 export const importQuestionsFileSchema = z.array(
   z.object({

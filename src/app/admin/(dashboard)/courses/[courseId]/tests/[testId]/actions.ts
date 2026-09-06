@@ -11,12 +11,86 @@ import {
 } from "./question-media.schema";
 import {
   addQuestionSchema,
+  editQuestionSchema,
   importQuestionsFileSchema,
 } from "./test-question.schema";
 
 export interface AddQuestionState {
   success: boolean;
   message: string;
+}
+
+export interface UpdateQuestionState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: corrects a question a teacher already wrote (Step 19 wires
+ * only `answerRevealMode`; Steps 20/26-28 grow the same schema and method).
+ */
+export async function updateQuestionAction(
+  _prevState: UpdateQuestionState | null,
+  formData: FormData,
+): Promise<UpdateQuestionState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  const parsed = editQuestionSchema.safeParse({
+    questionId: formData.get("questionId"),
+    testId: formData.get("testId"),
+    courseId: formData.get("courseId"),
+    answerRevealMode: formData.get("answerRevealMode"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+
+  try {
+    return await withSpan(
+      "action.updateQuestionAction",
+      {
+        "lms.action.name": "updateQuestionAction",
+        "lms.question.id": parsed.data.questionId,
+        "lms.test.id": parsed.data.testId,
+      },
+      async () => {
+        const questionService = await getQuestionService();
+        const data = parsed.data;
+
+        await questionService.updateQuestion(
+          data.questionId,
+          {
+            // "inherit" is the form's sentinel for explicitly clearing the
+            // override back to the test's own default (D2) — never `undefined`.
+            answerRevealMode:
+              data.answerRevealMode === "inherit"
+                ? null
+                : data.answerRevealMode,
+          },
+          adminUserId,
+        );
+
+        revalidatePath(`/admin/courses/${data.courseId}/tests/${data.testId}`);
+
+        return { success: true, message: "Question updated" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to update question";
+    return { success: false, message };
+  }
 }
 
 export interface ImportQuestionsState {

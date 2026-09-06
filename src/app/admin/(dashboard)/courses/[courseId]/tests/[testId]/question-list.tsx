@@ -8,6 +8,15 @@ import {
   CardTitle,
 } from "src/components/ui/card";
 import { isMcQuestion, type Question } from "src/lib/question-service";
+import type { AnswerRevealMode } from "src/lib/test-service";
+import { QuestionEditPanel } from "./question-edit.state";
+
+/** Renders a free_text question's reveal-mode override as read-only text; absent means it inherits the test's own choice. */
+function answerRevealModeLabel(mode: AnswerRevealMode | undefined): string {
+  if (mode === "diff") return "Side-by-side comparison";
+  if (mode === "plain") return "Plain";
+  return "Inherits test default";
+}
 
 /**
  * True when an MC question has no option marked correct (D32/D44): the AI
@@ -22,7 +31,13 @@ export function needsAnswerKey(question: Question): boolean {
 /**
  * Server component: renders a list of questions for a test.
  */
-export function QuestionList({ questions }: { questions: Question[] }) {
+export function QuestionList({
+  questions,
+  courseId,
+}: {
+  questions: Question[];
+  courseId: string;
+}) {
   if (questions.length === 0) {
     return (
       <p className="text-center text-muted-foreground">
@@ -54,6 +69,59 @@ export function QuestionList({ questions }: { questions: Question[] }) {
             <CardContent className="space-y-3">
               <MarkdownContent content={preview} compact />
               <QuestionMedia media={question.media} />
+              {question.type === "free_text" && (
+                <div className="space-y-1 text-sm">
+                  <p>
+                    <span className="font-medium">Model answer:</span>{" "}
+                    {question.referenceAnswer ?? (
+                      <span className="text-muted-foreground">None</span>
+                    )}
+                  </p>
+                  <p>
+                    <span className="font-medium">Explanation:</span>{" "}
+                    {question.explanation ?? (
+                      <span className="text-muted-foreground">None</span>
+                    )}
+                  </p>
+                  <p>
+                    <span className="font-medium">Shows answer:</span>{" "}
+                    {answerRevealModeLabel(question.answerRevealMode)}
+                  </p>
+                </div>
+              )}
+              {isMcQuestion(question) && (
+                <div className="space-y-1 text-sm">
+                  <p>
+                    <span className="font-medium">Type:</span>{" "}
+                    {question.type === "single_select"
+                      ? "Single choice"
+                      : "Multiple choice"}
+                  </p>
+                  <p>
+                    <span className="font-medium">Grading:</span>{" "}
+                    {question.mcGradingStrategy === "partial"
+                      ? "Partial credit"
+                      : "All-or-nothing"}
+                  </p>
+                  <ul className="list-inside list-disc">
+                    {question.options.map((option) => (
+                      <li key={option.id}>
+                        {option.text}
+                        {option.isCorrect && " (correct)"}
+                      </li>
+                    ))}
+                  </ul>
+                  {question.explanation && (
+                    <p>
+                      <span className="font-medium">Explanation:</span>{" "}
+                      {question.explanation}
+                    </p>
+                  )}
+                </div>
+              )}
+              {question.type === "free_text" && (
+                <QuestionEditPanel question={question} courseId={courseId} />
+              )}
             </CardContent>
           </Card>
         );

@@ -10,7 +10,7 @@ import {
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { addQuestionAction } from "../actions";
+import { addQuestionAction, updateQuestionAction } from "../actions";
 import { requestUploadSlotsAction } from "../question-media-actions";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
@@ -255,5 +255,89 @@ describe("Feature: teacher attaches media to a question", () => {
         await getTestServices().questionService.listQuestions("test-1");
       expect(questions).toHaveLength(0);
     });
+  });
+});
+
+/** Builds the FormData the question-edit panel submits. */
+function buildEditFormData(
+  questionId: string,
+  answerRevealMode: "inherit" | "diff" | "plain",
+): FormData {
+  const formData = new FormData();
+  formData.set("questionId", questionId);
+  formData.set("testId", "test-1");
+  formData.set("courseId", "course-1");
+  formData.set("answerRevealMode", answerRevealMode);
+  return formData;
+}
+
+describe("Feature: a teacher corrects how a question shows its answer (Step 19)", () => {
+  it("persists a switched answer-reveal override", async () => {
+    const question = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      },
+    );
+
+    const result = await updateQuestionAction(
+      null,
+      buildEditFormData(question.id, "plain"),
+    );
+
+    expect(result.success).toBe(true);
+    const [updated] = (await getTestServices().questionService.listQuestions(
+      "test-1",
+    )) as FreeTextQuestion[];
+    expect(updated.answerRevealMode).toBe("plain");
+  });
+
+  it("clears a set override back to inheriting the test's default", async () => {
+    const question = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+        answerRevealMode: "diff",
+      },
+    );
+
+    const result = await updateQuestionAction(
+      null,
+      buildEditFormData(question.id, "inherit"),
+    );
+
+    expect(result.success).toBe(true);
+    const [updated] = (await getTestServices().questionService.listQuestions(
+      "test-1",
+    )) as FreeTextQuestion[];
+    expect(updated.answerRevealMode).toBeUndefined();
+  });
+
+  it("refuses a non-admin caller and persists nothing", async () => {
+    const question = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      },
+    );
+    requireAdminSession.mockRejectedValue(new Error("not admin"));
+
+    const result = await updateQuestionAction(
+      null,
+      buildEditFormData(question.id, "plain"),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Unauthorized");
+    const [unchanged] = (await getTestServices().questionService.listQuestions(
+      "test-1",
+    )) as FreeTextQuestion[];
+    expect(unchanged.answerRevealMode).toBeUndefined();
   });
 });

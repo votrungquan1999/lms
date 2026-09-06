@@ -122,7 +122,7 @@ export default async function TestDetailPage({
 
         <Separator />
 
-        <QuestionList questions={questions} />
+        <QuestionList questions={questions} courseId={courseId} />
       </section>
     </div>
   );

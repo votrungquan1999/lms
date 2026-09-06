@@ -216,6 +216,18 @@ export type AddQuestionInput =
   | AddImageAnswerQuestionInput;
 
 /**
+ * Input for correcting a question a teacher already wrote. Named per-field,
+ * matching `TestService.updateTestSettings` rather than a generic
+ * `Partial<Question>` — no entity in this repo has a generic update.
+ * A field's absence from this object means "leave unchanged"; for
+ * `answerRevealMode` specifically, an explicit `null` is a third, distinct
+ * state — "clear back to inherit the test" (D2) — never conflated with unset.
+ */
+export interface UpdateQuestionInput {
+  answerRevealMode?: AnswerRevealMode | null;
+}
+
+/**
  * Write-policy options for {@link QuestionService.addQuestion} — kept off
  * `AddQuestionInput` since this governs a validation rule, not a document
  * field, and would otherwise have to be excluded from persistence.
@@ -424,6 +436,29 @@ export class QuestionService {
     await this.questions.insertMany(docs);
 
     return docs.map(this.toQuestion);
+  }
+
+  /**
+   * Corrects fields on a question a teacher already wrote and stamps who/when.
+   * Only fields present on `input` are touched (see {@link UpdateQuestionInput}).
+   * @param questionId - The question to update.
+   * @param input - The fields to change.
+   * @param updatedBy - The admin making the change.
+   */
+  async updateQuestion(
+    questionId: string,
+    input: UpdateQuestionInput,
+    updatedBy: string,
+  ): Promise<void> {
+    const set: Partial<QuestionDocument> = {
+      updatedAt: new Date(),
+      updatedBy,
+    };
+    if ("answerRevealMode" in input) {
+      set.answerRevealMode = input.answerRevealMode ?? null;
+    }
+
+    await this.questions.updateOne({ id: questionId }, { $set: set });
   }
 
   async listQuestions(testId: string): Promise<Question[]> {

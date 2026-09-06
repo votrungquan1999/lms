@@ -5,6 +5,7 @@ import {
   type FreeTextQuestion,
   MediaContentType,
   type MultiSelectQuestion,
+  type QuestionDocument,
   QuestionService,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
@@ -659,6 +660,66 @@ describe("QuestionService - Integration Tests", () => {
         readForStudentB.map((q) => q.id),
       );
       expect(readForStudentA.map((q) => q.title)).toEqual(["Q1", "Q2"]);
+    },
+  );
+});
+
+describe("updateQuestion — a teacher corrects a question they already wrote (Step 19)", () => {
+  dbIt(
+    "switches a free_text question's answer-reveal override and stamps who/when",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      });
+
+      await service.updateQuestion(
+        question.id,
+        { answerRevealMode: "plain" },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as FreeTextQuestion[];
+      expect(updated.answerRevealMode).toBe("plain");
+
+      // updatedAt/updatedBy are hardcoded null by every write path today —
+      // this is the first code to stamp them, so read the raw document.
+      const doc = await db
+        .collection<QuestionDocument>("question")
+        .findOne({ id: question.id });
+      expect(doc?.updatedBy).toBe("admin-2");
+      expect(doc?.updatedAt).toBeInstanceOf(Date);
+    },
+  );
+
+  dbIt(
+    "clears the override back to inheriting the test's default, distinct from switching it",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+        answerRevealMode: "diff",
+      });
+
+      await service.updateQuestion(
+        question.id,
+        { answerRevealMode: null },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as FreeTextQuestion[];
+      // Never a concrete default (D2/D9): cleared means "inherit the test".
+      expect(updated.answerRevealMode).toBeUndefined();
     },
   );
 });

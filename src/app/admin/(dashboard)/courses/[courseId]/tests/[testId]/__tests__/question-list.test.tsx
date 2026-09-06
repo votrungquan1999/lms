@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import {
+  type FreeTextQuestion,
   MediaContentType,
   type Question,
   type SingleSelectQuestion,
@@ -24,6 +25,24 @@ function singleSelectQuestion(
     type: "single_select",
     mcGradingStrategy: "all_or_nothing",
     options: options.map((o, i) => ({ id: `opt-${i}`, ...o })),
+  };
+}
+
+/** Builds a minimal free_text question, media-free, for the read-visibility tests. */
+function freeTextQuestion(
+  overrides: Partial<FreeTextQuestion> = {},
+): FreeTextQuestion {
+  return {
+    id: "q-1",
+    testId: "test-1",
+    title: "Describe photosynthesis",
+    content: "Describe the process.",
+    order: 1,
+    createdAt: new Date(0),
+    weight: 1,
+    media: [],
+    type: "free_text",
+    ...overrides,
   };
 }
 
@@ -58,7 +77,7 @@ describe("Feature: Question List media preview", () => {
       };
 
       // Action
-      render(<QuestionList questions={[question]} />);
+      render(<QuestionList questions={[question]} courseId="course-1" />);
 
       // Assert — the attachment renders as an image pointing at the resolved url
       const image = screen.getByAltText("Question media 1");
@@ -76,7 +95,7 @@ describe("Feature: Question List media preview", () => {
         { text: "7", isCorrect: false },
       ]);
 
-      render(<QuestionList questions={[question]} />);
+      render(<QuestionList questions={[question]} courseId="course-1" />);
 
       expect(screen.getByText(/needs an? answer key/i)).toBeInTheDocument();
     });
@@ -87,11 +106,55 @@ describe("Feature: Question List media preview", () => {
         { text: "7", isCorrect: true },
       ]);
 
-      render(<QuestionList questions={[question]} />);
+      render(<QuestionList questions={[question]} courseId="course-1" />);
 
       expect(
         screen.queryByText(/needs an? answer key/i),
       ).not.toBeInTheDocument();
+    });
+  });
+});
+
+/**
+ * Feature: A teacher can see what a question already holds (Step 19)
+ * As a teacher who already wrote a question
+ * I want its stored model answer, explanation and answer-reveal setting visible on its card
+ * So that I know what I'm changing before I open the edit panel
+ */
+describe("Feature: Question read-visibility", () => {
+  describe("Scenario: a free_text question already carries a model answer, explanation and reveal override", () => {
+    it("shows the model answer, explanation and current answer-reveal setting", () => {
+      const question = freeTextQuestion({
+        referenceAnswer: "Plants convert light into chemical energy.",
+        explanation: "Focus on the role of chlorophyll.",
+        answerRevealMode: "plain",
+      });
+
+      render(<QuestionList questions={[question]} courseId="course-1" />);
+
+      expect(
+        screen.getByText(/plants convert light into chemical energy/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/focus on the role of chlorophyll/i),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Plain")).toBeInTheDocument();
+    });
+  });
+
+  describe("Scenario: a multiple-choice question already has options and a grading strategy", () => {
+    it("shows the question's type, options with the correct one marked, and its grading strategy", () => {
+      const question = singleSelectQuestion([
+        { text: "4", isCorrect: false },
+        { text: "7", isCorrect: true },
+      ]);
+
+      render(<QuestionList questions={[question]} courseId="course-1" />);
+
+      expect(screen.getByText(/single/i)).toBeInTheDocument();
+      expect(screen.getByText("4")).toBeInTheDocument();
+      expect(screen.getByText(/7.*correct/i)).toBeInTheDocument();
+      expect(screen.getByText(/all.or.nothing/i)).toBeInTheDocument();
     });
   });
 });
