@@ -201,3 +201,47 @@ describe("Feature: admin access is decided by recorded role, not email", () => {
     },
   );
 });
+
+describe("Feature: registerStudent leaves no orphaned account on failure", () => {
+  dbIt(
+    "removes the better-auth user when the student-document write fails after signup",
+    async ({ db }) => {
+      // Signup must succeed for an orphan to be possible — force the failure
+      // to land AFTER it, in the write this rollback is meant to undo.
+      class FailingStudentService extends StudentService {
+        async createStudentDocument(): Promise<never> {
+          throw new Error("simulated student-document write failure");
+        }
+      }
+      const studentService = new FailingStudentService(db);
+      const authService = createAuthService(db, testConfig, studentService);
+
+      await expect(
+        authService.registerStudent({
+          name: "Dave",
+          username: "dave",
+          password: "dave-pass-123",
+          createdBy: "admin-test",
+        }),
+      ).rejects.toThrow("simulated student-document write failure");
+
+      const orphanedUser = await db
+        .collection("user")
+        .findOne({ email: "dave@lms.internal" });
+
+      expect(orphanedUser).toBeNull();
+
+      // signUpEmail also writes an `account` row (password hash) and a
+      // `session` row — the rollback must undo those too, not just `user`.
+      const orphanedAccountsCount = await db
+        .collection("account")
+        .countDocuments({ providerId: "credential" });
+      const orphanedSessionsCount = await db
+        .collection("session")
+        .countDocuments({});
+
+      expect(orphanedAccountsCount).toBe(0);
+      expect(orphanedSessionsCount).toBe(0);
+    },
+  );
+});

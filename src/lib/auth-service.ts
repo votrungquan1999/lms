@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
-import type { Db } from "mongodb";
+import { type Db, ObjectId } from "mongodb";
 import type { AppConfig } from "./config";
 import { AdminSession, Role, type Session, StudentSession } from "./session";
 import type { StudentService } from "./student-service";
@@ -112,8 +112,14 @@ export class AuthService {
         createdBy: input.createdBy,
       });
     } catch (error) {
-      // Rollback: remove the orphaned Better Auth user to keep state consistent
-      await this.db.collection("user").deleteOne({ id: authResult.user.id });
+      // Rollback: signUpEmail wrote a user, an account (password hash), and
+      // a session — remove all three to keep no orphaned auth state behind.
+      // All three key off the same raw ObjectId (user._id / account+session
+      // userId) — the string `id` field never appears as-is in these documents.
+      const rawUserId = new ObjectId(authResult.user.id);
+      await this.db.collection("user").deleteOne({ _id: rawUserId });
+      await this.db.collection("account").deleteMany({ userId: rawUserId });
+      await this.db.collection("session").deleteMany({ userId: rawUserId });
       throw error;
     }
 
