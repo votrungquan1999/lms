@@ -7,6 +7,7 @@ import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
 import {
   checkMcOptions,
   type FreeTextQuestion,
+  type McOption,
   MediaContentType,
   type MultiSelectQuestion,
   type QuestionDocument,
@@ -962,6 +963,96 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       expect(gradeAfter).toEqual({ ...gradeDoc, _id: expect.anything() });
     },
   );
+
+  dbIt(
+    "rewrites a single_select question's options, preserving ids for options that are kept and minting a fresh id only for the genuinely new one (Step 27 / D53)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = (await service.addQuestion("test-1", {
+        title: "Pick the capital",
+        content: "Choose one.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "London", isCorrect: false },
+        ],
+      })) as SingleSelectQuestion;
+      const [parisId, londonId] = question.options.map((o) => o.id);
+
+      await service.updateQuestion(
+        question.id,
+        {
+          options: [
+            // Kept option: same id, corrected text.
+            { id: parisId, text: "Paris (fixed typo)", isCorrect: true },
+            { id: londonId, text: "London", isCorrect: false },
+            // Genuinely new option: no id supplied.
+            { text: "Berlin", isCorrect: false },
+          ],
+        },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as SingleSelectQuestion[];
+
+      expect(updated.options).toHaveLength(3);
+      expect(updated.options.find((o) => o.id === parisId)?.text).toBe(
+        "Paris (fixed typo)",
+      );
+      expect(updated.options.find((o) => o.id === londonId)?.text).toBe(
+        "London",
+      );
+      const newOption = updated.options.find(
+        (o) => o.id !== parisId && o.id !== londonId,
+      );
+      expect(newOption?.text).toBe("Berlin");
+    },
+  );
+
+  dbIt(
+    "rejects an options edit that leaves a single_select question with no correct option (Step 27 — the MC rule is re-run, not bypassed)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = (await service.addQuestion("test-1", {
+        title: "Pick the capital",
+        content: "Choose one.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "London", isCorrect: false },
+        ],
+      })) as SingleSelectQuestion;
+      const [parisId, londonId] = question.options.map((o) => o.id);
+
+      await expect(
+        service.updateQuestion(
+          question.id,
+          {
+            options: [
+              { id: parisId, text: "Paris", isCorrect: false },
+              { id: londonId, text: "London", isCorrect: false },
+            ],
+          },
+          "admin-2",
+        ),
+      ).rejects.toThrow(
+        "single_select question must have exactly one correct option",
+      );
+
+      const [unchanged] = (await service.listQuestions(
+        "test-1",
+      )) as SingleSelectQuestion[];
+      expect(unchanged.options.find((o) => o.id === parisId)?.isCorrect).toBe(
+        true,
+      );
+    },
+  );
 });
 
 describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => {
@@ -1054,6 +1145,118 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
         .findOne({ questionId: question.id });
 
       expect(row).toBeNull();
+    },
+  );
+
+  dbIt(
+    "writes no row when an options save carries the same values, even though it's a new array reference (Step 27 — value comparison, not identity, for array fields)",
+    async ({ db }) => {
+      const changeLogService = new QuestionChangeLogService(db);
+      const questionService = new QuestionService(db, changeLogService);
+
+      const question = (await questionService.addQuestion("test-1", {
+        title: "Pick the capital",
+        content: "Choose one.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "London", isCorrect: false },
+        ],
+      })) as SingleSelectQuestion;
+      const [parisId, londonId] = question.options.map((o) => o.id);
+
+      // A brand-new array object, but every option's id/text/isCorrect is
+      // identical to what's already stored — a genuine no-op.
+      await questionService.updateQuestion(
+        question.id,
+        {
+          options: [
+            { id: parisId, text: "Paris", isCorrect: true },
+            { id: londonId, text: "London", isCorrect: false },
+          ],
+        },
+        "admin-2",
+      );
+
+      const row = await db
+        .collection("questionChangeLog")
+        .findOne({ questionId: question.id });
+
+      expect(row).toBeNull();
+    },
+  );
+
+  dbIt(
+    "reconstructs a stranded student's original option text from the change-log row after a real options edit through updateQuestion (Step 27 — D29/D48's core guarantee, proven end-to-end)",
+    async ({ db }) => {
+      const changeLogService = new QuestionChangeLogService(db);
+      const testService = new TestService(db);
+      const testStartService = new TestStartService(db);
+      const questionService = new QuestionService(db, changeLogService);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        testService,
+        testStartService,
+      );
+      const questionServiceWithLogging = new QuestionService(
+        db,
+        changeLogService,
+        () => Promise.resolve(answerService),
+      );
+
+      const question = (await questionServiceWithLogging.addQuestion("test-1", {
+        title: "Pick the capital",
+        content: "Choose one.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "London", isCorrect: false },
+        ],
+      })) as SingleSelectQuestion;
+      const [parisId, londonId] = question.options.map((o) => o.id);
+
+      // A student answers "London" — before the edit below, this is a
+      // perfectly resolvable answer.
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: question.id,
+        studentId: "student-1",
+        answer: { type: "mc", selectedIds: [londonId] },
+      });
+
+      // The teacher removes "London" (the option the student chose) and adds
+      // "Berlin" — through the real edit path, not a direct collection write.
+      await questionServiceWithLogging.updateQuestion(
+        question.id,
+        {
+          options: [
+            { id: parisId, text: "Paris", isCorrect: true },
+            { text: "Berlin", isCorrect: false },
+          ],
+        },
+        "admin-2",
+      );
+
+      // The strand is real: the student's stored selection matches none of
+      // the question's current options.
+      const [current] = (await questionServiceWithLogging.listQuestions(
+        "test-1",
+      )) as SingleSelectQuestion[];
+      expect(current.options.some((o) => o.id === londonId)).toBe(false);
+
+      // Reconstruct the stranded answer's original option text from the log
+      // row's `before.options` alone — no other code path can produce it
+      // once the option is gone from the live document.
+      const row = await db
+        .collection("questionChangeLog")
+        .findOne({ questionId: question.id });
+      const strandedOptions = row?.before.options as McOption[];
+      const strandedOption = strandedOptions.find((o) => o.id === londonId);
+
+      expect(strandedOption?.text).toBe("London");
     },
   );
 });

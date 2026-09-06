@@ -19,7 +19,7 @@ import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
 import { isMcQuestion, type Question } from "src/lib/question-service";
-import { updateQuestionAction } from "./actions";
+import { type UpdateQuestionState, updateQuestionAction } from "./actions";
 
 interface QuestionEditPanelProps {
   question: Question;
@@ -28,15 +28,52 @@ interface QuestionEditPanelProps {
   answeredCount: number;
 }
 
+/** One row of the options editor. `id` absent means a genuinely new option (Step 27 / D53). */
+interface OptionDraft {
+  id?: string;
+  text: string;
+  isCorrect: boolean;
+}
+
+/**
+ * D69: true when the editor rows still match the stored options exactly.
+ * A keyless MC question (D32/D44) is only editable while an unrelated save
+ * leaves `options` out of the payload — the service re-runs the answer-key
+ * check whenever the field is supplied, so sending untouched rows would make
+ * the "Needs an answer key" badge point at a question nothing can save.
+ * Order is part of the comparison: reordering options is a real change.
+ */
+function optionsUnchanged(
+  rows: OptionDraft[],
+  stored: { id: string; text: string; isCorrect: boolean }[],
+): boolean {
+  return (
+    rows.length === stored.length &&
+    rows.every(
+      (row, i) =>
+        row.id === stored[i].id &&
+        row.text === stored[i].text &&
+        row.isCorrect === stored[i].isCorrect,
+    )
+  );
+}
+
+/** Severity wording shown when the options field is among the changed ones — the D29 hazard this step names plainly. */
+const OPTIONS_CHANGED_LABEL =
+  "the answer options — students who already answered will show as having chosen nothing";
+
 /**
  * Reads the panel's current (uncontrolled) field values from `formData` and
  * names which ones actually differ from `question`'s stored values — the
- * words the D50 confirmation shows. Grows with Steps 27-28 as more fields
- * become editable (options, type).
+ * words the D50 confirmation shows. `currentOptions` is the options editor's
+ * live state (Step 27) — options aren't plain uncontrolled inputs, so they
+ * can't be diffed from `formData` the way every other field is. `null` for a
+ * non-MC question, where no options editor renders at all.
  */
 function deriveChangedFieldLabels(
   question: Question,
   formData: FormData,
+  currentOptions: OptionDraft[] | null,
 ): string[] {
   const labels: string[] = [];
 
@@ -72,6 +109,22 @@ function deriveChangedFieldLabels(
     }
   }
 
+  if (currentOptions !== null && isMcQuestion(question)) {
+    const before = question.options.map((o) => ({
+      id: o.id,
+      text: o.text,
+      isCorrect: o.isCorrect,
+    }));
+    const after = currentOptions.map((o) => ({
+      id: o.id ?? null,
+      text: o.text,
+      isCorrect: o.isCorrect,
+    }));
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      labels.push(OPTIONS_CHANGED_LABEL);
+    }
+  }
+
   return labels;
 }
 
@@ -96,10 +149,33 @@ export function QuestionEditPanel({
   courseId,
   answeredCount,
 }: QuestionEditPanelProps) {
-  const [state, formAction, isPending] = useActionState(
-    updateQuestionAction,
-    null,
+  const isMc = isMcQuestion(question);
+  // Options aren't plain uncontrolled inputs (rows can be added/removed), so
+  // they're tracked as component state, prefilled from the stored question,
+  // and injected into FormData just before the real action runs — same
+  // technique `AddQuestionForm` uses for its own (unrelated) options builder.
+  const [options, setOptions] = useState<OptionDraft[]>(
+    isMc
+      ? question.options.map((o) => ({
+          id: o.id,
+          text: o.text,
+          isCorrect: o.isCorrect,
+        }))
+      : [],
   );
+
+  const [state, formAction, isPending] = useActionState<
+    UpdateQuestionState | null,
+    FormData
+  >((prevState, formData) => {
+    // Omit the field entirely when nothing about the options changed, so the
+    // service's answer-key check stays skipped for an unrelated edit (D69).
+    const storedOptions = isMcQuestion(question) ? question.options : [];
+    if (isMc && !optionsUnchanged(options, storedOptions)) {
+      formData.set("options", JSON.stringify(options));
+    }
+    return updateQuestionAction(prevState, formData);
+  }, null);
   const formRef = useRef<HTMLFormElement>(null);
   const [pendingChangeLabels, setPendingChangeLabels] = useState<
     string[] | null
@@ -109,6 +185,26 @@ export function QuestionEditPanel({
   const bypassGateRef = useRef(false);
 
   const isFreeText = question.type === "free_text";
+
+  const addOption = () =>
+    setOptions((prev) => [...prev, { text: "", isCorrect: false }]);
+
+  const removeOption = (idx: number) =>
+    setOptions((prev) => prev.filter((_, i) => i !== idx));
+
+  const updateOptionText = (idx: number, text: string) =>
+    setOptions((prev) => prev.map((o, i) => (i === idx ? { ...o, text } : o)));
+
+  const toggleOptionCorrect = (idx: number) =>
+    setOptions((prev) =>
+      prev.map((o, i) =>
+        question.type === "single_select"
+          ? { ...o, isCorrect: i === idx }
+          : i === idx
+            ? { ...o, isCorrect: !o.isCorrect }
+            : o,
+      ),
+    );
 
   /**
    * Gates on the form's actual submit event, not just a Save click — this is
@@ -124,6 +220,7 @@ export function QuestionEditPanel({
     const changed = deriveChangedFieldLabels(
       question,
       new FormData(event.currentTarget),
+      isMc ? options : null,
     );
     if (answeredCount > 0 && changed.length > 0) {
       event.preventDefault();
@@ -213,6 +310,70 @@ export function QuestionEditPanel({
             </RadioGroup>
           </div>
         </>
+      )}
+
+      {isMc && (
+        <div className="space-y-3">
+          <Label>
+            Options{" "}
+            <span className="text-xs text-muted-foreground">
+              (
+              {question.type === "single_select"
+                ? "pick one correct"
+                : "pick all correct"}
+              )
+            </span>
+          </Label>
+
+          {options.map((opt, idx) => (
+            <div
+              key={opt.id ?? `new-${idx}`}
+              className="flex items-center gap-2"
+            >
+              {question.type === "single_select" ? (
+                <input
+                  type="radio"
+                  checked={opt.isCorrect}
+                  onChange={() => toggleOptionCorrect(idx)}
+                  className="shrink-0"
+                  aria-label={`Mark option ${idx + 1} correct`}
+                />
+              ) : (
+                <input
+                  type="checkbox"
+                  checked={opt.isCorrect}
+                  onChange={() => toggleOptionCorrect(idx)}
+                  className="shrink-0"
+                  aria-label={`Mark option ${idx + 1} correct`}
+                />
+              )}
+
+              <Input
+                id={`option-text-${question.id}-${idx}`}
+                value={opt.text}
+                onChange={(e) => updateOptionText(idx, e.target.value)}
+                placeholder={`Option ${idx + 1}`}
+                className="flex-1"
+              />
+
+              {options.length > 2 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeOption(idx)}
+                  className="text-destructive hover:text-destructive px-2"
+                >
+                  ✕
+                </Button>
+              )}
+            </div>
+          ))}
+
+          <Button type="button" variant="outline" size="sm" onClick={addOption}>
+            + Add Option
+          </Button>
+        </div>
       )}
 
       {(isFreeText || isMcQuestion(question)) && (

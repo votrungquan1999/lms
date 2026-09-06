@@ -406,3 +406,84 @@ describe("Feature: a teacher fixes a question's title and body (Step 26)", () =>
     expect(unchanged.content).toBe("In your own words.");
   });
 });
+
+/** Builds the FormData the question-edit panel submits for an options rewrite. */
+function buildOptionsEditFormData(
+  questionId: string,
+  options: { id?: string; text: string; isCorrect: boolean }[],
+): FormData {
+  const formData = new FormData();
+  formData.set("questionId", questionId);
+  formData.set("testId", "test-1");
+  formData.set("courseId", "course-1");
+  formData.set("options", JSON.stringify(options));
+  return formData;
+}
+
+describe("Feature: a teacher rewrites a question's answer options (Step 27)", () => {
+  it("persists a rewritten option list, preserving the kept option's id", async () => {
+    const question = (await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Pick the capital",
+        content: "Choose one.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "London", isCorrect: false },
+        ],
+      },
+    )) as SingleSelectQuestion;
+    const parisId = question.options.find((o) => o.text === "Paris")?.id;
+
+    const result = await updateQuestionAction(
+      null,
+      buildOptionsEditFormData(question.id, [
+        { id: parisId, text: "Paris (capital of France)", isCorrect: true },
+        { text: "Berlin", isCorrect: false },
+      ]),
+    );
+
+    expect(result.success).toBe(true);
+    const [updated] = (await getTestServices().questionService.listQuestions(
+      "test-1",
+    )) as SingleSelectQuestion[];
+    expect(updated.options.find((o) => o.id === parisId)?.text).toBe(
+      "Paris (capital of France)",
+    );
+    expect(updated.options.map((o) => o.text)).toContain("Berlin");
+  });
+
+  it("rejects an options edit that fails the MC rule and persists nothing", async () => {
+    const question = (await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Pick the capital",
+        content: "Choose one.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "London", isCorrect: false },
+        ],
+      },
+    )) as SingleSelectQuestion;
+
+    const result = await updateQuestionAction(
+      null,
+      buildOptionsEditFormData(question.id, [
+        { text: "Paris", isCorrect: false },
+        { text: "London", isCorrect: false },
+      ]),
+    );
+
+    expect(result.success).toBe(false);
+    const [unchanged] = (await getTestServices().questionService.listQuestions(
+      "test-1",
+    )) as SingleSelectQuestion[];
+    expect(unchanged.options.find((o) => o.text === "Paris")?.isCorrect).toBe(
+      true,
+    );
+  });
+});

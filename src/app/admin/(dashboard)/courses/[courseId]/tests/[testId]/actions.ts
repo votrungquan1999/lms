@@ -45,6 +45,18 @@ export async function updateQuestionAction(
     return { success: false, message: "Unauthorized: admin access required" };
   }
 
+  // Options arrive as a JSON string (mirrors addQuestionAction) — only
+  // present when the panel rendered an options editor for this question.
+  const optionsJson = formData.get("options")?.toString();
+  let options: { id?: string; text: string; isCorrect: boolean }[] | undefined;
+  if (optionsJson) {
+    try {
+      options = JSON.parse(optionsJson);
+    } catch {
+      return { success: false, message: "Invalid options format" };
+    }
+  }
+
   const parsed = editQuestionSchema.safeParse({
     questionId: formData.get("questionId"),
     testId: formData.get("testId"),
@@ -54,6 +66,7 @@ export async function updateQuestionAction(
     explanation: formData.get("explanation") ?? undefined,
     title: formData.get("title") ?? undefined,
     content: formData.get("content") ?? undefined,
+    ...(options !== undefined && { options }),
   });
 
   if (!parsed.success) {
@@ -101,6 +114,9 @@ export async function updateQuestionAction(
         }
         if (data.content !== undefined) {
           input.content = data.content;
+        }
+        if (data.options !== undefined) {
+          input.options = data.options;
         }
 
         await questionService.updateQuestion(

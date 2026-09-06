@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { FreeTextQuestion } from "src/lib/question-service";
+import type {
+  FreeTextQuestion,
+  SingleSelectQuestion,
+} from "src/lib/question-service";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -18,6 +21,9 @@ vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("notFound called");
   }),
+  // `with-span` calls this on every thrown error; without it a real failure
+  // surfaces as a confusing missing-export error instead of its own message.
+  unstable_rethrow: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({
@@ -563,5 +569,269 @@ describe("Feature: Question edit panel — title and content", () => {
     const [updated] = await services.questionService.listQuestions(test.id);
     expect(updated.title).toBe("Explain gravity (revised)");
     expect(updated.content).toBe("Write two sentences.");
+  });
+});
+
+/**
+ * Feature: A teacher can rewrite a question's answer options, told plainly
+ * that answered students will show as having chosen nothing (Step 27).
+ */
+describe("Feature: Question edit panel — answer options", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("shows the question's current options, prefilled and editable", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(test.id, {
+      title: "Pick the capital",
+      content: "Choose one.",
+      createdBy: "admin",
+      type: "single_select",
+      options: [
+        { text: "Paris", isCorrect: true },
+        { text: "London", isCorrect: false },
+      ],
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    expect(screen.getByDisplayValue("Paris")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("London")).toBeInTheDocument();
+  });
+
+  it("saves a rewritten option list, preserving the kept option's id and minting one for the new option", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Pick the capital",
+      content: "Choose one.",
+      createdBy: "admin",
+      type: "single_select",
+      options: [
+        { text: "Paris", isCorrect: true },
+        { text: "London", isCorrect: false },
+      ],
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    // Hold the element handle rather than re-querying by (now ambiguous)
+    // empty display value — several other inputs on the page start blank.
+    const parisInput = screen.getByDisplayValue("Paris");
+    await user.clear(parisInput);
+    await user.type(parisInput, "Paris (capital of France)");
+    await user.click(screen.getByRole("button", { name: /add option/i }));
+    const newOptionInput = document.getElementById(
+      `option-text-${question.id}-2`,
+    );
+    if (!newOptionInput) throw new Error("Expected a third option input");
+    await user.type(newOptionInput, "Berlin");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const [updated] = (await services.questionService.listQuestions(
+      test.id,
+    )) as SingleSelectQuestion[];
+    const originalIds = (question as SingleSelectQuestion).options.map(
+      (o) => o.id,
+    );
+    const originalParisId = (question as SingleSelectQuestion).options.find(
+      (o) => o.text === "Paris",
+    )?.id;
+    expect(updated.options.find((o) => o.id === originalParisId)?.text).toBe(
+      "Paris (capital of France)",
+    );
+    const newOption = updated.options.find((o) => !originalIds.includes(o.id));
+    expect(newOption?.text).toBe("Berlin");
+  });
+
+  it("warns that answered students will show as having chosen nothing when options change on an answered question", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = (await services.questionService.addQuestion(test.id, {
+      title: "Pick the capital",
+      content: "Choose one.",
+      createdBy: "admin",
+      type: "single_select",
+      options: [
+        { text: "Paris", isCorrect: true },
+        { text: "London", isCorrect: false },
+      ],
+    })) as SingleSelectQuestion;
+    const londonId = question.options.find((o) => o.text === "London")?.id;
+
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "mc", selectedIds: londonId ? [londonId] : [] },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    const parisInput = screen.getByDisplayValue("Paris");
+    await user.clear(parisInput);
+    await user.type(parisInput, "Paris (renamed)");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/chosen nothing/i);
+  });
+
+  it("saves a title-only edit on an answered keyless MC question without re-validating its missing answer key (D69)", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    // A keyless MC question (D32/D44) — the "Needs an answer key" badge
+    // exists precisely so a teacher can still open and save this question.
+    const question = (await services.questionService.addQuestion(
+      test.id,
+      {
+        title: "Pick one",
+        content: "Choose.",
+        createdBy: "admin",
+        type: "single_select",
+        options: [
+          { text: "A", isCorrect: false },
+          { text: "B", isCorrect: false },
+        ],
+      },
+      { allowMissingAnswerKey: true },
+    )) as SingleSelectQuestion;
+
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "mc", selectedIds: [question.options[0].id] },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    await user.clear(editPanelField(question.id, "title"));
+    await user.type(editPanelField(question.id, "title"), "Pick one (revised)");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: /save anyway/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const [updated] = (await services.questionService.listQuestions(
+      test.id,
+    )) as SingleSelectQuestion[];
+    expect(updated.title).toBe("Pick one (revised)");
+    expect(updated.options.map((o) => o.text)).toEqual(["A", "B"]);
+    expect(updated.options.every((o) => !o.isCorrect)).toBe(true);
+  });
+
+  it("does not warn or change anything when an answered MC question is saved without touching its options", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = (await services.questionService.addQuestion(test.id, {
+      title: "Pick the capital",
+      content: "Choose one.",
+      createdBy: "admin",
+      type: "single_select",
+      options: [
+        { text: "Paris", isCorrect: true },
+        { text: "London", isCorrect: false },
+      ],
+    })) as SingleSelectQuestion;
+
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "mc", selectedIds: [question.options[0].id] },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    // No fields touched — a real answered-student count alone must not gate.
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
   });
 });

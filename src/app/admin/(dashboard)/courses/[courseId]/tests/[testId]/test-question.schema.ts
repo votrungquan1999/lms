@@ -5,6 +5,17 @@ const optionSchema = z.object({
   isCorrect: z.boolean(),
 });
 
+/**
+ * An edited option: `id` present means "keep this option's id" (D53); a
+ * genuinely new option omits it. Distinct from `optionSchema` above, which
+ * has no id since every add-question option is new by definition.
+ */
+const editOptionSchema = z.object({
+  id: z.string().optional(),
+  text: z.string().min(1, "Option text is required"),
+  isCorrect: z.boolean(),
+});
+
 /** Discriminated-union schema validating an add-question form submission. */
 export const addQuestionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -70,6 +81,12 @@ export const editQuestionSchema = z.object({
   // never validates this today, so the edit path can't assume the service will.
   title: z.string().trim().min(1, "Question title is required").optional(),
   content: z.string().optional(),
+  // Options are absent when the panel didn't render an options editor for
+  // this question's type (Step 27); present means "replace the whole list".
+  options: z
+    .array(editOptionSchema)
+    .min(2, "At least 2 options are required")
+    .optional(),
 });
 
 /** Schema validating the JSON file body for bulk question import. */

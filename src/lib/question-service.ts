@@ -50,6 +50,40 @@ export function checkMcOptions(
   return null;
 }
 
+/**
+ * Value equality for change-log diffing — `options` is an array of plain
+ * objects, so `!==` (reference equality) would treat every save as a change
+ * even when nothing inside it actually differs. A recursive structural
+ * comparison, not `JSON.stringify` equality: object key order isn't
+ * guaranteed to match between a freshly-built `set` value and the one read
+ * back from Mongo, and `JSON.stringify` is order-sensitive.
+ */
+function valuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== typeof b || a === null || b === null) return false;
+
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return false;
+    }
+    return a.every((item, i) => valuesEqual(item, b[i]));
+  }
+
+  if (typeof a === "object" && typeof b === "object") {
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    return aKeys.every((key) =>
+      valuesEqual(
+        (a as Record<string, unknown>)[key],
+        (b as Record<string, unknown>)[key],
+      ),
+    );
+  }
+
+  return false;
+}
+
 export type QuestionType =
   | "free_text"
   | "single_select"
@@ -234,6 +268,14 @@ export interface UpdateQuestionInput {
   /** Always required on the document — no clear state, unlike the fields above. */
   title?: string;
   content?: string;
+  /**
+   * Rewrites an MC question's option list (Step 27). `id` present means
+   * "keep this option's id" (D53) — omit it only for a genuinely new
+   * option, which gets a fresh id minted on save. An option whose id is
+   * missing from this array is dropped, which is what strands a student
+   * who had selected it.
+   */
+  options?: { id?: string; text: string; isCorrect: boolean }[];
 }
 
 /**
@@ -494,6 +536,26 @@ export class QuestionService {
     if ("content" in input && input.content !== undefined) {
       set.content = input.content;
     }
+    if ("options" in input && input.options !== undefined) {
+      // D53: keep the id the caller supplied (an option it didn't remove);
+      // mint a fresh one only for a genuinely new option. The MC rule is
+      // re-run against the resolved (post-edit) list — Step 18 already
+      // extracted it as a shared pure function, reused here rather than
+      // re-implemented.
+      const rewrittenOptions: McOption[] = input.options.map((o) => ({
+        id: o.id ?? crypto.randomUUID(),
+        text: o.text,
+        isCorrect: o.isCorrect,
+      }));
+      const mcError = checkMcOptions(
+        before?.type ?? "free_text",
+        rewrittenOptions,
+      );
+      if (mcError) {
+        throw new Error(mcError);
+      }
+      set.options = rewrittenOptions;
+    }
 
     await this.questions.updateOne({ id: questionId }, { $set: set });
 
@@ -517,20 +579,25 @@ export class QuestionService {
       return;
     }
 
-    // Grows with Steps 27-28 as more fields become editable (D52).
+    // Grows with Step 28 as more fields become editable (D52).
     const trackedFields = [
       "answerRevealMode",
       "referenceAnswer",
       "explanation",
       "title",
       "content",
+      "options",
     ] as const;
 
     const changedFields: string[] = [];
     const beforeValues: Record<string, unknown> = {};
     const afterValues: Record<string, unknown> = {};
     for (const field of trackedFields) {
-      if (field in set && set[field] !== before[field]) {
+      // `options` is an array — `!==` would fire on every save since a
+      // rewritten array is never the same reference as the stored one, even
+      // when every value inside it is identical. Compare by value for every
+      // field so a genuine no-op (array or scalar) logs nothing.
+      if (field in set && !valuesEqual(set[field], before[field])) {
         changedFields.push(field);
         beforeValues[field] = before[field];
         afterValues[field] = set[field];
