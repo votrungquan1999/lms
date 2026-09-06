@@ -25,7 +25,12 @@ type ImportAiAction =
       documentText: string;
       questions: ImportQuestionDraft[];
     }
-  | { type: "RESET" };
+  | { type: "RESET" }
+  | {
+      type: "UPDATE_QUESTION";
+      id: string;
+      patch: Partial<Omit<ImportQuestionDraft, "id">>;
+    };
 
 const initialState: ImportAiState = {
   documentText: "",
@@ -59,6 +64,13 @@ function importAiReducer(
       };
     case "RESET":
       return initialState;
+    case "UPDATE_QUESTION":
+      return {
+        ...state,
+        questions: state.questions.map((q) =>
+          q.id === action.id ? { ...q, ...action.patch } : q,
+        ),
+      };
     default:
       return state;
   }
@@ -66,6 +78,10 @@ function importAiReducer(
 
 interface ImportAiContextValue extends ImportAiState {
   selectFile: (file: File) => Promise<void>;
+  updateQuestion: (
+    id: string,
+    patch: Partial<Omit<ImportQuestionDraft, "id">>,
+  ) => void;
   reset: () => void;
 }
 
@@ -137,6 +153,8 @@ export function ImportAiProvider({
   const value: ImportAiContextValue = {
     ...state,
     selectFile,
+    updateQuestion: (id, patch) =>
+      dispatch({ type: "UPDATE_QUESTION", id, patch }),
     reset: () => dispatch({ type: "RESET" }),
   };
 
