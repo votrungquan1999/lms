@@ -14,6 +14,18 @@ export interface EnrollmentDocument {
 }
 
 /**
+ * Input for setEnrolledStudents. `desired` and `observed` are both
+ * `string[]` and adjacent in a positional signature would type-check
+ * transposed — an object makes that swap a named-property mismatch instead
+ * of a silent reversal of the admin's edit.
+ */
+interface SetEnrolledStudentsInput {
+  desired: string[];
+  observed: string[];
+  updatedBy: string;
+}
+
+/**
  * EnrollmentService — manages the `enrollment` collection.
  */
 export class EnrollmentService {
@@ -124,25 +136,36 @@ export class EnrollmentService {
   }
 
   /**
-   * Idempotent batch update: sets the enrolled students for a course
-   * to exactly the provided list. Enrolls new students, removes
-   * students no longer in the list. Like a PUT operation.
+   * Compare-and-set batch update: enrolls students newly present in
+   * `desired`, and removes students who were observed enrolled but are now
+   * missing from `desired`. NOT a PUT/replace — see `observed` below.
+   *
+   * `observed` is the enrollment snapshot the admin's dialog was opened
+   * with. Removal is restricted to ids present in both that snapshot and
+   * the live database but absent from `desired` — an enrollment made after
+   * the dialog opened was never shown to the admin, so it can never be a
+   * removal candidate (BUG-2: it was previously deleted just for being
+   * absent from a `desired` list computed before it existed).
    */
   async setEnrolledStudents(
     courseId: string,
-    desiredStudentIds: string[],
-    updatedBy: string,
+    { desired, observed, updatedBy }: SetEnrolledStudentsInput,
   ): Promise<void> {
     const currentStudentIds = await this.listEnrollmentsByCourse(courseId);
 
-    const desiredSet = new Set(desiredStudentIds);
+    const desiredSet = new Set(desired);
     const currentSet = new Set(currentStudentIds);
+    const observedSet = new Set(observed);
 
     // Students to add (in desired but not in current)
-    const toAdd = desiredStudentIds.filter((id) => !currentSet.has(id));
+    const toAdd = desired.filter((id) => !currentSet.has(id));
 
-    // Students to remove (in current but not in desired)
-    const toRemove = currentStudentIds.filter((id) => !desiredSet.has(id));
+    // Students to remove — must have been observed AND now be missing from
+    // desired. Current-but-unobserved ids (a mid-dialog enrollment) are
+    // never candidates, no matter what `desired` contains.
+    const toRemove = currentStudentIds.filter(
+      (id) => observedSet.has(id) && !desiredSet.has(id),
+    );
 
     // Enroll new students
     if (toAdd.length > 0) {

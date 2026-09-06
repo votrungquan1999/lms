@@ -13,6 +13,7 @@ import { z } from "zod";
 const setEnrollmentsSchema = z.object({
   courseId: z.string().min(1, "Course ID is missing"),
   studentIds: z.array(z.string()),
+  observedStudentIds: z.array(z.string()),
 });
 
 export interface SetEnrollmentsState {
@@ -22,7 +23,9 @@ export interface SetEnrollmentsState {
 
 /**
  * Server action: sets the enrolled students for a course (idempotent).
- * Replaces the current enrollment list with the provided student IDs.
+ * Enrolls new students and removes only those the admin's dialog actually
+ * observed and unticked — an enrollment made after the dialog opened is
+ * never touched (BUG-2).
  */
 export async function setEnrollmentsAction(
   _prevState: SetEnrollmentsState | null,
@@ -42,6 +45,7 @@ export async function setEnrollmentsAction(
   const parsed = setEnrollmentsSchema.safeParse({
     courseId: formData.get("courseId"),
     studentIds: formData.getAll("studentIds"),
+    observedStudentIds: formData.getAll("observedStudentIds"),
   });
 
   if (!parsed.success) {
@@ -57,11 +61,11 @@ export async function setEnrollmentsAction(
       },
       async () => {
         const enrollmentService = await getEnrollmentService();
-        await enrollmentService.setEnrolledStudents(
-          parsed.data.courseId,
-          parsed.data.studentIds,
-          adminUserId,
-        );
+        await enrollmentService.setEnrolledStudents(parsed.data.courseId, {
+          desired: parsed.data.studentIds,
+          observed: parsed.data.observedStudentIds,
+          updatedBy: adminUserId,
+        });
 
         revalidatePath(`/admin/courses/${parsed.data.courseId}`);
         return {

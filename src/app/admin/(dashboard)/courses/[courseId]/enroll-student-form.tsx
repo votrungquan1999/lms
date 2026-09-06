@@ -22,7 +22,8 @@ interface StudentItem {
 /**
  * Client component: manage enrollments dialog.
  * Pre-ticks currently enrolled students. Unticking = unenroll on submit.
- * Uses idempotent setEnrollmentsAction (PUT semantics).
+ * Uses idempotent setEnrollmentsAction (compare-and-set, not PUT/replace —
+ * see setEnrolledStudents).
  */
 export function ManageEnrollmentsDialog({
   courseId,
@@ -86,7 +87,22 @@ export function ManageEnrollmentsDialog({
         >
           <input type="hidden" name="courseId" value={courseId} />
           {Array.from(selected).map((id) => (
-            <input key={id} type="hidden" name="studentIds" value={id} />
+            <input
+              key={`selected-${id}`}
+              type="hidden"
+              name="studentIds"
+              value={id}
+            />
+          ))}
+          {/* The dialog's own enrollment snapshot (BUG-2) — never the live
+              `selected` state, which the admin is actively editing. */}
+          {enrolledStudentIds.map((id) => (
+            <input
+              key={`observed-${id}`}
+              type="hidden"
+              name="observedStudentIds"
+              value={id}
+            />
           ))}
 
           {students.length > 0 ? (
