@@ -30,3 +30,12 @@ export const questionImportBatchSchema = z.object({
 });
 
 export type QuestionImportItem = z.infer<typeof questionImportItemSchema>;
+
+/**
+ * Zod schema for a single-question retry result. Wrapped in a
+ * `{ question: {...} }` object for the same reliability reason as
+ * `questionImportBatchSchema`'s `{ questions: [...] }`.
+ */
+export const questionRetryResultSchema = z.object({
+  question: questionImportItemSchema,
+});

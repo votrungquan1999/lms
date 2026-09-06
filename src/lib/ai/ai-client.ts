@@ -1,10 +1,32 @@
 import { google } from "@ai-sdk/google";
-import { generateText, Output } from "ai";
+import type { Span } from "@opentelemetry/api";
+import { generateText, type LanguageModelUsage, Output } from "ai";
 import { buildGradingPrompt } from "src/lib/ai/grading-prompt";
 import { aiGradeBatchSchema } from "src/lib/ai/grading-schema";
-import { buildQuestionImportPrompt } from "src/lib/ai/question-import-prompt";
-import { questionImportBatchSchema } from "src/lib/ai/question-import-schema";
+import {
+  buildQuestionImportPrompt,
+  buildQuestionRetryPrompt,
+} from "src/lib/ai/question-import-prompt";
+import {
+  questionImportBatchSchema,
+  questionRetryResultSchema,
+} from "src/lib/ai/question-import-schema";
 import { withSpan } from "src/lib/observability/with-span";
+
+/**
+ * Sets the standard gen_ai token-usage attributes on a span.
+ * @param span - The active span to enrich.
+ * @param usage - Token counts are `number | undefined`; each is set only when
+ * present — never `?? 0` (fabricates a count), never passed as undefined.
+ */
+function recordUsage(span: Span, usage: LanguageModelUsage): void {
+  if (usage.inputTokens !== undefined) {
+    span.setAttribute("gen_ai.usage.input_tokens", usage.inputTokens);
+  }
+  if (usage.outputTokens !== undefined) {
+    span.setAttribute("gen_ai.usage.output_tokens", usage.outputTokens);
+  }
+}
 
 /**
  * Input for one item in an AI free-text grading batch.
@@ -108,6 +130,20 @@ export interface QuestionParseClient {
    * @returns One entry per question found, in document order.
    */
   parseQuestionsFromText(documentText: string): Promise<ParsedQuestion[]>;
+
+  /**
+   * Re-reads ONE already-extracted question, addressing a teacher's
+   * correction note. Only this question is returned.
+   * @param documentText - The full text extracted client-side from the upload.
+   * @param currentQuestion - The question's current (possibly hand-edited) draft.
+   * @param correctionNote - What the teacher says was wrong with it.
+   * @returns The corrected question.
+   */
+  retryQuestion(
+    documentText: string,
+    currentQuestion: ParsedQuestion,
+    correctionNote: string,
+  ): Promise<ParsedQuestion>;
 }
 
 /** Gemini model id used for the live grading path. */
@@ -152,20 +188,7 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
           prompt: buildGradingPrompt(items, opts),
         });
 
-        // Token counts are `number | undefined` — set each only when present;
-        // never `?? 0` (fabricates a count), never pass undefined.
-        if (result.usage.inputTokens !== undefined) {
-          span.setAttribute(
-            "gen_ai.usage.input_tokens",
-            result.usage.inputTokens,
-          );
-        }
-        if (result.usage.outputTokens !== undefined) {
-          span.setAttribute(
-            "gen_ai.usage.output_tokens",
-            result.usage.outputTokens,
-          );
-        }
+        recordUsage(span, result.usage);
 
         const parsed = result.output;
         if (!parsed) {
@@ -203,18 +226,7 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
           prompt: buildQuestionImportPrompt(documentText),
         });
 
-        if (result.usage.inputTokens !== undefined) {
-          span.setAttribute(
-            "gen_ai.usage.input_tokens",
-            result.usage.inputTokens,
-          );
-        }
-        if (result.usage.outputTokens !== undefined) {
-          span.setAttribute(
-            "gen_ai.usage.output_tokens",
-            result.usage.outputTokens,
-          );
-        }
+        recordUsage(span, result.usage);
 
         const parsed = result.output;
         if (!parsed) {
@@ -228,6 +240,55 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
           referenceAnswer: q.referenceAnswer,
           explanation: q.explanation,
         }));
+      },
+    );
+  }
+
+  /**
+   * Re-reads one already-extracted question via Gemini, addressing a
+   * teacher's correction note.
+   * @param documentText - The full text extracted client-side from the upload.
+   * @param currentQuestion - The question's current (possibly hand-edited) draft.
+   * @param correctionNote - What the teacher says was wrong with it.
+   * @returns The corrected question.
+   */
+  async retryQuestion(
+    documentText: string,
+    currentQuestion: ParsedQuestion,
+    correctionNote: string,
+  ): Promise<ParsedQuestion> {
+    return withSpan(
+      "gemini.retryQuestion",
+      {
+        "gen_ai.request.model": GEMINI_MODEL_ID,
+        "gen_ai.operation.name": "generate_content",
+        "lms.ai.document_text_length": documentText.length,
+      },
+      async (span) => {
+        const result = await generateText({
+          model: google(GEMINI_MODEL_ID),
+          output: Output.object({ schema: questionRetryResultSchema }),
+          prompt: buildQuestionRetryPrompt(
+            documentText,
+            currentQuestion,
+            correctionNote,
+          ),
+        });
+
+        recordUsage(span, result.usage);
+
+        const parsed = result.output;
+        if (!parsed) {
+          throw new Error("Gemini returned no parsed output");
+        }
+        return {
+          title: parsed.question.title,
+          content: parsed.question.content,
+          type: parsed.question.type,
+          options: parsed.question.options,
+          referenceAnswer: parsed.question.referenceAnswer,
+          explanation: parsed.question.explanation,
+        };
       },
     );
   }

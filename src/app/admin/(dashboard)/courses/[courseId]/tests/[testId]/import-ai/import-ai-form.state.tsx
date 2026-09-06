@@ -2,12 +2,19 @@
 
 import { createContext, useContext, useReducer } from "react";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
-import { parseQuestionsAction } from "./actions";
+import { parseQuestionsAction, retryQuestionAction } from "./actions";
 import { extractTextFromDocx, extractTextFromPdf } from "./document-extract";
 
-/** One parsed question in the review list, keyed by a stable client id. */
+/**
+ * One parsed question in the review list, keyed by a stable client id.
+ * `edited` (D40) tracks whether a teacher has hand-corrected this draft since
+ * it last arrived from the AI, so a retry can warn before discarding it.
+ * `retryError` surfaces a failed retry without blanking the pre-retry draft.
+ */
 export interface ImportQuestionDraft extends ParsedQuestion {
   id: string;
+  edited: boolean;
+  retryError: string | null;
 }
 
 interface ImportAiState {
@@ -82,6 +89,7 @@ interface ImportAiContextValue extends ImportAiState {
     id: string,
     patch: Partial<Omit<ImportQuestionDraft, "id">>,
   ) => void;
+  retryOneQuestion: (id: string, correctionNote: string) => Promise<void>;
   reset: () => void;
 }
 
@@ -145,8 +153,60 @@ export function ImportAiProvider({
       documentText: text,
       questions: result.questions.map((q) => ({
         id: crypto.randomUUID(),
+        edited: false,
+        retryError: null,
         ...q,
       })),
+    });
+  }
+
+  /**
+   * Asks the AI to re-read one question, addressing the teacher's correction
+   * note. Splices the result back by `id` — captured in this call's own
+   * closure, never "whichever dialog is open" — so two in-flight retries
+   * can't cross. On failure the pre-retry draft stays visible and intact.
+   */
+  async function retryOneQuestion(
+    id: string,
+    correctionNote: string,
+  ): Promise<void> {
+    const current = state.questions.find((q) => q.id === id);
+    if (!current) return;
+
+    const result = await retryQuestionAction(
+      state.documentText,
+      current,
+      correctionNote,
+    );
+    if (!result.success || !result.question) {
+      dispatch({
+        type: "UPDATE_QUESTION",
+        id,
+        patch: { retryError: result.message },
+      });
+      return;
+    }
+
+    // Name every ParsedQuestion field explicitly rather than `...result.question`
+    // — a field the AI omits (e.g. `options` after a type correction) must
+    // become an explicit `undefined` here so the reducer's merge clears the
+    // stale value, instead of silently depending on whether the key was
+    // present on the object at all.
+    const question = result.question;
+    // A fresh AI result is no longer "hand-edited" and clears any prior error.
+    dispatch({
+      type: "UPDATE_QUESTION",
+      id,
+      patch: {
+        title: question.title,
+        content: question.content,
+        type: question.type,
+        options: question.options,
+        referenceAnswer: question.referenceAnswer,
+        explanation: question.explanation,
+        edited: false,
+        retryError: null,
+      },
     });
   }
 
@@ -155,6 +215,7 @@ export function ImportAiProvider({
     selectFile,
     updateQuestion: (id, patch) =>
       dispatch({ type: "UPDATE_QUESTION", id, patch }),
+    retryOneQuestion,
     reset: () => dispatch({ type: "RESET" }),
   };
 

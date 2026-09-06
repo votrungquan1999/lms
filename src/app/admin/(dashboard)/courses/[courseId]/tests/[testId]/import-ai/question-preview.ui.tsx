@@ -9,6 +9,14 @@ import {
   CardHeader,
   CardTitle,
 } from "src/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "src/components/ui/dialog";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
@@ -103,14 +111,16 @@ function QuestionCard({
             <QuestionEditFields
               questionId={question.id}
               onSave={(draft) => {
-                // Empty optional fields become `undefined`, not "" — a
-                // cleared model answer must stay retryable and importable,
-                // and the controlled textarea (which needs "" to be
-                // clearable) never sees this normalization.
+                // A manual save is what "hand-edited" (D40) means. Empty
+                // optional fields become `undefined`, not "" — a cleared
+                // model answer must stay retryable and importable, and the
+                // controlled textarea (which needs "" to be clearable) never
+                // sees this normalization.
                 updateQuestion(question.id, {
                   ...draft,
                   referenceAnswer: draft.referenceAnswer || undefined,
                   explanation: draft.explanation || undefined,
+                  edited: true,
                 });
                 setIsEditing(false);
               }}
@@ -132,6 +142,7 @@ function QuestionCard({
           </span>
           <span className="flex items-center gap-2">
             <Badge variant="outline">{TYPE_LABELS[question.type]}</Badge>
+            <RetryQuestionDialog question={question} />
             <Button
               type="button"
               variant="outline"
@@ -155,8 +166,106 @@ function QuestionCard({
             ))}
           </ul>
         )}
+        {question.retryError && (
+          <div
+            role="alert"
+            className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+          >
+            {question.retryError}
+          </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Per-question "Retry with AI" trigger + Dialog. Sends the correction note
+ * plus the current draft and the full document text; only this question's
+ * card is affected. D40: if the draft has been hand-edited since its last AI
+ * result, retrying requires an explicit second confirmation before it
+ * discards that edit.
+ */
+function RetryQuestionDialog({
+  question,
+}: {
+  question: ImportQuestionDraft;
+}): React.ReactNode {
+  const { retryOneQuestion } = useImportAi();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [confirmedDiscard, setConfirmedDiscard] = useState(false);
+  const [isPending, setIsPending] = useState(false);
+
+  const needsDiscardConfirmation = question.edited && !confirmedDiscard;
+  const noteId = `retry-question-note-${question.id}`;
+
+  async function handleRetry(): Promise<void> {
+    setIsPending(true);
+    await retryOneQuestion(question.id, note);
+    setIsPending(false);
+    setOpen(false);
+    setNote("");
+    setConfirmedDiscard(false);
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setConfirmedDiscard(false);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button type="button" variant="ghost" size="sm">
+          Retry with AI
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Ask the AI to read this question again</DialogTitle>
+          <DialogDescription>
+            Explain what was wrong. Only this question changes.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <Label htmlFor={noteId}>What was wrong?</Label>
+          <Textarea
+            id={noteId}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </div>
+
+        {needsDiscardConfirmation ? (
+          <div className="space-y-2">
+            <p role="alert" className="text-sm text-destructive">
+              This question has been hand-edited. Retrying will discard those
+              changes.
+            </p>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => setConfirmedDiscard(true)}
+            >
+              Discard my edit and retry anyway
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            disabled={isPending || note.trim().length === 0}
+            onClick={handleRetry}
+          >
+            {isPending ? "Retrying…" : "Retry"}
+          </Button>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -1,3 +1,5 @@
+import type { QuestionImportItem } from "./question-import-schema";
+
 const SYSTEM_RULES = [
   "You are an assistant that converts a teacher's exam document into structured test questions for a learning-management system.",
   "Split the document into individual questions, in the order they appear.",
@@ -21,5 +23,30 @@ export function buildQuestionImportPrompt(documentText: string): string {
     "Document text:",
     documentText,
     'Respond with JSON of the form { "questions": [{ "title": string, "content": string, "type": "free_text" | "single_select" | "multi_select", "options"?: [{ "text": string, "isCorrect": boolean }], "referenceAnswer"?: string, "explanation"?: string }, ...] }. Omit "referenceAnswer"/"explanation" entirely when the document gives none — never return an empty string for either.',
+  ].join("\n\n");
+}
+
+/**
+ * Builds the prompt sent to the LLM to re-read ONE already-extracted question,
+ * addressing a teacher's correction note. Only this one question is returned —
+ * the rest of the review list is never touched by a retry.
+ * @param documentText - The full text extracted from the uploaded document.
+ * @param currentQuestion - The question's current (possibly hand-edited) draft.
+ * @param correctionNote - What the teacher says was wrong with it.
+ * @returns A single user-prompt string for the LLM.
+ */
+export function buildQuestionRetryPrompt(
+  documentText: string,
+  currentQuestion: QuestionImportItem,
+  correctionNote: string,
+): string {
+  return [
+    SYSTEM_RULES,
+    "Document text:",
+    documentText,
+    "This question was already extracted once. The teacher reviewed it and found a problem, so it needs to be re-read — the rest of the document's questions are unaffected.",
+    `Current extraction of this one question: ${JSON.stringify(currentQuestion)}`,
+    `Teacher's correction note — what was wrong: ${correctionNote}`,
+    'Re-read the document and produce a corrected version of this ONE question that addresses the correction note. Respond with JSON of the form { "question": { "title": string, "content": string, "type": "free_text" | "single_select" | "multi_select", "options"?: [{ "text": string, "isCorrect": boolean }], "referenceAnswer"?: string, "explanation"?: string } }. Omit "referenceAnswer"/"explanation" entirely when the document gives none — never return an empty string for either.',
   ].join("\n\n");
 }
