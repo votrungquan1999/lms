@@ -1,11 +1,14 @@
 "use server";
 
+import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import {
   getCourseJoinRequestService,
   getCourseService,
+  getStudentService,
 } from "src/lib/services-singleton";
+import { USERNAME_PATTERN } from "src/lib/username";
 import { z } from "zod";
 
 const joinSignupSchema = z.object({
@@ -23,7 +26,7 @@ const joinSignupSchema = z.object({
     .trim()
     .toLowerCase()
     .regex(
-      /^[a-z0-9][a-z0-9._+-]{2,31}$/,
+      USERNAME_PATTERN,
       "Username may use letters, numbers, dots, dashes and underscores",
     ),
   password: z
@@ -32,7 +35,26 @@ const joinSignupSchema = z.object({
     .max(128, "Password must be at most 128 characters"),
 });
 
+// D49: no password field — the caller already holds a valid Google session,
+// they are only picking a username the derived one couldn't use.
+const googleUsernameSchema = z.object({
+  token: z.string().min(1, "Invalid invite link"),
+  username: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(
+      USERNAME_PATTERN,
+      "Username may use letters, numbers, dots, dashes and underscores",
+    ),
+});
+
 export interface JoinSignupState {
+  success: boolean;
+  message: string;
+}
+
+export interface GoogleUsernameSignupState {
   success: boolean;
   message: string;
 }
@@ -105,6 +127,97 @@ export async function joinSignupAction(
         // re-request from this link today (revisiting collides on their own
         // username and the join page has no signed-in path). Step 25 owns
         // the fix; until then this is a dead-end loop, not a resolvable one.
+        const joinRequestService = await getCourseJoinRequestService();
+        await joinRequestService.createRequest({
+          courseId: course.id,
+          studentId: student.id,
+        });
+
+        return {
+          success: true,
+          message: `Account created. Your request to join "${course.title}" is now waiting for admin approval.`,
+        };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to create your account";
+    return { success: false, message };
+  }
+}
+
+/**
+ * Server action: lets a Google signup whose derived username was taken or
+ * invalid (D49) finish joining with a username they choose themselves.
+ * Re-resolves the caller's identity server-side via the SAME session cookie
+ * (never a client-supplied authUserId, mirroring D41's courseId rule) and
+ * binds the new student document to that existing authUserId — no new auth
+ * user is created here, so there is nothing to roll back on failure.
+ */
+export async function googleUsernameSignupAction(
+  _prevState: GoogleUsernameSignupState | null,
+  formData: FormData,
+): Promise<GoogleUsernameSignupState> {
+  const parsed = googleUsernameSchema.safeParse({
+    token: formData.get("token"),
+    username: formData.get("username"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+
+  try {
+    return await withSpan(
+      "action.googleUsernameSignupAction",
+      { "lms.action.name": "googleUsernameSignupAction" },
+      async () => {
+        const courseService = await getCourseService();
+        const course = await courseService.findByInviteToken(parsed.data.token);
+        if (!course) {
+          return { success: false, message: INVALID_INVITE_MESSAGE };
+        }
+
+        const authService = await getAuthService();
+        const googleIdentity = await authService.resolveUnclassifiedIdentity(
+          await headers(),
+        );
+        if (!googleIdentity) {
+          return {
+            success: false,
+            message: "Your Google sign-in has expired. Please sign in again.",
+          };
+        }
+
+        const studentService = await getStudentService();
+        let student: Awaited<
+          ReturnType<typeof studentService.createStudentDocument>
+        >;
+        try {
+          student = await studentService.createStudentDocument({
+            authUserId: googleIdentity.authUserId,
+            username: parsed.data.username,
+            name: googleIdentity.name,
+            createdBy: "google-signup",
+          });
+        } catch (error) {
+          // Unlike D3's identity-collision message, this is a plain naming
+          // conflict on a username the person picked themselves — "sign in
+          // with your original method" would make no sense here, since
+          // there is no other method for a brand-new Google signup.
+          if (
+            error instanceof Error &&
+            error.message === "Username already exists"
+          ) {
+            return {
+              success: false,
+              message: "That username is already taken. Please choose another.",
+            };
+          }
+          throw error;
+        }
+
         const joinRequestService = await getCourseJoinRequestService();
         await joinRequestService.createRequest({
           courseId: course.id,

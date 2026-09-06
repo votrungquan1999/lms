@@ -1,5 +1,5 @@
 import type { Db } from "mongodb";
-import { createAuthService } from "src/lib/auth-service";
+import { type AuthService, createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
 import { JoinRequestStatus } from "src/lib/course-join-request-service";
 import { StudentService } from "src/lib/student-service";
@@ -15,12 +15,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 
 // A real AuthService (for real registerStudent/signInStudent) built per-test.
+// googleUsernameSignupAction's tests stub resolveUnclassifiedIdentity
+// directly on this same instance via vi.spyOn, rather than driving a real
+// Google-shaped cookie round trip — that resolution path is already fully
+// covered by auth-service.test.ts.
 const authHolder = vi.hoisted(() => ({ authService: null as unknown }));
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => authHolder.authService),
 }));
+vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
-import { joinSignupAction } from "../actions";
+import { googleUsernameSignupAction, joinSignupAction } from "../actions";
 
 // The synthetic email a self-registrant with username "ada" would get is
 // pre-listed here on purpose — proves the ADMIN_EMAILS list alone can never
@@ -251,5 +256,61 @@ describe("Feature: a prospective student is stopped from taking a username someb
         .collection("course_join_request")
         .countDocuments({ courseId: course.id }),
     ).toBe(0);
+  });
+});
+
+/**
+ * Feature: a Google signup whose derived username needed a choice can finish
+ * joining with a username they pick themselves
+ * As a prospective student whose Google email derived a taken or unusable
+ * username
+ * I want to submit my own username and still join the course
+ * So that I am never stranded holding a Google session with no way forward (D49)
+ */
+describe("Feature: a Google signup whose derived username needed a choice can finish joining with a username they pick themselves", () => {
+  it("creates exactly one student bound to the SAME authUserId and one pending join request", async () => {
+    // Given a course with a live invite link, and a caller already holding a
+    // valid (but unclassified) Google session
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "resolveUnclassifiedIdentity",
+    ).mockResolvedValue({
+      authUserId: "google-auth-id-123",
+      email: "collision.candidate@gmail.com",
+      name: "Collision Candidate",
+    });
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("username", "my-own-choice");
+
+    // When they submit a freely-chosen username
+    const result = await googleUsernameSignupAction(null, formData);
+
+    // Then exactly one student is created, bound to the SAME authUserId —
+    // never a new auth user, since one already exists for this Google session
+    expect(result.success).toBe(true);
+    const students = await services.studentService.listStudents();
+    expect(students).toHaveLength(1);
+    const studentDoc = await db
+      .collection("student")
+      .findOne({ username: "my-own-choice" });
+    expect(studentDoc?.authUserId).toBe("google-auth-id-123");
+
+    // And exactly one pending request is filed against the course
+    const pending = await services.courseJoinRequestService.getPendingRequest(
+      course.id,
+      studentDoc?.id ?? "",
+    );
+    expect(pending).not.toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import {
+  deriveUsername,
   GoogleProvisionOutcome,
   provisionGoogleStudent,
 } from "src/lib/google-student-provisioner";
@@ -10,6 +11,7 @@ import {
   getStudentService,
 } from "src/lib/services-singleton";
 import { GoogleJoinButton } from "./google-join-button";
+import { GoogleUsernameForm } from "./google-username-form";
 import { InvalidInviteCard, ValidInviteCard } from "./join-page.ui";
 import { SelfSignupForm } from "./self-signup-form";
 
@@ -21,14 +23,6 @@ export const metadata = {
 // Revocation must take effect on the next request — a cached render would
 // keep serving a switched-off invite.
 export const dynamic = "force-dynamic";
-
-// D3: kept identical in wording to the self-signup form's own message
-// (src/app/join/[token]/actions.ts) — that file is a "use server" action
-// module, which may only export async functions, so the literal is
-// duplicated here rather than imported (2 occurrences; not worth a shared
-// constants file per the 3x-repetition rule).
-const USERNAME_TAKEN_MESSAGE =
-  "This username already belongs to an account. Please sign in with your original method instead.";
 
 export default async function JoinPage({
   params,
@@ -60,6 +54,7 @@ export default async function JoinPage({
   const isGoogleCallback = google === "1";
 
   let googleOutcome: GoogleProvisionOutcome | null = null;
+  let suggestedUsername = "";
   if (isGoogleCallback) {
     // A caller who just completed a Google OAuth round trip lands back here
     // (Step 22) holding a valid cookie that resolves to no usable role yet —
@@ -78,9 +73,15 @@ export default async function JoinPage({
         getCourseJoinRequestService(),
       ]);
       googleOutcome = await provisionGoogleStudent(
-        { authService, studentService, courseJoinRequestService },
+        { studentService, courseJoinRequestService },
         { ...googleIdentity, courseId: course.id },
       );
+      if (googleOutcome === GoogleProvisionOutcome.NeedsUsername) {
+        // D49: pre-fill with the sanitised candidate where one exists — this
+        // can be empty (a non-ASCII local part), in which case the field is
+        // left blank rather than pre-filled with nothing meaningful.
+        suggestedUsername = deriveUsername(googleIdentity.email);
+      }
     }
   }
 
@@ -96,13 +97,11 @@ export default async function JoinPage({
             </a>
             .
           </output>
-        ) : googleOutcome === GoogleProvisionOutcome.UsernameTaken ? (
-          <div
-            className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
-            role="alert"
-          >
-            {USERNAME_TAKEN_MESSAGE}
-          </div>
+        ) : googleOutcome === GoogleProvisionOutcome.NeedsUsername ? (
+          <GoogleUsernameForm
+            token={token}
+            suggestedUsername={suggestedUsername}
+          />
         ) : (
           <div className="space-y-4">
             <SelfSignupForm token={token} />
