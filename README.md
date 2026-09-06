@@ -70,6 +70,14 @@ Standalone CLI tools are located in the `scripts/` directory.
 ```bash
 # Create a test programmatically from a typescript data file
 bun scripts/create-test.ts scripts/data/my-test.ts
+
+# One-off: give every pre-existing account a role (real email -> admin,
+# @lms.internal -> student). Report-only by default; add --apply to write.
+# PRECONDITION: deploy the role-model build before running this against
+# production — against an older build, new signups are still roleless and
+# --apply will promote them too.
+bun scripts/backfill-user-roles.ts
+bun scripts/backfill-user-roles.ts --apply
 ```
 
 ## Project Structure
