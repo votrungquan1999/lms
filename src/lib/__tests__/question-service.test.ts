@@ -1,3 +1,5 @@
+import type { AnswerDocument } from "src/lib/answer-service";
+import type { GradeDocument } from "src/lib/grade-service";
 import { PoolQuestionService } from "src/lib/pool-question-service";
 import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
 import {
@@ -839,6 +841,71 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
         "test-1",
       )) as SingleSelectQuestion[];
       expect(updated.explanation).toBe("4 is the sum of 2 and 2.");
+    },
+  );
+
+  dbIt(
+    "leaves a student's submitted answer and grade byte-identical (Step 21 — regression pin, no production change)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      });
+
+      const answerDoc: AnswerDocument = {
+        id: "answer-1",
+        testId: "test-1",
+        questionId: question.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Mass attracts mass." },
+        submittedAt: new Date("2026-01-01T00:00:00Z"),
+      };
+      await db.collection<AnswerDocument>("answer").insertOne({
+        ...answerDoc,
+      });
+
+      const gradeDoc: GradeDocument = {
+        id: "grade-1",
+        testId: "test-1",
+        questionId: question.id,
+        studentId: "student-1",
+        score: 80,
+        feedback: "Good but incomplete.",
+        solution: "Mass attracts mass proportionally.",
+        gradedAt: new Date("2026-01-01T01:00:00Z"),
+        gradedBy: "admin-1",
+        updatedAt: null,
+        updatedBy: null,
+      };
+      await db.collection<GradeDocument>("grade").insertOne({ ...gradeDoc });
+
+      // Edits wording (via a title correction is out of this batch's scope,
+      // so exercise every field this batch DOES own instead): reveal mode,
+      // model answer, and explanation.
+      await service.updateQuestion(
+        question.id,
+        {
+          answerRevealMode: "plain",
+          referenceAnswer: "Objects with mass attract each other.",
+          explanation: "Newton's law of universal gravitation.",
+        },
+        "admin-2",
+      );
+
+      const answerAfter = await db
+        .collection<AnswerDocument>("answer")
+        .findOne({ id: "answer-1" });
+      const gradeAfter = await db
+        .collection<GradeDocument>("grade")
+        .findOne({ id: "grade-1" });
+
+      // toEqual over toMatchObject: subset matching would miss an added field
+      // or an extra row; _id is Mongo-injected, so pin it as expect.anything().
+      expect(answerAfter).toEqual({ ...answerDoc, _id: expect.anything() });
+      expect(gradeAfter).toEqual({ ...gradeDoc, _id: expect.anything() });
     },
   );
 });
