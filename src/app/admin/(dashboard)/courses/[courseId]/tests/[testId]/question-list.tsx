@@ -136,7 +136,11 @@ export function QuestionList({
                 </div>
               )}
               {(question.type === "free_text" || isMcQuestion(question)) && (
-                <QuestionEditPanel question={question} courseId={courseId} />
+                <QuestionEditPanel
+                  question={question}
+                  courseId={courseId}
+                  answeredCount={answeredCount}
+                />
               )}
             </CardContent>
           </Card>

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FreeTextQuestion } from "src/lib/question-service";
 import {
@@ -266,6 +266,185 @@ describe("Feature: Question edit panel — model answer and explanation", () => 
     expect(updated).toMatchObject({
       id: question.id,
       explanation: "4 is the sum of 2 and 2.",
+    });
+  });
+});
+
+/**
+ * Feature: A teacher editing an already-answered question is warned first,
+ * in words naming their specific change, and nothing saves unless they
+ * confirm (Step 25 / D29 / D50).
+ */
+describe("Feature: Question edit panel warns before saving an answered question", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("warns naming the specific change and does not save until the teacher confirms", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+      referenceAnswer: "Objects with mass attract each other.",
+    });
+
+    // A student has already answered this question.
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "free_text", text: "My attempt" },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    await user.clear(editPanelField(question.id, "reference-answer"));
+    await user.type(
+      editPanelField(question.id, "reference-answer"),
+      "A better model answer.",
+    );
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    // The confirmation names the specific change and that someone answered.
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/model answer/i);
+    expect(dialog).toHaveTextContent(/1 student/i);
+
+    // Nothing saved yet — the write is gated behind confirmation.
+    const [beforeConfirm] = (await services.questionService.listQuestions(
+      test.id,
+    )) as FreeTextQuestion[];
+    expect(beforeConfirm.referenceAnswer).toBe(
+      "Objects with mass attract each other.",
+    );
+
+    await user.click(
+      within(dialog).getByRole("button", { name: /save anyway/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const [afterConfirm] = (await services.questionService.listQuestions(
+      test.id,
+    )) as FreeTextQuestion[];
+    expect(afterConfirm.referenceAnswer).toBe("A better model answer.");
+  });
+
+  it("does not save the change when the teacher cancels the confirmation", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+      referenceAnswer: "Objects with mass attract each other.",
+    });
+
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "free_text", text: "My attempt" },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    await user.clear(editPanelField(question.id, "reference-answer"));
+    await user.type(
+      editPanelField(question.id, "reference-answer"),
+      "A better model answer.",
+    );
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: /cancel/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+
+    const [afterCancel] = (await services.questionService.listQuestions(
+      test.id,
+    )) as FreeTextQuestion[];
+    expect(afterCancel.referenceAnswer).toBe(
+      "Objects with mass attract each other.",
+    );
+  });
+
+  it("does not warn when a student has answered but the teacher saves without changing anything", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+      referenceAnswer: "Objects with mass attract each other.",
+    });
+
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "free_text", text: "My attempt" },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    // No fields touched — a real answered-student count alone must not gate.
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
     });
   });
 });
