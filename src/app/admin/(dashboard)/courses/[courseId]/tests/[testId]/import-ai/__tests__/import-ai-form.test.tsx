@@ -18,7 +18,10 @@ import {
 } from "../question-preview.ui";
 
 afterEach(() => {
-  vi.clearAllMocks();
+  // resetAllMocks (not clearAllMocks) — also clears a prior test's
+  // mockResolvedValue, so an unmocked call surfaces as a real failure
+  // instead of silently reusing an earlier test's canned result.
+  vi.resetAllMocks();
 });
 
 function makeDocxFile(): File {
@@ -120,6 +123,27 @@ describe("Feature: AI document import — a teacher uploads a PDF of questions f
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/10 mb/i);
     expect(extractTextFromPdf).not.toHaveBeenCalled();
+    expect(parseQuestionsAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("Feature: AI document import — a document with no readable text is refused before anything is sent", () => {
+  it("shows a clear message and never calls the parse action when extraction yields no text", async () => {
+    const user = userEvent.setup();
+    vi.mocked(extractTextFromPdf).mockResolvedValue("   ");
+
+    render(
+      <ImportAiProvider>
+        <ImportAiFilePicker />
+        <QuestionPreviewList />
+      </ImportAiProvider>,
+    );
+
+    await user.upload(screen.getByLabelText(/document/i), makePdfFile());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /no text could be read/i,
+    );
     expect(parseQuestionsAction).not.toHaveBeenCalled();
   });
 });

@@ -107,6 +107,17 @@ export function ImportAiProvider({
         ? await extractTextFromDocx(file)
         : await extractTextFromPdf(file);
 
+    // Nothing is sent to Google when no text was read — this short-circuit
+    // is what makes that true by construction, not a server-side check.
+    if (text.trim().length === 0) {
+      dispatch({
+        type: "ERROR",
+        message:
+          "No text could be read from this document. Try a different file.",
+      });
+      return;
+    }
+
     const result = await parseQuestionsAction(text);
     if (!result.success || !result.questions) {
       dispatch({ type: "ERROR", message: result.message });

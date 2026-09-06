@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { Document, Page, renderToBuffer, Text } from "@react-pdf/renderer";
 import { describe, expect, it } from "vitest";
 import { extractTextFromPdf } from "../document-extract";
@@ -29,5 +31,18 @@ describe("extractTextFromPdf", () => {
 
     expect(text).toContain("Page one: explain photosynthesis.");
     expect(text).toContain("Page two: pick the prime number.");
+  });
+
+  it("resolves to an empty string for a PDF with no extractable text (real, genuinely textless fixture)", async () => {
+    const bytes = fs.readFileSync(
+      path.join(process.cwd(), "e2e/fixtures/test-material.pdf"),
+    );
+    const file = new File([new Uint8Array(bytes)], "test-material.pdf", {
+      type: "application/pdf",
+    });
+
+    const text = await extractTextFromPdf(file);
+
+    expect(text).toBe("");
   });
 });
