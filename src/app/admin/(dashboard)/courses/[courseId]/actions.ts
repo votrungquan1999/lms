@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import {
+  getCourseService,
   getEnrollmentService,
   getTestService,
 } from "src/lib/services-singleton";
@@ -78,6 +79,69 @@ export async function setEnrollmentsAction(
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =
       error instanceof Error ? error.message : "Failed to update enrollments";
+    return { success: false, message };
+  }
+}
+
+const inviteLinkCourseSchema = z.object({
+  courseId: z.string().min(1, "Course ID is missing"),
+});
+
+export interface InviteLinkState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: returns the course's join-link token, minting one on first
+ * request. Never logs or spans the token itself — it is a secret, and
+ * withSpan attributes are IDs/enums only.
+ */
+export async function getInviteLinkAction(
+  _prevState: InviteLinkState | null,
+  formData: FormData,
+): Promise<InviteLinkState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  try {
+    await authService.requireAdminSession(requestHeaders);
+  } catch {
+    return {
+      success: false,
+      message: "Unauthorized: admin access required",
+    };
+  }
+
+  const parsed = inviteLinkCourseSchema.safeParse({
+    courseId: formData.get("courseId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: parsed.error.issues[0].message,
+    };
+  }
+
+  try {
+    return await withSpan(
+      "action.getInviteLinkAction",
+      {
+        "lms.action.name": "getInviteLinkAction",
+        "lms.course.id": parsed.data.courseId,
+      },
+      async () => {
+        const courseService = await getCourseService();
+        await courseService.getOrCreateInviteToken(parsed.data.courseId);
+        revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        return { success: true, message: "Join link ready" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to get join link";
     return { success: false, message };
   }
 }

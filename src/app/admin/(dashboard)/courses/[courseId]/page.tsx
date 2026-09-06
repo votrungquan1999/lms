@@ -16,6 +16,7 @@ import { TestStatus } from "src/lib/test-status-service";
 import { CreateTestDialog } from "./create-test-form";
 import { ManageEnrollmentsDialog } from "./enroll-student-form";
 import { MaterialsSection } from "./materials-section";
+import { ShareInviteLink } from "./share-invite-link";
 import { DeleteTestButton } from "./tests/[testId]/delete-test-button";
 
 export const metadata = {
@@ -109,6 +110,10 @@ export default async function CourseDetailPage({
       </header>
 
       <section className="w-full max-w-2xl space-y-6">
+        <ShareInviteLink courseId={courseId} inviteToken={course.inviteToken} />
+
+        <Separator />
+
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">

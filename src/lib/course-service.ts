@@ -25,6 +25,8 @@ export interface CourseDocument {
   updatedAt: Date | null;
   updatedBy: string | null;
   materials: CourseMaterialDocument[];
+  /** Static join-link token (D2). Absent key and `null` read identically — no migration exists. */
+  inviteToken: string | null;
 }
 
 /**
@@ -49,6 +51,7 @@ export interface Course {
   description: string;
   createdAt: Date;
   materials: CourseMaterial[];
+  inviteToken: string | null;
 }
 
 /**
@@ -92,6 +95,7 @@ export class CourseService {
       title: doc.title,
       description: doc.description,
       createdAt: doc.createdAt,
+      inviteToken: doc.inviteToken ?? null,
       materials: (doc.materials ?? [])
         .map((material) => ({
           key: material.key,
@@ -116,6 +120,7 @@ export class CourseService {
       updatedAt: null,
       updatedBy: null,
       materials: [],
+      inviteToken: null,
     };
 
     await this.courses.insertOne(doc);
@@ -194,5 +199,29 @@ export class CourseService {
       { id: courseId },
       { $pull: { materials: { key: materialKey } } },
     );
+  }
+
+  /**
+   * Returns the course's join-link token, minting one on first request (D2:
+   * one static token per course). A course that already has a token gets
+   * back that same value — this never rotates an existing link.
+   * @param courseId - The course to get or create a join link for.
+   * @throws If the course does not exist.
+   */
+  async getOrCreateInviteToken(courseId: string): Promise<string> {
+    const course = await this.courses.findOne({ id: courseId });
+    if (!course) {
+      throw new Error("Course not found");
+    }
+    if (course.inviteToken) {
+      return course.inviteToken;
+    }
+
+    const token = crypto.randomUUID();
+    await this.courses.updateOne(
+      { id: courseId },
+      { $set: { inviteToken: token } },
+    );
+    return token;
   }
 }
