@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import type { AnswerRevealMode } from "src/lib/test-service";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -58,6 +59,76 @@ function mockStudentSession(studentId: string) {
   };
   mockGetSession.mockResolvedValue(session);
   mockRequireStudentSession.mockResolvedValue(session);
+}
+
+/**
+ * Seeds a course + test + one graded free_text question + one enrolled,
+ * submitted student, then renders the student test page. Shared by every
+ * scenario in this file that only differs by mode/gate/solution/referenceAnswer.
+ */
+async function renderGradedFreeTextScenario(opts: {
+  answerRevealMode: AnswerRevealMode;
+  showCorrectAnswerAfterSubmit?: boolean;
+  studentText: string;
+  solution?: string;
+  referenceAnswer?: string;
+}) {
+  const services = getTestServices();
+  const course = await services.courseService.createCourse({
+    title: "Course",
+    description: "",
+    createdBy: "admin-1",
+  });
+  const test = await services.testService.createTest(course.id, {
+    title: "Test",
+    description: "",
+    createdBy: "admin-1",
+    answerRevealMode: opts.answerRevealMode,
+    ...(opts.showCorrectAnswerAfterSubmit !== undefined
+      ? { showCorrectAnswerAfterSubmit: opts.showCorrectAnswerAfterSubmit }
+      : {}),
+  });
+  const question = await services.questionService.addQuestion(test.id, {
+    title: "Q1",
+    content: "Explain something.",
+    createdBy: "admin-1",
+    type: "free_text",
+    referenceAnswer: opts.referenceAnswer,
+  });
+  const student = await services.studentService.createStudentDocument({
+    authUserId: `auth-${test.id}`,
+    username: `u-${test.id}`,
+    name: "Stu",
+    createdBy: "admin-1",
+  });
+  await services.enrollmentService.enrollStudent(
+    course.id,
+    student.id,
+    "admin-1",
+  );
+
+  await services.answerService.submitAnswer({
+    testId: test.id,
+    questionId: question.id,
+    studentId: student.id,
+    answer: { type: "free_text", text: opts.studentText },
+  });
+  await services.testSubmissionService.submitTest(test.id, student.id);
+  await services.gradeService.gradeQuestion({
+    testId: test.id,
+    questionId: question.id,
+    studentId: student.id,
+    score: 80,
+    feedback: "",
+    ...(opts.solution !== undefined ? { solution: opts.solution } : {}),
+    gradedBy: "admin-1",
+  });
+
+  mockStudentSession(student.id);
+  const ui = await StudentTestDetailPage({
+    params: Promise.resolve({ courseId: course.id, testId: test.id }),
+  });
+  render(ui);
 }
 
 describe("Feature: Student test page — free-text answer reveal mode after grading", () => {
@@ -132,5 +203,77 @@ describe("Feature: Student test page — free-text answer reveal mode after grad
     expect(screen.getByText(CORRECT_TEXT)).toBeInTheDocument();
     // No side-by-side comparison was ever constructed.
     expect(diffProps).not.toHaveBeenCalled();
+  });
+
+  // Regression pin for the untouched arm (Step 7). No production change was
+  // needed for this test — Step 6's `mode === "diff"` conjunct and the
+  // pre-existing `!!grade.solution` check already produce this behavior.
+  it("diff mode: still shows the side-by-side comparison, and does not fall back to referenceAnswer when no solution is set (D10)", async () => {
+    // Given a diff-mode question graded with a solution differing from the answer
+    await renderGradedFreeTextScenario({
+      answerRevealMode: "diff",
+      studentText: "Student's diff answer.",
+      solution: "Diff mode correct answer.",
+    });
+
+    // Then the comparison is constructed with the student's answer and the solution
+    expect(diffProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        oldValue: "Student's diff answer.",
+        newValue: "Diff mode correct answer.",
+      }),
+    );
+    diffProps.mockClear();
+
+    // Given a second diff-mode question graded with no solution, but an
+    // authored referenceAnswer
+    await renderGradedFreeTextScenario({
+      answerRevealMode: "diff",
+      studentText: "Second answer, ungraded solution.",
+      referenceAnswer: "Should never appear anywhere on this page.",
+    });
+
+    // Then no comparison is built, D10's no-fallback rule holds (the
+    // referenceAnswer never appears), and the student still sees their own answer
+    expect(diffProps).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText("Should never appear anywhere on this page."),
+    ).toBeNull();
+    expect(
+      screen.getByText("Second answer, ungraded solution."),
+    ).toBeInTheDocument();
+  });
+
+  it("diff mode: withholds the comparison when correct answers are not visible (D31)", async () => {
+    // Given a diff-mode question graded with a solution, but the teacher has
+    // not made correct answers visible
+    await renderGradedFreeTextScenario({
+      answerRevealMode: "diff",
+      showCorrectAnswerAfterSubmit: false,
+      studentText: "Gate-closed answer.",
+      solution: "Should stay hidden until released.",
+    });
+
+    // Then no comparison is built and the solution text never appears
+    expect(diffProps).not.toHaveBeenCalled();
+    expect(screen.queryByText("Should stay hidden until released.")).toBeNull();
+    // And the student still sees their own answer (falls back to "Your Answer")
+    expect(screen.getByText("Gate-closed answer.")).toBeInTheDocument();
+  });
+
+  it("plain mode: withholds the correct answer when correct answers are not visible (D31)", async () => {
+    // Given a plain-mode question graded with a solution, but the teacher has
+    // not made correct answers visible
+    await renderGradedFreeTextScenario({
+      answerRevealMode: "plain",
+      showCorrectAnswerAfterSubmit: false,
+      studentText: "Gate-closed plain answer.",
+      solution: "Should stay hidden until released.",
+    });
+
+    // Then the correct answer text never appears
+    expect(screen.queryByText("Should stay hidden until released.")).toBeNull();
+    // And the student still sees their own answer
+    expect(screen.getByText("Gate-closed plain answer.")).toBeInTheDocument();
   });
 });

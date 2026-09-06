@@ -71,9 +71,13 @@ export function GradedQuestion({
 
   // The diff already shows the student's answer on its left side, so when it is
   // displayed we skip the separate "Your Answer" panel to avoid duplication.
+  // `correctAnswersVisible` closes this off pre-release (D31) — previously
+  // this rendered `grade.solution` unconditionally, leaking it on tests where
+  // the teacher had switched correct answers off.
   const showDiff =
     !isMC &&
     mode === "diff" &&
+    correctAnswersVisible &&
     !!grade.solution &&
     !!studentAnswer &&
     !isTextEquivalent(studentText, grade.solution);

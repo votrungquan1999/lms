@@ -66,6 +66,9 @@ Students take tests by submitting their solutions. Teachers grade each question 
       solution is set — true at the component level today, but unreachable
       end-to-end until Step 10 widens the referenceAnswer scrub (page.tsx
       currently strips it from every non-practice question)
+- [x] In either mode, the correct answer stays withheld until the teacher
+      releases correct answers for the test; before that, the student sees
+      only their own submitted answer
 
 ### Test Association
 

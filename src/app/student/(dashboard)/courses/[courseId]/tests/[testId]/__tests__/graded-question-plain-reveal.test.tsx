@@ -6,8 +6,20 @@ import type {
   ImageAnswerQuestion,
 } from "src/lib/question-service";
 import { TestStatus } from "src/lib/test-status-service";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { GradedQuestion } from "../graded-question";
+
+// Same convention as diff-viewer.test.tsx / page-answer-reveal-mode.test.tsx:
+// assert the diff library's props, never its DOM — react-diff-viewer-continued
+// computes its diff asynchronously, so unmocked DOM assertions are unreliable.
+const { diffProps } = vi.hoisted(() => ({ diffProps: vi.fn() }));
+
+vi.mock("react-diff-viewer-continued", () => ({
+  default: (props: { oldValue: string; newValue: string }) => {
+    diffProps(props);
+    return null;
+  },
+}));
 
 const freeTextQuestion: FreeTextQuestion = {
   id: "q-1",
@@ -104,5 +116,27 @@ describe("GradedQuestion — plain-mode correct-answer panel", () => {
     expect(
       within(imageContainer).queryByText(SOLUTION_ON_IMAGE_QUESTION),
     ).toBeNull();
+  });
+
+  it("diff mode: does not fall back to the question's referenceAnswer when grade.solution is absent (D10, component-level)", () => {
+    // Given a free_text question with an authored referenceAnswer, graded
+    // with no solution, rendered directly in diff mode — bypassing
+    // page.tsx's referenceAnswer scrub so the component's own gate is what's
+    // actually under test (a page-level test can't tell the two apart, since
+    // the scrub already removes referenceAnswer before it reaches here).
+    render(
+      <GradedQuestion
+        question={freeTextQuestion}
+        studentAnswer={{ type: "free_text", text: "student's diff attempt" }}
+        grade={gradeWithoutSolution}
+        isMC={false}
+        options={[]}
+        mode="diff"
+        correctAnswersVisible={true}
+        testStatus={TestStatus.Graded}
+      />,
+    );
+    // Then no comparison is ever constructed from the referenceAnswer
+    expect(diffProps).not.toHaveBeenCalled();
   });
 });
