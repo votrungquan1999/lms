@@ -333,6 +333,27 @@ describe("TestService", () => {
   });
 
   dbIt(
+    "a newly created test defaults to showing the correct answer plainly",
+    async ({ db }) => {
+      const courseService = new CourseService(db);
+      const testService = new TestService(db);
+
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "Desc",
+        createdBy: "admin",
+      });
+      const test = await testService.createTest(course.id, {
+        title: "Test",
+        description: "",
+        createdBy: "admin",
+      });
+
+      expect(test.answerRevealMode).toBe("plain");
+    },
+  );
+
+  dbIt(
     "createTest persists an explicit isPractice: true and it stays marked after a re-fetch",
     async ({ db }) => {
       const courseService = new CourseService(db);

@@ -105,8 +105,9 @@ export class TestService {
       showGradeAfterSubmit: input.showGradeAfterSubmit ?? true,
       timeLimitMinutes: input.timeLimitMinutes ?? null,
       isPractice: input.isPractice ?? false,
-      // Placeholder default; Step 2 pins the real create-time default (D7/D9).
-      answerRevealMode: input.answerRevealMode ?? "diff",
+      // New tests default to "plain" (D7) — opposite of toTest's read-time
+      // default below, which protects tests that predate this field.
+      answerRevealMode: input.answerRevealMode ?? "plain",
       correctAnswersReleasedAt: null,
       gradesReleasedAt: null,
       createdAt: new Date(),

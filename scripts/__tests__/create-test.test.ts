@@ -395,6 +395,9 @@ export default {
       const tests = await testService.listTests(course.id);
       expect(tests).toHaveLength(1);
       expect(tests[0].timeLimitMinutes).toBe(90);
+
+      // And: the reveal mode createTest resolved survives the settings update
+      expect(tests[0].answerRevealMode).toBe("plain");
     },
   );
 
