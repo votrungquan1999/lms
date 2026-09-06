@@ -6,6 +6,19 @@ import { AdminSession, Role, type Session, StudentSession } from "./session";
 import type { StudentService } from "./student-service";
 
 /**
+ * What a login page should show for the current caller (BUG-4): a genuinely
+ * signed-out visitor, someone already classified as admin or student, or
+ * someone holding a valid Better Auth cookie whose session resolves to no
+ * usable role — the state a non-invite Google sign-in now commonly produces.
+ */
+export enum LoginEntryState {
+  SignedOut = "signed-out",
+  Admin = "admin",
+  Student = "student",
+  Unclassified = "unclassified",
+}
+
+/**
  * Input for registering a student (auth signup + domain doc).
  */
 interface RegisterStudentInput {
@@ -58,6 +71,11 @@ function createBetterAuth(db: Db, config: AppConfig) {
 function isRecordedAdmin(role: unknown): boolean {
   return role === Role.Admin;
 }
+
+/** The `user` shape Better Auth's `getSession()` resolves to. */
+type BetterAuthSessionUser = NonNullable<
+  Awaited<ReturnType<ReturnType<typeof createBetterAuth>["api"]["getSession"]>>
+>["user"];
 
 /**
  * AuthService — our app's abstraction layer over Better Auth.
@@ -163,6 +181,33 @@ export class AuthService {
   }
 
   /**
+   * Classifies a Better Auth user into a Session (or null). The one place
+   * that walks admin -> student -> unclassified — getSession() and
+   * resolveLoginEntryState() both call it so the dashboard guard's admission
+   * decision and the login page's redirect target can never diverge; the
+   * cascade used to be hand-copied in both methods, which is exactly the
+   * coupling that let BUG-4 (an authenticated caller looping back to login)
+   * happen in the first place.
+   */
+  private async classify(user: BetterAuthSessionUser): Promise<Session | null> {
+    // Admin-ness is a recorded fact on the user, never an email-string match.
+    if (isRecordedAdmin(user.role)) {
+      return new AdminSession({ userId: user.id, email: user.email });
+    }
+
+    const student = await this.studentService.findByAuthUserId(user.id);
+    if (student) {
+      return new StudentSession({
+        userId: user.id,
+        username: student.username,
+        studentId: student.id,
+      });
+    }
+
+    return null;
+  }
+
+  /**
    * Retrieves the current session from request headers.
    * Returns a typed AdminSession or StudentSession, or null if not authenticated.
    */
@@ -178,24 +223,32 @@ export class AuthService {
       return null;
     }
 
-    const { user } = betterAuthSession;
+    return this.classify(betterAuthSession.user);
+  }
 
-    // Admin-ness is a recorded fact on the user, never an email-string match.
-    if (isRecordedAdmin(user.role)) {
-      return new AdminSession({ userId: user.id, email: user.email });
+  /**
+   * Resolves what a login page should show for the caller — shared by both
+   * login pages so the routing logic exists in one place, not two hand-rolled
+   * copies (§5/BUG-4). Distinguishes "no Better Auth cookie at all" from
+   * "a valid cookie whose session resolves to no usable role" — the two
+   * `null`-shaped outcomes `getSession()` collapses together, which is
+   * exactly what let a dead cookie loop the caller back to a do-nothing form.
+   */
+  async resolveLoginEntryState(headers: Headers): Promise<LoginEntryState> {
+    const betterAuthSession = await this.auth.api.getSession({ headers });
+    if (!betterAuthSession) {
+      return LoginEntryState.SignedOut;
     }
 
-    // Check if student
-    const student = await this.studentService.findByAuthUserId(user.id);
-    if (student) {
-      return new StudentSession({
-        userId: user.id,
-        username: student.username,
-        studentId: student.id,
-      });
+    const session = await this.classify(betterAuthSession.user);
+    if (session instanceof AdminSession) {
+      return LoginEntryState.Admin;
+    }
+    if (session instanceof StudentSession) {
+      return LoginEntryState.Student;
     }
 
-    return null;
+    return LoginEntryState.Unclassified;
   }
 
   /**

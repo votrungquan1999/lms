@@ -1,4 +1,8 @@
-import { type AuthService, createAuthService } from "src/lib/auth-service";
+import {
+  type AuthService,
+  createAuthService,
+  LoginEntryState,
+} from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
 import { Role } from "src/lib/session";
 import { StudentService } from "src/lib/student-service";
@@ -242,6 +246,70 @@ describe("Feature: registerStudent leaves no orphaned account on failure", () =>
 
       expect(orphanedAccountsCount).toBe(0);
       expect(orphanedSessionsCount).toBe(0);
+    },
+  );
+});
+
+describe("Feature: resolving what a login page should show for the current caller", () => {
+  dbIt(
+    "classifies a signed-out visitor, a recorded admin, a recorded student, and an authenticated-but-unclassified caller",
+    async ({ db }) => {
+      const studentService = new StudentService(db);
+      const authService = createAuthService(db, testConfig, studentService);
+
+      // Genuinely signed out — no cookie at all
+      const signedOutState = await authService.resolveLoginEntryState(
+        new Headers(),
+      );
+      expect(signedOutState).toBe(LoginEntryState.SignedOut);
+
+      // Recorded admin
+      await authService.auth.api.signUpEmail({
+        body: {
+          email: "admin2@example.com",
+          password: "password-123",
+          name: "Admin",
+        },
+      });
+      await db
+        .collection("user")
+        .updateOne(
+          { email: "admin2@example.com" },
+          { $set: { role: "admin" } },
+        );
+      const adminState = await authService.resolveLoginEntryState(
+        await signedInHeaders(
+          authService,
+          "admin2@example.com",
+          "password-123",
+        ),
+      );
+      expect(adminState).toBe(LoginEntryState.Admin);
+
+      // Recorded student
+      await authService.registerStudent({
+        name: "Eve",
+        username: "eve",
+        password: "eve-pass-123",
+        createdBy: "admin-test",
+      });
+      const studentState = await authService.resolveLoginEntryState(
+        await signedInHeaders(authService, "eve@lms.internal", "eve-pass-123"),
+      );
+      expect(studentState).toBe(LoginEntryState.Student);
+
+      // Authenticated but unclassified — real cookie, no role, no student doc
+      await authService.auth.api.signUpEmail({
+        body: {
+          email: "ghost@example.com",
+          password: "password-123",
+          name: "Ghost",
+        },
+      });
+      const unclassifiedState = await authService.resolveLoginEntryState(
+        await signedInHeaders(authService, "ghost@example.com", "password-123"),
+      );
+      expect(unclassifiedState).toBe(LoginEntryState.Unclassified);
     },
   );
 });
