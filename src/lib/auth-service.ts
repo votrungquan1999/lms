@@ -135,7 +135,13 @@ export class AuthService {
    * Returns a typed AdminSession or StudentSession, or null if not authenticated.
    */
   async getSession(headers: Headers): Promise<Session | null> {
-    const betterAuthSession = await this.auth.api.getSession({ headers });
+    // Next's `headers()` returns a read-only Headers subclass that better-auth's
+    // session lookup silently fails against (always resolves no session) —
+    // rebuilding a plain, writable Headers with the same entries fixes it.
+    const plainHeaders = new Headers(Object.fromEntries(headers.entries()));
+    const betterAuthSession = await this.auth.api.getSession({
+      headers: plainHeaders,
+    });
     if (!betterAuthSession) {
       return null;
     }
