@@ -9,7 +9,6 @@ export interface StudentDocument {
   authUserId: string;
   username: string;
   name: string;
-  role: "student";
   createdAt: Date;
   createdBy: string;
   updatedAt: Date | null;
@@ -63,7 +62,6 @@ export class StudentService {
       authUserId: input.authUserId,
       username: input.username,
       name: input.name,
-      role: "student",
       createdAt: new Date(),
       createdBy: input.createdBy,
       updatedAt: null,

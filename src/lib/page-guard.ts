@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { forbidden, redirect } from "next/navigation";
 import { getAuthService } from "src/lib/auth-singleton";
 import type { EnrollmentService } from "src/lib/enrollment-service";
-import type { AdminSession, StudentSession } from "src/lib/session";
+import { type AdminSession, Role, type StudentSession } from "src/lib/session";
 
 /**
  * PageGuard — auth and authorization guards for server-rendered pages.
@@ -27,7 +27,7 @@ export class PageGuard {
     if (!session) {
       redirect("/student/login");
     }
-    if (session.role !== "student") {
+    if (session.role !== Role.Student) {
       forbidden();
     }
 
@@ -46,7 +46,7 @@ export class PageGuard {
     if (!session) {
       redirect("/admin/login");
     }
-    if (session.role !== "admin") {
+    if (session.role !== Role.Admin) {
       forbidden();
     }
 

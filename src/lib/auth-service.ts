@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import type { Db } from "mongodb";
 import type { AppConfig } from "./config";
-import { AdminSession, type Session, StudentSession } from "./session";
+import { AdminSession, Role, type Session, StudentSession } from "./session";
 import type { StudentService } from "./student-service";
 
 /**
@@ -35,15 +35,37 @@ function createBetterAuth(db: Db, config: AppConfig) {
         clientSecret: config.google.clientSecret,
       },
     },
+    user: {
+      additionalFields: {
+        // input:false is mandatory — it defaults to true, which would let a
+        // signup body set its own role and re-open the escalation this closes.
+        role: {
+          type: "string",
+          required: false,
+          input: false,
+          defaultValue: Role.Student,
+        },
+      },
+    },
   });
+}
+
+/**
+ * Narrows the user document's raw `role` field to whether it records admin
+ * access. A stale or hand-edited value that isn't exactly "admin" must never
+ * resolve to admin.
+ */
+function isRecordedAdmin(role: unknown): boolean {
+  return role === Role.Admin;
 }
 
 /**
  * AuthService — our app's abstraction layer over Better Auth.
  *
  * Better Auth handles ONLY authentication (credentials + sessions).
- * All domain data (username, name, role) lives in our own collections,
- * completely decoupled from Better Auth's schema.
+ * Domain data (username, name) lives in our own collections. `role` is the
+ * exception: it is recorded on the Better Auth user document itself, via
+ * `additionalFields` with `input: false` so a request body can never set it.
  */
 export class AuthService {
   /** Better Auth instance, exposed for API route handler. */
@@ -99,7 +121,6 @@ export class AuthService {
       id: student.id,
       username: student.username,
       name: student.name,
-      role: "student" as const,
     };
   }
 
@@ -124,9 +145,14 @@ export class AuthService {
   }
 
   /**
-   * Checks if an email is recognized as an admin.
+   * Tier-2 owner check (D23) — is this email in ADMIN_EMAILS? Gates only who
+   * may grant/revoke the admin role, never day-to-day admin access, which is
+   * `user.role`. Async so its type forces callers to `await` — every method
+   * on the traced singleton returns a Promise at runtime (see
+   * traced-service.ts), so a sync signature here would silently resolve
+   * truthy for every email once called through that singleton.
    */
-  isAdminEmail(email: string): boolean {
+  async isAdminEmail(email: string): Promise<boolean> {
     return this.adminEmails.includes(email);
   }
 
@@ -147,11 +173,10 @@ export class AuthService {
     }
 
     const { user } = betterAuthSession;
-    const email = user.email;
 
-    // Check if admin
-    if (this.isAdminEmail(email)) {
-      return new AdminSession({ userId: user.id, email });
+    // Admin-ness is a recorded fact on the user, never an email-string match.
+    if (isRecordedAdmin(user.role)) {
+      return new AdminSession({ userId: user.id, email: user.email });
     }
 
     // Check if student
@@ -173,7 +198,7 @@ export class AuthService {
    */
   async requireAdminSession(headers: Headers): Promise<AdminSession> {
     const session = await this.getSession(headers);
-    if (!session || session.role !== "admin") {
+    if (!session || session.role !== Role.Admin) {
       throw new Error("Unauthorized: admin access required");
     }
     return session as AdminSession;
@@ -185,7 +210,7 @@ export class AuthService {
    */
   async requireStudentSession(headers: Headers): Promise<StudentSession> {
     const session = await this.getSession(headers);
-    if (!session || session.role !== "student") {
+    if (!session || session.role !== Role.Student) {
       throw new Error("Unauthorized: student access required");
     }
     return session as StudentSession;

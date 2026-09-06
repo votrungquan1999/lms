@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuthService } from "src/lib/auth-singleton";
+import { Role } from "src/lib/session";
 
 export const metadata = {
   title: "Redirecting… — LMS",
@@ -27,11 +28,11 @@ export default async function RedirectPage() {
     redirect("/");
   }
 
-  if (session.role === "admin") {
+  if (session.role === Role.Admin) {
     redirect("/admin/dashboard");
   }
 
-  if (session.role === "student") {
+  if (session.role === Role.Student) {
     redirect("/student/dashboard");
   }
 

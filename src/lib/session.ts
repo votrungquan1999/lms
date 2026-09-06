@@ -6,14 +6,20 @@
  * safe narrowing in route handlers and server actions.
  */
 
-type SessionRole = "admin" | "student";
+/**
+ * The two kinds of person the school records: an administrator or a student.
+ */
+export enum Role {
+  Admin = "admin",
+  Student = "student",
+}
 
 /**
  * Base session — common fields shared by all session types.
  * Not instantiated directly; use AdminSession or StudentSession.
  */
 abstract class Session {
-  abstract readonly role: SessionRole;
+  abstract readonly role: Role;
   readonly userId: string;
 
   constructor(userId: string) {
@@ -22,11 +28,10 @@ abstract class Session {
 }
 
 /**
- * Admin session — created after Google OAuth sign-in
- * for a user whose email is in the ADMIN_EMAILS whitelist.
+ * Admin session — created for a user whose recorded `role` is Admin.
  */
 export class AdminSession extends Session {
-  readonly role = "admin" as const;
+  readonly role = Role.Admin;
   readonly email: string;
 
   constructor(input: { userId: string; email: string }) {
@@ -39,7 +44,7 @@ export class AdminSession extends Session {
  * Student session — created after username/password sign-in.
  */
 export class StudentSession extends Session {
-  readonly role = "student" as const;
+  readonly role = Role.Student;
   readonly username: string;
   /** Domain student document ID (from the `student` collection). */
   readonly studentId: string;
@@ -55,15 +60,14 @@ export class StudentSession extends Session {
  * Type guard: narrows a Session to AdminSession.
  */
 export function isAdminSession(session: Session): session is AdminSession {
-  return session.role === "admin";
+  return session.role === Role.Admin;
 }
 
 /**
  * Type guard: narrows a Session to StudentSession.
  */
 export function isStudentSession(session: Session): session is StudentSession {
-  return session.role === "student";
+  return session.role === Role.Student;
 }
 
 export { Session };
-export type { SessionRole };

@@ -77,11 +77,11 @@ describe("tracedService", () => {
   });
 
   // The proxy delegates to the async `withSpan`, so a wrapped method always
-  // returns a Promise. This is safe: the only public sync service method
-  // (AuthService.isAdminEmail) is called internally via `this` (bound to the
-  // raw target), never externally through the proxy — so preserving a
-  // synchronous return shape would be an unused feature. This test locks that
-  // a non-promise return value is still resolved correctly and spanned.
+  // returns a Promise even if the underlying method is sync. AuthService's
+  // isAdminEmail is declared `async` for exactly this reason — a sync
+  // signature there would let a truthy Promise slip past an `if` check at
+  // its external call site through the traced singleton. This test locks
+  // that a non-promise return value is still resolved correctly and spanned.
   it("resolves a non-promise return value through the span and marks it OK", async () => {
     // Given
     const proxy = tracedService(new Fake(), "fake");
