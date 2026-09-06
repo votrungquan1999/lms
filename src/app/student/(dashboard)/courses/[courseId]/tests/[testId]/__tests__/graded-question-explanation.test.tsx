@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { render, within } from "@testing-library/react";
 import type { Grade } from "src/lib/grade-service";
-import type { SingleSelectQuestion } from "src/lib/question-service";
+import type {
+  FreeTextQuestion,
+  SingleSelectQuestion,
+} from "src/lib/question-service";
 import { TestStatus } from "src/lib/test-status-service";
 import { describe, expect, it } from "vitest";
 import { GradedQuestion } from "../graded-question";
@@ -23,6 +26,18 @@ const baseQuestion: SingleSelectQuestion = {
     { id: "opt-2", text: "5", isCorrect: false },
   ],
   mcGradingStrategy: "all_or_nothing",
+};
+
+const baseFreeTextQuestion: FreeTextQuestion = {
+  id: "q-2",
+  testId: "test-1",
+  title: "Explain photosynthesis",
+  content: "Explain in your own words.",
+  order: 2,
+  createdAt: new Date("2026-01-01"),
+  weight: 1,
+  media: [],
+  type: "free_text",
 };
 
 // Score is non-100 so the card's collapsible starts open (see
@@ -90,5 +105,43 @@ describe("GradedQuestion — MC explanation reveal", () => {
     expect(
       within(noExplanationContainer).queryByText("Explanation"),
     ).toBeNull();
+  });
+});
+
+describe("GradedQuestion — free-text explanation reveal (parity with MC)", () => {
+  it("shows the explanation when correct answers are revealed", () => {
+    // Given the gate is open and the free-text question has an explanation
+    const { container } = render(
+      <GradedQuestion
+        question={{ ...baseFreeTextQuestion, explanation: EXPLANATION_TEXT }}
+        studentAnswer={undefined}
+        grade={grade}
+        isMC={false}
+        options={[]}
+        mode="plain"
+        correctAnswersVisible={true}
+        testStatus={TestStatus.Graded}
+      />,
+    );
+    // Then the explanation text is rendered
+    expect(within(container).queryByText(EXPLANATION_TEXT)).not.toBeNull();
+  });
+
+  it("keeps the explanation out of the rendered output when correct answers are not revealed", () => {
+    // Given the gate is closed for a free-text question with an explanation
+    const { container } = render(
+      <GradedQuestion
+        question={{ ...baseFreeTextQuestion, explanation: EXPLANATION_TEXT }}
+        studentAnswer={undefined}
+        grade={grade}
+        isMC={false}
+        options={[]}
+        mode="plain"
+        correctAnswersVisible={false}
+        testStatus={TestStatus.Graded}
+      />,
+    );
+    // Then the explanation text never enters the rendered output (not just hidden)
+    expect(within(container).queryByText(EXPLANATION_TEXT)).toBeNull();
   });
 });

@@ -82,13 +82,17 @@ export function GradedQuestion({
     !!studentAnswer &&
     !isTextEquivalent(studentText, grade.solution);
 
-  // Narrow on the discriminant once (TS needs it to access `.explanation`),
-  // then gate server-side (like grade.feedback) so the string never enters
-  // the RSC payload when the reveal is closed — mirrors the isCorrect strip.
-  const mcExplanation = isMcQuestion(question)
-    ? question.explanation
-    : undefined;
-  const showExplanation = correctAnswersVisible && !!mcExplanation;
+  // Narrow on the discriminant once (TS needs it to access `.explanation`,
+  // which only MC and free_text carry, not image_answer), then gate
+  // server-side (like grade.feedback) so the string never enters the RSC
+  // payload when the reveal is closed — mirrors the isCorrect strip. Same
+  // parity rule applies here as the plain-mode correct answer above: gate on
+  // the type discriminant, never `!isMC`.
+  const explanationText =
+    isMcQuestion(question) || question.type === "free_text"
+      ? question.explanation
+      : undefined;
+  const showExplanation = correctAnswersVisible && !!explanationText;
 
   // Plain mode's alternative to the diff: the correct answer written out as
   // text. Gated on the free_text discriminant explicitly (never `!isMC`,
@@ -182,7 +186,7 @@ export function GradedQuestion({
             <p className="mb-1 text-xs font-medium text-muted-foreground">
               Explanation
             </p>
-            <p className="whitespace-pre-wrap text-sm">{mcExplanation}</p>
+            <p className="whitespace-pre-wrap text-sm">{explanationText}</p>
           </div>
         )}
         {showDiff && grade.solution && (
