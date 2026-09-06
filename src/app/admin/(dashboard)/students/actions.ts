@@ -34,7 +34,11 @@ export async function createStudentAction(
   }
 
   const name = formData.get("name")?.toString().trim() ?? "";
-  const username = formData.get("username")?.toString().trim() ?? "";
+  // Lowercased here too — `registerStudent` lowercases internally, but doing
+  // it at the boundary keeps this path's stored/displayed username in sync
+  // with what self-signup produces for the same input (D45).
+  const username =
+    formData.get("username")?.toString().trim().toLowerCase() ?? "";
   const password = formData.get("password")?.toString() ?? "";
 
   if (!name || !username || !password) {

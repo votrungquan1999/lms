@@ -11,8 +11,25 @@ import { z } from "zod";
 const joinSignupSchema = z.object({
   token: z.string().min(1, "Invalid invite link"),
   name: z.string().trim().min(1, "Name is required"),
-  username: z.string().trim().min(1, "Username is required"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  // Lowercased before the charset check (not after) so "Alice" is accepted
+  // and stored as "alice" — matching what AuthService.registerStudent does
+  // internally (D45) — rather than rejected as if uppercase were forbidden.
+  // The charset/length bound itself keeps a malformed username from ever
+  // reaching better-auth's own email validator, which would otherwise
+  // surface its raw error (and the internal @lms.internal scheme) to a
+  // visitor filling out a form with no email field.
+  username: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(
+      /^[a-z0-9][a-z0-9._+-]{2,31}$/,
+      "Username may use letters, numbers, dots, dashes and underscores",
+    ),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password must be at most 128 characters"),
 });
 
 export interface JoinSignupState {
@@ -22,6 +39,13 @@ export interface JoinSignupState {
 
 const INVALID_INVITE_MESSAGE =
   "This join link is no longer valid. Ask whoever shared it with you for a new one.";
+
+// D3: a duplicate identity is BLOCKED, never linked or auto-suffixed. The
+// generic "Username already exists" registerStudent throws (shared with the
+// admin-facing create/bulk-import forms) reads as "pick another one" — wrong
+// here, since this is an identity collision, not a naming conflict.
+const USERNAME_TAKEN_MESSAGE =
+  "This username already belongs to an account. Please sign in with your original method instead.";
 
 /**
  * Server action: lets a prospective student create their own account from an
@@ -58,12 +82,23 @@ export async function joinSignupAction(
         }
 
         const authService = await getAuthService();
-        const student = await authService.registerStudent({
-          name: parsed.data.name,
-          username: parsed.data.username,
-          password: parsed.data.password,
-          createdBy: "self-signup",
-        });
+        let student: Awaited<ReturnType<typeof authService.registerStudent>>;
+        try {
+          student = await authService.registerStudent({
+            name: parsed.data.name,
+            username: parsed.data.username,
+            password: parsed.data.password,
+            createdBy: "self-signup",
+          });
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message === "Username already exists"
+          ) {
+            return { success: false, message: USERNAME_TAKEN_MESSAGE };
+          }
+          throw error;
+        }
 
         // Write order: account first, join request second (§6/§20) — a
         // crash here leaves a person who can sign in but has no way to

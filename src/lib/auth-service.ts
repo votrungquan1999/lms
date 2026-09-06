@@ -72,6 +72,16 @@ function isRecordedAdmin(role: unknown): boolean {
   return role === Role.Admin;
 }
 
+/**
+ * Derives the synthetic Better Auth email for a username. `username` MUST
+ * already be lowercased by the caller — this only concatenates, it does not
+ * normalize, so `findByUsername` (case-sensitive) and this derived address
+ * stay in agreement.
+ */
+function toInternalEmail(username: string): string {
+  return `${username}@lms.internal`;
+}
+
 /** The `user` shape Better Auth's `getSession()` resolves to. */
 type BetterAuthSessionUser = NonNullable<
   Awaited<ReturnType<ReturnType<typeof createBetterAuth>["api"]["getSession"]>>
@@ -108,14 +118,22 @@ export class AuthService {
    * 2. Delegates student document creation to StudentService
    */
   async registerStudent(input: RegisterStudentInput) {
-    const existing = await this.studentService.findByUsername(input.username);
+    // Lowercased BEFORE both the lookup and the email derivation: better-auth
+    // always lowercases the email it stores (`email.toLowerCase()`), but our
+    // own `findByUsername` is a case-sensitive exact match. Left disagreeing,
+    // a signup as "Alice" against an existing "alice" slips past this guard
+    // and then collides inside better-auth instead, surfacing its raw
+    // "User already exists" error on a form with no email field.
+    const username = input.username.toLowerCase();
+
+    const existing = await this.studentService.findByUsername(username);
     if (existing) {
       throw new Error("Username already exists");
     }
 
     const authResult = await this.auth.api.signUpEmail({
       body: {
-        email: `${input.username}@lms.internal`,
+        email: toInternalEmail(username),
         password: input.password,
         name: input.name,
       },
@@ -125,7 +143,7 @@ export class AuthService {
     try {
       student = await this.studentService.createStudentDocument({
         authUserId: authResult.user.id,
-        username: input.username,
+        username,
         name: input.name,
         createdBy: input.createdBy,
       });
@@ -162,7 +180,7 @@ export class AuthService {
 
     return this.auth.api.signInEmail({
       body: {
-        email: `${input.username}@lms.internal`,
+        email: toInternalEmail(input.username),
         password: input.password,
       },
     });

@@ -153,3 +153,103 @@ describe("Feature: registering through an invite link puts a request to join tha
     expect(pending?.status).toBe(JoinRequestStatus.Pending);
   });
 });
+
+/**
+ * Feature: a prospective student is stopped from taking a username somebody
+ * else already uses
+ * As the school
+ * I want a duplicate username self-signup blocked, not linked or renamed
+ * So that one person's grades and enrollments never split across two records (D3)
+ */
+describe("Feature: a prospective student is stopped from taking a username somebody else already uses", () => {
+  it("blocks a self-signup whose username already belongs to another student, and tells them to use their original sign-in method", async () => {
+    // Given a student already exists with username "alice"
+    const services = getTestServices();
+    await services.studentService.createStudentDocument({
+      authUserId: "existing-auth-id",
+      username: "alice",
+      name: "Alice Existing",
+      createdBy: "admin-1",
+    });
+
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("name", "Someone Else");
+    formData.set("username", "alice");
+    formData.set("password", "secret1234");
+
+    // When someone tries to self-register with that same username
+    const result = await joinSignupAction(null, formData);
+
+    // Then registration is blocked and they are told to use their original
+    // sign-in method — never a generic "username taken, pick another"
+    expect(result.success).toBe(false);
+    expect(result.message).toBe(
+      "This username already belongs to an account. Please sign in with your original method instead.",
+    );
+
+    // And no duplicate student or join request was created
+    const all = await services.studentService.listStudents();
+    expect(all).toHaveLength(1);
+    expect(
+      await db
+        .collection("course_join_request")
+        .countDocuments({ courseId: course.id }),
+    ).toBe(0);
+  });
+
+  it("blocks a self-signup whose username differs only in case from an existing student's username", async () => {
+    // Given a student already exists with username "alice"
+    const services = getTestServices();
+    await services.studentService.createStudentDocument({
+      authUserId: "existing-auth-id",
+      username: "alice",
+      name: "Alice Existing",
+      createdBy: "admin-1",
+    });
+
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("name", "Someone Else");
+    formData.set("username", "Alice");
+    formData.set("password", "secret1234");
+
+    // When someone tries to self-register with a differently-cased username
+    const result = await joinSignupAction(null, formData);
+
+    // Then registration is blocked with the same D3 message — never
+    // better-auth's raw "user already exists" error, which would leak the
+    // internal synthetic-email scheme to a stranger
+    expect(result.success).toBe(false);
+    expect(result.message).toBe(
+      "This username already belongs to an account. Please sign in with your original method instead.",
+    );
+
+    // And no second student and no join request were created
+    const all = await services.studentService.listStudents();
+    expect(all).toHaveLength(1);
+    expect(
+      await db
+        .collection("course_join_request")
+        .countDocuments({ courseId: course.id }),
+    ).toBe(0);
+  });
+});
