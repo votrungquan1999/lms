@@ -1,5 +1,6 @@
 import { getCourseService } from "src/lib/services-singleton";
 import { InvalidInviteCard, ValidInviteCard } from "./join-page.ui";
+import { SelfSignupForm } from "./self-signup-form";
 
 export const metadata = {
   title: "Join a Course — LMS",
@@ -23,7 +24,9 @@ export default async function JoinPage({
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       {course ? (
-        <ValidInviteCard title={course.title} />
+        <ValidInviteCard title={course.title}>
+          <SelfSignupForm token={token} />
+        </ValidInviteCard>
       ) : (
         <InvalidInviteCard />
       )}

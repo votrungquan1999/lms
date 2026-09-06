@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import {
   Card,
+  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -8,14 +10,23 @@ import {
 /**
  * Shown when the token resolves to a course with a live invite link.
  * @param title - The title of the course the token invites the visitor to join.
+ * @param children - The self-signup form, composed in by the server page —
+ * this component stays a plain display shell (component-library.md).
  */
-export function ValidInviteCard({ title }: { title: string }) {
+export function ValidInviteCard({
+  title,
+  children,
+}: {
+  title: string;
+  children?: ReactNode;
+}) {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardDescription>You&apos;re invited to join</CardDescription>
         <CardTitle className="text-xl">{title}</CardTitle>
       </CardHeader>
+      {children && <CardContent>{children}</CardContent>}
     </Card>
   );
 }
