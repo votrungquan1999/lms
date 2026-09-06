@@ -95,6 +95,18 @@ export default async function StudentTestDetailPage({
     questions.map((q) => [q.id, test.isPractice && answerMap.has(q.id)]),
   );
 
+  // Effective free-text reveal mode, resolved once here so no component
+  // downstream re-derives it: the question's own override if it set one,
+  // otherwise the test's default. Meaningless for non-free-text questions,
+  // which never read it.
+  const answerRevealModeMap = new Map(
+    questions.map((q) => [
+      q.id,
+      (q.type === "free_text" ? q.answerRevealMode : undefined) ??
+        test.answerRevealMode,
+    ]),
+  );
+
   // Scrub the authored referenceAnswer/explanation off any free_text
   // question whose reveal gate is closed, before it reaches any client
   // component — mirrors the MC isCorrect/safeOptions scrub in
@@ -300,6 +312,7 @@ export default async function StudentTestDetailPage({
             hasActiveRedo={!!activeRedoRequest}
             canAnswer={canAnswer}
             correctAnswersVisible={correctAnswersVisible}
+            answerRevealModeMap={answerRevealModeMap}
             isPractice={test.isPractice}
             revealMap={revealMap}
             attemptCountMap={attemptCountMap}

@@ -59,6 +59,7 @@ describe("GradedQuestion — image answer with annotations", () => {
         annotations={annotations}
         isMC={false}
         options={[]}
+        mode="diff"
         correctAnswersVisible={false}
         testStatus={TestStatus.Graded}
         answerImages={[

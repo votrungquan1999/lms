@@ -54,9 +54,18 @@ Students take tests by submitting their solutions. Teachers grade each question 
 
 - [x] Student can see their score per question and the overall average
 - [x] Student can see free-text feedback per question and overall test feedback
-- [x] Student can view their answer alongside the provided solution
-- [x] Differences are displayed in a GitHub-style side-by-side diff view
-- [x] If no solution is set for a question, no diff section is shown
+- [x] A test's answer-reveal mode ("diff" or "plain") decides how a free-text
+      answer is revealed; a question may override its test's mode
+- [x] In "diff" mode, student can view their answer alongside the provided
+      solution, with differences shown in a GitHub-style side-by-side diff view
+- [x] In "plain" mode, student sees their own answer and the correct answer
+      written out as text, instead of a diff
+- [x] If no solution is set for a question, no diff section is shown (diff
+      mode)
+- [ ] Plain mode falls back to the question's authored model answer when no
+      solution is set — true at the component level today, but unreachable
+      end-to-end until Step 10 widens the referenceAnswer scrub (page.tsx
+      currently strips it from every non-practice question)
 
 ### Test Association
 

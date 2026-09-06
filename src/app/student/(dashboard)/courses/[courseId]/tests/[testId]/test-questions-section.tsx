@@ -14,6 +14,7 @@ import type { AnswerImage } from "src/lib/answer-image-urls";
 import type { StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
 import { isMcQuestion, type Question } from "src/lib/question-service";
+import type { AnswerRevealMode } from "src/lib/test-service";
 import type { TestStatus } from "src/lib/test-status-service";
 import { AnswerForm } from "./answer-form";
 import { GradedQuestion } from "./graded-question";
@@ -32,6 +33,8 @@ interface TestQuestionsSectionProps {
   hasActiveRedo: boolean;
   canAnswer: boolean;
   correctAnswersVisible: boolean;
+  /** Effective free-text reveal mode per question: override, or the test default. */
+  answerRevealModeMap: Map<string, AnswerRevealMode>;
   /** Whole-test practice flag — drives the MC reveal-gate branch below. */
   isPractice: boolean;
   /** Per-question practice reveal gate: isPractice && this question answered. */
@@ -59,6 +62,7 @@ export function TestQuestionsSection({
   hasActiveRedo,
   canAnswer,
   correctAnswersVisible,
+  answerRevealModeMap,
   isPractice,
   revealMap,
   attemptCountMap,
@@ -71,6 +75,10 @@ export function TestQuestionsSection({
           const grade = gradeMap.get(question.id);
           const studentAnswer = answerMap.get(question.id);
           const isMC = isMcQuestion(question);
+          // Falls back to "diff" only if the map is ever missing an entry —
+          // page.tsx always populates one per question, so this is a safety
+          // net, not a real default.
+          const mode = answerRevealModeMap.get(question.id) ?? "diff";
 
           // MC reveal gate: in practice, per-question (overrides the per-test
           // flag per D5); outside practice, the existing per-test flag.
@@ -121,6 +129,7 @@ export function TestQuestionsSection({
                 grade={grade}
                 isMC={isMC}
                 options={safeOptions}
+                mode={mode}
                 correctAnswersVisible={correctAnswersVisible}
                 testStatus={testStatus}
                 answerImages={answerImagesMap.get(question.id)}

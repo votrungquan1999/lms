@@ -12,6 +12,7 @@ import {
   type McOption,
   type Question,
 } from "src/lib/question-service";
+import type { AnswerRevealMode } from "src/lib/test-service";
 import { TestStatus } from "src/lib/test-status-service";
 import { isTextEquivalent } from "src/lib/text-normalization";
 import { cn } from "src/lib/utils";
@@ -33,6 +34,8 @@ interface GradedQuestionProps {
   isMC: boolean;
   /** Client-safe option list for MC questions (empty for free-text). */
   options: McOption[];
+  /** Effective free-text reveal mode: question override, or the test default. */
+  mode: AnswerRevealMode;
   correctAnswersVisible: boolean;
   testStatus: TestStatus;
   /** Minted photo URLs for image answers (empty/undefined otherwise). */
@@ -45,8 +48,9 @@ interface GradedQuestionProps {
  * Renders one graded question as a collapsible card. Perfect scores collapse to
  * a summary row (with a feedback preview); non-perfect scores open with the
  * prompt tucked behind a toggle and the answer + grade panels shown. The grade
- * panel is tinted by score band, and the student-vs-solution diff is omitted
- * when the answer matches the solution (it would render as an empty diff).
+ * panel is tinted by score band. The student-vs-solution diff (diff mode only)
+ * is omitted when the answer matches the solution, when the mode is "plain",
+ * or while correct answers are not yet released to students.
  * @param props - See {@link GradedQuestionProps}.
  */
 export function GradedQuestion({
@@ -55,6 +59,7 @@ export function GradedQuestion({
   grade,
   isMC,
   options,
+  mode,
   correctAnswersVisible,
   testStatus,
   answerImages,
@@ -68,6 +73,7 @@ export function GradedQuestion({
   // displayed we skip the separate "Your Answer" panel to avoid duplication.
   const showDiff =
     !isMC &&
+    mode === "diff" &&
     !!grade.solution &&
     !!studentAnswer &&
     !isTextEquivalent(studentText, grade.solution);
@@ -79,6 +85,21 @@ export function GradedQuestion({
     ? question.explanation
     : undefined;
   const showExplanation = correctAnswersVisible && !!mcExplanation;
+
+  // Plain mode's alternative to the diff: the correct answer written out as
+  // text. Gated on the free_text discriminant explicitly (never `!isMC`,
+  // which is also true for image_answer questions that can carry a
+  // teacher-written `grade.solution`) and on `correctAnswersVisible` from
+  // birth, since this new panel has no pre-existing leak to preserve.
+  // Falls back to the question's own referenceAnswer when the AI grader
+  // omitted `solution` (a 100% score) — plain mode only; diff mode keeps
+  // D10's no-fallback rule.
+  const correctAnswerText =
+    question.type === "free_text"
+      ? (grade.solution ?? question.referenceAnswer ?? undefined)
+      : undefined;
+  const showCorrectAnswer =
+    mode === "plain" && correctAnswersVisible && !!correctAnswerText;
 
   return (
     <GradedQuestionShell
@@ -166,6 +187,14 @@ export function GradedQuestion({
               Diff Comparison
             </p>
             <DiffViewer studentAnswer={studentText} solution={grade.solution} />
+          </div>
+        )}
+        {showCorrectAnswer && (
+          <div>
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              Correct Answer
+            </p>
+            <p className="whitespace-pre-wrap text-sm">{correctAnswerText}</p>
           </div>
         )}
       </div>

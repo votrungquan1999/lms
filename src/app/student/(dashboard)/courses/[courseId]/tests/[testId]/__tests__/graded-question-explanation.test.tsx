@@ -49,6 +49,7 @@ describe("GradedQuestion — MC explanation reveal", () => {
         grade={grade}
         isMC={true}
         options={baseQuestion.options}
+        mode="diff"
         correctAnswersVisible={true}
         testStatus={TestStatus.Graded}
       />,
@@ -64,6 +65,7 @@ describe("GradedQuestion — MC explanation reveal", () => {
         grade={grade}
         isMC={true}
         options={baseQuestion.options}
+        mode="diff"
         correctAnswersVisible={false}
         testStatus={TestStatus.Graded}
       />,
@@ -79,6 +81,7 @@ describe("GradedQuestion — MC explanation reveal", () => {
         grade={grade}
         isMC={true}
         options={baseQuestion.options}
+        mode="diff"
         correctAnswersVisible={true}
         testStatus={TestStatus.Graded}
       />,
