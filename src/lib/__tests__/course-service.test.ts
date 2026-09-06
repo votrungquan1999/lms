@@ -134,13 +134,21 @@ describe("Feature: a join-link lookup never matches a course with no active link
     "returns null for an empty, null, or undefined token even though a course has a null invite token",
     async ({ db }) => {
       // Given a course with no active join link (createCourse defaults
-      // inviteToken to null — D41's exact danger case)
+      // inviteToken to null — D41's exact danger case) and a second course
+      // with a live token, so an operator object like { $ne: null } has a
+      // real course to leak if the query-level guard is missing
       const courseService = new CourseService(db);
       await courseService.createCourse({
         title: "Algorithms",
         description: "",
         createdBy: "admin-1",
       });
+      const liveCourse = await courseService.createCourse({
+        title: "Live-Link Course",
+        description: "",
+        createdBy: "admin-1",
+      });
+      await courseService.getOrCreateInviteToken(liveCourse.id);
 
       // When looking it up with the values a missing/renamed form field
       // yields (formData.get returns null; a bare `never` cast models that
@@ -150,6 +158,12 @@ describe("Feature: a join-link lookup never matches a course with no active link
       expect(await courseService.findByInviteToken(null as never)).toBeNull();
       expect(
         await courseService.findByInviteToken(undefined as never),
+      ).toBeNull();
+
+      // Truthy, so the falsy short-circuit lets it past — only the $eq/$type
+      // filter stops an operator object from matching the live-token course.
+      expect(
+        await courseService.findByInviteToken({ $ne: null } as never),
       ).toBeNull();
     },
   );
