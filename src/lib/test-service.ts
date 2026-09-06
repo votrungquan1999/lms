@@ -160,7 +160,7 @@ export class TestService {
       showGradeAfterSubmit: doc.showGradeAfterSubmit,
       timeLimitMinutes: doc.timeLimitMinutes ?? null,
       isPractice: doc.isPractice ?? false,
-      // Placeholder default; Step 3 pins the real read-time default (D7/D9).
+      // Missing means the row predates this field: keep the side-by-side comparison its students already saw (D7/D9).
       answerRevealMode: doc.answerRevealMode ?? "diff",
       correctAnswersReleasedAt: doc.correctAnswersReleasedAt,
       gradesReleasedAt: doc.gradesReleasedAt,

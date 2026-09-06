@@ -339,6 +339,10 @@ async function ensureTest(
     description: input.description,
     showCorrectAnswerAfterSubmit: input.showCorrectAnswerAfterSubmit,
     showGradeAfterSubmit: input.showGradeAfterSubmit,
+    // Explicit "plain" (R16) — a raw insert with the field genuinely absent
+    // would read as "diff" through toTest's legacy fallback, hiding the new
+    // default from demos and e2e.
+    answerRevealMode: "plain",
     correctAnswersReleasedAt: null,
     gradesReleasedAt: null,
     createdAt: new Date(),

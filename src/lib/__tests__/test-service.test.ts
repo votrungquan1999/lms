@@ -354,6 +354,33 @@ describe("TestService", () => {
   );
 
   dbIt(
+    "a test that predates this field still shows the side-by-side comparison its students were already seeing",
+    async ({ db }) => {
+      const courseService = new CourseService(db);
+      const testService = new TestService(db);
+
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "Desc",
+        createdBy: "admin",
+      });
+      const test = await testService.createTest(course.id, {
+        title: "Test",
+        description: "",
+        createdBy: "admin",
+      });
+      // Simulate a legacy row written before this field existed.
+      await db
+        .collection("test")
+        .updateOne({ id: test.id }, { $unset: { answerRevealMode: "" } });
+
+      const fetched = await testService.getTest(test.id);
+
+      expect(fetched?.answerRevealMode).toBe("diff");
+    },
+  );
+
+  dbIt(
     "createTest persists an explicit isPractice: true and it stays marked after a re-fetch",
     async ({ db }) => {
       const courseService = new CourseService(db);

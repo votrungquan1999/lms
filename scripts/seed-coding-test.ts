@@ -352,6 +352,10 @@ async function ensureTest(db: Db): Promise<void> {
       "Four simple Python coding exercises (sum, count even, find max, is prime). Free-text answers; submitted but not human-graded so the Auto-grade with AI button is available.",
     showCorrectAnswerAfterSubmit: true,
     showGradeAfterSubmit: true,
+    // Explicit "plain" (R16) — a raw insert with the field genuinely absent
+    // would read as "diff" through toTest's legacy fallback, hiding the new
+    // default from demos and e2e.
+    answerRevealMode: "plain",
     correctAnswersReleasedAt: null,
     gradesReleasedAt: null,
     createdAt: new Date(),
