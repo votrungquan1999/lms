@@ -15,6 +15,7 @@ import {
   attachAnswerImageUrls,
 } from "src/lib/answer-image-urls";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
+import type { Question } from "src/lib/question-service";
 import {
   getAnnotationService,
   getAnswerService,
@@ -107,16 +108,9 @@ export default async function StudentTestDetailPage({
     ]),
   );
 
-  // Scrub the authored referenceAnswer/explanation off any free_text
-  // question whose reveal gate is closed, before it reaches any client
-  // component — mirrors the MC isCorrect/safeOptions scrub in
-  // test-questions-section.tsx.
-  const revealedQuestions = questions.map((q) =>
-    q.type === "free_text" && !revealMap.get(q.id)
-      ? { ...q, referenceAnswer: undefined, explanation: undefined }
-      : q,
-  );
-
+  // Hoisted above the scrub below so its graded-view disjunct can consult
+  // submission/grading state — each of these depends only on
+  // testId/studentId/questions.length, never on the scrub's own output.
   const testSubmissionService = await getTestSubmissionService();
   const isSubmitted = await testSubmissionService.isTestSubmitted(
     testId,
@@ -139,6 +133,36 @@ export default async function StudentTestDetailPage({
     testStatus,
   );
   const gradeMap = new Map(grades.map((g) => [g.questionId, g]));
+
+  const redoRequestService = await getRedoRequestService();
+  const activeRedoRequest = await redoRequestService.getActiveRedoRequest(
+    testId,
+    session.studentId,
+  );
+
+  // Student can answer if test is not submitted OR if there's an active redo request
+  const canAnswer = !isSubmitted || !!activeRedoRequest;
+
+  // Scrub the authored referenceAnswer/explanation off any free_text
+  // question whose reveal gate is closed, before it reaches any client
+  // component — mirrors the MC isCorrect/safeOptions scrub in
+  // test-questions-section.tsx. Two independent ways to open it: the
+  // pre-existing practice reveal, or the graded view once the question has
+  // been graded, the student can no longer change their answer, and correct
+  // answers are visible. Bare `correctAnswersVisible` alone would leak the
+  // model answer before the student even submits — it defaults to true from
+  // test creation (test-service.ts's createTest).
+  const practiceRevealOpen = (q: Question) => revealMap.get(q.id) ?? false;
+  const hasGrade = (q: Question) => gradeMap.has(q.id);
+  const revealedQuestions = questions.map((q) =>
+    q.type === "free_text" &&
+    !(
+      practiceRevealOpen(q) ||
+      (hasGrade(q) && !canAnswer && correctAnswersVisible)
+    )
+      ? { ...q, referenceAnswer: undefined, explanation: undefined }
+      : q,
+  );
 
   // Mint photo URLs for image answers whose grade is revealed, plus the
   // grader's annotations (stored separately from the grade) over those photos.
@@ -174,15 +198,6 @@ export default async function StudentTestDetailPage({
     testId,
     session.studentId,
   );
-
-  const redoRequestService = await getRedoRequestService();
-  const activeRedoRequest = await redoRequestService.getActiveRedoRequest(
-    testId,
-    session.studentId,
-  );
-
-  // Student can answer if test is not submitted OR if there's an active redo request
-  const canAnswer = !isSubmitted || !!activeRedoRequest;
 
   // ── Timed-test Start gate ────────────────────────────────────────────────
   // A timed test (timeLimitMinutes != null) that the student has not yet

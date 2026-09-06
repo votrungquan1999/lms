@@ -62,10 +62,8 @@ Students take tests by submitting their solutions. Teachers grade each question 
       written out as text, instead of a diff
 - [x] If no solution is set for a question, no diff section is shown (diff
       mode)
-- [ ] Plain mode falls back to the question's authored model answer when no
-      solution is set — true at the component level today, but unreachable
-      end-to-end until Step 10 widens the referenceAnswer scrub (page.tsx
-      currently strips it from every non-practice question)
+- [x] Plain mode falls back to the question's authored model answer when no
+      solution is set
 - [x] In either mode, the correct answer stays withheld until the teacher
       releases correct answers for the test; before that, the student sees
       only their own submitted answer
