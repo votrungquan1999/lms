@@ -910,6 +910,53 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   );
 });
 
+describe("composeFromPools isolation (Step 22 — regression pin, no production change)", () => {
+  dbIt(
+    "editing a composed question does not change the pool question it was drawn from",
+    async ({ db }) => {
+      const questionService = new QuestionService(db);
+      const poolQuestionService = new PoolQuestionService(db);
+
+      const poolQuestion = await poolQuestionService.addPoolQuestion("pool-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+        referenceAnswer: "Objects with mass attract each other.",
+        explanation: "Newton's law of universal gravitation.",
+        answerRevealMode: "diff",
+      });
+
+      const snapshots = await poolQuestionService.listSnapshotInputs("pool-1");
+      const composed = await questionService.composeFromPools(
+        "test-1",
+        [{ count: 1, questions: snapshots }],
+        "admin-2",
+        (items, count) => items.slice(0, count),
+      );
+
+      // Edit the composed copy — new ids, no pool backlink, structurally
+      // isolated from the pool per `composeFromPools`'s own doc comment.
+      await questionService.updateQuestion(
+        composed[0].id,
+        {
+          answerRevealMode: "plain",
+          referenceAnswer: "A completely different model answer.",
+          explanation: "A completely different explanation.",
+        },
+        "admin-3",
+      );
+
+      const [poolAfter] = await poolQuestionService.listPoolQuestions("pool-1");
+      expect(poolAfter).toMatchObject({
+        id: poolQuestion.id,
+        referenceAnswer: "Objects with mass attract each other.",
+        explanation: "Newton's law of universal gravitation.",
+        answerRevealMode: "diff",
+      });
+    },
+  );
+});
+
 describe("checkMcOptions — the shared MC option-count rule", () => {
   it("rejects a single_select with no correct option by default, matching today's rule", () => {
     const error = checkMcOptions("single_select", [
