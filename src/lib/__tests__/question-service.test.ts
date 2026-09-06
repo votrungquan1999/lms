@@ -1,6 +1,7 @@
 import { PoolQuestionService } from "src/lib/pool-question-service";
 import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
 import {
+  checkMcOptions,
   type FreeTextQuestion,
   MediaContentType,
   type MultiSelectQuestion,
@@ -660,6 +661,62 @@ describe("QuestionService - Integration Tests", () => {
       expect(readForStudentA.map((q) => q.title)).toEqual(["Q1", "Q2"]);
     },
   );
+});
+
+describe("checkMcOptions — the shared MC option-count rule", () => {
+  it("rejects a single_select with no correct option by default, matching today's rule", () => {
+    const error = checkMcOptions("single_select", [
+      { isCorrect: false },
+      { isCorrect: false },
+    ]);
+
+    expect(error).toBe(
+      "single_select question must have exactly one correct option",
+    );
+  });
+
+  it("rejects a multi_select with no correct option by default, matching today's rule", () => {
+    const error = checkMcOptions("multi_select", [
+      { isCorrect: false },
+      { isCorrect: false },
+    ]);
+
+    expect(error).toBe(
+      "multi_select question must have at least one correct option",
+    );
+  });
+
+  it("accepts a single_select with no correct option when allowMissingAnswerKey is true (D32)", () => {
+    const error = checkMcOptions(
+      "single_select",
+      [{ isCorrect: false }, { isCorrect: false }],
+      { allowMissingAnswerKey: true },
+    );
+
+    expect(error).toBeNull();
+  });
+
+  it("accepts a multi_select with no correct option when allowMissingAnswerKey is true (D32)", () => {
+    const error = checkMcOptions(
+      "multi_select",
+      [{ isCorrect: false }, { isCorrect: false }],
+      { allowMissingAnswerKey: true },
+    );
+
+    expect(error).toBeNull();
+  });
+
+  it("still rejects a single_select with two correct options even when allowMissingAnswerKey is true — a wrong key, not a missing one", () => {
+    const error = checkMcOptions(
+      "single_select",
+      [{ isCorrect: true }, { isCorrect: true }],
+      { allowMissingAnswerKey: true },
+    );
+
+    expect(error).toBe(
+      "single_select question must have exactly one correct option",
+    );
+  });
 });
 
 /** Builds a minimal free-text pool-question snapshot input for compose tests. */

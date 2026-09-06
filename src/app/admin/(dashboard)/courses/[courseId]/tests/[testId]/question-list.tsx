@@ -1,12 +1,23 @@
 import { MarkdownContent } from "src/components/markdown-content";
 import { QuestionMedia } from "src/components/question-media.ui";
+import { Badge } from "src/components/ui/badge";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "src/components/ui/card";
-import type { Question } from "src/lib/question-service";
+import { isMcQuestion, type Question } from "src/lib/question-service";
+
+/**
+ * True when an MC question has no option marked correct (D32/D44): the AI
+ * import path allows this rather than blocking the batch, so the admin list
+ * is the only place this state becomes visible to the teacher. Exported so
+ * the page header can derive a count from the same rule as the per-card badge.
+ */
+export function needsAnswerKey(question: Question): boolean {
+  return isMcQuestion(question) && question.options.every((o) => !o.isCorrect);
+}
 
 /**
  * Server component: renders a list of questions for a test.
@@ -32,9 +43,12 @@ export function QuestionList({ questions }: { questions: Question[] }) {
         return (
           <Card key={question.id}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">
+              <CardTitle className="flex items-center gap-2 text-base">
                 <span className="text-muted-foreground">#{question.order}</span>{" "}
                 {question.title}
+                {needsAnswerKey(question) && (
+                  <Badge variant="destructive">Needs an answer key</Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">

@@ -1,5 +1,8 @@
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
-import type { SingleSelectQuestion } from "src/lib/question-service";
+import type {
+  MultiSelectQuestion,
+  SingleSelectQuestion,
+} from "src/lib/question-service";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -78,5 +81,120 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
     expect(
       (questions[1] as SingleSelectQuestion).options.map((o) => o.text),
     ).toEqual(["4", "7"]);
+  });
+
+  it("rejects the whole batch and names the offending question when one cannot be accepted, importing none of them", async () => {
+    // Question 2 has TWO correct options — a wrong key, not a missing one,
+    // so D32's relaxation for AI import does not cover it either.
+    const reviewed: ParsedQuestion[] = [
+      {
+        title: "Q1: photosynthesis",
+        content: "Explain it in one paragraph.",
+        type: "free_text",
+      },
+      {
+        title: "Q2: broken key",
+        content: "Choose the prime number.",
+        type: "single_select",
+        options: [
+          { text: "4", isCorrect: true },
+          { text: "7", isCorrect: true },
+        ],
+      },
+      {
+        title: "Q3: pick all primes",
+        content: "Choose every prime number.",
+        type: "multi_select",
+        options: [
+          { text: "4", isCorrect: false },
+          { text: "5", isCorrect: true },
+        ],
+      },
+    ];
+
+    const result = await importAiQuestionsAction(
+      "test-1",
+      "course-1",
+      reviewed,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Question 2");
+    expect(result.message).toContain("Q2: broken key");
+    const questions =
+      await getTestServices().questionService.listQuestions("test-1");
+    expect(questions).toHaveLength(0);
+  });
+
+  it("imports a keyless single_select and a keyless multi_select rather than rejecting the batch (D32)", async () => {
+    // Q1 (free_text) writes first so a write-time regression — checkMcOptions
+    // run without D32's relaxation — shows up as a partial import, not a
+    // clean pre-write rejection.
+    const reviewed: ParsedQuestion[] = [
+      {
+        title: "Q1: photosynthesis",
+        content: "Explain it in one paragraph.",
+        type: "free_text",
+      },
+      {
+        title: "Q2: keyless single-select",
+        content: "Choose the prime number.",
+        type: "single_select",
+        options: [
+          { text: "4", isCorrect: false },
+          { text: "7", isCorrect: false },
+        ],
+      },
+      {
+        title: "Q3: keyless multi-select",
+        content: "Choose every prime number.",
+        type: "multi_select",
+        options: [
+          { text: "4", isCorrect: false },
+          { text: "5", isCorrect: false },
+        ],
+      },
+    ];
+
+    const result = await importAiQuestionsAction(
+      "test-1",
+      "course-1",
+      reviewed,
+    );
+
+    expect(result.success).toBe(true);
+    const questions =
+      await getTestServices().questionService.listQuestions("test-1");
+    expect(questions).toHaveLength(3);
+    expect(
+      (questions[1] as SingleSelectQuestion).options.every((o) => !o.isCorrect),
+    ).toBe(true);
+    expect(
+      (questions[2] as MultiSelectQuestion).options.every((o) => !o.isCorrect),
+    ).toBe(true);
+  });
+
+  it("leaves nothing written on a genuinely invalid batch — the all-or-nothing guarantee, asserted directly rather than left incidental", async () => {
+    // Two correct options on a single_select is a WRONG key, not a missing
+    // one — D32's relaxation does not cover it, so this batch is still
+    // rejected outright and must leave zero questions behind.
+    const failing: ParsedQuestion[] = [
+      {
+        title: "Q1: broken key",
+        content: "Choose the prime number.",
+        type: "single_select",
+        options: [
+          { text: "4", isCorrect: true },
+          { text: "7", isCorrect: true },
+        ],
+      },
+    ];
+
+    const result = await importAiQuestionsAction("test-2", "course-1", failing);
+
+    expect(result.success).toBe(false);
+    const questions =
+      await getTestServices().questionService.listQuestions("test-2");
+    expect(questions).toHaveLength(0);
   });
 });

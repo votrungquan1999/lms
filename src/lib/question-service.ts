@@ -7,6 +7,47 @@ import {
 } from "src/lib/question-compose";
 import type { AnswerRevealMode } from "src/lib/test-service";
 
+/**
+ * Checks whether MC options satisfy the correctness rule for their question
+ * type, returning an error message instead of throwing — `addQuestion` throws
+ * from this directly, while the AI-import pre-pass (Step 18) uses the message
+ * to name the offending question without failing partway through a batch.
+ * - `single_select`: exactly one correct option.
+ * - `multi_select`: at least one correct option.
+ * - `free_text` / `image_answer`: never an error (no options to check).
+ *
+ * `allowMissingAnswerKey` (D32) relaxes the "must have a key" floor —
+ * `single_select` accepts 0 or 1 correct (still rejects 2+: a wrong key, not
+ * a missing one), `multi_select` drops its "at least one" floor entirely.
+ * Only the AI-import call site passes this; every other caller (manual add,
+ * JSON import, pool compose) keeps today's rule unchanged.
+ * @param type - The question's type.
+ * @param options - The question's options, or null for a non-MC type.
+ * @param opts - `allowMissingAnswerKey` opts into the D32 relaxation.
+ * @returns An error message, or null when the options are acceptable.
+ */
+export function checkMcOptions(
+  type: QuestionType,
+  options: { isCorrect: boolean }[] | null,
+  opts?: { allowMissingAnswerKey?: boolean },
+): string | null {
+  const allowMissingAnswerKey = opts?.allowMissingAnswerKey ?? false;
+  const correctCount = options?.filter((o) => o.isCorrect).length ?? 0;
+
+  if (type === "single_select") {
+    const minRequired = allowMissingAnswerKey ? 0 : 1;
+    if (correctCount < minRequired || correctCount > 1) {
+      return "single_select question must have exactly one correct option";
+    }
+  }
+
+  if (type === "multi_select" && !allowMissingAnswerKey && correctCount === 0) {
+    return "multi_select question must have at least one correct option";
+  }
+
+  return null;
+}
+
 export type QuestionType =
   | "free_text"
   | "single_select"
@@ -174,6 +215,16 @@ export type AddQuestionInput =
   | AddMultiSelectQuestionInput
   | AddImageAnswerQuestionInput;
 
+/**
+ * Write-policy options for {@link QuestionService.addQuestion} — kept off
+ * `AddQuestionInput` since this governs a validation rule, not a document
+ * field, and would otherwise have to be excluded from persistence.
+ */
+export interface AddQuestionOpts {
+  /** D32: relaxes the MC-key rule to match the AI-import pre-pass (`findFirstQuestionError`). Only that call site opts in. */
+  allowMissingAnswerKey?: boolean;
+}
+
 // ── Document (flat, for MongoDB storage) ────────────────────────────────────
 
 /**
@@ -216,22 +267,27 @@ export class QuestionService {
   async addQuestion(
     testId: string,
     input: AddSingleSelectQuestionInput,
+    opts?: AddQuestionOpts,
   ): Promise<SingleSelectQuestion>;
   async addQuestion(
     testId: string,
     input: AddMultiSelectQuestionInput,
+    opts?: AddQuestionOpts,
   ): Promise<MultiSelectQuestion>;
   async addQuestion(
     testId: string,
     input: AddFreeTextQuestionInput,
+    opts?: AddQuestionOpts,
   ): Promise<FreeTextQuestion>;
   async addQuestion(
     testId: string,
     input: AddImageAnswerQuestionInput,
+    opts?: AddQuestionOpts,
   ): Promise<ImageAnswerQuestion>;
   async addQuestion(
     testId: string,
     input: AddQuestionInput,
+    opts?: AddQuestionOpts,
   ): Promise<Question> {
     const nextOrder = await this.getNextOrder(testId);
 
@@ -241,7 +297,10 @@ export class QuestionService {
         ? input.options.map((o) => ({ ...o, id: crypto.randomUUID() }))
         : null;
 
-    this.validateMcOptions(type, options);
+    const mcError = checkMcOptions(type, options, opts);
+    if (mcError) {
+      throw new Error(mcError);
+    }
 
     const doc: QuestionDocument = {
       id: crypto.randomUUID(),
@@ -269,35 +328,6 @@ export class QuestionService {
     await this.questions.insertOne(doc);
 
     return this.toQuestion(doc);
-  }
-
-  /**
-   * Validates that MC options satisfy the rule for their question type.
-   * - single_select: exactly one correct option
-   * - multi_select: at least one correct option
-   * No-op for free_text questions.
-   */
-  private validateMcOptions(
-    type: QuestionType,
-    options: McOption[] | null,
-  ): void {
-    if (type === "single_select") {
-      const correctCount = options?.filter((o) => o.isCorrect).length ?? 0;
-      if (correctCount !== 1) {
-        throw new Error(
-          "single_select question must have exactly one correct option",
-        );
-      }
-    }
-
-    if (type === "multi_select") {
-      const correctCount = options?.filter((o) => o.isCorrect).length ?? 0;
-      if (correctCount === 0) {
-        throw new Error(
-          "multi_select question must have at least one correct option",
-        );
-      }
-    }
   }
 
   async importQuestions(

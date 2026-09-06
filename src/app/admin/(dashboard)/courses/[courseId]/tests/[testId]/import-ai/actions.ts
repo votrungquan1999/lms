@@ -6,7 +6,11 @@ import type { ParsedQuestion } from "src/lib/ai/ai-client";
 import { questionImportItemSchema } from "src/lib/ai/question-import-schema";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
-import type { QuestionService } from "src/lib/question-service";
+import {
+  checkMcOptions,
+  isMcQuestionType,
+  type QuestionService,
+} from "src/lib/question-service";
 import {
   getQuestionParseClient,
   getQuestionService,
@@ -186,26 +190,36 @@ async function addReviewedQuestion(
   createdBy: string,
 ): Promise<void> {
   if (question.type === "single_select") {
-    await questionService.addQuestion(testId, {
-      type: "single_select",
-      title: question.title,
-      content: question.content,
-      options: question.options ?? [],
-      explanation: question.explanation,
-      createdBy,
-    });
+    await questionService.addQuestion(
+      testId,
+      {
+        type: "single_select",
+        title: question.title,
+        content: question.content,
+        options: question.options ?? [],
+        explanation: question.explanation,
+        createdBy,
+      },
+      // D32: matches the relaxation findFirstQuestionError already validated with.
+      { allowMissingAnswerKey: true },
+    );
     return;
   }
   if (question.type === "multi_select") {
-    await questionService.addQuestion(testId, {
-      type: "multi_select",
-      title: question.title,
-      content: question.content,
-      options: question.options ?? [],
-      mcGradingStrategy: "all_or_nothing",
-      explanation: question.explanation,
-      createdBy,
-    });
+    await questionService.addQuestion(
+      testId,
+      {
+        type: "multi_select",
+        title: question.title,
+        content: question.content,
+        options: question.options ?? [],
+        mcGradingStrategy: "all_or_nothing",
+        explanation: question.explanation,
+        createdBy,
+      },
+      // D32: matches the relaxation findFirstQuestionError already validated with.
+      { allowMissingAnswerKey: true },
+    );
     return;
   }
   await questionService.addQuestion(testId, {
@@ -219,8 +233,57 @@ async function addReviewedQuestion(
 }
 
 /**
+ * Validates every reviewed question before any write, in list order, and
+ * returns the first offender's message — or null when all are acceptable.
+ * Transactions are architecturally unavailable here (no `startSession`
+ * anywhere in the repo; the dev/CI Mongo is a standalone `mongo:7` with no
+ * replica set, which multi-document transactions require), so this pre-pass
+ * running to completion before any `insertOne` fires is the only mechanism
+ * this codebase can support for "reject the batch, write nothing."
+ *
+ * Checks both layers per question — schema-level field validity, then the MC
+ * option-count rule — so a batch cannot pass one layer, start writing, and
+ * fail on the other. `allowMissingAnswerKey: true` (D32) is scoped to this
+ * one call site: an AI-imported MC question with no correct option marked is
+ * importable (flagged for the teacher, not rejected); every other write path
+ * (manual add, JSON import, pool compose) is untouched and keeps today's
+ * strict rule, since none of them call `checkMcOptions` with that option.
+ *
+ * This is validation, not atomicity: a mid-loop infra failure after this pass
+ * succeeds (a dropped connection, a Mongo write error unrelated to the
+ * validated business rule) can still leave a partial import — the same
+ * residual every bulk insert in this codebase already carries
+ * (`importQuestions`/`composeFromPools` use plain `insertMany`).
+ * @param questions - The reviewed list, in the order the teacher left it.
+ * @returns The first offender's message, or null when every question passes.
+ */
+function findFirstQuestionError(questions: ParsedQuestion[]): string | null {
+  for (let i = 0; i < questions.length; i++) {
+    const parsed = questionImportItemSchema.safeParse(questions[i]);
+    if (!parsed.success) {
+      const title = questions[i]?.title ?? "";
+      return `Question ${i + 1} ("${title}"): ${parsed.error.issues[0].message}`;
+    }
+
+    if (isMcQuestionType(parsed.data.type)) {
+      const mcError = checkMcOptions(
+        parsed.data.type,
+        parsed.data.options ?? null,
+        { allowMissingAnswerKey: true },
+      );
+      if (mcError) {
+        return `Question ${i + 1} ("${parsed.data.title}"): ${mcError}`;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Server action: writes the teacher's reviewed AI-import list onto the test,
- * in review order.
+ * in review order — after validating the whole batch first, rejecting all of
+ * it and writing nothing if any one question cannot be accepted.
  *
  * D37 (REPLACE-or-APPEND) is NOT implemented here: REPLACE needs Step 29's
  * delete-question capability, which does not exist in this codebase yet
@@ -247,6 +310,11 @@ export async function importAiQuestionsAction(
     adminUserId = session.userId;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  const invalidReason = findFirstQuestionError(questions);
+  if (invalidReason) {
+    return { success: false, message: invalidReason };
   }
 
   try {

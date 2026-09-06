@@ -12,7 +12,7 @@ import { AddQuestionForm } from "./add-question-form";
 import { ComposeFromPoolsForm } from "./compose-from-pools-form";
 import { DeleteTestButton } from "./delete-test-button";
 import { ImportQuestionsForm } from "./import-questions-form";
-import { QuestionList } from "./question-list";
+import { needsAnswerKey, QuestionList } from "./question-list";
 import { TestSettingsPanel } from "./test-settings-panel";
 
 export const metadata = {
@@ -41,6 +41,9 @@ export default async function TestDetailPage({
   const questions = await attachQuestionMediaUrls(
     await questionService.listQuestions(testId),
   );
+  // D44: no student-facing guard exists, so this count is the prominent
+  // mitigation — the per-card badge alone is easy to miss on a long list.
+  const needsAnswerKeyCount = questions.filter(needsAnswerKey).length;
 
   // Pools (with their current sizes) available to compose questions from.
   const poolService = await getQuestionPoolService();
@@ -63,6 +66,13 @@ export default async function TestDetailPage({
           {test.description && (
             <p className="mt-1 text-sm text-muted-foreground">
               {test.description}
+            </p>
+          )}
+          {needsAnswerKeyCount > 0 && (
+            <p className="mt-1 text-sm font-semibold text-destructive">
+              {needsAnswerKeyCount === 1
+                ? "1 question needs an answer key"
+                : `${needsAnswerKeyCount} questions need an answer key`}
             </p>
           )}
         </div>
