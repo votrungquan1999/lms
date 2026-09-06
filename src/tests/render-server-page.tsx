@@ -5,6 +5,7 @@ import { GeminiAiClient } from "src/lib/ai/ai-client";
 import { AiGradeService } from "src/lib/ai-grade-service";
 import { AnnotationService } from "src/lib/annotation-service";
 import { AnswerService } from "src/lib/answer-service";
+import { CourseJoinRequestService } from "src/lib/course-join-request-service";
 import { CourseService } from "src/lib/course-service";
 import { EnrollmentService } from "src/lib/enrollment-service";
 import { GradeService } from "src/lib/grade-service";
@@ -32,6 +33,7 @@ export interface TestServices {
   aiGradeService: AiGradeService;
   annotationService: AnnotationService;
   answerService: AnswerService;
+  courseJoinRequestService: CourseJoinRequestService;
   courseService: CourseService;
   enrollmentService: EnrollmentService;
   gradeService: GradeService;
@@ -119,6 +121,7 @@ function makeServices(db: Db): TestServices {
     gradeService,
   );
   const annotationService = new AnnotationService(db);
+  const courseJoinRequestService = new CourseJoinRequestService(db);
   const courseService = new CourseService(db);
   const enrollmentService = new EnrollmentService(db);
   const studentService = new StudentService(db);
@@ -140,6 +143,7 @@ function makeServices(db: Db): TestServices {
     aiGradeService,
     annotationService,
     answerService,
+    courseJoinRequestService,
     courseService,
     enrollmentService,
     gradeService,
@@ -216,6 +220,8 @@ export function servicesSingletonMockFactory() {
     getAiGradeService: async () => getTestServices().aiGradeService,
     getAnnotationService: async () => getTestServices().annotationService,
     getAnswerService: async () => getTestServices().answerService,
+    getCourseJoinRequestService: async () =>
+      getTestServices().courseJoinRequestService,
     getCourseService: async () => getTestServices().courseService,
     getEnrollmentService: async () => getTestServices().enrollmentService,
     getGradeService: async () => getTestServices().gradeService,

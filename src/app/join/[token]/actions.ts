@@ -2,7 +2,10 @@
 
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
-import { getCourseService } from "src/lib/services-singleton";
+import {
+  getCourseJoinRequestService,
+  getCourseService,
+} from "src/lib/services-singleton";
 import { z } from "zod";
 
 const joinSignupSchema = z.object({
@@ -55,16 +58,27 @@ export async function joinSignupAction(
         }
 
         const authService = await getAuthService();
-        await authService.registerStudent({
+        const student = await authService.registerStudent({
           name: parsed.data.name,
           username: parsed.data.username,
           password: parsed.data.password,
           createdBy: "self-signup",
         });
 
+        // Write order: account first, join request second (§6/§20) — a
+        // crash here leaves a person who can sign in but has no way to
+        // re-request from this link today (revisiting collides on their own
+        // username and the join page has no signed-in path). Step 25 owns
+        // the fix; until then this is a dead-end loop, not a resolvable one.
+        const joinRequestService = await getCourseJoinRequestService();
+        await joinRequestService.createRequest({
+          courseId: course.id,
+          studentId: student.id,
+        });
+
         return {
           success: true,
-          message: "Account created. You can now sign in.",
+          message: `Account created. Your request to join "${course.title}" is now waiting for admin approval.`,
         };
       },
     );

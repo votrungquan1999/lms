@@ -1,6 +1,7 @@
 import type { Db } from "mongodb";
 import { createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
+import { JoinRequestStatus } from "src/lib/course-join-request-service";
 import { StudentService } from "src/lib/student-service";
 import {
   getTestServices,
@@ -109,5 +110,46 @@ describe("Feature: a prospective student can create their own account from the i
       .findOne({ email: "ada@lms.internal" });
     expect(userDoc).not.toBeNull();
     expect(userDoc?.role).toBe("student");
+  });
+});
+
+/**
+ * Feature: registering through an invite link puts a request to join that
+ * course in front of the admins
+ * As a prospective student
+ * I want my self-registration to also ask to join the course behind the link
+ * So that an admin can review and approve my access
+ */
+describe("Feature: registering through an invite link puts a request to join that course in front of the admins", () => {
+  it("creates a pending join request for the course behind the invite link", async () => {
+    // Given a course with a live invite link
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("name", "Grace Hopper");
+    formData.set("username", "grace");
+    formData.set("password", "secret1234");
+
+    // When a prospective student registers through the link
+    const result = await joinSignupAction(null, formData);
+    expect(result.success).toBe(true);
+
+    // Then a pending request to join that course is waiting for admins
+    const student = await services.studentService.findByUsername("grace");
+    const pending = await services.courseJoinRequestService.getPendingRequest(
+      course.id,
+      student?.id ?? "",
+    );
+    expect(pending).not.toBeNull();
+    expect(pending?.status).toBe(JoinRequestStatus.Pending);
   });
 });

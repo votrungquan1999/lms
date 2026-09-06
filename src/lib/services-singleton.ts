@@ -3,6 +3,7 @@ import { AiGradeService } from "./ai-grade-service";
 import { AnnotationService } from "./annotation-service";
 import { AnswerService } from "./answer-service";
 import { loadConfig } from "./config";
+import { CourseJoinRequestService } from "./course-join-request-service";
 import { CourseService } from "./course-service";
 import { getDatabase } from "./database";
 import { EnrollmentService } from "./enrollment-service";
@@ -31,6 +32,7 @@ import { UserRoleService } from "./user-role-service";
 
 let aiGradeService: AiGradeService | null = null;
 let answerService: AnswerService | null = null;
+let courseJoinRequestService: CourseJoinRequestService | null = null;
 let courseService: CourseService | null = null;
 let enrollmentService: EnrollmentService | null = null;
 let gradeService: GradeService | null = null;
@@ -94,6 +96,17 @@ export async function getAnswerService(): Promise<AnswerService> {
     answerService = tracedService(new AnswerService(db, qs, ts, tss), "answer");
   }
   return answerService;
+}
+
+export async function getCourseJoinRequestService(): Promise<CourseJoinRequestService> {
+  if (!courseJoinRequestService) {
+    const db = await getDatabase();
+    courseJoinRequestService = tracedService(
+      new CourseJoinRequestService(db),
+      "courseJoinRequest",
+    );
+  }
+  return courseJoinRequestService;
 }
 
 export async function getCourseService(): Promise<CourseService> {
