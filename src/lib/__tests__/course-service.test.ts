@@ -121,3 +121,36 @@ describe("Feature: an admin switches a course's join link off entirely", () => {
     },
   );
 });
+
+/**
+ * Feature: a join-link lookup never matches a course with no active link
+ * As the school
+ * I want an empty, null, or undefined token to never resolve to a course
+ * So that the public join page can never be used to enumerate courses via
+ * the Mongo driver's undefined -> null serialization (D41)
+ */
+describe("Feature: a join-link lookup never matches a course with no active link", () => {
+  dbIt(
+    "returns null for an empty, null, or undefined token even though a course has a null invite token",
+    async ({ db }) => {
+      // Given a course with no active join link (createCourse defaults
+      // inviteToken to null — D41's exact danger case)
+      const courseService = new CourseService(db);
+      await courseService.createCourse({
+        title: "Algorithms",
+        description: "",
+        createdBy: "admin-1",
+      });
+
+      // When looking it up with the values a missing/renamed form field
+      // yields (formData.get returns null; a bare `never` cast models that
+      // for the empty/undefined cases TypeScript would otherwise reject)
+      // Then none of them resolve to the null-token course
+      expect(await courseService.findByInviteToken("")).toBeNull();
+      expect(await courseService.findByInviteToken(null as never)).toBeNull();
+      expect(
+        await courseService.findByInviteToken(undefined as never),
+      ).toBeNull();
+    },
+  );
+});

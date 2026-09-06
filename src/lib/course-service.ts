@@ -202,6 +202,28 @@ export class CourseService {
   }
 
   /**
+   * Looks up a course by its invite token. A falsy token returns null before
+   * any query runs, and the query itself requires a string match — the
+   * Mongo driver serializes `undefined` to `null` (no `ignoreUndefined` on
+   * the client), and `{ inviteToken: null }` alone would match every course
+   * with no active link, not just the one document that was actually
+   * revoked (D41).
+   * @param token - The invite token from the join URL.
+   */
+  async findByInviteToken(token: string): Promise<Course | null> {
+    if (!token) {
+      return null;
+    }
+    const doc = await this.courses.findOne({
+      inviteToken: { $eq: token, $type: "string" },
+    });
+    if (!doc) {
+      return null;
+    }
+    return this.toCourse(doc);
+  }
+
+  /**
    * Returns the course's join-link token, minting one on first request (D2:
    * one static token per course). A course that already has a token gets
    * back that same value — this never rotates an existing link.
