@@ -4,12 +4,16 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
+import type { UpdatePoolQuestionInput } from "src/lib/pool-question-service";
 import { getPoolQuestionService } from "src/lib/services-singleton";
 import {
   type SubmittedMedia,
   submittedMediaSchema,
 } from "../courses/[courseId]/tests/[testId]/question-media.schema";
-import { addPoolQuestionSchema } from "./pool-question.schema";
+import {
+  addPoolQuestionSchema,
+  editPoolQuestionSchema,
+} from "./pool-question.schema";
 
 export interface AddPoolQuestionState {
   success: boolean;
@@ -134,6 +138,174 @@ export async function addPoolQuestionAction(
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =
       error instanceof Error ? error.message : "Failed to add question";
+    return { success: false, message };
+  }
+}
+
+export interface UpdatePoolQuestionState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: corrects a pool question a teacher already wrote (Step 30 —
+ * mirrors `updateQuestionAction`, a parallel path per D30).
+ */
+export async function updatePoolQuestionAction(
+  _prevState: UpdatePoolQuestionState | null,
+  formData: FormData,
+): Promise<UpdatePoolQuestionState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  const optionsJson = formData.get("options")?.toString();
+  let options: { id?: string; text: string; isCorrect: boolean }[] | undefined;
+  if (optionsJson) {
+    try {
+      options = JSON.parse(optionsJson);
+    } catch {
+      return { success: false, message: "Invalid options format" };
+    }
+  }
+
+  const parsed = editPoolQuestionSchema.safeParse({
+    poolQuestionId: formData.get("poolQuestionId"),
+    poolId: formData.get("poolId"),
+    answerRevealMode: formData.get("answerRevealMode") ?? undefined,
+    referenceAnswer: formData.get("referenceAnswer") ?? undefined,
+    explanation: formData.get("explanation") ?? undefined,
+    title: formData.get("title") ?? undefined,
+    content: formData.get("content") ?? undefined,
+    ...(options !== undefined && { options }),
+    type: formData.get("type") ?? undefined,
+  });
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+
+  try {
+    return await withSpan(
+      "action.updatePoolQuestionAction",
+      {
+        "lms.action.name": "updatePoolQuestionAction",
+        "lms.pool.id": parsed.data.poolId,
+      },
+      async () => {
+        const poolQuestionService = await getPoolQuestionService();
+        const data = parsed.data;
+
+        const input: UpdatePoolQuestionInput = {};
+        if (data.answerRevealMode !== undefined) {
+          input.answerRevealMode =
+            data.answerRevealMode === "inherit" ? null : data.answerRevealMode;
+        }
+        if (data.referenceAnswer !== undefined) {
+          input.referenceAnswer =
+            data.referenceAnswer.trim() === ""
+              ? null
+              : data.referenceAnswer.trim();
+        }
+        if (data.explanation !== undefined) {
+          input.explanation =
+            data.explanation.trim() === "" ? null : data.explanation.trim();
+        }
+        if (data.title !== undefined) {
+          input.title = data.title;
+        }
+        if (data.content !== undefined) {
+          input.content = data.content;
+        }
+        if (data.options !== undefined) {
+          input.options = data.options;
+        }
+        if (data.type !== undefined) {
+          input.type = data.type;
+        }
+
+        await poolQuestionService.updatePoolQuestion(
+          data.poolQuestionId,
+          input,
+          adminUserId,
+        );
+
+        revalidatePath(`/admin/pools/${data.poolId}`);
+
+        return { success: true, message: "Question updated" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to update question";
+    return { success: false, message };
+  }
+}
+
+export interface DeletePoolQuestionState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: soft-deletes a pool question (Step 30 / D37/D51).
+ */
+export async function deletePoolQuestionAction(
+  _prevState: DeletePoolQuestionState | null,
+  formData: FormData,
+): Promise<DeletePoolQuestionState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  const poolQuestionId = formData.get("poolQuestionId")?.toString() ?? "";
+  const poolId = formData.get("poolId")?.toString() ?? "";
+
+  if (!poolQuestionId || !poolId) {
+    return {
+      success: false,
+      message: "Pool question ID or Pool ID is missing",
+    };
+  }
+
+  try {
+    return await withSpan(
+      "action.deletePoolQuestionAction",
+      {
+        "lms.action.name": "deletePoolQuestionAction",
+        "lms.pool.id": poolId,
+      },
+      async () => {
+        const poolQuestionService = await getPoolQuestionService();
+        await poolQuestionService.deletePoolQuestion(
+          poolQuestionId,
+          adminUserId,
+        );
+
+        revalidatePath(`/admin/pools/${poolId}`);
+
+        return { success: true, message: "Question deleted" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to delete question";
     return { success: false, message };
   }
 }

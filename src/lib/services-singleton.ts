@@ -241,8 +241,9 @@ export async function getQuestionParseClient(): Promise<QuestionParseClient> {
 export async function getPoolQuestionService(): Promise<PoolQuestionService> {
   if (!poolQuestionService) {
     const db = await getDatabase();
+    const changeLogService = await getQuestionChangeLogService();
     poolQuestionService = tracedService(
-      new PoolQuestionService(db),
+      new PoolQuestionService(db, changeLogService),
       "poolQuestion",
     );
   }

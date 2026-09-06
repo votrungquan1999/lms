@@ -70,7 +70,10 @@ function makeServices(db: Db): TestServices {
     () => Promise.resolve(answerService),
   );
   const questionPoolService = new QuestionPoolService(db);
-  const poolQuestionService = new PoolQuestionService(db);
+  const poolQuestionService = new PoolQuestionService(
+    db,
+    questionChangeLogService,
+  );
   const testService = new TestService(db);
   const testStartService = new TestStartService(db);
   answerService = new AnswerService(

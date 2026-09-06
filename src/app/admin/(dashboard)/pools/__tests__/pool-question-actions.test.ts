@@ -1,3 +1,5 @@
+import type { Db } from "mongodb";
+import type { PoolQuestionDocument } from "src/lib/pool-question-service";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -15,10 +17,17 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
-import { addPoolQuestionAction } from "../pool-question-actions";
+import {
+  addPoolQuestionAction,
+  deletePoolQuestionAction,
+  updatePoolQuestionAction,
+} from "../pool-question-actions";
+
+let db: Db;
 
 beforeEach(async () => {
-  await setupTestDb();
+  const setup = await setupTestDb();
+  db = setup.db;
   requireAdminSession.mockResolvedValue({ userId: "admin-1", role: "admin" });
 });
 
@@ -151,5 +160,165 @@ describe("addPoolQuestionAction", () => {
     expect(
       await getTestServices().poolQuestionService.listPoolQuestions("pool-1"),
     ).toHaveLength(0);
+  });
+});
+
+/** Builds the FormData a pool question edit panel submits. */
+function buildUpdatePoolQuestionFormData(
+  poolQuestionId: string,
+  fields: Record<string, string>,
+): FormData {
+  const form = new FormData();
+  form.set("poolQuestionId", poolQuestionId);
+  form.set("poolId", "pool-1");
+  for (const [key, value] of Object.entries(fields)) {
+    form.set(key, value);
+  }
+  return form;
+}
+
+describe("updatePoolQuestionAction (Step 30)", () => {
+  it("persists a corrected title and content", async () => {
+    const question =
+      await getTestServices().poolQuestionService.addPoolQuestion("pool-1", {
+        title: "Explain recursion",
+        content: "Describe a base case.",
+        createdBy: "admin-1",
+      });
+
+    const result = await updatePoolQuestionAction(
+      null,
+      buildUpdatePoolQuestionFormData(question.id, {
+        title: "Explain recursion (revised)",
+        content: "Two sentences.",
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    const [updated] =
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1");
+    expect(updated.title).toBe("Explain recursion (revised)");
+    expect(updated.content).toBe("Two sentences.");
+
+    // D51: the production wiring must actually log pool edits — the two
+    // service-level logging tests construct their own service WITH a log,
+    // which never exercises this action's real singleton wiring.
+    const changeLogRow = await db
+      .collection("questionChangeLog")
+      .findOne({ questionId: question.id });
+    expect(changeLogRow).toMatchObject({
+      poolId: "pool-1",
+      testId: null,
+      action: "update",
+    });
+  });
+
+  it("stores no options when switching a pool question into free_text, even though the FormData still carries an options payload (D54)", async () => {
+    const question =
+      await getTestServices().poolQuestionService.addPoolQuestion("pool-1", {
+        type: "single_select",
+        title: "Capital of France",
+        content: "Pick one",
+        createdBy: "admin-1",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "Berlin", isCorrect: false },
+        ],
+      });
+
+    const result = await updatePoolQuestionAction(
+      null,
+      buildUpdatePoolQuestionFormData(question.id, {
+        type: "free_text",
+        options: JSON.stringify([
+          { text: "Paris", isCorrect: true },
+          { text: "Berlin", isCorrect: false },
+        ]),
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    const doc = await db
+      .collection<PoolQuestionDocument>("pool_question")
+      .findOne({ id: question.id });
+    expect(doc?.type).toBe("free_text");
+    expect(doc?.options).toBeNull();
+  });
+
+  it("refuses a non-admin caller and persists nothing", async () => {
+    const question =
+      await getTestServices().poolQuestionService.addPoolQuestion("pool-1", {
+        title: "Explain recursion",
+        content: "Describe a base case.",
+        createdBy: "admin-1",
+      });
+    requireAdminSession.mockRejectedValueOnce(new Error("forbidden"));
+
+    const result = await updatePoolQuestionAction(
+      null,
+      buildUpdatePoolQuestionFormData(question.id, {
+        title: "Sneaky rewrite",
+      }),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Unauthorized: admin access required");
+    const [unchanged] =
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1");
+    expect(unchanged.title).toBe("Explain recursion");
+  });
+});
+
+describe("deletePoolQuestionAction (Step 30)", () => {
+  it("soft-deletes the pool question so it no longer appears in the pool", async () => {
+    const question =
+      await getTestServices().poolQuestionService.addPoolQuestion("pool-1", {
+        title: "Explain recursion",
+        content: "Describe a base case.",
+        createdBy: "admin-1",
+      });
+
+    const form = new FormData();
+    form.set("poolQuestionId", question.id);
+    form.set("poolId", "pool-1");
+
+    const result = await deletePoolQuestionAction(null, form);
+
+    expect(result.success).toBe(true);
+    expect(
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1"),
+    ).toHaveLength(0);
+
+    // D51: the production wiring must actually log pool deletes.
+    const changeLogRow = await db
+      .collection("questionChangeLog")
+      .findOne({ questionId: question.id });
+    expect(changeLogRow).toMatchObject({
+      poolId: "pool-1",
+      testId: null,
+      action: "delete",
+    });
+  });
+
+  it("refuses a non-admin caller and persists nothing", async () => {
+    const question =
+      await getTestServices().poolQuestionService.addPoolQuestion("pool-1", {
+        title: "Explain recursion",
+        content: "Describe a base case.",
+        createdBy: "admin-1",
+      });
+    requireAdminSession.mockRejectedValueOnce(new Error("forbidden"));
+
+    const form = new FormData();
+    form.set("poolQuestionId", question.id);
+    form.set("poolId", "pool-1");
+
+    const result = await deletePoolQuestionAction(null, form);
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Unauthorized: admin access required");
+    expect(
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1"),
+    ).toHaveLength(1);
   });
 });

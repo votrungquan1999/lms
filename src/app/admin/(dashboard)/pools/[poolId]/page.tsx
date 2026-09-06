@@ -11,6 +11,10 @@ import {
   getQuestionPoolService,
 } from "src/lib/services-singleton";
 import { AddPoolQuestionForm } from "./add-pool-question-form";
+import {
+  DeletePoolQuestionButton,
+  PoolQuestionEditPanel,
+} from "./pool-question-edit.state";
 
 const TYPE_LABELS: Record<string, string> = {
   free_text: "Free Text",
@@ -54,19 +58,26 @@ export default async function PoolDetailPage({
             <Card key={question.id}>
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center justify-between text-base">
-                  <span>{question.title}</span>
-                  <Badge variant="outline">
-                    {TYPE_LABELS[question.type] ?? question.type}
-                  </Badge>
+                  <span className="flex items-center gap-2">
+                    {question.title}
+                    <Badge variant="outline">
+                      {TYPE_LABELS[question.type] ?? question.type}
+                    </Badge>
+                  </span>
+                  <DeletePoolQuestionButton
+                    poolQuestionId={question.id}
+                    poolId={poolId}
+                  />
                 </CardTitle>
               </CardHeader>
-              {question.content && (
-                <CardContent>
+              <CardContent className="space-y-3">
+                {question.content && (
                   <p className="text-sm text-muted-foreground line-clamp-3">
                     {question.content}
                   </p>
-                </CardContent>
-              )}
+                )}
+                <PoolQuestionEditPanel question={question} poolId={poolId} />
+              </CardContent>
             </Card>
           ))}
         </div>
