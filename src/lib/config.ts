@@ -40,6 +40,12 @@ export interface AppConfig {
   adminEmails: string[];
   /** Trusted origins for Better Auth CORS. */
   trustedOrigins: string[];
+  /**
+   * Whether `proxy.ts` lets a direct POST to the sign-up endpoint through.
+   * Closed by default (BUG-1 boundary closure) — only the `dev:e2e` script
+   * opens it, since `e2e/auth.setup.ts` bootstraps its admin that way.
+   */
+  allowPublicSignUp: boolean;
 }
 
 /**
@@ -112,5 +118,17 @@ export function loadConfig(): AppConfig {
       .split(",")
       .map((e) => e.trim())
       .filter(Boolean),
+    allowPublicSignUp: isPublicSignUpAllowed(),
   };
+}
+
+/**
+ * Whether `proxy.ts` lets a direct POST to the sign-up endpoint through.
+ * Reads ALLOW_PUBLIC_SIGNUP directly, skipping loadConfig()'s validators —
+ * proxy.ts runs on the middleware edge runtime and calling loadConfig() there
+ * would throw on any unrelated missing var (Google/S3/CloudFront) and pull
+ * those secrets into the middleware bundle for no reason.
+ */
+export function isPublicSignUpAllowed(): boolean {
+  return process.env.ALLOW_PUBLIC_SIGNUP === "true";
 }

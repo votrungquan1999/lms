@@ -40,6 +40,7 @@ const testConfig: AppConfig = {
   },
   adminEmails: [],
   trustedOrigins: [],
+  allowPublicSignUp: false,
 };
 
 // Controllable admin gate, re-created each test.

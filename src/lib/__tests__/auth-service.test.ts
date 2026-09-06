@@ -48,6 +48,7 @@ const testConfig: AppConfig = {
   },
   adminEmails: [],
   trustedOrigins: [],
+  allowPublicSignUp: false,
 };
 
 describe("Feature: Auth Service", () => {

@@ -47,6 +47,7 @@ const testConfig: AppConfig = {
   },
   adminEmails: [],
   trustedOrigins: [],
+  allowPublicSignUp: false,
 };
 
 describe("Feature: a signup request cannot grant itself the admin role", () => {
