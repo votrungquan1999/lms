@@ -1,4 +1,4 @@
-import type { Db, ObjectId } from "mongodb";
+import { type Db, ObjectId } from "mongodb";
 import { Role } from "./session";
 
 /** Raw better-auth `user` collection shape this service reads and writes. */
@@ -65,5 +65,22 @@ export class UserRoleService {
       totalCount,
       limit: USER_LIST_LIMIT,
     };
+  }
+
+  /**
+   * Records a new role for one person. The server action re-checks Tier 2
+   * and the self-demotion rule before calling this — this method trusts its
+   * caller and just writes. Throws if `userId` no longer matches an
+   * existing account, so a stale form submission cannot report a grant that
+   * never wrote anything.
+   */
+  async setRole(userId: string, role: Role): Promise<void> {
+    const result = await this.db
+      .collection<UserDocument>("user")
+      .updateOne({ _id: new ObjectId(userId) }, { $set: { role } });
+
+    if (result.matchedCount === 0) {
+      throw new Error("That account no longer exists.");
+    }
   }
 }

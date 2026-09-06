@@ -7,6 +7,7 @@ import {
 } from "src/components/ui/card";
 import { getPageGuard, getUserRoleService } from "src/lib/services-singleton";
 import { Role } from "src/lib/session";
+import { RoleActionButtons } from "./role-action-buttons";
 import type { UserRoleRow } from "./user-roles-page.type";
 
 export const metadata = {
@@ -55,11 +56,16 @@ export default async function UserRolesPage() {
                 <CardTitle className="text-base">{row.name}</CardTitle>
                 <CardDescription>{row.email}</CardDescription>
               </div>
-              <Badge
-                variant={row.role === Role.Admin ? "default" : "secondary"}
-              >
-                {row.role === Role.Admin ? "Admin" : "Student"}
-              </Badge>
+              <div className="flex items-center gap-3">
+                <Badge
+                  variant={row.role === Role.Admin ? "default" : "secondary"}
+                >
+                  {row.role === Role.Admin ? "Admin" : "Student"}
+                </Badge>
+                {row.role === Role.Student && (
+                  <RoleActionButtons userId={row.id} />
+                )}
+              </div>
             </CardHeader>
           </Card>
         ))}
