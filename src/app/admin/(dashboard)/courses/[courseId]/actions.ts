@@ -146,6 +146,60 @@ export async function getInviteLinkAction(
   }
 }
 
+/**
+ * Server action: issues a fresh join-link token for the course, replacing
+ * any existing one — the previous link stops resolving. Never logs or spans
+ * the token itself.
+ */
+export async function regenerateInviteLinkAction(
+  _prevState: InviteLinkState | null,
+  formData: FormData,
+): Promise<InviteLinkState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  try {
+    await authService.requireAdminSession(requestHeaders);
+  } catch {
+    return {
+      success: false,
+      message: "Unauthorized: admin access required",
+    };
+  }
+
+  const parsed = inviteLinkCourseSchema.safeParse({
+    courseId: formData.get("courseId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: parsed.error.issues[0].message,
+    };
+  }
+
+  try {
+    return await withSpan(
+      "action.regenerateInviteLinkAction",
+      {
+        "lms.action.name": "regenerateInviteLinkAction",
+        "lms.course.id": parsed.data.courseId,
+      },
+      async () => {
+        const courseService = await getCourseService();
+        await courseService.regenerateInviteToken(parsed.data.courseId);
+        revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        return { success: true, message: "New join link issued" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to issue new join link";
+    return { success: false, message };
+  }
+}
+
 const createTestSchema = z.object({
   courseId: z.string().min(1, "Course ID is missing"),
   title: z.string().trim().min(1, "Test title is required"),

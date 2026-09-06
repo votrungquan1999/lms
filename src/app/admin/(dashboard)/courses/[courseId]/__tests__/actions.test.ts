@@ -16,7 +16,7 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
-import { getInviteLinkAction } from "../actions";
+import { getInviteLinkAction, regenerateInviteLinkAction } from "../actions";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -103,6 +103,80 @@ describe("Feature: an admin gets a shareable join link for a course", () => {
 
     // When the admin asks for the join link
     await getInviteLinkAction(null, formData);
+
+    // Then the course page is revalidated so the new link actually shows
+    expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${course.id}`);
+  });
+});
+
+/**
+ * Feature: an admin issues a fresh join link, and the previous one stops working
+ * As an admin
+ * I want to replace a course's join link
+ * So that anyone still holding the old link can no longer use it
+ */
+describe("Feature: an admin issues a fresh join link, and the previous one stops working", () => {
+  it("replaces the stored token with a new one, discarding the old", async () => {
+    // Given a course with an existing join link
+    const { courseService } = getTestServices();
+    const course = await courseService.createCourse({
+      title: "Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const oldToken = await courseService.getOrCreateInviteToken(course.id);
+
+    const formData = new FormData();
+    formData.set("courseId", course.id);
+
+    // When the admin issues a fresh link
+    const result = await regenerateInviteLinkAction(null, formData);
+
+    // Then a new, different token is minted and persisted
+    expect(result.success).toBe(true);
+    const persisted = await courseService.getCourse(course.id);
+    expect(persisted?.inviteToken).toMatch(UUID_PATTERN);
+    expect(persisted?.inviteToken).not.toBe(oldToken);
+  });
+
+  it("rejects a non-admin caller and leaves the stored token unchanged", async () => {
+    // Given a course with an existing join link
+    const { courseService } = getTestServices();
+    const course = await courseService.createCourse({
+      title: "Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const oldToken = await courseService.getOrCreateInviteToken(course.id);
+
+    const formData = new FormData();
+    formData.set("courseId", course.id);
+
+    // When a non-admin caller attempts to issue a fresh link
+    requireAdminSession.mockRejectedValueOnce(new Error("not admin"));
+    const result = await regenerateInviteLinkAction(null, formData);
+
+    // Then it is rejected and the old token is still the one stored
+    expect(result.success).toBe(false);
+    const persisted = await courseService.getCourse(course.id);
+    expect(persisted?.inviteToken).toBe(oldToken);
+  });
+
+  it("revalidates the course page after issuing a new token", async () => {
+    // Given a course with an existing join link
+    const { courseService } = getTestServices();
+    const course = await courseService.createCourse({
+      title: "Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    await courseService.getOrCreateInviteToken(course.id);
+
+    const formData = new FormData();
+    formData.set("courseId", course.id);
+
+    // When the admin issues a fresh link
+    await regenerateInviteLinkAction(null, formData);
 
     // Then the course page is revalidated so the new link actually shows
     expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${course.id}`);

@@ -224,4 +224,23 @@ export class CourseService {
     );
     return token;
   }
+
+  /**
+   * Replaces a course's join-link token with a brand new one, discarding
+   * whatever was there before — the previous link stops resolving to this
+   * course immediately. Safe to call even if no token existed yet.
+   * @param courseId - The course to issue a fresh join link for.
+   * @throws If the course does not exist.
+   */
+  async regenerateInviteToken(courseId: string): Promise<string> {
+    const token = crypto.randomUUID();
+    const result = await this.courses.updateOne(
+      { id: courseId },
+      { $set: { inviteToken: token } },
+    );
+    if (result.matchedCount === 0) {
+      throw new Error("Course not found");
+    }
+    return token;
+  }
 }

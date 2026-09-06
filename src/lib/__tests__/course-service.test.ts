@@ -77,3 +77,25 @@ describe("Feature: Course materials", () => {
     },
   );
 });
+
+/**
+ * Feature: an admin issues a fresh join link, and the previous one stops working
+ * As an admin
+ * I want issuing a fresh link for a gone course to fail loudly
+ * So that I'm never handed a token that was never persisted anywhere
+ */
+describe("Feature: an admin issues a fresh join link, and the previous one stops working", () => {
+  dbIt(
+    "throws instead of minting an orphaned token for a nonexistent course",
+    async ({ db }) => {
+      // Given no course exists with this ID
+      const courseService = new CourseService(db);
+
+      // When issuing a fresh join link for it
+      // Then it throws rather than silently minting a token nobody can use
+      await expect(
+        courseService.regenerateInviteToken("nonexistent-course-id"),
+      ).rejects.toThrow("Course not found");
+    },
+  );
+});
