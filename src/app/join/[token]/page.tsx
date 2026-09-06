@@ -10,9 +10,11 @@ import {
   getCourseService,
   getStudentService,
 } from "src/lib/services-singleton";
+import { isStudentSession } from "src/lib/session";
 import { GoogleJoinButton } from "./google-join-button";
 import { GoogleUsernameForm } from "./google-username-form";
 import { InvalidInviteCard, ValidInviteCard } from "./join-page.ui";
+import { RequestToJoinForm } from "./request-to-join-form";
 import { SelfSignupForm } from "./self-signup-form";
 
 export const metadata = {
@@ -44,6 +46,26 @@ export default async function JoinPage({
     );
   }
 
+  const authService = await getAuthService();
+  const requestHeaders = await headers();
+
+  // Step 25: a student who ALREADY has an account (e.g. one whose
+  // self-registration crashed after the account write but before the
+  // join-request write — D47) gets a signed-in path to ask in, instead of
+  // being shown a registration form for a username that's already taken. An
+  // admin session falls through unaffected — this only branches on a
+  // recorded STUDENT.
+  const session = await authService.getSession(requestHeaders);
+  if (session && isStudentSession(session)) {
+    return (
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <ValidInviteCard title={course.title}>
+          <RequestToJoinForm token={token} />
+        </ValidInviteCard>
+      </main>
+    );
+  }
+
   // M1: opening this link alone must never write anything — reachable with
   // no click at all (tab restore, back/forward, a URL handler, a future
   // prefetching <Link>). The ?google=1 marker GoogleJoinButton sets is the
@@ -62,10 +84,8 @@ export default async function JoinPage({
     // getSession() from ever surfacing that half-classified state to the
     // browser (see the assignment's half-authenticated-caller note). An
     // already signed-in admin or student never reaches this branch at all.
-    const authService = await getAuthService();
-    const googleIdentity = await authService.resolveUnclassifiedIdentity(
-      await headers(),
-    );
+    const googleIdentity =
+      await authService.resolveUnclassifiedIdentity(requestHeaders);
 
     if (googleIdentity) {
       const [studentService, courseJoinRequestService] = await Promise.all([

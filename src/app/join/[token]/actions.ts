@@ -59,6 +59,15 @@ export interface GoogleUsernameSignupState {
   message: string;
 }
 
+export interface RequestToJoinState {
+  success: boolean;
+  message: string;
+}
+
+const requestToJoinSchema = z.object({
+  token: z.string().min(1, "Invalid invite link"),
+});
+
 const INVALID_INVITE_MESSAGE =
   "This join link is no longer valid. Ask whoever shared it with you for a new one.";
 
@@ -234,6 +243,68 @@ export async function googleUsernameSignupAction(
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
     const message =
       error instanceof Error ? error.message : "Failed to create your account";
+    return { success: false, message };
+  }
+}
+
+/**
+ * Server action: lets an EXISTING, signed-in student ask to join a course
+ * from its invite link — the recovery path D47 calls a hard prerequisite for
+ * shipping this feature (a self-registration that crashed after the account
+ * write but before the join-request write otherwise has no way back in).
+ * Guarded on a STUDENT session, following the canonical 8-step skeleton at
+ * `courses/actions.ts:23-69` with the guard swapped for a student's own.
+ */
+export async function requestToJoinAction(
+  _prevState: RequestToJoinState | null,
+  formData: FormData,
+): Promise<RequestToJoinState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let studentId: string;
+  try {
+    const session = await authService.requireStudentSession(requestHeaders);
+    studentId = session.studentId;
+  } catch {
+    return { success: false, message: "Unauthorized: student access required" };
+  }
+
+  const parsed = requestToJoinSchema.safeParse({
+    token: formData.get("token"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+
+  try {
+    return await withSpan(
+      "action.requestToJoinAction",
+      { "lms.action.name": "requestToJoinAction" }, // never the token itself (D41)
+      async () => {
+        const courseService = await getCourseService();
+        const course = await courseService.findByInviteToken(parsed.data.token);
+        if (!course) {
+          return { success: false, message: INVALID_INVITE_MESSAGE };
+        }
+
+        const joinRequestService = await getCourseJoinRequestService();
+        await joinRequestService.createRequest({
+          courseId: course.id,
+          studentId,
+        });
+
+        return {
+          success: true,
+          message: `Your request to join "${course.title}" is now waiting for admin approval.`,
+        };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to submit your request";
     return { success: false, message };
   }
 }

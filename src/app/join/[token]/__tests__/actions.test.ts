@@ -2,6 +2,7 @@ import type { Db } from "mongodb";
 import { type AuthService, createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
 import { JoinRequestStatus } from "src/lib/course-join-request-service";
+import { StudentSession } from "src/lib/session";
 import { StudentService } from "src/lib/student-service";
 import {
   getTestServices,
@@ -25,7 +26,11 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
-import { googleUsernameSignupAction, joinSignupAction } from "../actions";
+import {
+  googleUsernameSignupAction,
+  joinSignupAction,
+  requestToJoinAction,
+} from "../actions";
 
 // The synthetic email a self-registrant with username "ada" would get is
 // pre-listed here on purpose — proves the ADMIN_EMAILS list alone can never
@@ -312,5 +317,107 @@ describe("Feature: a Google signup whose derived username needed a choice can fi
       studentDoc?.id ?? "",
     );
     expect(pending).not.toBeNull();
+  });
+});
+
+/**
+ * Feature: a student who already has an account can open the invite link and
+ * ask to join without registering again
+ * As an existing student (e.g. one whose self-registration crashed between
+ * the account write and the join-request write — D47)
+ * I want a signed-in path to request to join
+ * So that I am never stuck holding a working account with no way to ask in
+ */
+describe("Feature: a student who already has an account can open the invite link and ask to join without registering again", () => {
+  it("files a pending request for the SIGNED-IN student's existing account, without creating a second one", async () => {
+    // Given a course with a live join link, and an existing student account
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    const student = await (
+      authHolder.authService as AuthService
+    ).registerStudent({
+      name: "Returning Student",
+      username: "returning-student",
+      password: "correct-horse-1",
+      createdBy: "self-signup",
+    });
+
+    // And they are signed in as that student — the guard resolves whoever
+    // holds the session cookie, never a client-supplied id (D41's rule
+    // applied to identity, not just courseId)
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "requireStudentSession",
+    ).mockResolvedValue(
+      new StudentSession({
+        userId: "auth-user-1",
+        username: student.username,
+        studentId: student.id,
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+
+    // When they submit the request-to-join action
+    const result = await requestToJoinAction(null, formData);
+
+    // Then a pending request exists for their EXISTING student id
+    expect(result.success).toBe(true);
+    const pending = await services.courseJoinRequestService.getPendingRequest(
+      course.id,
+      student.id,
+    );
+    expect(pending).not.toBeNull();
+
+    // And no second account was created
+    const students = await services.studentService.listStudents();
+    expect(students).toHaveLength(1);
+  });
+});
+
+/**
+ * Feature: only a signed-in student can request to join a course
+ * As the school
+ * I want a caller with no session (or one that isn't a student's) refused
+ * before any course or join-request lookup happens
+ * So that the request-to-join action can never be driven by an anonymous caller
+ */
+describe("Feature: only a signed-in student can request to join a course", () => {
+  it("refuses an unauthenticated caller and writes no join request", async () => {
+    // Given a course with a live join link, and no signed-in session at all
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+
+    // When an unauthenticated caller submits the request-to-join action
+    const result = await requestToJoinAction(null, formData);
+
+    // Then they are refused by the auth guard, never reaching the course lookup
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Unauthorized: student access required");
+
+    // And no join request row was written for this course
+    expect(
+      await db
+        .collection("course_join_request")
+        .countDocuments({ courseId: course.id }),
+    ).toBe(0);
   });
 });

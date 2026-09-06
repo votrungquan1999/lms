@@ -2,6 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import type { Db } from "mongodb";
 import type { ReactElement } from "react";
+import { StudentSession } from "src/lib/session";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -14,19 +15,23 @@ import JoinPage from "../page";
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
-// This page now also resolves the caller's identity (Step 22) before
-// rendering. Defaulted to null (no valid session) so these pre-existing
-// scenarios — none of which are about Google — keep seeing the plain
-// signed-out invite card, unaffected by the new call.
+// This page now also resolves the caller's identity (Step 22) and, since
+// Step 25, their classified session before rendering. Both default to null
+// (no valid session) so these pre-existing scenarios — none of which are
+// about Google or an existing student — keep seeing the plain signed-out
+// invite card, unaffected by the new calls.
 const mockResolveUnclassifiedIdentity = vi.fn();
+const mockGetSession = vi.fn();
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({
     resolveUnclassifiedIdentity: mockResolveUnclassifiedIdentity,
+    getSession: mockGetSession,
   })),
 }));
 
 beforeEach(() => {
   mockResolveUnclassifiedIdentity.mockResolvedValue(null);
+  mockGetSession.mockResolvedValue(null);
 });
 
 /**
@@ -272,5 +277,56 @@ describe("Feature: the invite page is the sole trigger that provisions a Google 
       student?.id ?? "",
     );
     expect(pending).not.toBeNull();
+  });
+});
+
+/**
+ * Feature: a student who already has an account is offered the request-to-
+ * join path, not the registration form, when opening a valid invite link
+ * As an existing, signed-in student
+ * I want the invite page to recognize my account
+ * So that I am never shown a signup form for a username I already hold
+ */
+describe("Feature: a signed-in student opening a valid invite link is offered to request-to-join, not to register again", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("renders the request-to-join form instead of the self-signup form for a signed-in student", async () => {
+    // Given a course with a live join link, and a caller holding a recorded
+    // STUDENT session
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    mockGetSession.mockResolvedValue(
+      new StudentSession({
+        userId: "auth-user-1",
+        username: "returning-student",
+        studentId: "student-1",
+      }),
+    );
+
+    // When the signed-in student opens the invite link
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({}),
+    });
+    render(ui);
+
+    // Then they see the request-to-join path, not the registration form
+    expect(
+      screen.getByRole("button", { name: "Request to Join" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
   });
 });
