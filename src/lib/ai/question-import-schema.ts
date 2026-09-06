@@ -15,8 +15,10 @@ export const questionImportItemSchema = z.object({
   content: z.string().min(1),
   type: z.enum(["free_text", "single_select", "multi_select"]),
   options: z.array(questionImportOptionSchema).optional(),
-  referenceAnswer: z.string().optional(),
-  explanation: z.string().optional(),
+  // Same shape as aiGradeItemSchema.solution: optional, but .min(1) so the
+  // model must OMIT the key when the source has nothing, never emit "".
+  referenceAnswer: z.string().min(1).max(4000).optional(),
+  explanation: z.string().min(1).max(4000).optional(),
 });
 
 /**
