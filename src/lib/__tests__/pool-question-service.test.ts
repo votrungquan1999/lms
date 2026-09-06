@@ -1,4 +1,5 @@
 import {
+  type PoolFreeTextQuestion,
   PoolQuestionService,
   type PoolSingleSelectQuestion,
 } from "src/lib/pool-question-service";
@@ -81,6 +82,39 @@ describe("PoolQuestionService", () => {
       expect(snapshot.explanation).toBe(
         "Paris has been the capital since the 12th century.",
       );
+    },
+  );
+
+  dbIt(
+    "persists and reads back an answerRevealMode override on a free_text pool question via both listPoolQuestions and listSnapshotInputs, leaving it absent when omitted",
+    async ({ db }) => {
+      const service = new PoolQuestionService(db);
+
+      await service.addPoolQuestion("pool-1", {
+        title: "Explain photosynthesis",
+        content: "Write a short paragraph.",
+        createdBy: "admin-1",
+        answerRevealMode: "plain",
+      });
+      await service.addPoolQuestion("pool-1", {
+        title: "Explain gravity",
+        content: "Write a short paragraph.",
+        createdBy: "admin-1",
+      });
+
+      const [withOverride, withoutOverride] = (await service.listPoolQuestions(
+        "pool-1",
+      )) as PoolFreeTextQuestion[];
+      const [snapWith, snapWithout] =
+        await service.listSnapshotInputs("pool-1");
+
+      expect(withOverride.answerRevealMode).toBe("plain");
+      expect(withoutOverride.answerRevealMode).toBeUndefined();
+      // listSnapshotInputs is the sole production bridge into composeFromPools —
+      // a missed field here is invisible to any test that only reads via
+      // listPoolQuestions above.
+      expect(snapWith.answerRevealMode).toBe("plain");
+      expect(snapWithout.answerRevealMode).toBeNull();
     },
   );
 

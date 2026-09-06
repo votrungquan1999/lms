@@ -386,7 +386,7 @@ export class QuestionService {
       mcGradingStrategy: item.mcGradingStrategy,
       explanation: item.explanation,
       referenceAnswer: item.referenceAnswer,
-      answerRevealMode: null, // TODO(step 5): copy from the pool snapshot
+      answerRevealMode: item.answerRevealMode,
       // Media keys are copied verbatim — shared S3 objects, read-only.
       media: item.media.map((m) => ({ ...m })),
     }));

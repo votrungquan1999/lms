@@ -8,6 +8,7 @@ import type {
   QuestionMediaInput,
   QuestionType,
 } from "src/lib/question-service";
+import type { AnswerRevealMode } from "src/lib/test-service";
 
 // ── Client-facing discriminated union for a pool question ────────────────────
 
@@ -30,6 +31,8 @@ export interface PoolFreeTextQuestion extends BasePoolQuestion {
   referenceAnswer?: string;
   /** Optional teacher note shown to the student once the answer is revealed. */
   explanation?: string;
+  /** Overrides the test's answerRevealMode once composed; absent means inherit the test. */
+  answerRevealMode?: AnswerRevealMode;
 }
 
 export interface PoolSingleSelectQuestion extends BasePoolQuestion {
@@ -68,6 +71,8 @@ export interface AddPoolFreeTextQuestionInput extends BaseAddPoolQuestionInput {
   type?: "free_text";
   referenceAnswer?: string;
   explanation?: string;
+  /** Overrides the test's answerRevealMode once composed; absent means inherit the test. */
+  answerRevealMode?: AnswerRevealMode;
 }
 
 export interface AddPoolSingleSelectQuestionInput
@@ -115,6 +120,8 @@ export interface PoolQuestionDocument {
   explanation: string | null;
   /** Authored model answer for a free_text question, surfaced in practice-mode reveal. */
   referenceAnswer: string | null;
+  /** Per-question override of the test's answerRevealMode once composed; null means inherit. */
+  answerRevealMode: AnswerRevealMode | null;
   media: QuestionMediaDocument[];
 }
 
@@ -176,6 +183,8 @@ export class PoolQuestionService {
       explanation: "explanation" in input ? (input.explanation ?? null) : null,
       referenceAnswer:
         "referenceAnswer" in input ? (input.referenceAnswer ?? null) : null,
+      answerRevealMode:
+        "answerRevealMode" in input ? (input.answerRevealMode ?? null) : null,
       media: input.media ?? [],
     };
 
@@ -219,6 +228,7 @@ export class PoolQuestionService {
       mcGradingStrategy: doc.mcGradingStrategy,
       explanation: doc.explanation,
       referenceAnswer: doc.referenceAnswer,
+      answerRevealMode: doc.answerRevealMode,
       media: (doc.media ?? []).map((m) => ({
         key: m.key,
         contentType: m.contentType,
@@ -317,6 +327,8 @@ export class PoolQuestionService {
       type: "free_text",
       referenceAnswer: doc.referenceAnswer ?? undefined,
       explanation: doc.explanation ?? undefined,
+      // Never a concrete default (D2/D9): absent means "inherit the test".
+      answerRevealMode: doc.answerRevealMode ?? undefined,
     } satisfies PoolFreeTextQuestion;
   }
 }

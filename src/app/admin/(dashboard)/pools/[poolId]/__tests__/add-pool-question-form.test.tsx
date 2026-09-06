@@ -70,4 +70,58 @@ describe("Feature: Add Pool Question Form", () => {
       await screen.findByText("Question added to pool"),
     ).toBeInTheDocument();
   });
+
+  it("submits the picked answer-reveal choice, and omits it when left untouched", async () => {
+    const user = userEvent.setup();
+    vi.mocked(addPoolQuestionAction).mockClear();
+    vi.mocked(addPoolQuestionAction).mockResolvedValue({
+      success: true,
+      message: "Question added to pool",
+    });
+    render(<AddPoolQuestionForm poolId="pool-1" />);
+
+    await user.type(screen.getByLabelText("Question Title"), "Closures");
+    await user.click(
+      screen.getByRole("radio", { name: /write out the correct answer/i }),
+    );
+    await user.click(screen.getByRole("button", { name: "Add Question" }));
+
+    expect(
+      await screen.findByText("Question added to pool"),
+    ).toBeInTheDocument();
+    const submittedForm = vi.mocked(addPoolQuestionAction).mock
+      .calls[0][1] as FormData;
+    expect(submittedForm.get("answerRevealMode")).toBe("plain");
+  });
+
+  it("omits the answer-reveal field entirely when the control is left untouched", async () => {
+    const user = userEvent.setup();
+    vi.mocked(addPoolQuestionAction).mockClear();
+    vi.mocked(addPoolQuestionAction).mockResolvedValue({
+      success: true,
+      message: "Question added to pool",
+    });
+    render(<AddPoolQuestionForm poolId="pool-1" />);
+
+    await user.type(screen.getByLabelText("Question Title"), "Closures");
+    await user.click(screen.getByRole("button", { name: "Add Question" }));
+
+    expect(
+      await screen.findByText("Question added to pool"),
+    ).toBeInTheDocument();
+    const submittedForm = vi.mocked(addPoolQuestionAction).mock
+      .calls[0][1] as FormData;
+    expect(submittedForm.get("answerRevealMode")).toBeNull();
+  });
+
+  it("hides the answer-reveal control once the question type is no longer free_text", async () => {
+    const user = userEvent.setup();
+    render(<AddPoolQuestionForm poolId="pool-1" />);
+
+    await user.click(screen.getByRole("button", { name: /single select/i }));
+
+    expect(
+      screen.queryByRole("radio", { name: /write out the correct answer/i }),
+    ).not.toBeInTheDocument();
+  });
 });

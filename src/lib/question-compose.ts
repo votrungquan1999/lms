@@ -4,6 +4,7 @@ import type {
   QuestionMediaInput,
   QuestionType,
 } from "src/lib/question-service";
+import type { AnswerRevealMode } from "src/lib/test-service";
 
 /**
  * A single pool question's full field set, pre-fetched by the caller so
@@ -22,6 +23,8 @@ export interface PoolQuestionSnapshotInput {
   explanation: string | null;
   /** Authored model answer for a free_text question, surfaced in practice-mode reveal. */
   referenceAnswer: string | null;
+  /** Per-question override of the test's answerRevealMode; null means inherit the test. */
+  answerRevealMode: AnswerRevealMode | null;
   media: QuestionMediaInput[];
 }
 

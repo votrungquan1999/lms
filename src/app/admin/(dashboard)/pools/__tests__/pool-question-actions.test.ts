@@ -105,6 +105,7 @@ describe("addPoolQuestionAction", () => {
     form.set("content", "Write a short paragraph.");
     form.set("referenceAnswer", "Plants convert light into chemical energy.");
     form.set("explanation", "Focus on the role of chlorophyll.");
+    form.set("answerRevealMode", "plain");
 
     const result = await addPoolQuestionAction(null, form);
 
@@ -116,6 +117,23 @@ describe("addPoolQuestionAction", () => {
       "Plants convert light into chemical energy.",
     );
     expect(question.explanation).toBe("Focus on the role of chlorophyll.");
+    expect(question.answerRevealMode).toBe("plain");
+  });
+
+  it("leaves a free_text pool question's answerRevealMode undefined when the field is omitted", async () => {
+    const form = new FormData();
+    form.set("type", "free_text");
+    form.set("poolId", "pool-1");
+    form.set("title", "Explain osmosis");
+    form.set("content", "Write a short paragraph.");
+
+    const result = await addPoolQuestionAction(null, form);
+
+    expect(result.success).toBe(true);
+    const [question] =
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1");
+    if (question.type !== "free_text") throw new Error("type narrow");
+    expect(question.answerRevealMode).toBeUndefined();
   });
 
   it("rejects a non-admin caller and stores nothing", async () => {

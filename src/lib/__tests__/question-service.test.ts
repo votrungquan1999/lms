@@ -1,3 +1,4 @@
+import { PoolQuestionService } from "src/lib/pool-question-service";
 import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
 import {
   type FreeTextQuestion,
@@ -415,6 +416,7 @@ describe("QuestionService - Integration Tests", () => {
                 mcGradingStrategy: "all_or_nothing",
                 explanation: null,
                 referenceAnswer: null,
+                answerRevealMode: null,
                 media: [
                   {
                     key: "pools/p1/diagram.png",
@@ -476,6 +478,7 @@ describe("QuestionService - Integration Tests", () => {
                 mcGradingStrategy: "all_or_nothing",
                 explanation: "A is correct because it is the capital.",
                 referenceAnswer: null,
+                answerRevealMode: null,
                 media: [],
               },
             ],
@@ -515,6 +518,7 @@ describe("QuestionService - Integration Tests", () => {
                 mcGradingStrategy: null,
                 explanation: null,
                 referenceAnswer: "The model answer from the pool.",
+                answerRevealMode: null,
                 media: [],
               },
             ],
@@ -529,6 +533,44 @@ describe("QuestionService - Integration Tests", () => {
       )) as FreeTextQuestion[];
 
       expect(composed.referenceAnswer).toBe("The model answer from the pool.");
+    },
+  );
+
+  dbIt(
+    "traces an answerRevealMode override end-to-end: authored on a pool question, composed into a test, readable on the composed question — while a pool question with no override composes as undefined",
+    async ({ db }) => {
+      const poolQuestionService = new PoolQuestionService(db);
+      const questionService = new QuestionService(db);
+
+      await poolQuestionService.addPoolQuestion("pool-1", {
+        title: "Pool question with override",
+        content: "explain",
+        createdBy: "admin-1",
+        answerRevealMode: "plain",
+      });
+      await poolQuestionService.addPoolQuestion("pool-1", {
+        title: "Pool question without override",
+        content: "explain",
+        createdBy: "admin-1",
+      });
+
+      // Real bridge, not a hand-built literal — proves listSnapshotInputs
+      // actually carries the field, not just that composeFromPools would copy
+      // it if given a correct snapshot.
+      const snapshots = await poolQuestionService.listSnapshotInputs("pool-1");
+
+      await questionService.composeFromPools(
+        "test-1",
+        [{ count: 2, questions: snapshots }],
+        "admin-1",
+        takeFirst,
+      );
+
+      const [withOverride, withoutOverride] =
+        (await questionService.listQuestions("test-1")) as FreeTextQuestion[];
+
+      expect(withOverride.answerRevealMode).toBe("plain");
+      expect(withoutOverride.answerRevealMode).toBeUndefined();
     },
   );
 
@@ -631,6 +673,7 @@ function freeTextSnapshot(title: string): PoolQuestionSnapshotInput {
     mcGradingStrategy: null,
     explanation: null,
     referenceAnswer: null,
+    answerRevealMode: null,
     media: [],
   };
 }
