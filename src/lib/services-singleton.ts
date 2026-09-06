@@ -1,4 +1,4 @@
-import { GeminiAiClient } from "./ai/ai-client";
+import { GeminiAiClient, type QuestionParseClient } from "./ai/ai-client";
 import { AiGradeService } from "./ai-grade-service";
 import { AnnotationService } from "./annotation-service";
 import { AnswerService } from "./answer-service";
@@ -41,6 +41,7 @@ let testFeedbackService: TestFeedbackService | null = null;
 let testStatusService: TestStatusService | null = null;
 let testSubmissionService: TestSubmissionService | null = null;
 let questionService: QuestionService | null = null;
+let questionParseClient: QuestionParseClient | null = null;
 let questionPoolService: QuestionPoolService | null = null;
 let poolQuestionService: PoolQuestionService | null = null;
 let s3StorageService: S3StorageService | null = null;
@@ -200,6 +201,18 @@ export async function getQuestionService(): Promise<QuestionService> {
     questionService = tracedService(new QuestionService(db), "question");
   }
   return questionService;
+}
+
+/**
+ * Returns the singleton `QuestionParseClient` wired against the live Gemini
+ * client. No database state, so unlike `getAiGradeService` there is no
+ * intervening domain service — the action layer calls this directly.
+ */
+export async function getQuestionParseClient(): Promise<QuestionParseClient> {
+  if (!questionParseClient) {
+    questionParseClient = new GeminiAiClient();
+  }
+  return questionParseClient;
 }
 
 export async function getPoolQuestionService(): Promise<PoolQuestionService> {

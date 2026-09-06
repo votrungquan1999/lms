@@ -86,6 +86,15 @@ export default async function TestDetailPage({
 
         <ImportQuestionsForm testId={testId} courseId={courseId} />
 
+        <div>
+          <Link
+            href={`/admin/courses/${courseId}/tests/${testId}/import-ai`}
+            className="inline-flex items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+          >
+            Import Questions with AI →
+          </Link>
+        </div>
+
         <ComposeFromPoolsForm
           testId={testId}
           courseId={courseId}

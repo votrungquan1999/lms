@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@react-pdf/renderer"],
   experimental: {
     authInterrupts: true,
+    // Default body limit (~1MB) is too tight for a long exam paper's
+    // extracted text sent to parseQuestionsAction (D41).
+    serverActions: {
+      bodySizeLimit: "2mb",
+    },
   },
 };
 

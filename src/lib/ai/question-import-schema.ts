@@ -1,0 +1,30 @@
+import { z } from "zod";
+
+const questionImportOptionSchema = z.object({
+  text: z.string().min(1),
+  isCorrect: z.boolean(),
+});
+
+/**
+ * Zod schema for one question the LLM extracted from an uploaded document.
+ * `type` excludes `image_answer` — there is no image for the model to grade
+ * against in a text document, so the AI never emits that type.
+ */
+export const questionImportItemSchema = z.object({
+  title: z.string().min(1),
+  content: z.string().min(1),
+  type: z.enum(["free_text", "single_select", "multi_select"]),
+  options: z.array(questionImportOptionSchema).optional(),
+  referenceAnswer: z.string().optional(),
+  explanation: z.string().optional(),
+});
+
+/**
+ * Zod schema for the LLM's batch output. Wrapped in a `{ questions: [...] }`
+ * object for the same reliability reason as `aiGradeBatchSchema`.
+ */
+export const questionImportBatchSchema = z.object({
+  questions: z.array(questionImportItemSchema),
+});
+
+export type QuestionImportItem = z.infer<typeof questionImportItemSchema>;

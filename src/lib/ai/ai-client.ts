@@ -2,6 +2,8 @@ import { google } from "@ai-sdk/google";
 import { generateText, Output } from "ai";
 import { buildGradingPrompt } from "src/lib/ai/grading-prompt";
 import { aiGradeBatchSchema } from "src/lib/ai/grading-schema";
+import { buildQuestionImportPrompt } from "src/lib/ai/question-import-prompt";
+import { questionImportBatchSchema } from "src/lib/ai/question-import-schema";
 import { withSpan } from "src/lib/observability/with-span";
 
 /**
@@ -73,6 +75,41 @@ export interface AiClient {
   ): Promise<AiGradeBatchOutput[]>;
 }
 
+/** One multiple-choice option extracted from a document by the LLM. */
+export interface ParsedQuestionOption {
+  text: string;
+  isCorrect: boolean;
+}
+
+/**
+ * One question the LLM extracted from an uploaded document's plain text.
+ * `options` is present only for `single_select` / `multi_select`.
+ * `referenceAnswer` / `explanation` are populated only when the source
+ * document actually contained them — the model never invents either.
+ */
+export interface ParsedQuestion {
+  title: string;
+  content: string;
+  type: "free_text" | "single_select" | "multi_select";
+  options?: ParsedQuestionOption[];
+  referenceAnswer?: string;
+  explanation?: string;
+}
+
+/**
+ * Pluggable seam for turning a document's extracted text into structured
+ * questions. Separate from `AiClient` so grading stubs (like `NoopAiClient`)
+ * never have to grow methods they have no business knowing about.
+ */
+export interface QuestionParseClient {
+  /**
+   * Extracts structured questions from a document's plain text.
+   * @param documentText - The full text extracted client-side from the upload.
+   * @returns One entry per question found, in document order.
+   */
+  parseQuestionsFromText(documentText: string): Promise<ParsedQuestion[]>;
+}
+
 /** Gemini model id used for the live grading path. */
 const GEMINI_MODEL_ID = "gemini-3.5-flash";
 
@@ -89,7 +126,7 @@ const GEMINI_MODEL_ID = "gemini-3.5-flash";
  * `@ai-sdk/google`. Tests inject a deterministic stub through `buildCoreServices`
  * so this implementation is never invoked in the test suite.
  */
-export class GeminiAiClient implements AiClient {
+export class GeminiAiClient implements AiClient, QuestionParseClient {
   /**
    * Grades one batch of free-text answers via the Gemini API.
    * @param items - One entry per candidate question.
@@ -139,6 +176,57 @@ export class GeminiAiClient implements AiClient {
           score: g.score,
           feedback: g.feedback,
           solution: g.solution,
+        }));
+      },
+    );
+  }
+
+  /**
+   * Extracts structured questions from a document's plain text via Gemini.
+   * @param documentText - The full text extracted client-side from the upload.
+   * @returns The parsed questions, in document order.
+   */
+  async parseQuestionsFromText(
+    documentText: string,
+  ): Promise<ParsedQuestion[]> {
+    return withSpan(
+      "gemini.parseQuestionsFromText",
+      {
+        "gen_ai.request.model": GEMINI_MODEL_ID,
+        "gen_ai.operation.name": "generate_content",
+        "lms.ai.document_text_length": documentText.length,
+      },
+      async (span) => {
+        const result = await generateText({
+          model: google(GEMINI_MODEL_ID),
+          output: Output.object({ schema: questionImportBatchSchema }),
+          prompt: buildQuestionImportPrompt(documentText),
+        });
+
+        if (result.usage.inputTokens !== undefined) {
+          span.setAttribute(
+            "gen_ai.usage.input_tokens",
+            result.usage.inputTokens,
+          );
+        }
+        if (result.usage.outputTokens !== undefined) {
+          span.setAttribute(
+            "gen_ai.usage.output_tokens",
+            result.usage.outputTokens,
+          );
+        }
+
+        const parsed = result.output;
+        if (!parsed) {
+          throw new Error("Gemini returned no parsed output");
+        }
+        return parsed.questions.map((q) => ({
+          title: q.title,
+          content: q.content,
+          type: q.type,
+          options: q.options,
+          referenceAnswer: q.referenceAnswer,
+          explanation: q.explanation,
         }));
       },
     );
