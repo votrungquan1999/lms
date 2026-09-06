@@ -269,6 +269,12 @@ export interface UpdateQuestionInput {
   title?: string;
   content?: string;
   /**
+   * Switches what kind of question this is (Step 28 / D46). D54: the
+   * document always agrees with its type — fields the new type cannot hold
+   * are cleared, not left dormant.
+   */
+  type?: QuestionType;
+  /**
    * Rewrites an MC question's option list (Step 27). `id` present means
    * "keep this option's id" (D53) — omit it only for a genuinely new
    * option, which gets a fresh id minted on save. An option whose id is
@@ -536,25 +542,68 @@ export class QuestionService {
     if ("content" in input && input.content !== undefined) {
       set.content = input.content;
     }
-    if ("options" in input && input.options !== undefined) {
+    const optionsProvided = "options" in input && input.options !== undefined;
+    const typeChanging =
+      "type" in input &&
+      input.type !== undefined &&
+      input.type !== before?.type;
+    // Resolves to the type this document will hold AFTER this save — used
+    // by both the MC-rule check and the D54 field-clearing below. Reading
+    // neither key at all (a title/content-only edit) must never resolve to
+    // anything but the stored type, so an existing D32 keyless MC question
+    // is never re-validated by an edit that has nothing to do with it.
+    const resolvedType: QuestionType = typeChanging
+      ? (input.type as QuestionType)
+      : (before?.type ?? "free_text");
+
+    if (typeChanging) {
+      set.type = resolvedType;
+      // D54: the document always agrees with its type — clear fields the
+      // new type cannot hold. A same save that also supplies options for
+      // the new type overwrites this below; harmless in the meantime.
+      if (!isMcQuestionType(resolvedType)) {
+        set.options = null;
+        set.mcGradingStrategy = null;
+      }
+      if (resolvedType !== "free_text") {
+        set.referenceAnswer = null;
+        set.answerRevealMode = null;
+      }
+      if (resolvedType === "image_answer") {
+        set.explanation = null;
+      }
+    }
+
+    if (optionsProvided || typeChanging) {
       // D53: keep the id the caller supplied (an option it didn't remove);
       // mint a fresh one only for a genuinely new option. The MC rule is
-      // re-run against the resolved (post-edit) list — Step 18 already
-      // extracted it as a shared pure function, reused here rather than
-      // re-implemented.
-      const rewrittenOptions: McOption[] = input.options.map((o) => ({
-        id: o.id ?? crypto.randomUUID(),
-        text: o.text,
-        isCorrect: o.isCorrect,
-      }));
-      const mcError = checkMcOptions(
-        before?.type ?? "free_text",
-        rewrittenOptions,
-      );
+      // re-run against the resolved (post-edit) type/options — Step 18
+      // already extracted it as a shared pure function, reused here rather
+      // than re-implemented. Skipped entirely when this save touches
+      // neither field, so a stored D32 keyless MC question is never
+      // re-validated by an unrelated edit.
+      const resolvedOptions: McOption[] | null = optionsProvided
+        ? (
+            input.options as { id?: string; text: string; isCorrect: boolean }[]
+          ).map((o) => ({
+            id: o.id ?? crypto.randomUUID(),
+            text: o.text,
+            isCorrect: o.isCorrect,
+          }))
+        : isMcQuestionType(resolvedType)
+          ? (before?.options ?? null)
+          : null;
+      const mcError = checkMcOptions(resolvedType, resolvedOptions);
       if (mcError) {
         throw new Error(mcError);
       }
-      set.options = rewrittenOptions;
+      // D54: the type governs what's stored, not whether the caller
+      // supplied an options array — a free_text/image_answer save that
+      // carries options never persists them (closes the loophole where the
+      // two fields disagree about what the document is).
+      if (optionsProvided) {
+        set.options = isMcQuestionType(resolvedType) ? resolvedOptions : null;
+      }
     }
 
     await this.questions.updateOne({ id: questionId }, { $set: set });
@@ -579,7 +628,6 @@ export class QuestionService {
       return;
     }
 
-    // Grows with Step 28 as more fields become editable (D52).
     const trackedFields = [
       "answerRevealMode",
       "referenceAnswer",
@@ -587,6 +635,8 @@ export class QuestionService {
       "title",
       "content",
       "options",
+      "type",
+      "mcGradingStrategy",
     ] as const;
 
     const changedFields: string[] = [];

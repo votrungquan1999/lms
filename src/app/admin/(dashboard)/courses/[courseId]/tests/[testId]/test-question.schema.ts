@@ -87,6 +87,11 @@ export const editQuestionSchema = z.object({
     .array(editOptionSchema)
     .min(2, "At least 2 options are required")
     .optional(),
+  // Absent means "keep the current type" (Step 28 / D46) — present with
+  // any value that differs from the stored type switches it.
+  type: z
+    .enum(["free_text", "single_select", "multi_select", "image_answer"])
+    .optional(),
 });
 
 /** Schema validating the JSON file body for bulk question import. */

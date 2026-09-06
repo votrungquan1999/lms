@@ -67,6 +67,7 @@ export async function updateQuestionAction(
     title: formData.get("title") ?? undefined,
     content: formData.get("content") ?? undefined,
     ...(options !== undefined && { options }),
+    type: formData.get("type") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -117,6 +118,9 @@ export async function updateQuestionAction(
         }
         if (data.options !== undefined) {
           input.options = data.options;
+        }
+        if (data.type !== undefined) {
+          input.type = data.type;
         }
 
         await questionService.updateQuestion(

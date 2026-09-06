@@ -171,7 +171,10 @@ describe("Feature: Question read-visibility", () => {
 
       render(<QuestionList questions={[question]} courseId="course-1" />);
 
-      expect(screen.getByText(/single/i)).toBeInTheDocument();
+      // Scoped to "Single choice" specifically — Step 28's type-switcher
+      // control in the edit panel below also renders a "Single Select"
+      // label, which a bare /single/i would ambiguously also match.
+      expect(screen.getByText(/single choice/i)).toBeInTheDocument();
       expect(screen.getByText("4")).toBeInTheDocument();
       expect(screen.getByText(/7.*correct/i)).toBeInTheDocument();
       expect(screen.getByText(/all.or.nothing/i)).toBeInTheDocument();

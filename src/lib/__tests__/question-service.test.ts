@@ -1055,6 +1055,161 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   );
 });
 
+describe("updateQuestion — a teacher changes a question's type (Step 28 / D46)", () => {
+  dbIt(
+    "switches a free_text question into single_select, clearing fields the new type cannot hold while keeping the shared explanation (Step 28 / D54)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+        referenceAnswer: "Objects with mass attract each other.",
+        explanation: "Newton's law of universal gravitation.",
+        answerRevealMode: "diff",
+      });
+
+      await service.updateQuestion(
+        question.id,
+        {
+          type: "single_select",
+          options: [
+            { text: "Force", isCorrect: true },
+            { text: "Energy", isCorrect: false },
+          ],
+        },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as SingleSelectQuestion[];
+      expect(updated.type).toBe("single_select");
+      expect(updated.options.map((o) => o.text)).toEqual(["Force", "Energy"]);
+      // free_text-only fields cannot survive on an MC document (D54). Read
+      // the raw doc, not the mapped Question — toQuestion's MC branch never
+      // emits referenceAnswer regardless of what's actually stored, so
+      // asserting on `updated` would pass even if the clear never ran.
+      const doc = await db
+        .collection<QuestionDocument>("question")
+        .findOne({ id: question.id });
+      expect(doc?.referenceAnswer).toBeNull();
+      // explanation is shared by free_text and MC, so it is NOT cleared.
+      expect(updated.explanation).toBe(
+        "Newton's law of universal gravitation.",
+      );
+    },
+  );
+
+  dbIt(
+    "switches a single_select question back to free_text, clearing its options and grading strategy (Step 28 / D54)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Pick the capital",
+        content: "Choose one.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "London", isCorrect: false },
+        ],
+        // Non-default so the raw-doc assertion below is meaningful — the
+        // default "all_or_nothing" would leave the field already stored as
+        // `null` (addQuestion only stores what's given), making a
+        // toBeNull() check pass whether or not the clear actually ran.
+        mcGradingStrategy: "partial",
+        explanation: "Paris is the capital of France.",
+      });
+
+      await service.updateQuestion(
+        question.id,
+        { type: "free_text" },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as FreeTextQuestion[];
+      expect(updated.type).toBe("free_text");
+      // Read the raw doc, not the mapped Question — toQuestion's free_text
+      // branch never emits `options` regardless of what's stored, so this
+      // is the only way to prove MC→free_text clearing actually ran.
+      const doc = await db
+        .collection<QuestionDocument>("question")
+        .findOne({ id: question.id });
+      expect(doc?.options).toBeNull();
+      expect(doc?.mcGradingStrategy).toBeNull();
+      // Shared field survives the switch away from MC too.
+      expect(updated.explanation).toBe("Paris is the capital of France.");
+    },
+  );
+
+  dbIt(
+    "rejects switching a question into single_select without providing a valid option set (Step 28 — no valid intermediate state)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      const question = await service.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      });
+
+      await expect(
+        service.updateQuestion(
+          question.id,
+          { type: "single_select" },
+          "admin-2",
+        ),
+      ).rejects.toThrow(
+        "single_select question must have exactly one correct option",
+      );
+
+      const [unchanged] = await service.listQuestions("test-1");
+      expect(unchanged.type).toBe("free_text");
+    },
+  );
+
+  dbIt(
+    "does not touch options or type when neither is part of the input (Step 28 — absent-key pin, e.g. a title-only correction)",
+    async ({ db }) => {
+      const service = new QuestionService(db);
+
+      // A keyless MC question (D32/D44) — an update that never mentions
+      // type/options must not re-run the MC rule against it and fail.
+      const question = await service.addQuestion(
+        "test-1",
+        {
+          title: "Pick one",
+          content: "Choose.",
+          createdBy: "admin-1",
+          type: "single_select",
+          options: [
+            { text: "A", isCorrect: false },
+            { text: "B", isCorrect: false },
+          ],
+        },
+        { allowMissingAnswerKey: true },
+      );
+
+      await service.updateQuestion(
+        question.id,
+        { title: "Pick one (revised)" },
+        "admin-2",
+      );
+
+      const [updated] = (await service.listQuestions(
+        "test-1",
+      )) as SingleSelectQuestion[];
+      expect(updated.title).toBe("Pick one (revised)");
+      expect(updated.options.every((o) => !o.isCorrect)).toBe(true);
+    },
+  );
+});
+
 describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => {
   dbIt(
     "logs the changed fields, their before/after values and the current answered-student count",
@@ -1145,6 +1300,47 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
         .findOne({ questionId: question.id });
 
       expect(row).toBeNull();
+    },
+  );
+
+  dbIt(
+    "logs a type change together with the before-value of a field it cleared, so a mis-click is recoverable by hand (Step 28 / D54)",
+    async ({ db }) => {
+      const changeLogService = new QuestionChangeLogService(db);
+      const questionService = new QuestionService(db, changeLogService);
+
+      const question = await questionService.addQuestion("test-1", {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+        referenceAnswer: "Objects with mass attract each other.",
+      });
+
+      await questionService.updateQuestion(
+        question.id,
+        {
+          type: "single_select",
+          options: [
+            { text: "Force", isCorrect: true },
+            { text: "Energy", isCorrect: false },
+          ],
+        },
+        "admin-2",
+      );
+
+      const row = await db
+        .collection("questionChangeLog")
+        .findOne({ questionId: question.id });
+
+      expect(row).toMatchObject({
+        action: "update",
+        changedFields: expect.arrayContaining(["type", "referenceAnswer"]),
+        before: {
+          type: "free_text",
+          referenceAnswer: "Objects with mass attract each other.",
+        },
+        after: { type: "single_select", referenceAnswer: null },
+      });
     },
   );
 

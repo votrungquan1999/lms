@@ -835,3 +835,130 @@ describe("Feature: Question edit panel — answer options", () => {
     });
   });
 });
+
+/**
+ * Feature: A teacher can change what kind of question it is, told that
+ * doing so invalidates every answer already given for it (Step 28).
+ */
+describe("Feature: Question edit panel — question type", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("shows a type switcher with the question's current type selected", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    expect(screen.getByRole("radio", { name: /^free text$/i })).toBeChecked();
+  });
+
+  it("switching to single_select reveals an options editor, and saving persists the new type and options", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    await user.click(screen.getByRole("radio", { name: /^single select$/i }));
+
+    const options = screen.getAllByPlaceholderText(/^Option \d$/);
+    expect(options).toHaveLength(2);
+    await user.type(options[0], "Force");
+    await user.click(
+      screen.getByRole("radio", { name: /mark option 1 correct/i }),
+    );
+    await user.type(options[1], "Energy");
+
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const [updated] = (await services.questionService.listQuestions(
+      test.id,
+    )) as SingleSelectQuestion[];
+    expect(updated.type).toBe("single_select");
+    expect(updated.options.map((o) => o.text)).toEqual(["Force", "Energy"]);
+  });
+
+  it("warns that changing the type invalidates every answer already given for it", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+    });
+
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "free_text", text: "My attempt" },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    await user.click(screen.getByRole("radio", { name: /^image answer$/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/invalidates every answer/i);
+  });
+});

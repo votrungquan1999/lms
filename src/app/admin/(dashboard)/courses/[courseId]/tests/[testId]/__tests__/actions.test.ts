@@ -1,6 +1,8 @@
+import type { Db } from "mongodb";
 import {
   type FreeTextQuestion,
   MediaContentType,
+  type QuestionDocument,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
 import {
@@ -22,8 +24,11 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
+let db: Db;
+
 beforeEach(async () => {
-  await setupTestDb();
+  const setup = await setupTestDb();
+  db = setup.db;
   requireAdminSession.mockResolvedValue({ userId: "admin-1", role: "admin" });
 });
 
@@ -485,5 +490,103 @@ describe("Feature: a teacher rewrites a question's answer options (Step 27)", ()
     expect(unchanged.options.find((o) => o.text === "Paris")?.isCorrect).toBe(
       true,
     );
+  });
+});
+
+/** Builds the FormData the question-edit panel submits for a type switch. */
+function buildTypeEditFormData(
+  questionId: string,
+  type: string,
+  options?: { id?: string; text: string; isCorrect: boolean }[],
+): FormData {
+  const formData = new FormData();
+  formData.set("questionId", questionId);
+  formData.set("testId", "test-1");
+  formData.set("courseId", "course-1");
+  formData.set("type", type);
+  if (options !== undefined) {
+    formData.set("options", JSON.stringify(options));
+  }
+  return formData;
+}
+
+describe("Feature: a teacher changes a question's type (Step 28)", () => {
+  it("switches a free_text question into single_select, persisting the new options", async () => {
+    const question = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+        referenceAnswer: "Objects with mass attract each other.",
+      },
+    );
+
+    const result = await updateQuestionAction(
+      null,
+      buildTypeEditFormData(question.id, "single_select", [
+        { text: "Force", isCorrect: true },
+        { text: "Energy", isCorrect: false },
+      ]),
+    );
+
+    expect(result.success).toBe(true);
+    const [updated] = (await getTestServices().questionService.listQuestions(
+      "test-1",
+    )) as SingleSelectQuestion[];
+    expect(updated.type).toBe("single_select");
+    expect(updated.options.map((o) => o.text)).toEqual(["Force", "Energy"]);
+  });
+
+  it("rejects switching into single_select with no options and persists nothing", async () => {
+    const question = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Explain gravity",
+        content: "In your own words.",
+        createdBy: "admin-1",
+      },
+    );
+
+    const result = await updateQuestionAction(
+      null,
+      buildTypeEditFormData(question.id, "single_select"),
+    );
+
+    expect(result.success).toBe(false);
+    const [unchanged] =
+      await getTestServices().questionService.listQuestions("test-1");
+    expect(unchanged.type).toBe("free_text");
+  });
+
+  it("stores no options when switching into free_text, even though the FormData still carries an options payload (D54 — the type governs, not the payload)", async () => {
+    const question = (await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Pick the capital",
+        content: "Choose one.",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: "Paris", isCorrect: true },
+          { text: "London", isCorrect: false },
+        ],
+      },
+    )) as SingleSelectQuestion;
+
+    const result = await updateQuestionAction(
+      null,
+      buildTypeEditFormData(question.id, "free_text", [
+        { text: "Paris", isCorrect: true },
+        { text: "London", isCorrect: false },
+      ]),
+    );
+
+    expect(result.success).toBe(true);
+    const doc = await db
+      .collection<QuestionDocument>("question")
+      .findOne({ id: question.id });
+    expect(doc?.type).toBe("free_text");
+    expect(doc?.options).toBeNull();
   });
 });

@@ -18,7 +18,12 @@ import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
-import { isMcQuestion, type Question } from "src/lib/question-service";
+import {
+  isMcQuestion,
+  isMcQuestionType,
+  type Question,
+  type QuestionType,
+} from "src/lib/question-service";
 import { type UpdateQuestionState, updateQuestionAction } from "./actions";
 
 interface QuestionEditPanelProps {
@@ -62,20 +67,34 @@ function optionsUnchanged(
 const OPTIONS_CHANGED_LABEL =
   "the answer options — students who already answered will show as having chosen nothing";
 
+/** Severity wording for a type switch (Step 28 / D46) — a blanket statement, since no saved answer survives it. */
+const TYPE_CHANGED_LABEL =
+  "the question type — this invalidates every answer already given for it";
+
 /**
  * Reads the panel's current (uncontrolled) field values from `formData` and
  * names which ones actually differ from `question`'s stored values — the
- * words the D50 confirmation shows. `currentOptions` is the options editor's
- * live state (Step 27) — options aren't plain uncontrolled inputs, so they
- * can't be diffed from `formData` the way every other field is. `null` for a
- * non-MC question, where no options editor renders at all.
+ * words the D50 confirmation shows. `selectedType`/`currentOptions` are the
+ * type switcher's and options editor's live state (Steps 27-28) — neither is
+ * a plain uncontrolled input, so they can't be diffed from `formData` the way
+ * every other field is. When the type is changing, every other type-specific
+ * comparison (reveal mode, model answer, explanation, options) is skipped:
+ * D28 wants ONE blanket warning naming that every answer is invalidated,
+ * not a pile of now-meaningless per-field diffs against a type that no
+ * longer applies. Title/content are unrelated to type, so they still show.
  */
 function deriveChangedFieldLabels(
   question: Question,
   formData: FormData,
-  currentOptions: OptionDraft[] | null,
+  selectedType: QuestionType,
+  currentOptions: OptionDraft[],
 ): string[] {
   const labels: string[] = [];
+
+  const typeChanged = selectedType !== question.type;
+  if (typeChanged) {
+    labels.push(TYPE_CHANGED_LABEL);
+  }
 
   const title = formData.get("title")?.toString().trim();
   if (title !== undefined && title !== question.title) {
@@ -87,7 +106,7 @@ function deriveChangedFieldLabels(
     labels.push("the question body");
   }
 
-  if (question.type === "free_text") {
+  if (!typeChanged && question.type === "free_text") {
     const rawReveal = formData.get("answerRevealMode")?.toString();
     const reveal = rawReveal === "inherit" ? undefined : rawReveal;
     if (reveal !== question.answerRevealMode) {
@@ -101,7 +120,10 @@ function deriveChangedFieldLabels(
     }
   }
 
-  if (question.type === "free_text" || isMcQuestion(question)) {
+  if (
+    !typeChanged &&
+    (question.type === "free_text" || isMcQuestion(question))
+  ) {
     const explanation =
       formData.get("explanation")?.toString().trim() || undefined;
     if (explanation !== question.explanation) {
@@ -109,7 +131,7 @@ function deriveChangedFieldLabels(
     }
   }
 
-  if (currentOptions !== null && isMcQuestion(question)) {
+  if (!typeChanged && isMcQuestion(question)) {
     const before = question.options.map((o) => ({
       id: o.id,
       text: o.text,
@@ -149,13 +171,32 @@ export function QuestionEditPanel({
   courseId,
   answeredCount,
 }: QuestionEditPanelProps) {
-  const isMc = isMcQuestion(question);
+  // The teacher's live type selection (Step 28) — starts at the question's
+  // stored type; switching it reshapes which fields render below, the way
+  // `AddQuestionForm`'s sidebar does for a new question.
+  const [selectedType, setSelectedType] = useState<QuestionType>(question.type);
+  const isFreeText = selectedType === "free_text";
+  const isMc = isMcQuestionType(selectedType);
+
+  // The panel may render a field set that doesn't match `question`'s own
+  // stored type mid-session (a type switch in progress, not yet saved) — TS
+  // narrows `question` by ITS OWN `type`, not `selectedType`, so these reads
+  // must be guarded against the union member the field actually lives on.
+  const originalReferenceAnswer =
+    question.type === "free_text" ? question.referenceAnswer : undefined;
+  const originalAnswerRevealMode =
+    question.type === "free_text" ? question.answerRevealMode : undefined;
+  const originalExplanation =
+    question.type === "free_text" || isMcQuestion(question)
+      ? question.explanation
+      : undefined;
+
   // Options aren't plain uncontrolled inputs (rows can be added/removed), so
   // they're tracked as component state, prefilled from the stored question,
   // and injected into FormData just before the real action runs — same
   // technique `AddQuestionForm` uses for its own (unrelated) options builder.
   const [options, setOptions] = useState<OptionDraft[]>(
-    isMc
+    isMcQuestion(question)
       ? question.options.map((o) => ({
           id: o.id,
           text: o.text,
@@ -184,7 +225,24 @@ export function QuestionEditPanel({
   // that resubmission through instead of re-opening the dialog.
   const bypassGateRef = useRef(false);
 
-  const isFreeText = question.type === "free_text";
+  /**
+   * Switching type is an event, not an effect — seeding two blank option
+   * rows the moment a non-MC question is switched INTO an MC type is a
+   * direct response to that click, not a sync with an external resource.
+   */
+  function handleTypeSelect(newType: QuestionType) {
+    setSelectedType(newType);
+    if (isMcQuestionType(newType)) {
+      setOptions((prev) =>
+        prev.length > 0
+          ? prev
+          : [
+              { text: "", isCorrect: false },
+              { text: "", isCorrect: false },
+            ],
+      );
+    }
+  }
 
   const addOption = () =>
     setOptions((prev) => [...prev, { text: "", isCorrect: false }]);
@@ -198,7 +256,7 @@ export function QuestionEditPanel({
   const toggleOptionCorrect = (idx: number) =>
     setOptions((prev) =>
       prev.map((o, i) =>
-        question.type === "single_select"
+        selectedType === "single_select"
           ? { ...o, isCorrect: i === idx }
           : i === idx
             ? { ...o, isCorrect: !o.isCorrect }
@@ -220,7 +278,8 @@ export function QuestionEditPanel({
     const changed = deriveChangedFieldLabels(
       question,
       new FormData(event.currentTarget),
-      isMc ? options : null,
+      selectedType,
+      options,
     );
     if (answeredCount > 0 && changed.length > 0) {
       event.preventDefault();
@@ -265,6 +324,50 @@ export function QuestionEditPanel({
         />
       </div>
 
+      <div className="space-y-1">
+        <Label>Question type</Label>
+        <RadioGroup
+          name="type"
+          value={selectedType}
+          onValueChange={(value) => handleTypeSelect(value as QuestionType)}
+        >
+          <div className="flex items-center gap-2">
+            <RadioGroupItem
+              value="free_text"
+              id={`type-free-text-${question.id}`}
+            />
+            <Label htmlFor={`type-free-text-${question.id}`}>Free Text</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <RadioGroupItem
+              value="single_select"
+              id={`type-single-select-${question.id}`}
+            />
+            <Label htmlFor={`type-single-select-${question.id}`}>
+              Single Select
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <RadioGroupItem
+              value="multi_select"
+              id={`type-multi-select-${question.id}`}
+            />
+            <Label htmlFor={`type-multi-select-${question.id}`}>
+              Multi Select
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <RadioGroupItem
+              value="image_answer"
+              id={`type-image-answer-${question.id}`}
+            />
+            <Label htmlFor={`type-image-answer-${question.id}`}>
+              Image Answer
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+
       {isFreeText && (
         <>
           <OptionalTextField
@@ -272,13 +375,13 @@ export function QuestionEditPanel({
             name="referenceAnswer"
             label="Model Answer"
             placeholder="Write a sample correct answer…"
-            defaultValue={question.referenceAnswer}
+            defaultValue={originalReferenceAnswer}
           />
           <div className="space-y-1">
             <Label>How this question shows its answer</Label>
             <RadioGroup
               name="answerRevealMode"
-              defaultValue={question.answerRevealMode ?? "inherit"}
+              defaultValue={originalAnswerRevealMode ?? "inherit"}
             >
               <div className="flex items-center gap-2">
                 <RadioGroupItem
@@ -318,7 +421,7 @@ export function QuestionEditPanel({
             Options{" "}
             <span className="text-xs text-muted-foreground">
               (
-              {question.type === "single_select"
+              {selectedType === "single_select"
                 ? "pick one correct"
                 : "pick all correct"}
               )
@@ -330,7 +433,7 @@ export function QuestionEditPanel({
               key={opt.id ?? `new-${idx}`}
               className="flex items-center gap-2"
             >
-              {question.type === "single_select" ? (
+              {selectedType === "single_select" ? (
                 <input
                   type="radio"
                   checked={opt.isCorrect}
@@ -376,13 +479,13 @@ export function QuestionEditPanel({
         </div>
       )}
 
-      {(isFreeText || isMcQuestion(question)) && (
+      {(isFreeText || isMc) && (
         <OptionalTextField
           id={`explanation-${question.id}`}
           name="explanation"
           label="Explanation"
           placeholder="Explain what makes a good answer…"
-          defaultValue={question.explanation}
+          defaultValue={originalExplanation}
         />
       )}
 
