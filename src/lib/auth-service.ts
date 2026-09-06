@@ -29,6 +29,17 @@ interface RegisterStudentInput {
 }
 
 /**
+ * The raw Better Auth identity fields needed to provision a Google signup as
+ * a student — never a full `Session`, since this caller is by definition not
+ * yet classified as one.
+ */
+export interface UnclassifiedIdentity {
+  authUserId: string;
+  email: string;
+  name: string;
+}
+
+/**
  * Creates the Better Auth instance with our standard config.
  * Extracted so TypeScript can infer the specific return type.
  */
@@ -148,14 +159,7 @@ export class AuthService {
         createdBy: input.createdBy,
       });
     } catch (error) {
-      // Rollback: signUpEmail wrote a user, an account (password hash), and
-      // a session — remove all three to keep no orphaned auth state behind.
-      // All three key off the same raw ObjectId (user._id / account+session
-      // userId) — the string `id` field never appears as-is in these documents.
-      const rawUserId = new ObjectId(authResult.user.id);
-      await this.db.collection("user").deleteOne({ _id: rawUserId });
-      await this.db.collection("account").deleteMany({ userId: rawUserId });
-      await this.db.collection("session").deleteMany({ userId: rawUserId });
+      await this.rollbackAuthUser(authResult.user.id);
       throw error;
     }
 
@@ -164,6 +168,23 @@ export class AuthService {
       username: student.username,
       name: student.name,
     };
+  }
+
+  /**
+   * Deletes a Better Auth user and its account/session rows. `registerStudent`'s
+   * rollback (BUG-3) is the remaining caller. All three key off the same raw
+   * ObjectId (user._id / account+session userId) — the string `id` field
+   * never appears as-is in these documents.
+   * Deleted session-first: these three writes are sequential and non-
+   * transactional, so a mid-way failure must never leave a live session row
+   * pointing at an already-deleted user. Deleting `session` last would do
+   * exactly that.
+   */
+  async rollbackAuthUser(authUserId: string): Promise<void> {
+    const rawUserId = new ObjectId(authUserId);
+    await this.db.collection("session").deleteMany({ userId: rawUserId });
+    await this.db.collection("account").deleteMany({ userId: rawUserId });
+    await this.db.collection("user").deleteOne({ _id: rawUserId });
   }
 
   /**
@@ -267,6 +288,40 @@ export class AuthService {
     }
 
     return LoginEntryState.Unclassified;
+  }
+
+  /**
+   * Resolves the caller's raw Better Auth identity — but ONLY when they hold
+   * a valid session that classifies as unclassified. A signed-out visitor or
+   * an already-admin/already-student caller gets `null`. Nothing here checks
+   * OAuth origin or provider — it is driven by email/password sessions too
+   * (see this file's own test suite) — so it is not an "invite-origin
+   * guard" by itself; the closest thing to one is the `?google=1` consent
+   * marker `/join/[token]`'s page checks before calling this at all (D19's
+   * named fallback, open question 3, M1). What this method DOES guarantee is
+   * that an already-classified caller — a recorded admin or student, however
+   * they signed in — never gets an identity back, which is what keeps an
+   * administrator's Google sign-in from ever being handed a student document
+   * (Step 24).
+   */
+  async resolveUnclassifiedIdentity(
+    headers: Headers,
+  ): Promise<UnclassifiedIdentity | null> {
+    const betterAuthSession = await this.auth.api.getSession({ headers });
+    if (!betterAuthSession) {
+      return null;
+    }
+
+    const session = await this.classify(betterAuthSession.user);
+    if (session) {
+      return null;
+    }
+
+    return {
+      authUserId: betterAuthSession.user.id,
+      email: betterAuthSession.user.email,
+      name: betterAuthSession.user.name,
+    };
   }
 
   /**

@@ -12,6 +12,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import JoinPage from "../page";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
+vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
+
+// This page now also resolves the caller's identity (Step 22) before
+// rendering. Defaulted to null (no valid session) so these pre-existing
+// scenarios — none of which are about Google — keep seeing the plain
+// signed-out invite card, unaffected by the new call.
+const mockResolveUnclassifiedIdentity = vi.fn();
+vi.mock("src/lib/auth-singleton", () => ({
+  getAuthService: vi.fn(async () => ({
+    resolveUnclassifiedIdentity: mockResolveUnclassifiedIdentity,
+  })),
+}));
+
+beforeEach(() => {
+  mockResolveUnclassifiedIdentity.mockResolvedValue(null);
+});
 
 /**
  * Feature: someone opening a valid join link sees which course they are
@@ -42,7 +58,10 @@ describe("Feature: someone opening a valid join link sees which course they are 
     );
 
     // When a prospective student opens the link
-    const ui = await JoinPage({ params: Promise.resolve({ token }) });
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({}),
+    });
     render(ui);
 
     // Then they see which course it invites them to
@@ -72,6 +91,7 @@ describe("Feature: someone opening a broken or switched-off join link is told th
     // A token nobody ever minted
     neverValidUi = await JoinPage({
       params: Promise.resolve({ token: "never-issued-token" }),
+      searchParams: Promise.resolve({}),
     });
 
     // A course whose link was revoked (D43: revoked reads as never-had-a-link)
@@ -86,6 +106,7 @@ describe("Feature: someone opening a broken or switched-off join link is told th
     await services.courseService.disableInviteToken(revokedCourse.id);
     revokedUi = await JoinPage({
       params: Promise.resolve({ token: revokedToken }),
+      searchParams: Promise.resolve({}),
     });
 
     // A course that had a live link and no longer exists — no delete-course
@@ -102,6 +123,7 @@ describe("Feature: someone opening a broken or switched-off join link is told th
     await db.collection("course").deleteOne({ id: deletedCourse.id });
     deletedUi = await JoinPage({
       params: Promise.resolve({ token: deletedToken }),
+      searchParams: Promise.resolve({}),
     });
   });
 
@@ -134,5 +156,121 @@ describe("Feature: someone opening a broken or switched-off join link is told th
 
     expect(html[1]).toBe(html[0]);
     expect(html[2]).toBe(html[0]);
+  });
+});
+
+/**
+ * Feature: opening an invite link never provisions a Google identity on its
+ * own — only completing the Google round trip does
+ * As a prospective student
+ * I want opening the link itself (tab restore, back/forward, a URL handler)
+ * to be side-effect-free
+ * So that a cookied caller who merely opens the link is never silently
+ * given a student document (M1)
+ */
+describe("Feature: opening an invite link never provisions a Google identity on its own", () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    const setup = await setupTestDb();
+    db = setup.db;
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("never resolves or provisions an identity when the URL carries no Google consent marker", async () => {
+    // Given a course with a live join link, and an identity that WOULD
+    // resolve if the page ever asked for one
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    mockResolveUnclassifiedIdentity.mockResolvedValue({
+      authUserId: "some-auth-id",
+      email: "curious@gmail.com",
+      name: "Curious Visitor",
+    });
+
+    // When the link is opened with no ?google=1 marker — a tab restore,
+    // back/forward navigation, or a plain URL open all look like this
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({}),
+    });
+    render(ui);
+
+    // Then the page never even asks for an identity, let alone provisions one
+    expect(mockResolveUnclassifiedIdentity).not.toHaveBeenCalled();
+    expect(await services.studentService.listStudents()).toHaveLength(0);
+    expect(
+      await db.collection("course_join_request").countDocuments({
+        courseId: course.id,
+      }),
+    ).toBe(0);
+  });
+});
+
+/**
+ * Feature: the invite page is the sole trigger that provisions a Google
+ * identity into a student
+ * As a prospective student who just completed a Google sign-in from this
+ * page
+ * I want my identity provisioned for the SAME course the link named
+ * So that my request to join lands in front of the right admins
+ */
+describe("Feature: the invite page is the sole trigger that provisions a Google identity into a student", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("provisions a student and a pending join request against the course's own id when the Google marker is present", async () => {
+    // Given a course with a live join link, and a caller who just completed
+    // a Google round trip back to this same page
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    mockResolveUnclassifiedIdentity.mockResolvedValue({
+      authUserId: "fresh-google-auth-id",
+      email: "fresh.google@gmail.com",
+      name: "Fresh Google Signup",
+    });
+
+    // When the page renders with the consent marker the button set
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({ google: "1" }),
+    });
+    render(ui);
+
+    // Then a student is created from the identity
+    const student =
+      await services.studentService.findByUsername("fresh.google");
+    expect(student).not.toBeNull();
+    expect(student?.name).toBe("Fresh Google Signup");
+
+    // And a pending request is filed against the course's OWN id — never
+    // the token or the invite token, which would be invisible to admins
+    const pending = await services.courseJoinRequestService.getPendingRequest(
+      course.id,
+      student?.id ?? "",
+    );
+    expect(pending).not.toBeNull();
   });
 });
