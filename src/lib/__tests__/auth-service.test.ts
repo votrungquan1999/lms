@@ -313,3 +313,82 @@ describe("Feature: resolving what a login page should show for the current calle
     },
   );
 });
+
+describe("Feature: an administrator signing in with Google is never turned into a student", () => {
+  dbIt(
+    "resolves a Google identity to provision only for an authenticated-but-unclassified caller, never for a signed-out visitor, a recorded admin, or a recorded student",
+    async ({ db }) => {
+      const studentService = new StudentService(db);
+      const authService = createAuthService(db, testConfig, studentService);
+
+      // A genuinely signed-out visitor has no session to read an identity from
+      const signedOutIdentity = await authService.resolveUnclassifiedIdentity(
+        new Headers(),
+      );
+      expect(signedOutIdentity).toBeNull();
+
+      // A recorded admin must never be re-provisioned as a student, no
+      // matter how they signed in
+      await authService.auth.api.signUpEmail({
+        body: {
+          email: "admin3@example.com",
+          password: "password-123",
+          name: "Admin",
+        },
+      });
+      await db
+        .collection("user")
+        .updateOne(
+          { email: "admin3@example.com" },
+          { $set: { role: "admin" } },
+        );
+      const adminIdentity = await authService.resolveUnclassifiedIdentity(
+        await signedInHeaders(
+          authService,
+          "admin3@example.com",
+          "password-123",
+        ),
+      );
+      expect(adminIdentity).toBeNull();
+
+      // A recorded student must never be provisioned a second time either
+      await authService.registerStudent({
+        name: "Fay",
+        username: "fay",
+        password: "fay-pass-123",
+        createdBy: "admin-test",
+      });
+      const studentIdentity = await authService.resolveUnclassifiedIdentity(
+        await signedInHeaders(authService, "fay@lms.internal", "fay-pass-123"),
+      );
+      expect(studentIdentity).toBeNull();
+
+      // Only an authenticated-but-unclassified caller — a real cookie, no
+      // recorded role, no student document — gets their identity back
+      const freshSignup = await authService.auth.api.signUpEmail({
+        body: {
+          email: "fresh.signup@example.com",
+          password: "password-123",
+          name: "Fresh Signup",
+        },
+      });
+      const unclassifiedIdentity =
+        await authService.resolveUnclassifiedIdentity(
+          await signedInHeaders(
+            authService,
+            "fresh.signup@example.com",
+            "password-123",
+          ),
+        );
+      // Asserting the REAL id (not expect.any(String)) matters here: this
+      // test's whole purpose is that identities are never confused across
+      // roles — a wrong id (e.g. leaked from the admin or student signed up
+      // earlier in this same test) would pass a loose string-shape check.
+      expect(unclassifiedIdentity).toEqual({
+        authUserId: freshSignup.user.id,
+        email: "fresh.signup@example.com",
+        name: "Fresh Signup",
+      });
+    },
+  );
+});
