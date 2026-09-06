@@ -62,9 +62,7 @@ export default async function UserRolesPage() {
                 >
                   {row.role === Role.Admin ? "Admin" : "Student"}
                 </Badge>
-                {row.role === Role.Student && (
-                  <RoleActionButtons userId={row.id} />
-                )}
+                <RoleActionButtons userId={row.id} role={row.role} />
               </div>
             </CardHeader>
           </Card>

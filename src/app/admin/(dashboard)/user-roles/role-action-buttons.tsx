@@ -2,23 +2,46 @@
 
 import { useActionState } from "react";
 import { Button } from "src/components/ui/button";
-import { grantAdminAction } from "./actions";
+import { Role } from "src/lib/session";
+import { grantAdminAction, revokeAdminAction } from "./actions";
 
 /**
- * Per-row role action(s) for the user-roles page. Only "make admin" exists
- * so far — a revoke button for existing admins is Step 6's job.
+ * Per-row role action for the user-roles page: grants admin on a student
+ * row, revokes it on an admin row. Always rendered, even on the caller's
+ * own row — the self-demotion guard (D25) refuses server-side and this
+ * button surfaces that error, rather than hiding the option in the UI.
  */
-export function RoleActionButtons({ userId }: { userId: string }) {
-  const [state, formAction, isPending] = useActionState(grantAdminAction, null);
+export function RoleActionButtons({
+  userId,
+  role,
+}: {
+  userId: string;
+  role: Role;
+}) {
+  const isAdmin = role === Role.Admin;
+  const [state, formAction, isPending] = useActionState(
+    isAdmin ? revokeAdminAction : grantAdminAction,
+    null,
+  );
+
+  const label = isAdmin
+    ? isPending
+      ? "Revoking..."
+      : "Revoke admin"
+    : isPending
+      ? "Granting..."
+      : "Make admin";
 
   return (
     <form action={formAction} className="flex flex-col items-end gap-1">
       <input type="hidden" name="userId" value={userId} />
       <Button type="submit" size="sm" variant="outline" disabled={isPending}>
-        {isPending ? "Granting..." : "Make admin"}
+        {label}
       </Button>
       {state && !state.success && (
-        <p className="text-xs text-destructive">{state.message}</p>
+        <p role="alert" className="text-xs text-destructive">
+          {state.message}
+        </p>
       )}
     </form>
   );
