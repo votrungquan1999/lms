@@ -122,6 +122,52 @@ describe("Feature: Approve a course join request", () => {
     const unchanged = await courseJoinRequestService.getRequest(request.id);
     expect(unchanged?.status).toBe(JoinRequestStatus.Pending);
   });
+
+  it("finishes an interrupted approval without enrolling the student twice", async () => {
+    const {
+      courseService,
+      studentService,
+      courseJoinRequestService,
+      enrollmentService,
+    } = getTestServices();
+
+    // Given a pending join request
+    const course = await courseService.createCourse({
+      title: "Algebra I",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const student = await studentService.createStudentDocument({
+      authUserId: "auth-6",
+      username: "student-6",
+      name: "Student Six",
+      createdBy: "self-signup",
+    });
+    const request = await courseJoinRequestService.createRequest({
+      courseId: course.id,
+      studentId: student.id,
+    });
+
+    // And the first approve attempt crashed after the enrollment write but
+    // before the status write — the exact state a crash between the two
+    // writes leaves behind, driven directly instead of killing a process
+    await enrollmentService.enrollStudent(course.id, student.id, "admin-1");
+
+    const formData = new FormData();
+    formData.set("requestId", request.id);
+
+    // When an admin approves the still-Pending request again
+    const state = await approveJoinRequestAction(null, formData);
+
+    // Then it converges: Approved, and still exactly one enrollment row
+    expect(state.success).toBe(true);
+    const updated = await courseJoinRequestService.getRequest(request.id);
+    expect(updated?.status).toBe(JoinRequestStatus.Approved);
+    const enrollments = (
+      await enrollmentService.listEnrollmentsByStudent(student.id)
+    ).filter((e) => e.courseId === course.id);
+    expect(enrollments).toHaveLength(1);
+  });
 });
 
 /**
