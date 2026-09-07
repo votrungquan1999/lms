@@ -8,6 +8,7 @@ import {
 import Link from "next/link";
 import { getRequestContext } from "src/lib/request-context";
 import {
+  getCourseJoinRequestService,
   getCourseService,
   getEnrollmentService,
   getPageGuard,
@@ -17,6 +18,7 @@ import {
 import type { TestStatus } from "src/lib/test-status-service";
 import { EmptyState } from "../_ui/empty-state.ui";
 import { PageHeader } from "../_ui/page-header.ui";
+import { PendingRequestNotice } from "../_ui/pending-request-notice.ui";
 import { StatCard } from "../_ui/stat-card.ui";
 import { CourseCard } from "./course-card.ui";
 import { summarizeTestStatuses } from "./dashboard-summary";
@@ -43,6 +45,10 @@ export default async function StudentDashboardPage() {
   const enrolledCourses = await courseService.getCoursesByIds(
     enrollments.map((e) => e.courseId),
   );
+
+  const courseJoinRequestService = await getCourseJoinRequestService();
+  const pendingRequests =
+    await courseJoinRequestService.listByStudent(studentId);
 
   const testService = await getTestService();
   const testStatusService = await getTestStatusService();
@@ -78,6 +84,8 @@ export default async function StudentDashboardPage() {
         title={`Welcome, ${username}!`}
         description="Here's where your courses stand."
       />
+
+      {pendingRequests.length > 0 && <PendingRequestNotice />}
 
       {enrolledCourses.length > 0 && (
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
