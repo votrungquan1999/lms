@@ -290,26 +290,30 @@ function findFirstQuestionError(
   return null;
 }
 
+/** D37: APPEND is the default; REPLACE also deletes the test's current questions first (Step 34). */
+export type ImportMode = "append" | "replace";
+
 /**
  * Server action: writes the teacher's reviewed AI-import list onto the test,
  * in review order — after validating the whole batch first, rejecting all of
  * it and writing nothing if any one question cannot be accepted.
  *
- * D37 (REPLACE-or-APPEND) is NOT implemented here: REPLACE needs Step 29's
- * delete-question capability, which does not exist in this codebase yet
- * (confirmed: no `deleteQuestion`/`removeQuestion` anywhere). This action only
- * appends. REPLACE's delete-then-insert attaches immediately below, between
- * the (already mode-agnostic) validation pass and the write loop, once a
- * `questionService.deleteQuestion`-equivalent exists — see COMMIT_PLAN.md's
- * ordering note and DECISIONS.md D37/D45.
+ * REPLACE (`mode: "replace"`) additionally soft-deletes every question
+ * currently on the test (Step 29's `deleteQuestion`, one per question — no
+ * bespoke bulk-delete) BEFORE the write loop runs. Ordering is load-bearing:
+ * validation (above) always runs before ANY delete, and delete always
+ * completes before the first insert — never interleaved — so a rejected
+ * batch never strands the test with neither its old nor its new questions.
  * @param testId - The test to import onto.
  * @param courseId - Used only to revalidate the test's admin page.
  * @param questions - The reviewed list, in the order the teacher left it.
+ * @param mode - "append" (default, D37) keeps existing questions; "replace" deletes them first.
  */
 export async function importAiQuestionsAction(
   testId: string,
   courseId: string,
   questions: ParsedQuestion[],
+  mode: ImportMode = "append",
 ): Promise<ImportAiQuestionsState> {
   const requestHeaders = await headers();
   const authService = await getAuthService();
@@ -342,6 +346,16 @@ export async function importAiQuestionsAction(
       },
       async () => {
         const questionService = await getQuestionService();
+
+        // REPLACE deletes every existing question BEFORE the write loop
+        // below — delete-then-insert, never interleaved. Validation (above)
+        // has already run, so a rejected batch never reaches this point.
+        if (mode === "replace") {
+          const existing = await questionService.listQuestions(testId);
+          for (const question of existing) {
+            await questionService.deleteQuestion(question.id, adminUserId);
+          }
+        }
 
         // Sequential, never Promise.all/.map(async...): getNextOrder is a
         // fresh read-then-write per call, so parallel addQuestion calls race

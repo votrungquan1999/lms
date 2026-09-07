@@ -2,6 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "src/components/ui/alert-dialog";
 import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
 import {
@@ -20,7 +30,9 @@ import {
 } from "src/components/ui/dialog";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
+import type { ImportMode } from "./actions";
 import type { ImportQuestionDraft } from "./import-ai-form.state";
 import { useImportAi } from "./import-ai-form.state";
 import {
@@ -69,14 +81,21 @@ export function ImportAiFilePicker(): React.ReactNode {
 
 /**
  * Renders the reviewable list of questions parsed from the uploaded document,
- * plus the control that actually writes them onto the test (Step 33).
+ * plus the controls that actually write them onto the test (Steps 33-34).
+ * `existingQuestionCount`/`answeredStudentCount` describe the test's CURRENT
+ * questions (fetched server-side) — what REPLACE would remove, not the
+ * reviewed list above.
  */
 export function QuestionPreviewList({
   testId,
   courseId,
+  existingQuestionCount,
+  answeredStudentCount,
 }: {
   testId: string;
   courseId: string;
+  existingQuestionCount: number;
+  answeredStudentCount: number;
 }): React.ReactNode {
   const { questions } = useImportAi();
 
@@ -92,29 +111,69 @@ export function QuestionPreviewList({
       {questions.map((question, index) => (
         <QuestionCard key={question.id} question={question} index={index} />
       ))}
-      <ImportQuestionsButton testId={testId} courseId={courseId} />
+      <ImportModeSelector />
+      <ImportQuestionsButton
+        testId={testId}
+        courseId={courseId}
+        existingQuestionCount={existingQuestionCount}
+        answeredStudentCount={answeredStudentCount}
+      />
+    </div>
+  );
+}
+
+/** D37: lets the teacher choose APPEND (default) or REPLACE before importing. */
+function ImportModeSelector(): React.ReactNode {
+  const { mode, setMode } = useImportAi();
+
+  return (
+    <div className="space-y-1">
+      <Label>When importing</Label>
+      <RadioGroup
+        value={mode}
+        onValueChange={(value) => setMode(value as ImportMode)}
+      >
+        <div className="flex items-center gap-2">
+          <RadioGroupItem value="append" id="import-mode-append" />
+          <Label htmlFor="import-mode-append">
+            Add to the test's existing questions
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <RadioGroupItem value="replace" id="import-mode-replace" />
+          <Label htmlFor="import-mode-replace">
+            Replace the test's existing questions
+          </Label>
+        </div>
+      </RadioGroup>
     </div>
   );
 }
 
 /**
- * Writes the reviewed list onto the test in APPEND mode and returns the
- * teacher to the test's admin page on success. `importAiQuestionsAction`'s
- * per-question rejection (Step 18) surfaces on the offending `QuestionCard`
- * via `question.importError`, set by `importQuestions` in state — not shown
- * here as a second, bare banner.
+ * Writes the reviewed list onto the test and returns the teacher to the
+ * test's admin page on success. In REPLACE mode, clicking opens
+ * `ReplaceConfirmDialog` (D45) instead of writing immediately.
+ * `importAiQuestionsAction`'s per-question rejection (Step 18) surfaces on
+ * the offending `QuestionCard` via `question.importError` — not shown here
+ * as a second, bare banner.
  */
 function ImportQuestionsButton({
   testId,
   courseId,
+  existingQuestionCount,
+  answeredStudentCount,
 }: {
   testId: string;
   courseId: string;
+  existingQuestionCount: number;
+  answeredStudentCount: number;
 }): React.ReactNode {
-  const { importQuestions, isBusy, importFailureMessage } = useImportAi();
+  const { mode, importQuestions, isBusy, importFailureMessage } = useImportAi();
   const router = useRouter();
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
-  async function handleImport(): Promise<void> {
+  async function runImport(): Promise<void> {
     const success = await importQuestions(testId, courseId);
     if (success) {
       router.push(`/admin/courses/${courseId}/tests/${testId}`);
@@ -124,8 +183,18 @@ function ImportQuestionsButton({
 
   return (
     <div className="space-y-2">
-      <Button type="button" disabled={isBusy} onClick={handleImport}>
-        {isBusy ? "Importing…" : "Import questions"}
+      <Button
+        type="button"
+        disabled={isBusy}
+        onClick={() =>
+          mode === "replace" ? setIsConfirmOpen(true) : runImport()
+        }
+      >
+        {isBusy
+          ? "Importing…"
+          : mode === "replace"
+            ? "Replace questions"
+            : "Import questions"}
       </Button>
       {importFailureMessage && (
         <div
@@ -135,7 +204,127 @@ function ImportQuestionsButton({
           {importFailureMessage}
         </div>
       )}
+      <ReplaceConfirmDialog
+        open={isConfirmOpen}
+        onOpenChange={setIsConfirmOpen}
+        existingQuestionCount={existingQuestionCount}
+        answeredStudentCount={answeredStudentCount}
+        isPending={isBusy}
+        onConfirm={async () => {
+          // Closes only after the import resolves — see the dialog's own
+          // preventDefault note for why closing early made isPending dead.
+          await runImport();
+          setIsConfirmOpen(false);
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * D45's REPLACE confirmation: names what will be stranded, suggests a
+ * separate test instead, and requires TYPING "override" — a click alone is
+ * not enough, the friction is the point. D33/D43: when the test's current
+ * questions have already been answered, the wording states the CORRECTED
+ * consequence — an explicitly-submitted student stays Graded; only a
+ * student who reached Submitted implicitly (by answering every question)
+ * MAY show as In Progress again (orphaned answers still count toward
+ * `totalQuestions`, so a shorter replacement list can still leave them at
+ * Submitted) — and `getAverageScore` reads every ungraded live question as
+ * 0, so their score reads 0% until the new questions are graded.
+ * `AlertDialogAction` auto-closes on click (it wraps Radix's `Dialog.Close`),
+ * so `handleConfirm` below calls `preventDefault()` before awaiting the
+ * import — without it the dialog closes before `isPending` ever renders.
+ */
+function ReplaceConfirmDialog({
+  open,
+  onOpenChange,
+  existingQuestionCount,
+  answeredStudentCount,
+  isPending,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  existingQuestionCount: number;
+  answeredStudentCount: number;
+  isPending: boolean;
+  onConfirm: () => Promise<void>;
+}): React.ReactNode {
+  const [confirmText, setConfirmText] = useState("");
+  const canConfirm = confirmText.trim().toLowerCase() === "override";
+
+  async function handleConfirm(
+    event: React.MouseEvent<HTMLButtonElement>,
+  ): Promise<void> {
+    event.preventDefault();
+    await onConfirm();
+    setConfirmText("");
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) setConfirmText("");
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Replace this test&rsquo;s questions?
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              {existingQuestionCount > 0 && (
+                <p>
+                  This permanently removes the {existingQuestionCount} question
+                  {existingQuestionCount === 1 ? "" : "s"} currently on this
+                  test before adding the reviewed ones. Consider creating a
+                  separate test instead so existing scores are not lost.
+                </p>
+              )}
+              {answeredStudentCount > 0 && (
+                <p>
+                  At least {answeredStudentCount} student
+                  {answeredStudentCount === 1 ? " has" : "s have"} already
+                  answered questions on this test. Removing those questions
+                  strands their answers — the change log keeps only the removed
+                  question&rsquo;s own content and how many students answered
+                  it, not what any student actually submitted — and changes
+                  affected students&rsquo; overall scores: their scores will
+                  read 0% until the new questions are answered and graded. A
+                  student who reached Submitted only by answering every question
+                  may show as In Progress again; a student who explicitly
+                  submitted the test stays Graded.
+                </p>
+              )}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-1">
+          <Label htmlFor="replace-confirm-text">
+            Type &ldquo;override&rdquo; to confirm
+          </Label>
+          <Input
+            id="replace-confirm-text"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!canConfirm || isPending}
+            onClick={handleConfirm}
+          >
+            {isPending ? "Replacing…" : "Yes, replace"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

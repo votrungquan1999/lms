@@ -1,6 +1,9 @@
+import type { Db } from "mongodb";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
+import type { QuestionChangeLogDocument } from "src/lib/question-change-log-service";
 import type {
   MultiSelectQuestion,
+  QuestionDocument,
   SingleSelectQuestion,
 } from "src/lib/question-service";
 import {
@@ -21,8 +24,11 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
+let db: Db;
+
 beforeEach(async () => {
-  await setupTestDb();
+  const setup = await setupTestDb();
+  db = setup.db;
   requireAdminSession.mockResolvedValue({ userId: "admin-1", role: "admin" });
 });
 
@@ -199,5 +205,91 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
     const questions =
       await getTestServices().questionService.listQuestions("test-2");
     expect(questions).toHaveLength(0);
+  });
+});
+
+describe("Feature: replacing a test's questions deletes the old ones and writes the reviewed ones (Step 34 / D37 REPLACE)", () => {
+  it("soft-deletes every existing question and writes the reviewed list in its place", async () => {
+    const questionService = getTestServices().questionService;
+    const oldQ1 = await questionService.addQuestion("test-3", {
+      type: "free_text",
+      title: "Old Q1",
+      content: "Old content.",
+      createdBy: "admin-1",
+    });
+    const oldQ2 = await questionService.addQuestion("test-3", {
+      type: "free_text",
+      title: "Old Q2",
+      content: "Old content 2.",
+      createdBy: "admin-1",
+    });
+
+    const reviewed: ParsedQuestion[] = [
+      { title: "New Q1", content: "Fresh content.", type: "free_text" },
+    ];
+
+    const result = await importAiQuestionsAction(
+      "test-3",
+      "course-1",
+      reviewed,
+      "replace",
+    );
+
+    expect(result.success).toBe(true);
+    const questions = await questionService.listQuestions("test-3");
+    expect(questions.map((q) => q.title)).toEqual(["New Q1"]);
+    expect(questions[0].order).toBe(1);
+
+    // Read the raw docs, not listQuestions — it filters deletedAt out
+    // entirely, so it can never distinguish a soft delete from a hard one.
+    const questionCollection = db.collection<QuestionDocument>("question");
+    for (const old of [oldQ1, oldQ2]) {
+      const doc = await questionCollection.findOne({ id: old.id });
+      expect(doc?.deletedAt).toBeInstanceOf(Date);
+      expect(doc?.deletedBy).toBe("admin-1");
+    }
+
+    const deleteLogRows = await db
+      .collection<QuestionChangeLogDocument>("questionChangeLog")
+      .find({ questionId: { $in: [oldQ1.id, oldQ2.id] }, action: "delete" })
+      .toArray();
+    expect(deleteLogRows).toHaveLength(2);
+  });
+
+  // Green from the first run — no meaningful red possible. Validation runs
+  // BEFORE the `withSpan` callback that contains REPLACE's delete loop, so a
+  // rejected batch structurally cannot reach it; there is no code path this
+  // test could catch mid-implementation the way the test above did.
+  it("validates before deleting anything — a rejected REPLACE batch leaves the existing questions untouched", async () => {
+    const questionService = getTestServices().questionService;
+    await questionService.addQuestion("test-4", {
+      type: "free_text",
+      title: "Untouched Q1",
+      content: "Stays put.",
+      createdBy: "admin-1",
+    });
+
+    const failing: ParsedQuestion[] = [
+      {
+        title: "Q1: broken key",
+        content: "Choose the prime number.",
+        type: "single_select",
+        options: [
+          { text: "4", isCorrect: true },
+          { text: "7", isCorrect: true },
+        ],
+      },
+    ];
+
+    const result = await importAiQuestionsAction(
+      "test-4",
+      "course-1",
+      failing,
+      "replace",
+    );
+
+    expect(result.success).toBe(false);
+    const questions = await questionService.listQuestions("test-4");
+    expect(questions.map((q) => q.title)).toEqual(["Untouched Q1"]);
   });
 });

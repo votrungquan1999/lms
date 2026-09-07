@@ -64,7 +64,12 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList testId="test-1" courseId="course-1" />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
       </ImportAiProvider>,
     );
 
@@ -118,7 +123,12 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList testId="test-1" courseId="course-1" />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
       </ImportAiProvider>,
     );
 
@@ -182,7 +192,12 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList testId="test-1" courseId="course-1" />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
       </ImportAiProvider>,
     );
 

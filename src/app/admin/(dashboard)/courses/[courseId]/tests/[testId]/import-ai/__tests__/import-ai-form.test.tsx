@@ -76,7 +76,12 @@ describe("Feature: AI document import — a teacher uploads a Word document of q
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList testId="test-1" courseId="course-1" />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
       </ImportAiProvider>,
     );
 
@@ -108,7 +113,12 @@ describe("Feature: AI document import — a teacher uploads a PDF of questions f
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList testId="test-1" courseId="course-1" />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
       </ImportAiProvider>,
     );
 
@@ -129,7 +139,12 @@ describe("Feature: AI document import — a teacher uploads a PDF of questions f
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList testId="test-1" courseId="course-1" />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
       </ImportAiProvider>,
     );
 
@@ -149,7 +164,12 @@ describe("Feature: AI document import — a document with no readable text is re
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList testId="test-1" courseId="course-1" />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
       </ImportAiProvider>,
     );
 
@@ -184,7 +204,12 @@ describe("Feature: AI document import — a teacher imports the reviewed questio
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList testId="test-1" courseId="course-1" />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
       </ImportAiProvider>,
     );
 
@@ -199,6 +224,7 @@ describe("Feature: AI document import — a teacher imports the reviewed questio
       expect.arrayContaining([
         expect.objectContaining({ title: "Q1", type: "free_text" }),
       ]),
+      "append",
     );
     expect(push).toHaveBeenCalledWith("/admin/courses/course-1/tests/test-1");
   });
@@ -233,7 +259,12 @@ describe("Feature: AI document import — a teacher imports the reviewed questio
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList testId="test-1" courseId="course-1" />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
       </ImportAiProvider>,
     );
 

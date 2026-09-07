@@ -3,6 +3,7 @@
 import { createContext, useContext, useReducer } from "react";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
 import {
+  type ImportMode,
   importAiQuestionsAction,
   parseQuestionsAction,
   retryQuestionAction,
@@ -31,6 +32,8 @@ interface ImportAiState {
   isBusy: boolean;
   /** An import rejection with no specific offending question to attach to (e.g. an auth failure). */
   importFailureMessage: string | null;
+  /** D37: APPEND (default) or REPLACE (Step 34) — chosen before Import runs. */
+  mode: ImportMode;
 }
 
 type ImportAiAction =
@@ -48,7 +51,8 @@ type ImportAiAction =
       patch: Partial<Omit<ImportQuestionDraft, "id">>;
     }
   | { type: "IMPORT_START" }
-  | { type: "IMPORT_FAILED"; message: string; questionId: string | null };
+  | { type: "IMPORT_FAILED"; message: string; questionId: string | null }
+  | { type: "SET_MODE"; mode: ImportMode };
 
 const initialState: ImportAiState = {
   documentText: "",
@@ -56,6 +60,7 @@ const initialState: ImportAiState = {
   error: null,
   isBusy: false,
   importFailureMessage: null,
+  mode: "append",
 };
 
 /** D41 — matches the existing course-material upload limit. */
@@ -111,6 +116,8 @@ function importAiReducer(
             )
           : state.questions,
       };
+    case "SET_MODE":
+      return { ...state, mode: action.mode };
     default:
       return state;
   }
@@ -123,8 +130,9 @@ interface ImportAiContextValue extends ImportAiState {
     patch: Partial<Omit<ImportQuestionDraft, "id">>,
   ) => void;
   retryOneQuestion: (id: string, correctionNote: string) => Promise<void>;
-  /** Writes the reviewed list onto the test (APPEND, D37's default). Resolves true on success. */
+  /** Writes the reviewed list onto the test in the current `mode`. Resolves true on success. */
   importQuestions: (testId: string, courseId: string) => Promise<boolean>;
+  setMode: (mode: ImportMode) => void;
   reset: () => void;
 }
 
@@ -265,11 +273,11 @@ export function ImportAiProvider({
   }
 
   /**
-   * Writes the current review list onto the test in APPEND mode (D37's
-   * default — Step 34 adds REPLACE). On rejection, Step 18's message is
-   * routed to the ONE offending question by position rather than shown as a
-   * bare page-level banner; a rejection with no specific offender (e.g. an
-   * auth failure) falls back to `importFailureMessage`.
+   * Writes the current review list onto the test in the current `mode`
+   * (D37: APPEND or REPLACE). On rejection, Step 18's message is routed to
+   * the ONE offending question by position rather than shown as a bare
+   * page-level banner; a rejection with no specific offender (e.g. an auth
+   * failure) falls back to `importFailureMessage`.
    */
   async function importQuestions(
     testId: string,
@@ -281,6 +289,7 @@ export function ImportAiProvider({
       testId,
       courseId,
       toReviewedQuestions(state.questions),
+      state.mode,
     );
     if (!result.success) {
       const offender =
@@ -306,6 +315,7 @@ export function ImportAiProvider({
       dispatch({ type: "UPDATE_QUESTION", id, patch }),
     retryOneQuestion,
     importQuestions,
+    setMode: (mode) => dispatch({ type: "SET_MODE", mode }),
     reset: () => dispatch({ type: "RESET" }),
   };
 

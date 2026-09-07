@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
-import { getTestService } from "src/lib/services-singleton";
+import {
+  getAnswerService,
+  getQuestionService,
+  getTestService,
+} from "src/lib/services-singleton";
 import { ImportAiProvider } from "./import-ai-form.state";
 import { ImportAiFilePicker, QuestionPreviewList } from "./question-preview.ui";
 
@@ -21,6 +25,19 @@ export default async function ImportAiPage({
     notFound();
   }
 
+  // D49: what REPLACE (Step 34) would remove and its worst-case blast
+  // radius — the same shared batch call as Step 25's edit modal.
+  const questionService = await getQuestionService();
+  const existingQuestions = await questionService.listQuestions(testId);
+  const answerService = await getAnswerService();
+  const answeredCounts = await answerService.countAnsweredStudentsByQuestionIds(
+    existingQuestions.map((q) => q.id),
+  );
+  // A true lower bound on distinct students affected, not a fabricated
+  // exact total: the per-question counts can't be summed without risking
+  // double-counting a student who answered more than one question.
+  const answeredStudentCount = Math.max(0, ...answeredCounts.values());
+
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <header>
@@ -37,7 +54,12 @@ export default async function ImportAiPage({
       <ImportAiProvider>
         <section className="w-full max-w-2xl space-y-6">
           <ImportAiFilePicker />
-          <QuestionPreviewList testId={testId} courseId={courseId} />
+          <QuestionPreviewList
+            testId={testId}
+            courseId={courseId}
+            existingQuestionCount={existingQuestions.length}
+            answeredStudentCount={answeredStudentCount}
+          />
         </section>
       </ImportAiProvider>
     </div>
