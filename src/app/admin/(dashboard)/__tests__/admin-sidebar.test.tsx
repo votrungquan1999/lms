@@ -44,6 +44,21 @@ describe("Feature: AdminSidebar Need actions group", () => {
   });
 });
 
+describe("Feature: AdminSidebar join-request queue link", () => {
+  it("should render a 'Join Requests' link to /admin/join-requests inside the 'Need actions' group", () => {
+    render(
+      <TooltipProvider>
+        <SidebarProvider>
+          <AdminSidebar email="admin@test" />
+        </SidebarProvider>
+      </TooltipProvider>,
+    );
+
+    const link = screen.getByRole("link", { name: /Join Requests/ });
+    expect(link.getAttribute("href")).toBe("/admin/join-requests");
+  });
+});
+
 describe("Feature: AdminSidebar Question Bank link", () => {
   // Green-from-first: adding the nav entry IS the implementation; no meaningful
   // red is possible (per the project TDD rule).

@@ -7,6 +7,7 @@ import {
   Library,
   LogOut,
   ShieldCheck,
+  UserPlus,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -35,6 +36,7 @@ const navItems = [
 
 const needActionsItems = [
   { title: "Grading", href: "/admin/grading", icon: ClipboardCheck },
+  { title: "Join Requests", href: "/admin/join-requests", icon: UserPlus },
 ];
 
 export function AdminSidebar({
