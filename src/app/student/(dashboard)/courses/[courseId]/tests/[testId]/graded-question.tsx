@@ -112,7 +112,10 @@ export function GradedQuestion({
   return (
     <GradedQuestionShell
       questionLabel={`Question ${question.order}: ${question.title}`}
-      defaultOpen={grade.score !== 100}
+      // A perfect score normally collapses the card, but not when plain mode
+      // has a correct answer to show (E2) — otherwise a full-marks student
+      // never sees it without opening the card themselves.
+      defaultOpen={grade.score !== 100 || showCorrectAnswer}
       commentPreview={grade.feedback || null}
       headerBadge={
         <span className="flex items-center gap-2">

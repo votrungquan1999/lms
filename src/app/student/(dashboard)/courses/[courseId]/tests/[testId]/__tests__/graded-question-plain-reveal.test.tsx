@@ -6,7 +6,7 @@ import type {
   ImageAnswerQuestion,
 } from "src/lib/question-service";
 import { TestStatus } from "src/lib/test-status-service";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GradedQuestion } from "../graded-question";
 
 // Same convention as diff-viewer.test.tsx / page-answer-reveal-mode.test.tsx:
@@ -20,6 +20,12 @@ vi.mock("react-diff-viewer-continued", () => ({
     return null;
   },
 }));
+
+// Isolates the `not.toHaveBeenCalled()` assertions below from each other —
+// without this, one test's call count leaks into the next test's check.
+beforeEach(() => {
+  diffProps.mockClear();
+});
 
 const freeTextQuestion: FreeTextQuestion = {
   id: "q-1",
@@ -138,5 +144,58 @@ describe("GradedQuestion — plain-mode correct-answer panel", () => {
     );
     // Then no comparison is ever constructed from the referenceAnswer
     expect(diffProps).not.toHaveBeenCalled();
+  });
+});
+
+describe("GradedQuestion — opens by default when plain mode has a correct answer to show (E2)", () => {
+  it("expands a full-marks card by default so the referenceAnswer fallback is visible without opening anything", () => {
+    // Given a free_text question scored 100 — the AI grader omits grade.solution
+    // on a perfect score, so the fallback to referenceAnswer is what plain mode
+    // has to show. Before the fix, GradedQuestionShell's defaultOpen checked
+    // only `score !== 100`, which collapsed this exact card.
+    const { container } = render(
+      <GradedQuestion
+        question={freeTextQuestion}
+        studentAnswer={{ type: "free_text", text: "student's own answer" }}
+        grade={{ ...gradeWithoutSolution, score: 100 }}
+        isMC={false}
+        options={[]}
+        mode="plain"
+        correctAnswersVisible={true}
+        testStatus={TestStatus.Graded}
+      />,
+    );
+
+    // Then the correct answer is already in the DOM — the collapsible removes
+    // its children entirely when closed, so this is direct proof the card
+    // started open, not just that the fallback text exists somewhere.
+    expect(within(container).queryByText("Correct Answer")).not.toBeNull();
+    expect(
+      within(container).queryByText("The authored model answer."),
+    ).not.toBeNull();
+  });
+
+  it("collapses a full-marks card when neither disjunct of defaultOpen fires", () => {
+    // Given a free_text question scored 100 in diff mode with no grade.solution:
+    // showDiff is false (no solution to diff) and showCorrectAnswer is false
+    // (not plain mode), so `defaultOpen`'s only live signal is `score !== 100`.
+    // A mutation to `defaultOpen={true}` would pass every other test in this
+    // file, since none of them assert the collapsed state.
+    const { container } = render(
+      <GradedQuestion
+        question={freeTextQuestion}
+        studentAnswer={{ type: "free_text", text: "student's own answer" }}
+        grade={{ ...gradeWithoutSolution, score: 100 }}
+        isMC={false}
+        options={[]}
+        mode="diff"
+        correctAnswersVisible={true}
+        testStatus={TestStatus.Graded}
+      />,
+    );
+
+    // Then the "Your Answer" panel — which showDiff:false would render into
+    // CollapsibleContent if the card were open — is absent, proving collapse.
+    expect(within(container).queryByText("Your Answer")).toBeNull();
   });
 });
