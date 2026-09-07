@@ -2,7 +2,11 @@
 
 import { createContext, useContext, useReducer } from "react";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
-import { parseQuestionsAction, retryQuestionAction } from "./actions";
+import {
+  importAiQuestionsAction,
+  parseQuestionsAction,
+  retryQuestionAction,
+} from "./actions";
 import { extractTextFromDocx, extractTextFromPdf } from "./document-extract";
 
 /**
@@ -10,11 +14,14 @@ import { extractTextFromDocx, extractTextFromPdf } from "./document-extract";
  * `edited` (D40) tracks whether a teacher has hand-corrected this draft since
  * it last arrived from the AI, so a retry can warn before discarding it.
  * `retryError` surfaces a failed retry without blanking the pre-retry draft.
+ * `importError` surfaces Step 18's named rejection against the ONE offending
+ * question, instead of a bare page-level banner (Step 33's own scope note).
  */
 export interface ImportQuestionDraft extends ParsedQuestion {
   id: string;
   edited: boolean;
   retryError: string | null;
+  importError: string | null;
 }
 
 interface ImportAiState {
@@ -22,6 +29,8 @@ interface ImportAiState {
   questions: ImportQuestionDraft[];
   error: string | null;
   isBusy: boolean;
+  /** An import rejection with no specific offending question to attach to (e.g. an auth failure). */
+  importFailureMessage: string | null;
 }
 
 type ImportAiAction =
@@ -37,13 +46,16 @@ type ImportAiAction =
       type: "UPDATE_QUESTION";
       id: string;
       patch: Partial<Omit<ImportQuestionDraft, "id">>;
-    };
+    }
+  | { type: "IMPORT_START" }
+  | { type: "IMPORT_FAILED"; message: string; questionId: string | null };
 
 const initialState: ImportAiState = {
   documentText: "",
   questions: [],
   error: null,
   isBusy: false,
+  importFailureMessage: null,
 };
 
 /** D41 — matches the existing course-material upload limit. */
@@ -78,6 +90,27 @@ function importAiReducer(
           q.id === action.id ? { ...q, ...action.patch } : q,
         ),
       };
+    case "IMPORT_START":
+      // Clears any stale rejection from a prior attempt before this one runs.
+      return {
+        ...state,
+        isBusy: true,
+        importFailureMessage: null,
+        questions: state.questions.map((q) => ({ ...q, importError: null })),
+      };
+    case "IMPORT_FAILED":
+      return {
+        ...state,
+        isBusy: false,
+        importFailureMessage: action.questionId ? null : action.message,
+        questions: action.questionId
+          ? state.questions.map((q) =>
+              q.id === action.questionId
+                ? { ...q, importError: action.message }
+                : q,
+            )
+          : state.questions,
+      };
     default:
       return state;
   }
@@ -90,7 +123,26 @@ interface ImportAiContextValue extends ImportAiState {
     patch: Partial<Omit<ImportQuestionDraft, "id">>,
   ) => void;
   retryOneQuestion: (id: string, correctionNote: string) => Promise<void>;
+  /** Writes the reviewed list onto the test (APPEND, D37's default). Resolves true on success. */
+  importQuestions: (testId: string, courseId: string) => Promise<boolean>;
   reset: () => void;
+}
+
+/**
+ * Strips the review-list-only fields (`id`, `edited`, `retryError`,
+ * `importError`), leaving exactly the shape the server action accepts, in
+ * the same order the teacher left the list — that order is what the write
+ * loop uses for `order` (Step 17).
+ */
+function toReviewedQuestions(drafts: ImportQuestionDraft[]): ParsedQuestion[] {
+  return drafts.map((draft) => ({
+    title: draft.title,
+    content: draft.content,
+    type: draft.type,
+    options: draft.options,
+    referenceAnswer: draft.referenceAnswer,
+    explanation: draft.explanation,
+  }));
 }
 
 const ImportAiContext = createContext<ImportAiContextValue | null>(null);
@@ -155,6 +207,7 @@ export function ImportAiProvider({
         id: crypto.randomUUID(),
         edited: false,
         retryError: null,
+        importError: null,
         ...q,
       })),
     });
@@ -206,8 +259,44 @@ export function ImportAiProvider({
         explanation: question.explanation,
         edited: false,
         retryError: null,
+        importError: null,
       },
     });
+  }
+
+  /**
+   * Writes the current review list onto the test in APPEND mode (D37's
+   * default — Step 34 adds REPLACE). On rejection, Step 18's message is
+   * routed to the ONE offending question by position rather than shown as a
+   * bare page-level banner; a rejection with no specific offender (e.g. an
+   * auth failure) falls back to `importFailureMessage`.
+   */
+  async function importQuestions(
+    testId: string,
+    courseId: string,
+  ): Promise<boolean> {
+    dispatch({ type: "IMPORT_START" });
+
+    const result = await importAiQuestionsAction(
+      testId,
+      courseId,
+      toReviewedQuestions(state.questions),
+    );
+    if (!result.success) {
+      const offender =
+        result.invalidQuestionIndex !== undefined
+          ? state.questions[result.invalidQuestionIndex]
+          : undefined;
+      dispatch({
+        type: "IMPORT_FAILED",
+        message: result.message,
+        questionId: offender?.id ?? null,
+      });
+      return false;
+    }
+
+    dispatch({ type: "RESET" });
+    return true;
   }
 
   const value: ImportAiContextValue = {
@@ -216,6 +305,7 @@ export function ImportAiProvider({
     updateQuestion: (id, patch) =>
       dispatch({ type: "UPDATE_QUESTION", id, patch }),
     retryOneQuestion,
+    importQuestions,
     reset: () => dispatch({ type: "RESET" }),
   };
 

@@ -11,6 +11,13 @@ vi.mock("../actions", () => ({
   parseQuestionsAction: vi.fn(),
   retryQuestionAction: vi.fn(),
 }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  // `with-span` calls this on every thrown server-action error (J13);
+  // `../actions` is fully mocked here, but the review list now always
+  // renders `ImportQuestionsButton`, which calls `useRouter`.
+  unstable_rethrow: vi.fn(),
+}));
 
 import { questionImportItemSchema } from "src/lib/ai/question-import-schema";
 import { parseQuestionsAction, retryQuestionAction } from "../actions";
@@ -57,7 +64,7 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList />
+        <QuestionPreviewList testId="test-1" courseId="course-1" />
       </ImportAiProvider>,
     );
 
@@ -111,7 +118,7 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList />
+        <QuestionPreviewList testId="test-1" courseId="course-1" />
       </ImportAiProvider>,
     );
 
@@ -175,7 +182,7 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     render(
       <ImportAiProvider>
         <ImportAiFilePicker />
-        <QuestionPreviewList />
+        <QuestionPreviewList testId="test-1" courseId="course-1" />
       </ImportAiProvider>,
     );
 

@@ -37,7 +37,7 @@ export default async function ImportAiPage({
       <ImportAiProvider>
         <section className="w-full max-w-2xl space-y-6">
           <ImportAiFilePicker />
-          <QuestionPreviewList />
+          <QuestionPreviewList testId={testId} courseId={courseId} />
         </section>
       </ImportAiProvider>
     </div>

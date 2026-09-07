@@ -169,6 +169,8 @@ export interface ImportAiQuestionsState {
   success: boolean;
   message: string;
   importedCount?: number;
+  /** 0-indexed position of the offender named in `message` — Step 33 surfaces it against that question, not a bare banner. */
+  invalidQuestionIndex?: number;
 }
 
 /**
@@ -255,14 +257,19 @@ async function addReviewedQuestion(
  * residual every bulk insert in this codebase already carries
  * (`importQuestions`/`composeFromPools` use plain `insertMany`).
  * @param questions - The reviewed list, in the order the teacher left it.
- * @returns The first offender's message, or null when every question passes.
+ * @returns The first offender's index (0-based) and message, or null when every question passes.
  */
-function findFirstQuestionError(questions: ParsedQuestion[]): string | null {
+function findFirstQuestionError(
+  questions: ParsedQuestion[],
+): { index: number; message: string } | null {
   for (let i = 0; i < questions.length; i++) {
     const parsed = questionImportItemSchema.safeParse(questions[i]);
     if (!parsed.success) {
       const title = questions[i]?.title ?? "";
-      return `Question ${i + 1} ("${title}"): ${parsed.error.issues[0].message}`;
+      return {
+        index: i,
+        message: `Question ${i + 1} ("${title}"): ${parsed.error.issues[0].message}`,
+      };
     }
 
     if (isMcQuestionType(parsed.data.type)) {
@@ -272,7 +279,10 @@ function findFirstQuestionError(questions: ParsedQuestion[]): string | null {
         { allowMissingAnswerKey: true },
       );
       if (mcError) {
-        return `Question ${i + 1} ("${parsed.data.title}"): ${mcError}`;
+        return {
+          index: i,
+          message: `Question ${i + 1} ("${parsed.data.title}"): ${mcError}`,
+        };
       }
     }
   }
@@ -312,9 +322,13 @@ export async function importAiQuestionsAction(
     return { success: false, message: "Unauthorized: admin access required" };
   }
 
-  const invalidReason = findFirstQuestionError(questions);
-  if (invalidReason) {
-    return { success: false, message: invalidReason };
+  const invalidQuestion = findFirstQuestionError(questions);
+  if (invalidQuestion) {
+    return {
+      success: false,
+      message: invalidQuestion.message,
+      invalidQuestionIndex: invalidQuestion.index,
+    };
   }
 
   try {

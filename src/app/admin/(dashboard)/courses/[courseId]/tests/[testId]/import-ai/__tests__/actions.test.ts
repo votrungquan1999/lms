@@ -121,6 +121,9 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
     expect(result.success).toBe(false);
     expect(result.message).toContain("Question 2");
     expect(result.message).toContain("Q2: broken key");
+    // The offender's 0-indexed position — Step 33 routes this onto that
+    // question's own card rather than a bare page-level banner.
+    expect(result.invalidQuestionIndex).toBe(1);
     const questions =
       await getTestServices().questionService.listQuestions("test-1");
     expect(questions).toHaveLength(0);

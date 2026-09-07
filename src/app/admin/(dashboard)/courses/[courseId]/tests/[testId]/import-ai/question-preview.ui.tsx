@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
@@ -67,9 +68,16 @@ export function ImportAiFilePicker(): React.ReactNode {
 }
 
 /**
- * Renders the reviewable list of questions parsed from the uploaded document.
+ * Renders the reviewable list of questions parsed from the uploaded document,
+ * plus the control that actually writes them onto the test (Step 33).
  */
-export function QuestionPreviewList(): React.ReactNode {
+export function QuestionPreviewList({
+  testId,
+  courseId,
+}: {
+  testId: string;
+  courseId: string;
+}): React.ReactNode {
   const { questions } = useImportAi();
 
   if (questions.length === 0) {
@@ -84,6 +92,49 @@ export function QuestionPreviewList(): React.ReactNode {
       {questions.map((question, index) => (
         <QuestionCard key={question.id} question={question} index={index} />
       ))}
+      <ImportQuestionsButton testId={testId} courseId={courseId} />
+    </div>
+  );
+}
+
+/**
+ * Writes the reviewed list onto the test in APPEND mode and returns the
+ * teacher to the test's admin page on success. `importAiQuestionsAction`'s
+ * per-question rejection (Step 18) surfaces on the offending `QuestionCard`
+ * via `question.importError`, set by `importQuestions` in state — not shown
+ * here as a second, bare banner.
+ */
+function ImportQuestionsButton({
+  testId,
+  courseId,
+}: {
+  testId: string;
+  courseId: string;
+}): React.ReactNode {
+  const { importQuestions, isBusy, importFailureMessage } = useImportAi();
+  const router = useRouter();
+
+  async function handleImport(): Promise<void> {
+    const success = await importQuestions(testId, courseId);
+    if (success) {
+      router.push(`/admin/courses/${courseId}/tests/${testId}`);
+      router.refresh();
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Button type="button" disabled={isBusy} onClick={handleImport}>
+        {isBusy ? "Importing…" : "Import questions"}
+      </Button>
+      {importFailureMessage && (
+        <div
+          role="alert"
+          className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          {importFailureMessage}
+        </div>
+      )}
     </div>
   );
 }
@@ -172,6 +223,14 @@ function QuestionCard({
             className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
           >
             {question.retryError}
+          </div>
+        )}
+        {question.importError && (
+          <div
+            role="alert"
+            className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+          >
+            {question.importError}
           </div>
         )}
       </CardContent>
