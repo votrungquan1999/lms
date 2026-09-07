@@ -1,7 +1,7 @@
 # ADR: AI-Assisted Question Import from Documents
 
 **Date:** 2026-04-12
-**Status:** Accepted — **not yet implemented** (as of 2026-05-30; only TypeScript-CLI and JSON-upload import exist; .docx/.pdf AI import is unbuilt)
+**Status:** Accepted — **implemented** (as of 2026-09-07, branch `feat/answer-reveal-and-doc-import`; both `.docx` and `.pdf` AI import shipped, in one pass rather than the two phases this ADR proposed). The overall approach below — client-side extraction, an LLM parse into structured questions, a teacher review step, then import — is what shipped. Several specifics changed between this ADR and delivery; see "Implementation notes" at the bottom.
 **Deciders:** Project Owner
 
 ## Context
@@ -149,3 +149,17 @@ The LLM is instructed to:
 - No customer documents yet — prompt may need refinement once real documents are tested
 - PDF extraction quality varies by document (especially complex layouts or scanned PDFs)
 - Gemini API pricing or model availability could change
+
+## Implementation notes (2026-09-07)
+
+This ADR's overall approach shipped as proposed. The specifics below are where the delivered design diverged from what's written above. This section amends the record; the Decision and Consequences sections above are left as originally written.
+
+- **Model and version drifted from this ADR's text.** This ADR named `gemini-2.5-flash` behind a `GEMINI_MODEL` env-var override. The shipped code hardcodes `GEMINI_MODEL_ID = "gemini-3.5-flash"` as a module constant in `src/lib/ai/ai-client.ts`. There is no `GEMINI_MODEL` env var anywhere in the repo — only `GOOGLE_GENERATIVE_AI_API_KEY` is read from the environment. Swapping models today means editing the constant, not setting an env var.
+- **Both formats shipped together, not phased.** This ADR proposed `.docx` first (Phase 1), then `.pdf` later (Phase 2). The operator chose to ship both in the same run, so PDF-sourced teachers were covered immediately.
+- **The parse/retry client extends the existing AI client, behind a new narrow interface — not a new client.** `parseQuestionsFromText`/`retryQuestion` were added to the same `GeminiAiClient` already used for AI grading, sharing its model constant and tracing, and declared through a separate `QuestionParseClient` interface rather than widening the existing grading-only `AiClient` interface. One concrete client, two narrow contracts, instead of a parallel client that would duplicate SDK wiring.
+- **Import writes through the same path a manually-added question uses, not a new bulk-import endpoint.** This ADR didn't specify the write path. The shipped code validates the whole reviewed batch up front, then loops the single-question `addQuestion` method — so a manually-added question and an AI-imported one can never accept different things. The pre-existing bulk `importQuestions` path was rejected for this because it hardcodes `type: "free_text"` and drops options, explanation, and the model answer.
+- **A missing answer key is surfaced to the teacher, not just silently left unmarked.** This ADR's step 5 said to leave every option `isCorrect: false` when the key can't be determined, "for teacher to fix." The shipped behavior does exactly that, but also flags such a question with a "Needs an answer key" badge in the admin question list, so the gap is visible rather than only discoverable by inspecting marks later. A question that arrives with fewer than two options — a case this ADR didn't anticipate — gets its own distinct "Needs answer options" flag; the two flags are mutually exclusive.
+- **Import gained an explicit append-or-replace choice this ADR never mentioned.** Re-running an import risked silent duplicate questions. The shipped design makes the teacher choose at import time: append (the default — adds after the existing questions) or replace (deletes the test's current questions first, gated behind a typed confirmation, not just a click). Replace required a delete-question capability that didn't exist anywhere in the app before this feature — building it is documented in `documents/features/question_editing.md`.
+- **File-size and text-length limits, which this ADR left unstated.** 10 MB per uploaded file — matching the existing course-material upload limit, so teachers meet one consistent number — plus a cap on extracted text length, with the Next.js server-action body limit explicitly raised to match.
+- **No privacy notice shipped, despite this ADR flagging the question as open.** This ADR's Consequences section named "test content is sent to Google's API" as a negative but proposed no notice. The delivered feature explicitly ships without one, consistent with the repo's existing AI-grading surfaces, which already send student answers to Google with no notice either. The privacy consideration this ADR raised remains undischarged by design, not by oversight.
+- **The pre-import review-list editor cannot change a question's type.** A teacher correcting a reviewed question by hand can fix title, content, the free-text model answer/explanation, and MC option text/correctness — never `type`. A misclassified draft is corrected by asking the AI to re-read it with a correction note, not by a type-switcher in the review list. A full type-switcher does exist, but only on the persisted, post-import edit path documented in `documents/features/question_editing.md`.
