@@ -182,6 +182,39 @@ describe("Feature: AI document import — a document with no readable text is re
   });
 });
 
+describe("Feature: AI document import — a document with no questions in it says so", () => {
+  it("tells the teacher no questions were found and offers nothing to import, instead of silently returning to the bare picker", async () => {
+    const user = userEvent.setup();
+    vi.mocked(extractTextFromDocx).mockResolvedValue(
+      "Just a cover page, no questions here.",
+    );
+    vi.mocked(parseQuestionsAction).mockResolvedValue({
+      success: true,
+      message: "Extracted 0 question(s)",
+      questions: [],
+    });
+
+    render(
+      <ImportAiProvider>
+        <ImportAiFilePicker />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
+      </ImportAiProvider>,
+    );
+
+    await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/no questions/i);
+    expect(
+      screen.queryByRole("button", { name: /import questions/i }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("Feature: AI document import — a teacher imports the reviewed questions onto the test", () => {
   it("writes the reviewed questions onto the test and returns to the test's admin page", async () => {
     const user = userEvent.setup();

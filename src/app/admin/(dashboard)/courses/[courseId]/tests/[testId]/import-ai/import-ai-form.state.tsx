@@ -208,6 +208,18 @@ export function ImportAiProvider({
       return;
     }
 
+    // `![]` is `false` — a successful parse finding zero questions is not
+    // caught by the check above, so it needs its own branch or the teacher
+    // sees the bare picker again with no distinguishing feedback at all.
+    if (result.questions.length === 0) {
+      dispatch({
+        type: "ERROR",
+        message:
+          "No questions were found in this document. Try a different file.",
+      });
+      return;
+    }
+
     dispatch({
       type: "PARSED_READY",
       documentText: text,
