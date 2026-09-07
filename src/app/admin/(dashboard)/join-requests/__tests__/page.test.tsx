@@ -105,7 +105,7 @@ describe("Feature: Admin Join Request Queue", () => {
       resolvedBy: "admin-1",
     });
 
-    const ui = await JoinRequestsPage();
+    const ui = await JoinRequestsPage({ searchParams: Promise.resolve({}) });
     render(ui);
 
     expect(screen.getByText("Alice Smith")).toBeInTheDocument();
@@ -113,5 +113,60 @@ describe("Feature: Admin Join Request Queue", () => {
     expect(screen.getByText("Bob Jones")).toBeInTheDocument();
     expect(screen.getByText(/Biology/)).toBeInTheDocument();
     expect(screen.getAllByTestId(/^join-request-row-/)).toHaveLength(2);
+  });
+
+  it("switches the queue between waiting, approved and rejected via the filter search param, with a distinct empty state for each", async () => {
+    const services = getTestServices();
+
+    const algebra = await services.courseService.createCourse({
+      title: "Algebra",
+      description: "",
+      createdBy: "admin",
+    });
+    const bob = await services.studentService.createStudentDocument({
+      authUserId: "auth-bob",
+      username: "bob",
+      name: "Bob Jones",
+      createdBy: "self-signup",
+    });
+
+    // Only an Approved row exists — no code path to approve one yet
+    // (Steps 30-33), so it's inserted directly. Pending and Rejected are
+    // both empty by omission.
+    await db.collection("course_join_request").insertOne({
+      id: crypto.randomUUID(),
+      courseId: algebra.id,
+      studentId: bob.id,
+      status: JoinRequestStatus.Approved,
+      requestedAt: new Date(),
+      resolvedAt: new Date(),
+      resolvedBy: "admin-1",
+    });
+
+    // Default (Waiting) is empty — the GOOD empty state.
+    const waitingUi = await JoinRequestsPage({
+      searchParams: Promise.resolve({}),
+    });
+    const { unmount: unmountWaiting } = render(waitingUi);
+    expect(screen.getByText(/All caught up/i)).toBeInTheDocument();
+    expect(screen.queryByText("Bob Jones")).not.toBeInTheDocument();
+    unmountWaiting();
+
+    // Switching to Approved shows Bob's row.
+    const approvedUi = await JoinRequestsPage({
+      searchParams: Promise.resolve({ filter: "approved" }),
+    });
+    const { unmount: unmountApproved } = render(approvedUi);
+    expect(screen.getByText("Bob Jones")).toBeInTheDocument();
+    unmountApproved();
+
+    // Rejected is empty too, but it's NOT the default filter — the NEUTRAL
+    // empty state, distinct from "All caught up".
+    const rejectedUi = await JoinRequestsPage({
+      searchParams: Promise.resolve({ filter: "rejected" }),
+    });
+    render(rejectedUi);
+    expect(screen.getByText(/No requests match/i)).toBeInTheDocument();
+    expect(screen.queryByText(/All caught up/i)).not.toBeInTheDocument();
   });
 });

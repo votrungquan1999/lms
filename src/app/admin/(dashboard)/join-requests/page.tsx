@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   type CourseJoinRequest,
   JoinRequestStatus,
@@ -7,13 +8,37 @@ import {
   getCourseService,
   getStudentService,
 } from "src/lib/services-singleton";
-import type { JoinRequestRow as JoinRequestRowModel } from "./join-request-page.type";
+import { joinRequestsHref } from "./href";
+import {
+  JoinRequestFilter,
+  type JoinRequestRow as JoinRequestRowModel,
+} from "./join-request-page.type";
 import { JoinRequestRow } from "./join-request-row";
 
 export const metadata = {
   title: "Join Requests — LMS Admin",
   description: "Requests waiting for admin approval to join a course",
 };
+
+const FILTER_OPTIONS: { value: JoinRequestFilter; label: string }[] = [
+  { value: JoinRequestFilter.Waiting, label: "Waiting" },
+  { value: JoinRequestFilter.Approved, label: "Approved" },
+  { value: JoinRequestFilter.Rejected, label: "Rejected" },
+];
+
+const STATUS_BY_FILTER: Record<JoinRequestFilter, JoinRequestStatus> = {
+  [JoinRequestFilter.Waiting]: JoinRequestStatus.Pending,
+  [JoinRequestFilter.Approved]: JoinRequestStatus.Approved,
+  [JoinRequestFilter.Rejected]: JoinRequestStatus.Rejected,
+};
+
+function resolveFilter(raw: string | string[] | undefined): JoinRequestFilter {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  // Derived from the enum itself so a new JoinRequestFilter member can't
+  // silently fall back to Waiting by being missing from a hand-written list.
+  const match = Object.values(JoinRequestFilter).find((f) => f === value);
+  return match ?? JoinRequestFilter.Waiting;
+}
 
 /**
  * Joins raw join requests with the student and course each one names.
@@ -54,28 +79,67 @@ async function toVisibleRows(
 }
 
 /**
- * Admin join-request queue — lists every waiting request with who is asking
- * and which course they want (Step 27).
+ * Admin join-request queue — lists requests for the active tab (Waiting by
+ * default), showing who is asking and which course they want (Step 27),
+ * and lets the admin switch between Waiting/Approved/Rejected (Step 28).
  */
-export default async function JoinRequestsPage() {
+export default async function JoinRequestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const filter = resolveFilter(params.filter);
+
   const joinRequestService = await getCourseJoinRequestService();
   const requests = await joinRequestService.listByStatus(
-    JoinRequestStatus.Pending,
+    STATUS_BY_FILTER[filter],
   );
   const rows = await toVisibleRows(requests);
+
+  // Default filter empty = good state ("caught up"); any other filter empty
+  // is just neutral ("no requests match") — same distinction as grading/page.tsx.
+  const isCaughtUp = filter === JoinRequestFilter.Waiting && rows.length === 0;
+  const isEmpty = rows.length === 0;
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <header>
         <h1 className="text-3xl font-bold tracking-tight">Join Requests</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Requests waiting for approval.
+          Requests to join a course.
         </p>
       </header>
 
+      <nav className="flex flex-wrap gap-2" aria-label="Filter join requests">
+        {FILTER_OPTIONS.map((opt) => {
+          const isActive = filter === opt.value;
+          return (
+            <Link
+              key={opt.value}
+              href={joinRequestsHref({ filter: opt.value })}
+              scroll={false}
+              aria-current={isActive ? "page" : undefined}
+              className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                isActive
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {opt.label}
+            </Link>
+          );
+        })}
+      </nav>
+
       <section className="space-y-3">
-        {rows.length === 0 && (
+        {isCaughtUp && (
           <p className="text-center text-muted-foreground">All caught up.</p>
+        )}
+        {!isCaughtUp && isEmpty && (
+          <p className="text-center text-muted-foreground">
+            No requests match.
+          </p>
         )}
         {rows.map((row) => (
           <JoinRequestRow key={row.id} row={row} />
