@@ -89,24 +89,34 @@ describe("Feature: Admin Course Management Flow", () => {
       );
     });
 
-    dbIt("should throw when enrolling a duplicate student", async ({ db }) => {
-      const courseService = new CourseService(db);
-      const enrollmentService = new EnrollmentService(db);
-      const course = await courseService.createCourse({
-        title: "Test Course",
-        description: "",
-        createdBy: "admin-1",
-      });
-      await enrollmentService.enrollStudent(
-        course.id,
-        "student-123",
-        "admin-1",
-      );
+    dbIt(
+      "should succeed without duplicating an already-enrolled student",
+      async ({ db }) => {
+        const courseService = new CourseService(db);
+        const enrollmentService = new EnrollmentService(db);
+        const course = await courseService.createCourse({
+          title: "Test Course",
+          description: "",
+          createdBy: "admin-1",
+        });
+        await enrollmentService.enrollStudent(
+          course.id,
+          "student-123",
+          "admin-1",
+        );
 
-      await expect(
-        enrollmentService.enrollStudent(course.id, "student-123", "admin-1"),
-      ).rejects.toThrow("Student is already enrolled in this course");
-    });
+        await enrollmentService.enrollStudent(
+          course.id,
+          "student-123",
+          "admin-1",
+        );
+
+        const enrolled = await enrollmentService.listEnrollmentsByCourse(
+          course.id,
+        );
+        expect(enrolled).toEqual(["student-123"]);
+      },
+    );
 
     dbIt("should bulk enroll students and skip duplicates", async ({ db }) => {
       const courseService = new CourseService(db);

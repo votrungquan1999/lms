@@ -36,7 +36,8 @@ export class EnrollmentService {
   }
 
   /**
-   * Enrolls a student in a course. Prevents duplicate enrollments.
+   * Enrolls a student in a course. Already-enrolled is a no-op success —
+   * this makes an enrollment retry (e.g. after an interrupted approval) safe.
    */
   async enrollStudent(
     courseId: string,
@@ -45,7 +46,7 @@ export class EnrollmentService {
   ): Promise<void> {
     const existing = await this.enrollments.findOne({ courseId, studentId });
     if (existing) {
-      throw new Error("Student is already enrolled in this course");
+      return;
     }
 
     const doc: EnrollmentDocument = {
