@@ -85,3 +85,64 @@ export async function approveJoinRequestAction(
     return { success: false, message };
   }
 }
+
+/**
+ * Server action: rejects a pending join request (Step 31). Status-only — an
+ * enrollment the student already has by another path is left untouched
+ * (D66/R7); there is no delete/deactivate path for the account they created
+ * (D11).
+ */
+export async function rejectJoinRequestAction(
+  _prevState: JoinRequestActionState | null,
+  formData: FormData,
+): Promise<JoinRequestActionState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  // Re-checks admin access itself — a server action is a separate POST
+  // endpoint the (dashboard) layout guard never runs in front of (R5).
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  const parsed = requestIdSchema.safeParse({
+    requestId: formData.get("requestId"),
+  });
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+
+  try {
+    return await withSpan(
+      "action.rejectJoinRequestAction",
+      {
+        "lms.action.name": "rejectJoinRequestAction",
+        "lms.request.id": parsed.data.requestId,
+        "lms.admin.id": adminUserId,
+      },
+      async () => {
+        const joinRequestService = await getCourseJoinRequestService();
+        const request = await joinRequestService.getRequest(
+          parsed.data.requestId,
+        );
+        if (!request) {
+          return { success: false, message: "Join request not found" };
+        }
+
+        await joinRequestService.reject(request.id, adminUserId);
+
+        revalidatePath("/admin/join-requests");
+        return { success: true, message: "Request rejected." };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to reject request";
+    return { success: false, message };
+  }
+}

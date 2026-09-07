@@ -169,6 +169,24 @@ export class CourseJoinRequestService {
   }
 
   /**
+   * Marks a join request Rejected. Status-only — never touches the
+   * `enrollment` collection, so an enrollment the student already has by
+   * another path (hand-added, bulk import) is left untouched (D66/R7).
+   */
+  async reject(requestId: string, resolvedBy: string): Promise<void> {
+    await this.joinRequests.updateOne(
+      { id: requestId },
+      {
+        $set: {
+          status: JoinRequestStatus.Rejected,
+          resolvedAt: new Date(),
+          resolvedBy,
+        },
+      },
+    );
+  }
+
+  /**
    * Lists one page of join requests with the given status — R4 keys strictly
    * on the status enum, never a nullable "resolved" field (this driver
    * treats `{field: null}` as matching both an explicit null AND an absent
