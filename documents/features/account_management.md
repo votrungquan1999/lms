@@ -1,16 +1,16 @@
 # Account Management
 
 ## Overview
-Admin-managed student account lifecycle using **Better Auth** with **Google OAuth** support. Administrators create and update student accounts. Both admins and students can log in via Google or email/password credentials. Students cannot self-register or change their own passwords.
+Admin-managed student account lifecycle using **Better Auth** with **Google OAuth** support. Administrators create and update student accounts, but that is no longer the only way an account is created — a prospective student can self-register through a per-course invite link, with either username/password or Google (see [Course Join Requests](course_join_requests.md)). Students still cannot change their own passwords.
 
 ## Authentication Provider
 - **Library**: [Better Auth](https://www.better-auth.com/)
-- **Methods**: Google OAuth (admin only), username/password (students)
-- **Roles**: Admin, Student
+- **Methods**: Google OAuth (admin login, and student self-signup via invite link), username/password (admin-created students, and student self-signup via invite link)
+- **Roles**: Admin, Student — a `role` field recorded on the Better Auth user document (`src/lib/session.ts`), never inferred from email address or sign-in method. Signing in with Google used to imply admin; that inference was a privilege-escalation hole and has since been closed (`src/lib/auth-service.ts`).
 
 ## User Roles
-- **Admin**: Full CRUD on student accounts, login via Google
-- **Student**: Login via username/password only (no self-service account management)
+- **Admin**: a recorded `role: admin`. Full CRUD on student accounts, login via Google. A stricter **owner** tier — an admin whose email is also in `ADMIN_EMAILS` — is required to grant or revoke admin access (`src/lib/page-guard.ts`); everyday admin actions need only the recorded role.
+- **Student**: created by an admin, or by self-registering through a course invite link. Logs in with whichever credential created the account — username/password or Google; still no self-service password change.
 
 ## Acceptance Criteria
 

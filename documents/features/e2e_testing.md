@@ -55,6 +55,11 @@ End-to-end tests using Playwright to verify full user flows through the browser.
 - [x] Student can select and submit an MC answer (radio buttons)
 - [x] Auto-graded score is unlocked after all questions (including free-text) are graded (atomic reveal)
 
+### Course Join Flow (planned)
+
+- [ ] A prospective student opens a course invite link, self-registers (username/password), and lands on the admin's join-request queue — planned, no test yet: `e2e/course-join-request-flow.test.ts` does not exist (see [Course Join Requests](course_join_requests.md))
+- [ ] Admin approves the request from the queue and the student then sees the course on their dashboard
+
 ## Test Sequence (`lms-flow.test.ts`)
 
 Tests run serially and share state — each test builds on the previous:
