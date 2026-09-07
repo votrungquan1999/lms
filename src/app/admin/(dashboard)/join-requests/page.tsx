@@ -14,11 +14,14 @@ import {
   type JoinRequestRow as JoinRequestRowModel,
 } from "./join-request-page.type";
 import { JoinRequestRow } from "./join-request-row";
+import { PaginationControls } from "./pagination-controls";
 
 export const metadata = {
   title: "Join Requests — LMS Admin",
   description: "Requests waiting for admin approval to join a course",
 };
+
+const PAGE_SIZE = 10;
 
 const FILTER_OPTIONS: { value: JoinRequestFilter; label: string }[] = [
   { value: JoinRequestFilter.Waiting, label: "Waiting" },
@@ -38,6 +41,18 @@ function resolveFilter(raw: string | string[] | undefined): JoinRequestFilter {
   // silently fall back to Waiting by being missing from a hand-written list.
   const match = Object.values(JoinRequestFilter).find((f) => f === value);
   return match ?? JoinRequestFilter.Waiting;
+}
+
+// Above this, a page number carries no more real pages to clamp to than
+// Number.MAX_SAFE_INTEGER would, but stays a safe integer for the
+// arithmetic below (skip/limit math, array slicing) either way.
+const MAX_PAGE = Number.MAX_SAFE_INTEGER;
+
+function resolvePage(raw: string | string[] | undefined): number {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const parsed = value ? Number.parseInt(value, 10) : 1;
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return Math.min(parsed, MAX_PAGE);
 }
 
 /**
@@ -90,12 +105,30 @@ export default async function JoinRequestsPage({
 }) {
   const params = await searchParams;
   const filter = resolveFilter(params.filter);
+  const requestedPage = resolvePage(params.page);
 
   const joinRequestService = await getCourseJoinRequestService();
-  const requests = await joinRequestService.listByStatus(
-    STATUS_BY_FILTER[filter],
-  );
-  const rows = await toVisibleRows(requests);
+  const status = STATUS_BY_FILTER[filter];
+
+  // D69: the total must count only rows the admin can actually SEE, and
+  // whether a row is visible isn't known until after the student/course
+  // join below — so this loads every matching request for the status,
+  // unbounded (limit: 0 is Mongo's own "no limit"), on every page view.
+  // Exact-but-unbounded by design; don't "optimize" this into a DB-level
+  // skip/limit without re-deriving the total from the same filtered set.
+  const { items: allRequests } = await joinRequestService.listByStatus(status, {
+    skip: 0,
+    limit: 0,
+  });
+  const visibleRows = await toVisibleRows(allRequests);
+
+  const total = visibleRows.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // A stale bookmarked page whose rows have since moved on overshoots the
+  // real range — clamp to the last page rather than showing an empty screen.
+  const page =
+    requestedPage > totalPages && total > 0 ? totalPages : requestedPage;
+  const rows = visibleRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Default filter empty = good state ("caught up"); any other filter empty
   // is just neutral ("no requests match") — same distinction as grading/page.tsx.
@@ -145,6 +178,13 @@ export default async function JoinRequestsPage({
           <JoinRequestRow key={row.id} row={row} />
         ))}
       </section>
+
+      <PaginationControls
+        filter={filter}
+        page={page}
+        totalPages={totalPages}
+        total={total}
+      />
     </div>
   );
 }

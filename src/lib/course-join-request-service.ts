@@ -49,6 +49,24 @@ export interface CreateJoinRequestInput {
 }
 
 /**
+ * Paging window for `listByStatus` — `skip`/`limit` in the Mongo sense.
+ */
+export interface ListByStatusOptions {
+  skip: number;
+  limit: number;
+}
+
+/**
+ * One page of join requests for a status, plus the total row count across
+ * every page — the total is what makes real page controls possible instead
+ * of a truncating "showing first N" cap (D56/R12).
+ */
+export interface PagedCourseJoinRequests {
+  items: CourseJoinRequest[];
+  total: number;
+}
+
+/**
  * CourseJoinRequestService — manages the `course_join_request` collection.
  * Modelled on `RedoRequestService`'s active/resolved shape.
  */
@@ -124,17 +142,34 @@ export class CourseJoinRequestService {
   }
 
   /**
-   * Lists every join request with the given status, oldest first — R4 keys
-   * strictly on the status enum, never a nullable "resolved" field (this
-   * driver treats `{field: null}` as matching both an explicit null AND an
-   * absent key, so a nullable filter would silently pull in the wrong rows).
+   * Lists one page of join requests with the given status — R4 keys strictly
+   * on the status enum, never a nullable "resolved" field (this driver
+   * treats `{field: null}` as matching both an explicit null AND an absent
+   * key, so a nullable filter would silently pull in the wrong rows).
+   * Waiting sorts oldest-first (nobody is left behind); a resolved status
+   * (approved/rejected) sorts newest-first (D56). `_id` breaks ties on
+   * `requestedAt` — Mongo's own docs say sort order is undefined across
+   * documents with an equal sort key, so without it two rows stamped the
+   * same instant could land on both pages, or neither, as skip/limit moves.
    */
-  async listByStatus(status: JoinRequestStatus): Promise<CourseJoinRequest[]> {
-    const docs = await this.joinRequests
-      .find({ status })
-      .sort({ requestedAt: 1 })
-      .toArray();
-    return docs.map((doc) => this.toCourseJoinRequest(doc));
+  async listByStatus(
+    status: JoinRequestStatus,
+    options: ListByStatusOptions,
+  ): Promise<PagedCourseJoinRequests> {
+    const sortDirection = status === JoinRequestStatus.Pending ? 1 : -1;
+    const [docs, total] = await Promise.all([
+      this.joinRequests
+        .find({ status })
+        .sort({ requestedAt: sortDirection, _id: sortDirection })
+        .skip(options.skip)
+        .limit(options.limit)
+        .toArray(),
+      this.joinRequests.countDocuments({ status }),
+    ]);
+    return {
+      items: docs.map((doc) => this.toCourseJoinRequest(doc)),
+      total,
+    };
   }
 
   private toCourseJoinRequest(
