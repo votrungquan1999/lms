@@ -123,6 +123,20 @@ export class CourseJoinRequestService {
     return doc ? this.toCourseJoinRequest(doc) : null;
   }
 
+  /**
+   * Lists every join request with the given status, oldest first — R4 keys
+   * strictly on the status enum, never a nullable "resolved" field (this
+   * driver treats `{field: null}` as matching both an explicit null AND an
+   * absent key, so a nullable filter would silently pull in the wrong rows).
+   */
+  async listByStatus(status: JoinRequestStatus): Promise<CourseJoinRequest[]> {
+    const docs = await this.joinRequests
+      .find({ status })
+      .sort({ requestedAt: 1 })
+      .toArray();
+    return docs.map((doc) => this.toCourseJoinRequest(doc));
+  }
+
   private toCourseJoinRequest(
     doc: CourseJoinRequestDocument,
   ): CourseJoinRequest {
