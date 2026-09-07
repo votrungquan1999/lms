@@ -305,9 +305,10 @@ export async function requestToJoinAction(
         }
 
         // Pre-checked so the reply can say "already waiting" instead of the
-        // generic success message — this is for the MESSAGE only.
-        // createRequest has no unique index, so a lost race here can still
-        // insert a second Pending row.
+        // generic success message — this is for the MESSAGE only. A lost
+        // race between this check and createRequest can no longer insert a
+        // second Pending row (partial unique index, F10/D57); it just means
+        // the caller sees the generic "now waiting" message instead.
         const joinRequestService = await getCourseJoinRequestService();
         const existingPending = await joinRequestService.getPendingRequest(
           course.id,

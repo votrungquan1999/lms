@@ -2,8 +2,9 @@ import {
   CourseJoinRequestService,
   JoinRequestStatus,
 } from "src/lib/course-join-request-service";
+import { ensureIndexes } from "src/lib/database";
 import { withTestDb } from "src/tests/create-test-db";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const dbIt = withTestDb(it);
 
@@ -42,5 +43,77 @@ describe("Feature: Course Join Request Service", () => {
       expect(all).toHaveLength(1);
       expect(all[0].status).toBe(JoinRequestStatus.Pending);
     });
+  });
+
+  describe("Scenario: two submissions race to create a pending row for the same pair", () => {
+    dbIt(
+      "should return the existing pending request instead of creating a duplicate when a lost race hits the unique index",
+      async ({ db }) => {
+        await ensureIndexes(db);
+        const service = new CourseJoinRequestService(db);
+
+        // First submission wins normally.
+        const winner = await service.createRequest({
+          courseId: "course-1",
+          studentId: "student-1",
+        });
+
+        // Simulate the TOCTOU race F10 describes: this caller's own
+        // pre-check ran before the winner's write was visible to it, so it
+        // wrongly proceeds to insert — the unique index is the real guard.
+        vi.spyOn(service, "getPendingRequest").mockResolvedValueOnce(null);
+
+        const loser = await service.createRequest({
+          courseId: "course-1",
+          studentId: "student-1",
+        });
+
+        // The lost race reads as the existing pending request, not a crash
+        expect(loser.id).toBe(winner.id);
+
+        // And still exactly one pending row exists
+        const all = await db
+          .collection("course_join_request")
+          .find({ courseId: "course-1", studentId: "student-1" })
+          .toArray();
+        expect(all).toHaveLength(1);
+      },
+    );
+  });
+
+  describe("Scenario: a previously-rejected student requests to join again", () => {
+    dbIt(
+      "should create a new pending request even though a rejected row for the same pair already exists",
+      async ({ db }) => {
+        await ensureIndexes(db);
+        const service = new CourseJoinRequestService(db);
+
+        // Given a resolved (rejected) request already exists for this pair —
+        // the index is partial precisely so this row never blocks a re-request.
+        await db.collection("course_join_request").insertOne({
+          id: crypto.randomUUID(),
+          courseId: "course-1",
+          studentId: "student-1",
+          status: JoinRequestStatus.Rejected,
+          requestedAt: new Date(),
+          resolvedAt: new Date(),
+          resolvedBy: "admin-1",
+        });
+
+        const created = await service.createRequest({
+          courseId: "course-1",
+          studentId: "student-1",
+        });
+
+        expect(created.status).toBe(JoinRequestStatus.Pending);
+
+        // The rejected row survives alongside the new pending one
+        const all = await db
+          .collection("course_join_request")
+          .find({ courseId: "course-1", studentId: "student-1" })
+          .toArray();
+        expect(all).toHaveLength(2);
+      },
+    );
   });
 });
