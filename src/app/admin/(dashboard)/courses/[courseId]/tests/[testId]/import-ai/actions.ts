@@ -380,6 +380,22 @@ export async function importAiQuestionsAction(
     );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+
+    // REPLACE deletes before inserting (above); an infra fault here (not a
+    // validated business-rule rejection — those return earlier) can leave
+    // some old questions gone and the new set partial or absent. There are
+    // no transactions to prevent this (standalone MongoDB, no replica set),
+    // so the message says so plainly instead of implying nothing happened —
+    // APPEND's only failure mode is milder (a partial addition onto an
+    // intact old set), so it keeps the raw error message below.
+    if (mode === "replace") {
+      return {
+        success: false,
+        message:
+          "Replacing this test's questions failed partway through — the test may now hold a mix of old and new questions. Check the test before trying again.",
+      };
+    }
+
     const message =
       error instanceof Error ? error.message : "Failed to import questions";
     return { success: false, message };

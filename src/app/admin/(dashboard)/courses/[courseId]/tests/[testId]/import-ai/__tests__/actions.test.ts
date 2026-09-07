@@ -18,6 +18,9 @@ import { importAiQuestionsAction } from "../actions";
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
+// `withSpan` calls this on every thrown error inside its callback — only the
+// infra-failure REPLACE test below reaches that path in this file.
+vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 
 const requireAdminSession = vi.fn();
 vi.mock("src/lib/auth-singleton", () => ({
@@ -291,5 +294,80 @@ describe("Feature: replacing a test's questions deletes the old ones and writes 
     expect(result.success).toBe(false);
     const questions = await questionService.listQuestions("test-4");
     expect(questions.map((q) => q.title)).toEqual(["Untouched Q1"]);
+  });
+});
+
+describe("Feature: a failed REPLACE warns that the test may be partly changed", () => {
+  it("names the REPLACE-specific risk, distinct from a generic failure, when an infra fault interrupts the delete-then-insert loop partway through", async () => {
+    const questionService = getTestServices().questionService;
+    const oldQ1 = await questionService.addQuestion("test-5", {
+      type: "free_text",
+      title: "Old Q1",
+      content: "Old content.",
+      createdBy: "admin-1",
+    });
+    await questionService.addQuestion("test-5", {
+      type: "free_text",
+      title: "Old Q2",
+      content: "Old content 2.",
+      createdBy: "admin-1",
+    });
+
+    const reviewed: ParsedQuestion[] = [
+      { title: "New Q1", content: "Fresh content.", type: "free_text" },
+    ];
+
+    // Simulates an infra fault mid-loop: the first delete succeeds for real,
+    // the second is a connection drop — leaving oldQ1 gone, oldQ2 intact, and
+    // the insert loop never reached. This is REPLACE's "press hardest"
+    // scenario: a mix of old and new, not the milder APPEND-only residual.
+    const realDelete = questionService.deleteQuestion.bind(questionService);
+    vi.spyOn(questionService, "deleteQuestion")
+      .mockImplementationOnce(realDelete)
+      .mockRejectedValueOnce(new Error("connection reset"));
+
+    const result = await importAiQuestionsAction(
+      "test-5",
+      "course-1",
+      reviewed,
+      "replace",
+    );
+
+    expect(result.success).toBe(false);
+    // Truthful and actionable, not the raw infra error and not APPEND's
+    // generic pass-through message.
+    expect(result.message).toMatch(
+      /mix of (the )?old and new|partly changed|partially changed/i,
+    );
+    expect(result.message).not.toBe("connection reset");
+
+    // And the scenario the message warns about is real: one old question
+    // gone, the other intact, no new question landed.
+    const remaining = await questionService.listQuestions("test-5");
+    expect(remaining.map((q) => q.title)).toEqual(["Old Q2"]);
+    const questionCollection = db.collection<QuestionDocument>("question");
+    const deletedDoc = await questionCollection.findOne({ id: oldQ1.id });
+    expect(deletedDoc?.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it("keeps APPEND's generic failure message on the same kind of infra fault — the new wording is REPLACE-only", async () => {
+    const questionService = getTestServices().questionService;
+    const reviewed: ParsedQuestion[] = [
+      { title: "New Q1", content: "Fresh content.", type: "free_text" },
+    ];
+
+    vi.spyOn(questionService, "addQuestion").mockRejectedValueOnce(
+      new Error("connection reset"),
+    );
+
+    const result = await importAiQuestionsAction(
+      "test-6",
+      "course-1",
+      reviewed,
+      "append",
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("connection reset");
   });
 });
