@@ -13,7 +13,11 @@ import { AddQuestionForm } from "./add-question-form";
 import { ComposeFromPoolsForm } from "./compose-from-pools-form";
 import { DeleteTestButton } from "./delete-test-button";
 import { ImportQuestionsForm } from "./import-questions-form";
-import { needsAnswerKey, QuestionList } from "./question-list";
+import {
+  needsAnswerKey,
+  needsAnswerOptions,
+  QuestionList,
+} from "./question-list";
 import { TestSettingsPanel } from "./test-settings-panel";
 
 export const metadata = {
@@ -45,6 +49,9 @@ export default async function TestDetailPage({
   // D44: no student-facing guard exists, so this count is the prominent
   // mitigation — the per-card badge alone is easy to miss on a long list.
   const needsAnswerKeyCount = questions.filter(needsAnswerKey).length;
+  // D72: a distinct count for MC questions with fewer than 2 options — the
+  // real defect a "needs an answer key" label can't name.
+  const needsAnswerOptionsCount = questions.filter(needsAnswerOptions).length;
 
   // D49: one batch call for every question on the test, shared by the edit
   // modal (Step 25) and the import/REPLACE warnings (Steps 33-34).
@@ -74,6 +81,13 @@ export default async function TestDetailPage({
           {test.description && (
             <p className="mt-1 text-sm text-muted-foreground">
               {test.description}
+            </p>
+          )}
+          {needsAnswerOptionsCount > 0 && (
+            <p className="mt-1 text-sm font-semibold text-destructive">
+              {needsAnswerOptionsCount === 1
+                ? "1 question needs answer options"
+                : `${needsAnswerOptionsCount} questions need answer options`}
             </p>
           )}
           {needsAnswerKeyCount > 0 && (

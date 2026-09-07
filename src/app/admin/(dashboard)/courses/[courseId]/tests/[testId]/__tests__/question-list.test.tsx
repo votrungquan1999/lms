@@ -141,6 +141,19 @@ describe("Feature: Question List media preview", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  describe("Scenario: an imported multiple-choice question arrived with no options at all (D72)", () => {
+    it("shows a needs-answer-options flag instead of needs-an-answer-key", () => {
+      const question = singleSelectQuestion([]);
+
+      render(<QuestionList questions={[question]} courseId="course-1" />);
+
+      expect(screen.getByText(/needs answer options/i)).toBeInTheDocument();
+      expect(
+        screen.queryByText(/needs an? answer key/i),
+      ).not.toBeInTheDocument();
+    });
+  });
 });
 
 /**
@@ -293,6 +306,75 @@ describe("Feature: Test detail page wires the answered-student count", () => {
 
     expect(
       screen.getByText(/1 student has answered this/i),
+    ).toBeInTheDocument();
+  });
+});
+
+/**
+ * Feature: the admin test page header counts MC questions with fewer than
+ * 2 options separately from the needs-an-answer-key count (Step 35 / D72).
+ */
+describe("Feature: Test detail page wires the needs-answer-options count", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("shows a header count for questions missing options, distinct from the needs-an-answer-key count", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+
+    // Zero options — this step's new defect.
+    await services.questionService.addQuestion(
+      test.id,
+      {
+        type: "single_select",
+        title: "Q1",
+        content: "Q1",
+        options: [],
+        createdBy: "admin",
+      },
+      { allowMissingAnswerKey: true },
+    );
+    // 2+ options, none correct — the pre-existing, distinct defect.
+    await services.questionService.addQuestion(
+      test.id,
+      {
+        type: "single_select",
+        title: "Q2",
+        content: "Q2",
+        options: [
+          { text: "a", isCorrect: false },
+          { text: "b", isCorrect: false },
+        ],
+        createdBy: "admin",
+      },
+      { allowMissingAnswerKey: true },
+    );
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    expect(
+      screen.getByText("1 question needs answer options"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("1 question needs an answer key"),
     ).toBeInTheDocument();
   });
 });

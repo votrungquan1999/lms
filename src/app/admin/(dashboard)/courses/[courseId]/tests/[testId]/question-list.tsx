@@ -19,13 +19,30 @@ function answerRevealModeLabel(mode: AnswerRevealMode | undefined): string {
 }
 
 /**
- * True when an MC question has no option marked correct (D32/D44): the AI
- * import path allows this rather than blocking the batch, so the admin list
- * is the only place this state becomes visible to the teacher. Exported so
- * the page header can derive a count from the same rule as the per-card badge.
+ * True when an MC question has fewer than 2 options (D72): zero options can
+ * never carry an answer key, and one option is the same practical defect —
+ * `[].every(...)` is vacuously true, so without this check such a question
+ * would misleadingly read "Needs an answer key" with no box to tick. Takes
+ * priority over `needsAnswerKey` below, which requires 2+ options so the two
+ * flags never fire on the same question.
+ */
+export function needsAnswerOptions(question: Question): boolean {
+  return isMcQuestion(question) && question.options.length < 2;
+}
+
+/**
+ * True when an MC question has 2+ options but none marked correct (D32/D44):
+ * the AI import path allows this rather than blocking the batch, so the
+ * admin list is the only place this state becomes visible to the teacher.
+ * Exported so the page header can derive a count from the same rule as the
+ * per-card badge.
  */
 export function needsAnswerKey(question: Question): boolean {
-  return isMcQuestion(question) && question.options.every((o) => !o.isCorrect);
+  return (
+    isMcQuestion(question) &&
+    question.options.length >= 2 &&
+    question.options.every((o) => !o.isCorrect)
+  );
 }
 
 /** Renders the distinct answered-student count (Step 23), singular-aware. */
@@ -75,6 +92,9 @@ export function QuestionList({
                     #{question.order}
                   </span>{" "}
                   {question.title}
+                  {needsAnswerOptions(question) && (
+                    <Badge variant="destructive">Needs answer options</Badge>
+                  )}
                   {needsAnswerKey(question) && (
                     <Badge variant="destructive">Needs an answer key</Badge>
                   )}

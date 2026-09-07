@@ -47,13 +47,18 @@ describe("Feature: test page header — needs-answer-key count", () => {
       createdBy: "admin",
     });
     // Two keyless MC questions (D32) — the page-level count should read 2.
+    // 2+ options each: a single option is D72's separate "needs answer
+    // options" defect, not this one.
     await services.questionService.addQuestion(
       test.id,
       {
         type: "single_select",
         title: "Q2",
         content: "Q2",
-        options: [{ text: "a", isCorrect: false }],
+        options: [
+          { text: "a", isCorrect: false },
+          { text: "b", isCorrect: false },
+        ],
         createdBy: "admin",
       },
       { allowMissingAnswerKey: true },
@@ -64,7 +69,10 @@ describe("Feature: test page header — needs-answer-key count", () => {
         type: "multi_select",
         title: "Q3",
         content: "Q3",
-        options: [{ text: "a", isCorrect: false }],
+        options: [
+          { text: "a", isCorrect: false },
+          { text: "b", isCorrect: false },
+        ],
         mcGradingStrategy: "all_or_nothing",
         createdBy: "admin",
       },
