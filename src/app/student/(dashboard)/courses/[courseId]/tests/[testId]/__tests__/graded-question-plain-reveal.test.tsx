@@ -199,3 +199,42 @@ describe("GradedQuestion — opens by default when plain mode has a correct answ
     expect(within(container).queryByText("Your Answer")).toBeNull();
   });
 });
+
+describe("GradedQuestion — image_answer diff guard (D36)", () => {
+  it("shows the student's own photos, not an empty diff comparison, when a teacher sets grade.solution on an image_answer question", () => {
+    // Given an image_answer question with a teacher-written solution, in diff
+    // mode — today's config for every pre-migration test (D7) and therefore
+    // the common case this bug hits. `showDiff` leads with `!isMC`, which is
+    // TRUE for image_answer, so it builds a comparison against the student's
+    // (nonexistent) text instead of rendering their submitted photos.
+    const { container } = render(
+      <GradedQuestion
+        question={imageQuestion}
+        studentAnswer={{
+          type: "image",
+          mediaKeys: ["answers/student-1/p1.png"],
+        }}
+        grade={gradeWithSolutionOnImageQuestion}
+        isMC={false}
+        options={[]}
+        mode="diff"
+        correctAnswersVisible={true}
+        testStatus={TestStatus.Graded}
+        answerImages={[
+          {
+            key: "answers/student-1/p1.png",
+            url: "https://files.example/p1.png",
+          },
+        ]}
+      />,
+    );
+
+    // Then the student's own photo renders
+    expect(within(container).getByRole("img")).toHaveAttribute(
+      "src",
+      "https://files.example/p1.png",
+    );
+    // And no comparison is built from the student's (nonexistent) answer text
+    expect(diffProps).not.toHaveBeenCalled();
+  });
+});

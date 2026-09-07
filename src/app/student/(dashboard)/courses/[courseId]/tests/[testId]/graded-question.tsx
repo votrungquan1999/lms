@@ -69,13 +69,17 @@ export function GradedQuestion({
   const studentText =
     studentAnswer?.type === "free_text" ? studentAnswer.text : "";
 
-  // The diff already shows the student's answer on its left side, so when it is
-  // displayed we skip the separate "Your Answer" panel to avoid duplication.
-  // `correctAnswersVisible` closes this off pre-release (D31) — previously
-  // this rendered `grade.solution` unconditionally, leaking it on tests where
-  // the teacher had switched correct answers off.
+  // The three derivations below each gate on their own question-type
+  // discriminant, never on `!isMC` — `!isMC` is also true for image_answer,
+  // whose grade.solution (if a teacher wrote one) isn't diffable/showable
+  // text at all (D36).
+
+  // The diff already shows the student's answer on its left side, so when it
+  // is displayed we skip the separate "Your Answer" panel to avoid
+  // duplication. `correctAnswersVisible` closes this off pre-release (D31) —
+  // previously this rendered `grade.solution` unconditionally.
   const showDiff =
-    !isMC &&
+    question.type === "free_text" &&
     mode === "diff" &&
     correctAnswersVisible &&
     !!grade.solution &&
@@ -83,11 +87,9 @@ export function GradedQuestion({
     !isTextEquivalent(studentText, grade.solution);
 
   // Narrow on the discriminant once (TS needs it to access `.explanation`,
-  // which only MC and free_text carry, not image_answer), then gate
-  // server-side (like grade.feedback) so the string never enters the RSC
-  // payload when the reveal is closed — mirrors the isCorrect strip. Same
-  // parity rule applies here as the plain-mode correct answer above: gate on
-  // the type discriminant, never `!isMC`.
+  // which only MC and free_text carry), then gate server-side — like
+  // grade.feedback — so the string never enters the RSC payload while the
+  // reveal is closed.
   const explanationText =
     isMcQuestion(question) || question.type === "free_text"
       ? question.explanation
@@ -95,13 +97,10 @@ export function GradedQuestion({
   const showExplanation = correctAnswersVisible && !!explanationText;
 
   // Plain mode's alternative to the diff: the correct answer written out as
-  // text. Gated on the free_text discriminant explicitly (never `!isMC`,
-  // which is also true for image_answer questions that can carry a
-  // teacher-written `grade.solution`) and on `correctAnswersVisible` from
-  // birth, since this new panel has no pre-existing leak to preserve.
-  // Falls back to the question's own referenceAnswer when the AI grader
-  // omitted `solution` (a 100% score) — plain mode only; diff mode keeps
-  // D10's no-fallback rule.
+  // text, gated on `correctAnswersVisible` from birth (no pre-existing leak
+  // to preserve). Falls back to the question's own referenceAnswer when the
+  // AI grader omitted `solution` (a 100% score) — plain mode only; diff mode
+  // keeps D10's no-fallback rule.
   const correctAnswerText =
     question.type === "free_text"
       ? (grade.solution ?? question.referenceAnswer ?? undefined)
