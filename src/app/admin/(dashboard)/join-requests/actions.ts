@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import { JoinRequestStatus } from "src/lib/course-join-request-service";
 import { withSpan } from "src/lib/observability/with-span";
 import {
   getCourseJoinRequestService,
@@ -64,6 +65,14 @@ export async function approveJoinRequestAction(
         );
         if (!request) {
           return { success: false, message: "Join request not found" };
+        }
+        // Checked BEFORE enrolling — a rejected request must never enroll
+        // the student it turned down (Step 32).
+        if (request.status !== JoinRequestStatus.Pending) {
+          return {
+            success: false,
+            message: "This request has already been handled",
+          };
         }
 
         const enrollmentService = await getEnrollmentService();
@@ -131,6 +140,12 @@ export async function rejectJoinRequestAction(
         );
         if (!request) {
           return { success: false, message: "Join request not found" };
+        }
+        if (request.status !== JoinRequestStatus.Pending) {
+          return {
+            success: false,
+            message: "This request has already been handled",
+          };
         }
 
         await joinRequestService.reject(request.id, adminUserId);

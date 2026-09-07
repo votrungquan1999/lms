@@ -116,4 +116,26 @@ describe("Feature: Course Join Request Service", () => {
       },
     );
   });
+
+  describe("Scenario: approving a request that has already been rejected", () => {
+    dbIt("should refuse and leave the request Rejected", async ({ db }) => {
+      const service = new CourseJoinRequestService(db);
+
+      // Given a request that has already been rejected
+      const request = await service.createRequest({
+        courseId: "course-1",
+        studentId: "student-1",
+      });
+      await service.reject(request.id, "admin-1");
+
+      // When an admin tries to approve the same request
+      await expect(service.approve(request.id, "admin-2")).rejects.toThrow(
+        "already been handled",
+      );
+
+      // Then it stays Rejected — never both rejected and enrolled
+      const after = await service.getRequest(request.id);
+      expect(after?.status).toBe(JoinRequestStatus.Rejected);
+    });
+  });
 });

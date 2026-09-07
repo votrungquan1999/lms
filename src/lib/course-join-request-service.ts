@@ -153,9 +153,17 @@ export class CourseJoinRequestService {
    * Marks a join request Approved. Caller must enroll the student in the
    * course BEFORE calling this (Step 30) — enrollment first, status second,
    * so a crash between the two writes never produces an "approved but not
-   * enrolled" request that the queue can no longer surface.
+   * enrolled" request that the queue can no longer surface. Throws if the
+   * request is not currently Pending (Step 32) — a resolved request must
+   * never be re-resolved, e.g. rejected-then-approved would enroll a student
+   * whose request was already turned down.
    */
   async approve(requestId: string, resolvedBy: string): Promise<void> {
+    const request = await this.joinRequests.findOne({ id: requestId });
+    if (request?.status !== JoinRequestStatus.Pending) {
+      throw new Error("This request has already been handled");
+    }
+
     await this.joinRequests.updateOne(
       { id: requestId },
       {
@@ -172,8 +180,16 @@ export class CourseJoinRequestService {
    * Marks a join request Rejected. Status-only — never touches the
    * `enrollment` collection, so an enrollment the student already has by
    * another path (hand-added, bulk import) is left untouched (D66/R7).
+   * Throws if the request is not currently Pending (Step 32) — an approved
+   * request must never flip to Rejected while the enrollment it produced
+   * stays untouched (D66), which would leave the two permanently disagreeing.
    */
   async reject(requestId: string, resolvedBy: string): Promise<void> {
+    const request = await this.joinRequests.findOne({ id: requestId });
+    if (request?.status !== JoinRequestStatus.Pending) {
+      throw new Error("This request has already been handled");
+    }
+
     await this.joinRequests.updateOne(
       { id: requestId },
       {
