@@ -142,6 +142,33 @@ export class CourseJoinRequestService {
   }
 
   /**
+   * Returns the join request with this id, or null.
+   */
+  async getRequest(id: string): Promise<CourseJoinRequest | null> {
+    const doc = await this.joinRequests.findOne({ id });
+    return doc ? this.toCourseJoinRequest(doc) : null;
+  }
+
+  /**
+   * Marks a join request Approved. Caller must enroll the student in the
+   * course BEFORE calling this (Step 30) — enrollment first, status second,
+   * so a crash between the two writes never produces an "approved but not
+   * enrolled" request that the queue can no longer surface.
+   */
+  async approve(requestId: string, resolvedBy: string): Promise<void> {
+    await this.joinRequests.updateOne(
+      { id: requestId },
+      {
+        $set: {
+          status: JoinRequestStatus.Approved,
+          resolvedAt: new Date(),
+          resolvedBy,
+        },
+      },
+    );
+  }
+
+  /**
    * Lists one page of join requests with the given status — R4 keys strictly
    * on the status enum, never a nullable "resolved" field (this driver
    * treats `{field: null}` as matching both an explicit null AND an absent

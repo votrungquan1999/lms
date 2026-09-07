@@ -151,6 +151,31 @@ describe("Feature: Admin Join Request Queue", () => {
     expect(screen.getAllByTestId(/^join-request-row-/)).toHaveLength(2);
   });
 
+  it("gives each waiting row an Approve action (Step 30)", async () => {
+    const services = getTestServices();
+
+    const course = await services.courseService.createCourse({
+      title: "Algebra",
+      description: "",
+      createdBy: "admin",
+    });
+    const alice = await services.studentService.createStudentDocument({
+      authUserId: "auth-alice",
+      username: "alice",
+      name: "Alice Smith",
+      createdBy: "self-signup",
+    });
+    await services.courseJoinRequestService.createRequest({
+      courseId: course.id,
+      studentId: alice.id,
+    });
+
+    const ui = await JoinRequestsPage({ searchParams: Promise.resolve({}) });
+    render(ui);
+
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+  });
+
   it("switches the queue between waiting, approved and rejected via the filter search param, with a distinct empty state for each", async () => {
     const services = getTestServices();
 
