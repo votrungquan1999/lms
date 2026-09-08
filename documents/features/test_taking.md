@@ -56,6 +56,10 @@ Students take tests by submitting their solutions. Teachers grade each question 
 - [x] Student can see free-text feedback per question and overall test feedback
 - [x] A test's answer-reveal mode ("diff" or "plain") decides how a free-text
       answer is revealed; a question may override its test's mode
+- [x] A newly created test defaults to "plain"; a test that predates this
+      setting, or is otherwise missing the field, reads as "diff"
+- [x] The mode applies to free-text questions only; multiple-choice and image
+      questions are untouched by it
 - [x] In "diff" mode, student can view their answer alongside the provided
       solution, with differences shown in a GitHub-style side-by-side diff view
 - [x] In "plain" mode, student sees their own answer and the correct answer
@@ -67,6 +71,17 @@ Students take tests by submitting their solutions. Teachers grade each question 
 - [x] In either mode, the correct answer stays withheld until the teacher
       releases correct answers for the test; before that, the student sees
       only their own submitted answer
+- [x] Once answers are released, the teacher's explanation becomes visible
+      alongside the answer
+- [x] In diff mode, when the student's answer already matches the solution,
+      the side-by-side comparison is suppressed; the setting has help text
+      explaining when to turn it on
+- [x] Practice mode uses its own reveal gate, separate from the correct-answer
+      release gate that governs the graded view
+- [x] The model answer and explanation are stripped from the response on the
+      server, based on submission state — not merely hidden in the rendered
+      page, so a student who hasn't submitted cannot recover them from the
+      network response
 
 ### Test Association
 
