@@ -82,7 +82,8 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
   test("student authenticates for delayed reveal scenario", async ({
     browser,
   }) => {
-    const ctx = await browser.newContext();
+    // storageState: undefined avoids inheriting the project's admin session
+    const ctx = await browser.newContext({ storageState: undefined });
     const studentPage = await ctx.newPage();
     await studentPage.goto(`${BASE_URL}/student/login`);
     await studentPage.getByLabel("Username").fill(STUDENT_USERNAME);
@@ -251,7 +252,8 @@ test.describe("MC Edge Cases — Partial correct multi-select", () => {
     await adminCtx.close();
 
     // ── 2. Save student auth state by logging in via the student login form ───
-    const studentCtx = await browser.newContext();
+    // storageState: undefined avoids inheriting the project's admin session
+    const studentCtx = await browser.newContext({ storageState: undefined });
     const studentPage = await studentCtx.newPage();
     await studentPage.goto(`${BASE_URL}/student/login`);
     await studentPage.getByLabel("Username").fill(STUDENT_USERNAME);
