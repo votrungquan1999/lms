@@ -61,4 +61,13 @@ export async function ensureIndexes(db: Db): Promise<void> {
   await db
     .collection("course_join_request")
     .createIndex({ status: 1, requestedAt: 1, _id: 1 });
+
+  // Not partial — an enrollment has no status dimension to filter on, unlike
+  // the join-request index above. Without this, two concurrent enrollments
+  // for the same pair (e.g. a raced approve, or an approve racing the
+  // roster-dialog save) both insert, and the student renders twice in the
+  // grading roster with no self-healing.
+  await db
+    .collection("enrollment")
+    .createIndex({ courseId: 1, studentId: 1 }, { unique: true });
 }

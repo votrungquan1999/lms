@@ -1,4 +1,4 @@
-import type { Collection, Db } from "mongodb";
+import { type Collection, type Db, MongoServerError } from "mongodb";
 
 /**
  * Enrollment document stored in the `enrollment` collection.
@@ -38,6 +38,9 @@ export class EnrollmentService {
   /**
    * Enrolls a student in a course. Already-enrolled is a no-op success —
    * this makes an enrollment retry (e.g. after an interrupted approval) safe.
+   * The pre-check below is a fast path, not the guard — a unique index on
+   * {courseId, studentId} (see `ensureIndexes` in database.ts) is the real
+   * backstop against two concurrent callers both passing the pre-check.
    */
   async enrollStudent(
     courseId: string,
@@ -59,7 +62,17 @@ export class EnrollmentService {
       updatedBy: null,
     };
 
-    await this.enrollments.insertOne(doc);
+    try {
+      await this.enrollments.insertOne(doc);
+    } catch (error) {
+      // Lost the race to the unique index — another writer already enrolled
+      // this pair, which is exactly the outcome the existing-check above
+      // was trying to reach; treat it the same way (a no-op success).
+      if (error instanceof MongoServerError && error.code === 11000) {
+        return;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -168,12 +181,22 @@ export class EnrollmentService {
       (id) => observedSet.has(id) && !desiredSet.has(id),
     );
 
-    // Enroll new students
+    // Enroll new students. Unordered — a race losing one pair to the unique
+    // index (e.g. a concurrent approve(), R8) must not block the rest of
+    // this batch's unrelated, non-conflicting inserts.
     if (toAdd.length > 0) {
       const docs = toAdd.map((studentId) =>
         this.makeEnrollmentDoc(courseId, studentId, updatedBy),
       );
-      await this.enrollments.insertMany(docs);
+      try {
+        await this.enrollments.insertMany(docs, { ordered: false });
+      } catch (error) {
+        // Lost the race on one or more pairs — the unique index already
+        // stopped the duplicate; nothing further to reconcile here.
+        if (!(error instanceof MongoServerError && error.code === 11000)) {
+          throw error;
+        }
+      }
     }
 
     // Remove unenrolled students

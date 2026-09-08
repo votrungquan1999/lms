@@ -1,6 +1,7 @@
+import { ensureIndexes } from "src/lib/database";
 import { EnrollmentService } from "src/lib/enrollment-service";
 import { withTestDb } from "src/tests/create-test-db";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const dbIt = withTestDb(it);
 
@@ -194,6 +195,32 @@ describe("Feature: Set Enrolled Students", () => {
         expect(enrolled).toContain("student-a");
         expect(enrolled).toContain("student-b");
         expect(enrolled).not.toContain("student-c");
+      },
+    );
+  });
+
+  describe("Scenario: an add collides with a concurrent enrollment of the same student (unique index race)", () => {
+    dbIt(
+      "should not throw and must not create a duplicate enrollment row",
+      async ({ db }) => {
+        await ensureIndexes(db);
+        const service = new EnrollmentService(db);
+
+        // The dialog's snapshot is stale: it read "nobody enrolled" before a
+        // concurrent enrollStudent() call (e.g. an approve(), R8) landed for
+        // the same student — the unique index is the real guard, mirroring
+        // the join-request race test in course-join-request-service.test.ts.
+        vi.spyOn(service, "listEnrollmentsByCourse").mockResolvedValueOnce([]);
+        await service.enrollStudent("course-1", "student-a", "admin-2");
+
+        await service.setEnrolledStudents("course-1", {
+          desired: ["student-a"],
+          observed: [],
+          updatedBy: "admin-1",
+        });
+
+        const enrolled = await service.listEnrollmentsByCourse("course-1");
+        expect(enrolled).toEqual(["student-a"]);
       },
     );
   });
