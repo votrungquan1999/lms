@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
-import { ReleaseGradesButton } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
+import {
+  ReleaseCorrectAnswersButton,
+  ReleaseGradesButton,
+} from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import {
   GradingMode,
   GradingSort,
@@ -81,6 +84,9 @@ export default async function GradingVariantPage({
             <ReleaseGradesButton testId={testId} courseId={courseId} />
           </div>
         )}
+        <div className="mt-4">
+          <ReleaseCorrectAnswersButton testId={testId} courseId={courseId} />
+        </div>
       </header>
 
       {

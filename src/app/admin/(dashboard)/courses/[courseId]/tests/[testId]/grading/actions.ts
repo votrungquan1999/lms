@@ -676,3 +676,78 @@ export async function saveAndJumpToNextAction(formData: FormData) {
 
   redirect(redirectTarget);
 }
+
+const releaseCorrectAnswersSchema = z.object({
+  testId: z.string().min(1),
+  courseId: z.string().min(1),
+});
+
+export interface ReleaseCorrectAnswersState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: releases correct answers to students for a test that
+ * withheld them.
+ */
+export async function releaseCorrectAnswersAction(
+  _prevState: ReleaseCorrectAnswersState | null,
+  formData: FormData,
+): Promise<ReleaseCorrectAnswersState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+  } catch {
+    return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  const parsed = releaseCorrectAnswersSchema.safeParse({
+    testId: formData.get("testId"),
+    courseId: formData.get("courseId"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+
+  try {
+    return await withSpan(
+      "action.releaseCorrectAnswersAction",
+      {
+        "lms.action.name": "releaseCorrectAnswersAction",
+        "lms.test.id": parsed.data.testId,
+        "lms.course.id": parsed.data.courseId,
+      },
+      async () => {
+        const testService = await getTestService();
+        await testService.releaseCorrectAnswers(
+          parsed.data.testId,
+          adminUserId,
+        );
+
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        );
+        revalidatePath(
+          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+        );
+        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        // The student is the audience for this release — without this they
+        // keep seeing the withheld view on their next visit.
+        revalidatePath(
+          `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
+        );
+
+        return { success: true, message: "Correct answers released" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    return { success: false, message: "Failed to release correct answers" };
+  }
+}

@@ -22,8 +22,10 @@ import { TestStatus } from "src/lib/test-status-service";
 import {
   type GradeQuestionState,
   gradeQuestionAction,
+  type ReleaseCorrectAnswersState,
   type ReleaseGradesState,
   type RequestRedoState,
+  releaseCorrectAnswersAction,
   releaseGradesAction,
   requestRedoAction,
   saveAndJumpToNextAction,
@@ -488,6 +490,46 @@ export function ReleaseGradesButton({
       <input type="hidden" name="courseId" value={courseId} />
       <Button type="submit" variant="outline" size="sm" disabled={isPending}>
         {isPending ? "Releasing…" : "Release Grades"}
+      </Button>
+      {state?.message && (
+        <p className="text-sm text-destructive">{state.message}</p>
+      )}
+    </form>
+  );
+}
+
+interface ReleaseCorrectAnswersButtonProps {
+  testId: string;
+  courseId: string;
+}
+
+/**
+ * Releases correct answers for a test that withheld them, so students can see
+ * the answer key from their next visit onward.
+ */
+export function ReleaseCorrectAnswersButton({
+  testId,
+  courseId,
+}: ReleaseCorrectAnswersButtonProps) {
+  const [state, formAction, isPending] = useActionState<
+    ReleaseCorrectAnswersState | null,
+    FormData
+  >(releaseCorrectAnswersAction, null);
+
+  if (state?.success) {
+    return (
+      <p className="text-sm font-medium text-green-600">
+        Correct answers released ✓
+      </p>
+    );
+  }
+
+  return (
+    <form action={formAction} className="flex items-center gap-3">
+      <input type="hidden" name="testId" value={testId} />
+      <input type="hidden" name="courseId" value={courseId} />
+      <Button type="submit" variant="outline" size="sm" disabled={isPending}>
+        {isPending ? "Releasing…" : "Release Correct Answers"}
       </Button>
       {state?.message && (
         <p className="text-sm text-destructive">{state.message}</p>

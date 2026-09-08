@@ -9,7 +9,10 @@ import {
   getQuestionService,
   getTestService,
 } from "src/lib/services-singleton";
-import { ReleaseGradesButton } from "./grading-forms";
+import {
+  ReleaseCorrectAnswersButton,
+  ReleaseGradesButton,
+} from "./grading-forms";
 
 export const metadata = {
   title: "Grade Test — LMS Admin",
@@ -68,6 +71,9 @@ export default async function GradingPage({
             <ReleaseGradesButton testId={testId} courseId={courseId} />
           </div>
         )}
+        <div className="mt-4">
+          <ReleaseCorrectAnswersButton testId={testId} courseId={courseId} />
+        </div>
       </header>
 
       {
