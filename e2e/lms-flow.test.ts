@@ -147,8 +147,12 @@ test.describe("LMS E2E Flow", () => {
       page.getByRole("heading", { name: `Welcome, ${STUDENT_USERNAME}!` }),
     ).toBeVisible();
 
-    // And the enrolled course appears
-    await expect(page.getByText("E2E Test Course")).toBeVisible();
+    // And the enrolled course appears — scoped to "Your courses": the sidebar
+    // nav repeats the same title, which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await expect(yourCourses.getByText("E2E Test Course")).toBeVisible();
 
     await context.close();
   });
@@ -162,10 +166,15 @@ test.describe("LMS E2E Flow", () => {
     });
     const page = await context.newPage();
     await page.goto("/student/dashboard");
-    await expect(page.getByText("E2E Test Course")).toBeVisible();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await expect(yourCourses.getByText("E2E Test Course")).toBeVisible();
 
     // When they click on the course
-    await page.getByText("E2E Test Course").click();
+    await yourCourses.getByText("E2E Test Course").click();
 
     // Then the course detail page loads
     await expect(
@@ -368,9 +377,12 @@ test.describe("LMS E2E Flow", () => {
     await optionInputs.nth(1).fill("Mars");
     await optionInputs.nth(2).fill("Sun");
 
-    // Mark Earth and Mars as correct via their checkboxes
-    await page.getByRole("checkbox").nth(0).check();
-    await page.getByRole("checkbox").nth(1).check();
+    // Mark Earth and Mars as correct via their checkboxes. Named by
+    // aria-label, not index — the page's own "Test Settings" checkboxes
+    // (Show grade / Show correct answer) come first in DOM order and would
+    // shift a bare `getByRole("checkbox").nth(n)` onto the wrong controls.
+    await page.getByRole("checkbox", { name: "Mark option 1 correct" }).check();
+    await page.getByRole("checkbox", { name: "Mark option 2 correct" }).check();
 
     // Submit the question
     await page.getByRole("button", { name: "Add Question" }).click();
@@ -398,7 +410,12 @@ test.describe("LMS E2E Flow", () => {
     });
     const page = await context.newPage();
     await page.goto("/student/dashboard");
-    await page.getByText("E2E Test Course").click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByText("E2E Test Course").click();
     await expect(
       page.getByRole("heading", { name: "E2E Test Course" }),
     ).toBeVisible();
@@ -511,7 +528,12 @@ test.describe("LMS E2E Flow", () => {
     });
     const page = await context.newPage();
     await page.goto("/student/dashboard");
-    await page.getByText("E2E Test Course").click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByText("E2E Test Course").click();
     await page.getByText("E2E Midterm").click();
     await expect(
       page.getByRole("heading", { name: "E2E Midterm" }),
