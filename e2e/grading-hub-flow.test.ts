@@ -117,7 +117,12 @@ test.describe("Grading Hub Flow", () => {
     const page = await context.newPage();
 
     await page.goto("/student/dashboard");
-    await page.getByRole("link", { name: /Grading Hub Course/ }).click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByRole("link", { name: /Grading Hub Course/ }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
     await expect(page.getByRole("heading", { name: TEST_TITLE })).toBeVisible({
       timeout: 10000,
