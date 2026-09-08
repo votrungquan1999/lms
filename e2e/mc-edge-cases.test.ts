@@ -131,7 +131,12 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
     const ctx = await browser.newContext({ storageState: EC_STUDENT_AUTH });
     const page = await ctx.newPage();
     await page.goto(`${BASE_URL}/student/dashboard`);
-    await page.getByText("EC Delayed Course").click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByText("EC Delayed Course").click();
     await page.getByText("EC Delayed Test").click();
 
     const q1Card = page
@@ -163,7 +168,12 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
     const ctx = await browser.newContext({ storageState: EC_STUDENT_AUTH });
     const page = await ctx.newPage();
     await page.goto(`${BASE_URL}/student/dashboard`);
-    await page.getByText("EC Delayed Course").click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByText("EC Delayed Course").click();
     await page.getByText("EC Delayed Test").click();
 
     // Then: still sees "waiting to be graded" (no score visible)
@@ -203,7 +213,12 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
     const ctx = await browser.newContext({ storageState: EC_STUDENT_AUTH });
     const page = await ctx.newPage();
     await page.goto(`${BASE_URL}/student/dashboard`);
-    await page.getByText("EC Delayed Course").click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByText("EC Delayed Course").click();
     await page.getByText("EC Delayed Test").click();
 
     // Then: student now sees the score (100 for correct MC answer)
@@ -386,8 +401,13 @@ test.describe("MC Edge Cases — Partial correct multi-select", () => {
     const page = await ctx.newPage();
     await page.goto(`${BASE_URL}/student/dashboard`);
 
-    // When: student navigates to the partially-answered test
-    await page.getByText("EC Partial Course").click();
+    // When: student navigates to the partially-answered test.
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByText("EC Partial Course").click();
     await page.getByText("EC Partial Test").click();
 
     // Then: sees their partial score — 50/100 (1 of 2 correct, no wrong selections)
