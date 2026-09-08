@@ -126,8 +126,13 @@ test.describe("Redo Flow", () => {
     const page = await context.newPage();
 
     await page.goto("/student/dashboard");
-    // Card links on student dashboard include extra text — use regex to match
-    await page.getByRole("link", { name: /Redo Flow Course/ }).click();
+    // Card links on student dashboard include extra text — use regex to match.
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByRole("link", { name: /Redo Flow Course/ }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
     await expect(page.getByRole("heading", { name: TEST_TITLE })).toBeVisible({
       timeout: 10000,
@@ -205,7 +210,12 @@ test.describe("Redo Flow", () => {
     const page = await context.newPage();
 
     await page.goto("/student/dashboard");
-    await page.getByRole("link", { name: /Redo Flow Course/ }).click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByRole("link", { name: /Redo Flow Course/ }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
     await expect(page.getByRole("heading", { name: TEST_TITLE })).toBeVisible({
       timeout: 10000,
@@ -253,7 +263,12 @@ test.describe("Redo Flow", () => {
     const page = await context.newPage();
 
     await page.goto("/student/dashboard");
-    await page.getByRole("link", { name: /Redo Flow Course/ }).click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByRole("link", { name: /Redo Flow Course/ }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
     await expect(page.getByRole("heading", { name: TEST_TITLE })).toBeVisible({
       timeout: 10000,
