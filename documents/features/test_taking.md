@@ -33,9 +33,9 @@ Students take tests by submitting their solutions. Teachers grade each question 
 - [x] Admin can import questions from a JSON file
 - [x] Admin can view a list of questions for a test
 - [ ] Admin can preview/review questions with rendered markdown (planned)
-- [ ] Admin can edit existing questions
+- [x] Admin can edit existing questions (see [question_editing.md](question_editing.md))
 - [ ] Admin can reorder questions
-- [ ] Admin can delete questions
+- [x] Admin can delete questions (soft delete — see [question_editing.md](question_editing.md))
 
 ### Student — Submit Solution
 
