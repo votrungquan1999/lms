@@ -120,4 +120,182 @@ test.describe("AI Document Import Flow", () => {
     await expect(page.getByText(PDF_TEXT_RECEIVED_MARKER)).toBeVisible();
     await expect(page.getByText(/free response/i)).toBeVisible();
   });
+
+  test("admin clicks Import and the question is actually written onto the test", async ({
+    page,
+  }) => {
+    // Each `test()` gets a fresh page, so the review list from the previous
+    // test isn't still on screen — repeat the navigation + upload to get
+    // back to it before clicking Import.
+    await page.goto("/admin/courses");
+    await page.getByText(COURSE_TITLE).click();
+    await page.getByText(TEST_TITLE).click();
+    await page.getByRole("link", { name: "Import Questions with AI" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Import Questions with AI" }),
+    ).toBeVisible();
+    await page.getByLabel(/document/i).setInputFiles(pdfPath);
+    await expect(page.getByText(MOCK_QUESTION_TITLE)).toBeVisible({
+      timeout: 20000,
+    });
+
+    // Default mode is APPEND, so the primary button reads "Import questions"
+    // and writes immediately — no confirmation dialog for this mode.
+    await page.getByRole("button", { name: "Import questions" }).click();
+
+    // A real write, not an echo of the review list: this is the test's OWN
+    // admin question list (a different page than the review list we just
+    // left), proving `importAiQuestionsAction` actually persisted the
+    // question rather than just clearing the review screen.
+    await expect(
+      page.getByRole("heading", { name: TEST_TITLE, level: 1 }),
+    ).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByRole("heading", { name: "Questions (1)" }),
+    ).toBeVisible();
+    await expect(page.getByText(MOCK_QUESTION_TITLE)).toBeVisible();
+    // `.first()`: the content also appears a second time in this question's
+    // always-visible inline edit textarea below the read-only preview.
+    await expect(
+      page.getByText(PDF_TEXT_RECEIVED_MARKER).first(),
+    ).toBeVisible();
+  });
+});
+
+// ─── REPLACE mode ────────────────────────────────────────────────────────────
+// The destructive path: an existing question must be gone and the imported
+// one present afterward, and the typed "override" confirmation must be a
+// real gate — the confirm button stays disabled until the exact word is typed.
+
+test.describe("AI Document Import Flow — REPLACE mode", () => {
+  test.describe.configure({ mode: "serial" });
+
+  const REPLACE_COURSE_TITLE = "Replace E2E Course";
+  const REPLACE_TEST_TITLE = "Replace E2E Test";
+  const OLD_QUESTION_TITLE = "Replace E2E Old Question";
+
+  let replacePdfPath: string;
+
+  test.beforeAll(async () => {
+    // Same shape as the top-of-file fixture (real, text-bearing PDF), built
+    // separately so this describe block owns its own file lifecycle.
+    const buffer = await renderToBuffer(
+      createElement(
+        Document,
+        null,
+        createElement(
+          Page,
+          { size: "A4" },
+          createElement(Text, null, `1. ${QUESTION_TEXT}`),
+        ),
+      ),
+    );
+    replacePdfPath = path.join(
+      os.tmpdir(),
+      `import-ai-e2e-replace-${Date.now()}.pdf`,
+    );
+    fs.writeFileSync(replacePdfPath, buffer);
+  });
+
+  test.afterAll(() => {
+    if (replacePdfPath && fs.existsSync(replacePdfPath)) {
+      fs.unlinkSync(replacePdfPath);
+    }
+  });
+
+  test("setup: admin creates a course, a test, and one existing question", async ({
+    page,
+  }) => {
+    await page.goto("/admin/courses");
+    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByLabel("Course Title").fill(REPLACE_COURSE_TITLE);
+    await page.getByLabel("Description").fill("For import-ai REPLACE e2e");
+    await page.getByRole("button", { name: "Create Course" }).click();
+    await expect(page.getByText("created successfully")).toBeVisible({
+      timeout: 10000,
+    });
+
+    await page.goto("/admin/courses");
+    await page.getByText(REPLACE_COURSE_TITLE).click();
+    await page.getByRole("button", { name: "Add Test" }).click();
+    await page.getByLabel("Test Title").fill(REPLACE_TEST_TITLE);
+    await page.getByRole("button", { name: "Create Test" }).click();
+    await expect(page.getByText("created successfully")).toBeVisible({
+      timeout: 10000,
+    });
+
+    // The pre-existing question REPLACE must remove.
+    await page.goto("/admin/courses");
+    await page.getByText(REPLACE_COURSE_TITLE).click();
+    await page.getByText(REPLACE_TEST_TITLE).click();
+    await page.getByLabel("Question Title").fill(OLD_QUESTION_TITLE);
+    await page
+      .getByLabel("Content (Markdown)")
+      .fill("This question should be removed by REPLACE.");
+    await page.getByRole("button", { name: "Add Question" }).click();
+    await expect(page.getByText("added successfully")).toBeVisible({
+      timeout: 10000,
+    });
+    // Scoped to the question card's own title (not the success toast, which
+    // also contains this text) to avoid a strict-mode ambiguity.
+    await expect(
+      page
+        .locator('[data-slot="card-title"]')
+        .filter({ hasText: OLD_QUESTION_TITLE }),
+    ).toBeVisible();
+  });
+
+  test("REPLACE requires typing the exact confirmation word, then removes the old question and writes the new one", async ({
+    page,
+  }) => {
+    await page.goto("/admin/courses");
+    await page.getByText(REPLACE_COURSE_TITLE).click();
+    await page.getByText(REPLACE_TEST_TITLE).click();
+    await page.getByRole("link", { name: "Import Questions with AI" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Import Questions with AI" }),
+    ).toBeVisible();
+
+    await page.getByLabel(/document/i).setInputFiles(replacePdfPath);
+    await expect(page.getByText(MOCK_QUESTION_TITLE)).toBeVisible({
+      timeout: 20000,
+    });
+
+    await page
+      .getByRole("radio", { name: "Replace the test's existing questions" })
+      .click();
+    await page.getByRole("button", { name: "Replace questions" }).click();
+    await expect(
+      page.getByRole("heading", { name: /Replace this test.s questions\?/ }),
+    ).toBeVisible();
+
+    const confirmInput = page.locator("#replace-confirm-text");
+    const confirmButton = page.getByRole("button", { name: "Yes, replace" });
+
+    // Nothing typed yet — the button must not be clickable.
+    await expect(confirmButton).toBeDisabled();
+
+    // The wrong word — still disabled, proving the check is on the exact
+    // word rather than "the field is non-empty".
+    await confirmInput.fill("yes please");
+    await expect(confirmButton).toBeDisabled();
+
+    // The exact word — now, and only now, enabled.
+    await confirmInput.fill("override");
+    await expect(confirmButton).toBeEnabled();
+
+    await confirmButton.click();
+
+    // Then: back on the test page, the old question is GONE and the
+    // imported one is present — a real destructive replace, not merely a
+    // closed dialog.
+    await expect(
+      page.getByRole("heading", { name: REPLACE_TEST_TITLE, level: 1 }),
+    ).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByRole("heading", { name: "Questions (1)" }),
+    ).toBeVisible();
+    await expect(page.getByText(MOCK_QUESTION_TITLE)).toBeVisible();
+    await expect(page.getByText(OLD_QUESTION_TITLE)).not.toBeVisible();
+  });
 });
