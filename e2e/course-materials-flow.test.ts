@@ -86,8 +86,14 @@ test.describe("Course Materials Flow", () => {
     await page.getByLabel("Materials file").setInputFiles(fixturePath);
     await page.getByRole("button", { name: "Upload materials" }).click();
 
-    // The material appears in the admin Materials list.
-    await expect(page.getByText(MATERIAL_FILE)).toBeVisible({ timeout: 10000 });
+    // The material appears in the admin Materials list as a download link —
+    // NOT `getByText(MATERIAL_FILE)`, which also matches the file picker's own
+    // "selected file" preview and is satisfied before the upload even starts,
+    // letting the test finish (and Playwright tear down the page) while the
+    // persist request is still in flight server-side.
+    await expect(page.getByRole("link", { name: MATERIAL_FILE })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("setup: student authenticates and saves auth state", async ({
@@ -123,7 +129,12 @@ test.describe("Course Materials Flow", () => {
     );
 
     await page.goto("/student/dashboard");
-    await page.getByRole("link", { name: COURSE_TITLE_RE }).click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByRole("link", { name: COURSE_TITLE_RE }).click();
 
     // The Materials section shows a download link for the uploaded file.
     await expect(
