@@ -3,7 +3,9 @@ import path from "node:path";
 import { expect, test as setup } from "@playwright/test";
 
 const authDir = path.join(__dirname, "../playwright/.auth");
-const BASE_URL = "http://localhost:3001";
+// Must follow playwright.config.ts's E2E_PORT, or this spec would drive a
+// different server than the one the suite started.
+const BASE_URL = `http://localhost:${process.env.E2E_PORT ?? "3001"}`;
 
 // Must match ADMIN_EMAILS in .env.local
 const ADMIN_EMAIL = "votrungquan99@gmail.com";

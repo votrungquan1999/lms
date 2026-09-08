@@ -95,7 +95,7 @@ test.describe("Course Materials Flow", () => {
   }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
-    await page.goto("http://localhost:3001/student/login");
+    await page.goto("/student/login");
     await page.getByLabel("Username").fill(STUDENT_USERNAME);
     await page.getByLabel("Password").fill(STUDENT_PASSWORD);
     await page.getByRole("button", { name: "Sign In" }).click();
@@ -121,7 +121,7 @@ test.describe("Course Materials Flow", () => {
           : route.continue(),
     );
 
-    await page.goto("http://localhost:3001/student/dashboard");
+    await page.goto("/student/dashboard");
     await page.getByRole("link", { name: COURSE_TITLE_RE }).click();
 
     // The Materials section shows a download link for the uploaded file.

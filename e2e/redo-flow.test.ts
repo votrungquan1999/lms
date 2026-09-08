@@ -104,7 +104,7 @@ test.describe("Redo Flow", () => {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    await page.goto("http://localhost:3001/student/login");
+    await page.goto("/student/login");
     await page.getByLabel("Username").fill(STUDENT_USERNAME);
     await page.getByLabel("Password").fill(STUDENT_PASSWORD);
     await page.getByRole("button", { name: "Sign In" }).click();
@@ -124,7 +124,7 @@ test.describe("Redo Flow", () => {
     });
     const page = await context.newPage();
 
-    await page.goto("http://localhost:3001/student/dashboard");
+    await page.goto("/student/dashboard");
     // Card links on student dashboard include extra text — use regex to match
     await page.getByRole("link", { name: /Redo Flow Course/ }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
@@ -203,7 +203,7 @@ test.describe("Redo Flow", () => {
     });
     const page = await context.newPage();
 
-    await page.goto("http://localhost:3001/student/dashboard");
+    await page.goto("/student/dashboard");
     await page.getByRole("link", { name: /Redo Flow Course/ }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
     await expect(page.getByRole("heading", { name: TEST_TITLE })).toBeVisible({
@@ -251,7 +251,7 @@ test.describe("Redo Flow", () => {
     });
     const page = await context.newPage();
 
-    await page.goto("http://localhost:3001/student/dashboard");
+    await page.goto("/student/dashboard");
     await page.getByRole("link", { name: /Redo Flow Course/ }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
     await expect(page.getByRole("heading", { name: TEST_TITLE })).toBeVisible({

@@ -48,7 +48,7 @@ test.describe("LMS E2E Flow", () => {
     const studentPage = await studentContext.newPage();
 
     // When navigating to student login and filling credentials
-    await studentPage.goto("http://localhost:3001/student/login");
+    await studentPage.goto("/student/login");
     await studentPage.getByLabel("Username").fill(STUDENT_USERNAME);
     await studentPage.getByLabel("Password").fill(STUDENT_PASSWORD);
     await studentPage.getByRole("button", { name: "Sign In" }).click();
@@ -137,7 +137,7 @@ test.describe("LMS E2E Flow", () => {
     const page = await context.newPage();
 
     // When the student navigates to their dashboard
-    await page.goto("http://localhost:3001/student/dashboard");
+    await page.goto("/student/dashboard");
 
     // Then the welcome heading is shown
     await expect(
@@ -158,7 +158,7 @@ test.describe("LMS E2E Flow", () => {
       storageState: path.join(authDir, "student.json"),
     });
     const page = await context.newPage();
-    await page.goto("http://localhost:3001/student/dashboard");
+    await page.goto("/student/dashboard");
     await expect(page.getByText("E2E Test Course")).toBeVisible();
 
     // When they click on the course
@@ -394,7 +394,7 @@ test.describe("LMS E2E Flow", () => {
       storageState: path.join(authDir, "student.json"),
     });
     const page = await context.newPage();
-    await page.goto("http://localhost:3001/student/dashboard");
+    await page.goto("/student/dashboard");
     await page.getByText("E2E Test Course").click();
     await expect(
       page.getByRole("heading", { name: "E2E Test Course" }),
@@ -507,7 +507,7 @@ test.describe("LMS E2E Flow", () => {
       storageState: path.join(authDir, "student.json"),
     });
     const page = await context.newPage();
-    await page.goto("http://localhost:3001/student/dashboard");
+    await page.goto("/student/dashboard");
     await page.getByText("E2E Test Course").click();
     await page.getByText("E2E Midterm").click();
     await expect(

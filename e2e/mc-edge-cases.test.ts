@@ -5,7 +5,9 @@ import { MongoClient } from "mongodb";
 
 // ─── Shared constants ────────────────────────────────────────────────────────
 
-const BASE_URL = "http://localhost:3001";
+// Must follow playwright.config.ts's E2E_PORT, or this spec would drive a
+// different server than the one the suite started.
+const BASE_URL = `http://localhost:${process.env.E2E_PORT ?? "3001"}`;
 const MONGODB_URI = "mongodb://localhost:27017/lms_e2e";
 const authDir = path.join(__dirname, "../playwright/.auth");
 

@@ -108,7 +108,7 @@ test.describe("Image-answer + annotation flow", () => {
     const page = await context.newPage();
     await mockS3Put(page);
 
-    await page.goto("http://localhost:3001/student/login");
+    await page.goto("/student/login");
     await page.getByLabel("Username").fill(STUDENT_USERNAME);
     await page.getByLabel("Password").fill(STUDENT_PASSWORD);
     await page.getByRole("button", { name: "Sign In" }).click();
@@ -171,7 +171,7 @@ test.describe("Image-answer + annotation flow", () => {
     const page = await context.newPage();
     await mockS3Put(page);
 
-    await page.goto("http://localhost:3001/student/dashboard");
+    await page.goto("/student/dashboard");
     await page.getByRole("link", { name: COURSE_TITLE_RE }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
 
