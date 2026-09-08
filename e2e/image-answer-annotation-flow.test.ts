@@ -104,7 +104,8 @@ test.describe("Image-answer + annotation flow", () => {
   });
 
   test("student uploads a photo answer", async ({ browser }) => {
-    const context = await browser.newContext();
+    // storageState: undefined avoids inheriting the project's admin session
+    const context = await browser.newContext({ storageState: undefined });
     const page = await context.newPage();
     await mockS3Put(page);
 
