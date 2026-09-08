@@ -150,22 +150,19 @@ export class CourseJoinRequestService {
   }
 
   /**
-   * Marks a join request Approved. Caller must enroll the student in the
-   * course BEFORE calling this (Step 30) — enrollment first, status second,
-   * so a crash between the two writes never produces an "approved but not
-   * enrolled" request that the queue can no longer surface. Throws if the
-   * request is not currently Pending (Step 32) — a resolved request must
-   * never be re-resolved, e.g. rejected-then-approved would enroll a student
-   * whose request was already turned down.
+   * Marks a join request Approved via an atomic compare-and-set — the write
+   * itself is the guard, so no separate read can race between check and
+   * write the way two admins' concurrent approve/reject clicks could (R6).
+   * Caller must claim this BEFORE enrolling the student (D90) — status
+   * first, enrollment second, so a losing concurrent Reject is refused
+   * before an enrollment for the turned-down student ever exists. Covers
+   * the resulting "approved but not enrolled" crash window by allowing a
+   * safe, inert retry: re-approving an already-Approved row succeeds
+   * without writing anything new. A Rejected row always refuses (Step 32).
    */
   async approve(requestId: string, resolvedBy: string): Promise<void> {
-    const request = await this.joinRequests.findOne({ id: requestId });
-    if (request?.status !== JoinRequestStatus.Pending) {
-      throw new Error("This request has already been handled");
-    }
-
-    await this.joinRequests.updateOne(
-      { id: requestId },
+    const result = await this.joinRequests.updateOne(
+      { id: requestId, status: JoinRequestStatus.Pending },
       {
         $set: {
           status: JoinRequestStatus.Approved,
@@ -174,24 +171,30 @@ export class CourseJoinRequestService {
         },
       },
     );
+    if (result.matchedCount === 1) {
+      return;
+    }
+
+    const current = await this.joinRequests.findOne({ id: requestId });
+    if (current?.status === JoinRequestStatus.Approved) {
+      return;
+    }
+    throw new Error("This request has already been handled");
   }
 
   /**
-   * Marks a join request Rejected. Status-only — never touches the
-   * `enrollment` collection, so an enrollment the student already has by
-   * another path (hand-added, bulk import) is left untouched (D66/R7).
-   * Throws if the request is not currently Pending (Step 32) — an approved
-   * request must never flip to Rejected while the enrollment it produced
-   * stays untouched (D66), which would leave the two permanently disagreeing.
+   * Marks a join request Rejected via the same atomic compare-and-set as
+   * approve() (R6). Status-only — never touches the `enrollment` collection,
+   * so an enrollment the student already has by another path (hand-added,
+   * bulk import) is left untouched (D66/R7). Unlike approve(), there is no
+   * retry path: a Rejected OR Approved row always refuses (Step 32) — an
+   * approved request must never flip to Rejected while the enrollment it
+   * produced stays untouched (D66), which would leave the two permanently
+   * disagreeing.
    */
   async reject(requestId: string, resolvedBy: string): Promise<void> {
-    const request = await this.joinRequests.findOne({ id: requestId });
-    if (request?.status !== JoinRequestStatus.Pending) {
-      throw new Error("This request has already been handled");
-    }
-
-    await this.joinRequests.updateOne(
-      { id: requestId },
+    const result = await this.joinRequests.updateOne(
+      { id: requestId, status: JoinRequestStatus.Pending },
       {
         $set: {
           status: JoinRequestStatus.Rejected,
@@ -200,6 +203,9 @@ export class CourseJoinRequestService {
         },
       },
     );
+    if (result.matchedCount === 0) {
+      throw new Error("This request has already been handled");
+    }
   }
 
   /**

@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
-import { JoinRequestStatus } from "src/lib/course-join-request-service";
 import { withSpan } from "src/lib/observability/with-span";
 import {
   getCourseJoinRequestService,
@@ -22,9 +21,12 @@ export interface JoinRequestActionState {
 
 /**
  * Server action: approves a pending join request, enrolling the student
- * (Step 30). Enrollment is written FIRST, the request status SECOND — a
- * crash in between leaves the request visible and re-approvable rather than
- * "approved but not enrolled" and stuck.
+ * (Step 30). The status is claimed FIRST, the enrollment written SECOND
+ * (D90/R6) — so a losing concurrent Reject is refused before an enrollment
+ * for the turned-down student ever exists. A crash between the two writes
+ * leaves "approved but not enrolled," which a retried approve safely
+ * finishes: re-claiming an already-Approved row succeeds and re-runs the
+ * (idempotent) enrollment instead of throwing.
  */
 export async function approveJoinRequestAction(
   _prevState: JoinRequestActionState | null,
@@ -66,14 +68,10 @@ export async function approveJoinRequestAction(
         if (!request) {
           return { success: false, message: "Join request not found" };
         }
-        // Checked BEFORE enrolling — a rejected request must never enroll
-        // the student it turned down (Step 32).
-        if (request.status !== JoinRequestStatus.Pending) {
-          return {
-            success: false,
-            message: "This request has already been handled",
-          };
-        }
+
+        // Claim the status BEFORE enrolling (D90/R6) — the atomic claim
+        // throws here for a Rejected row, or for a losing concurrent Reject.
+        await joinRequestService.approve(request.id, adminUserId);
 
         const enrollmentService = await getEnrollmentService();
         await enrollmentService.enrollStudent(
@@ -81,7 +79,6 @@ export async function approveJoinRequestAction(
           request.studentId,
           adminUserId,
         );
-        await joinRequestService.approve(request.id, adminUserId);
 
         revalidatePath("/admin/join-requests");
         return { success: true, message: "Request approved." };
@@ -141,13 +138,8 @@ export async function rejectJoinRequestAction(
         if (!request) {
           return { success: false, message: "Join request not found" };
         }
-        if (request.status !== JoinRequestStatus.Pending) {
-          return {
-            success: false,
-            message: "This request has already been handled",
-          };
-        }
 
+        // The atomic claim (Step 32/R6) throws for a non-Pending row.
         await joinRequestService.reject(request.id, adminUserId);
 
         revalidatePath("/admin/join-requests");

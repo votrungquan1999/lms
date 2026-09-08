@@ -117,6 +117,8 @@ describe("Feature: Course Join Request Service", () => {
     );
   });
 
+  // "Already handled" no longer means one thing: Rejected always refuses,
+  // but Approved is a safe retry (D90) — the two scenarios below pin both.
   describe("Scenario: approving a request that has already been rejected", () => {
     dbIt("should refuse and leave the request Rejected", async ({ db }) => {
       const service = new CourseJoinRequestService(db);
@@ -137,5 +139,31 @@ describe("Feature: Course Join Request Service", () => {
       const after = await service.getRequest(request.id);
       expect(after?.status).toBe(JoinRequestStatus.Rejected);
     });
+  });
+
+  describe("Scenario: approving a request that has already been approved", () => {
+    dbIt(
+      "should succeed again instead of throwing (a safe, inert retry)",
+      async ({ db }) => {
+        const service = new CourseJoinRequestService(db);
+
+        // Given a request that is already Approved
+        const request = await service.createRequest({
+          courseId: "course-1",
+          studentId: "student-1",
+        });
+        await service.approve(request.id, "admin-1");
+
+        // When approve() is called again on the same request — e.g. a crash
+        // between claiming Approved and enrolling the student (D90)
+        await expect(
+          service.approve(request.id, "admin-2"),
+        ).resolves.toBeUndefined();
+
+        // Then it is still just Approved — no error, no second resolution
+        const after = await service.getRequest(request.id);
+        expect(after?.status).toBe(JoinRequestStatus.Approved);
+      },
+    );
   });
 });

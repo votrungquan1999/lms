@@ -168,6 +168,62 @@ describe("Feature: Approve a course join request", () => {
     ).filter((e) => e.courseId === course.id);
     expect(enrollments).toHaveLength(1);
   });
+
+  it("refuses the loser of a concurrent approve/reject race and never leaves a rejected request enrolled (R6)", async () => {
+    const {
+      courseService,
+      studentService,
+      courseJoinRequestService,
+      enrollmentService,
+    } = getTestServices();
+
+    const course = await courseService.createCourse({
+      title: "Algebra I",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const student = await studentService.createStudentDocument({
+      authUserId: "auth-7",
+      username: "student-7",
+      name: "Student Seven",
+      createdBy: "self-signup",
+    });
+    const request = await courseJoinRequestService.createRequest({
+      courseId: course.id,
+      studentId: student.id,
+    });
+
+    const approveFormData = new FormData();
+    approveFormData.set("requestId", request.id);
+    const rejectFormData = new FormData();
+    rejectFormData.set("requestId", request.id);
+
+    // Admin B's reject lands right at the point Admin A's approve writes the
+    // enrollment — the exact interleaving R6 describes. Forced
+    // deterministically (no Promise.all, which this repo's testing rules
+    // call flaky) by hooking the one write both admins' actions share.
+    const originalEnrollStudent =
+      enrollmentService.enrollStudent.bind(enrollmentService);
+    vi.spyOn(enrollmentService, "enrollStudent").mockImplementationOnce(
+      async (...args) => {
+        await originalEnrollStudent(...args);
+        await rejectJoinRequestAction(null, rejectFormData);
+      },
+    );
+
+    await approveJoinRequestAction(null, approveFormData);
+
+    // Whichever action wins, the two must never disagree: a Rejected row
+    // with an active enrollment is a state D66 forbids and nothing can fix.
+    const finalRequest = await courseJoinRequestService.getRequest(request.id);
+    const isEnrolled = await enrollmentService.isEnrolled(
+      course.id,
+      student.id,
+    );
+    expect(
+      finalRequest?.status === JoinRequestStatus.Rejected && isEnrolled,
+    ).toBe(false);
+  });
 });
 
 /**
