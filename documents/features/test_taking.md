@@ -20,6 +20,13 @@ Students take tests by submitting their solutions. Teachers grade each question 
 - [x] Teacher can provide overall free-text feedback for a student's test
 - [x] Average score is automatically calculated when all questions are graded
 - [x] Teacher can view all students' latest submissions for a test
+- [x] Teacher can withhold correct answers at first, then release them later
+      from either grading page; the release control is offered only while it
+      is needed — not when answers already show automatically, and not once
+      they have been released
+- [x] Releasing correct answers is one-way: saving test settings afterwards
+      never un-releases them, so a student who has seen the answer cannot have
+      it taken back
 
 ### Teacher — Grading Page UX (Planned)
 
