@@ -43,8 +43,11 @@ test.describe("LMS E2E Flow", () => {
   // ─── Step 5: Student authenticates via login form ─────────────────────────
 
   test("student can authenticate via login form", async ({ browser }) => {
-    // Given a fresh browser context (no admin cookies)
-    const studentContext = await browser.newContext();
+    // Given a fresh browser context (no admin cookies) — storageState: undefined
+    // is required, or this context inherits the project's admin session
+    const studentContext = await browser.newContext({
+      storageState: undefined,
+    });
     const studentPage = await studentContext.newPage();
 
     // When navigating to student login and filling credentials
