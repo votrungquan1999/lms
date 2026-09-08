@@ -40,7 +40,9 @@ export default async function GradingVariantPage({
   const questionId =
     typeof rawQuestionId === "string" ? rawQuestionId : undefined;
   const mode =
-    sp.mode === GradingMode.Question ? GradingMode.Question : GradingMode.Student;
+    sp.mode === GradingMode.Question
+      ? GradingMode.Question
+      : GradingMode.Student;
   const sort =
     sp.sort === GradingSort.Name
       ? GradingSort.Name

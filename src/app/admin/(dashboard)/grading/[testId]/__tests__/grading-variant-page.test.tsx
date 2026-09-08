@@ -703,7 +703,11 @@ describe("Feature: GradingVariantPage", () => {
       name: "Carol",
       createdBy: "admin",
     });
-    await services.enrollmentService.enrollStudent(course.id, carol.id, "admin");
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      carol.id,
+      "admin",
+    );
     await new Promise((r) => setTimeout(r, 5));
     const alice = await services.studentService.createStudentDocument({
       authUserId: "auth-a",
@@ -711,7 +715,11 @@ describe("Feature: GradingVariantPage", () => {
       name: "Alice",
       createdBy: "admin",
     });
-    await services.enrollmentService.enrollStudent(course.id, alice.id, "admin");
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      alice.id,
+      "admin",
+    );
     await new Promise((r) => setTimeout(r, 5));
     const bob = await services.studentService.createStudentDocument({
       authUserId: "auth-b",
@@ -841,7 +849,11 @@ describe("Feature: GradingVariantPage", () => {
       name: "Redo",
       createdBy: "admin",
     });
-    await services.enrollmentService.enrollStudent(course.id, student.id, "admin");
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin",
+    );
     await services.answerService.submitAnswer({
       testId: test.id,
       questionId: q1.id,
@@ -851,11 +863,7 @@ describe("Feature: GradingVariantPage", () => {
     await services.testSubmissionService.submitTest(test.id, student.id);
 
     // Given: the admin requested this student redo the test.
-    await services.redoRequestService.requestRedo(
-      test.id,
-      student.id,
-      "admin",
-    );
+    await services.redoRequestService.requestRedo(test.id, student.id, "admin");
 
     const ui = await GradingVariantPage({
       params: Promise.resolve({ testId: test.id }),
@@ -866,9 +874,7 @@ describe("Feature: GradingVariantPage", () => {
     // Then: the "Redo requested" marker appears in place of the request
     // button — the user can see the redo state at a glance.
     const detail = screen.getByTestId(`student-card-${student.id}`);
-    expect(
-      within(detail).getByText(/Redo requested/i),
-    ).toBeInTheDocument();
+    expect(within(detail).getByText(/Redo requested/i)).toBeInTheDocument();
     expect(
       within(detail).queryByRole("button", { name: /request redo/i }),
     ).toBeNull();
@@ -960,6 +966,8 @@ describe("Feature: GradingVariantPage", () => {
     // placeholder text (no crash).
     expect(screen.queryAllByTestId(/^roster-cell-/)).toHaveLength(0);
     const mainPane = screen.getByTestId("grading-main-pane");
-    expect(within(mainPane).getByText(/No students enrolled/i)).toBeInTheDocument();
+    expect(
+      within(mainPane).getByText(/No students enrolled/i),
+    ).toBeInTheDocument();
   });
 });

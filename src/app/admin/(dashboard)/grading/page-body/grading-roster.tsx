@@ -1,7 +1,7 @@
 import Link from "next/link";
-import {
+import type {
   GradingSort,
-  type RosterStudentCellModel,
+  RosterStudentCellModel,
 } from "./grading-page-body.type";
 import { RosterCell, SortDropdown } from "./grading-roster.ui";
 import { gradingHref } from "./href";

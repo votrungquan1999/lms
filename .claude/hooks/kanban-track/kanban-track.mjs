@@ -14,7 +14,9 @@ function readStdin() {
   return new Promise((resolve) => {
     let data = "";
     process.stdin.setEncoding("utf8");
-    process.stdin.on("data", (chunk) => { data += chunk; });
+    process.stdin.on("data", (chunk) => {
+      data += chunk;
+    });
     process.stdin.on("end", () => resolve(data));
     process.stdin.on("error", () => resolve(""));
   });
@@ -24,7 +26,12 @@ function readStdin() {
 function readPointer(sessionId) {
   if (!sessionId) return null;
   try {
-    const path = join(homedir(), ".claude", "kanban-session-state", `${sessionId}.json`);
+    const path = join(
+      homedir(),
+      ".claude",
+      "kanban-session-state",
+      `${sessionId}.json`,
+    );
     const pointer = JSON.parse(readFileSync(path, "utf8"));
     const hasRequiredFields =
       typeof pointer.cardId === "string" &&
@@ -38,12 +45,18 @@ function readPointer(sessionId) {
 
 function buildReminder(pointer) {
   if (!pointer) return NO_POINTER_REMINDER;
-  return `Active AI-Kanban card #${pointer.cardNumber} (${pointer.summary}). ` +
-    "If this prompt diverges into a new task, open a NEW card; otherwise append progress to this card.";
+  return (
+    `Active AI-Kanban card #${pointer.cardNumber} (${pointer.summary}). ` +
+    "If this prompt diverges into a new task, open a NEW card; otherwise append progress to this card."
+  );
 }
 
 function isValidMcpEntry(entry) {
-  return !!entry && typeof entry.url === "string" && typeof entry.headers?.Authorization === "string";
+  return (
+    !!entry &&
+    typeof entry.url === "string" &&
+    typeof entry.headers?.Authorization === "string"
+  );
 }
 
 // Kanban URL + Basic auth live in ~/.claude.json. Precedence: a project-scoped
@@ -53,7 +66,8 @@ function readKanbanConfig(cwd) {
   try {
     const path = join(homedir(), ".claude.json");
     const parsed = JSON.parse(readFileSync(path, "utf8"));
-    const projectEntry = parsed.projects?.[cwd]?.mcpServers?.["ai-kanban-dispatch"];
+    const projectEntry =
+      parsed.projects?.[cwd]?.mcpServers?.["ai-kanban-dispatch"];
     if (isValidMcpEntry(projectEntry)) return projectEntry;
     const globalEntry = parsed.mcpServers?.["ai-kanban-dispatch"];
     return isValidMcpEntry(globalEntry) ? globalEntry : null;
@@ -97,12 +111,14 @@ async function postProgress(pointer, prompt, cwd) {
 }
 
 function emit(additionalContext) {
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: "UserPromptSubmit",
-      additionalContext,
-    },
-  }));
+  process.stdout.write(
+    JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "UserPromptSubmit",
+        additionalContext,
+      },
+    }),
+  );
 }
 
 async function main() {

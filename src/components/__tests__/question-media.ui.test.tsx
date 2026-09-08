@@ -67,7 +67,10 @@ describe("QuestionMedia", () => {
       Array.from(container.querySelectorAll("img")).map((el) =>
         el.getAttribute("src"),
       ),
-    ).toEqual(["https://signed.example/first", "https://signed.example/second"]);
+    ).toEqual([
+      "https://signed.example/first",
+      "https://signed.example/second",
+    ]);
   });
 
   it("renders no media block when there is no media", () => {

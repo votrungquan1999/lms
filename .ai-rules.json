@@ -38,10 +38,6 @@
     "web-search",
     "pr-comment-triage"
   ],
-  "hooks": [
-    "kanban-track"
-  ],
-  "scope": [
-    "personal"
-  ]
+  "hooks": ["kanban-track"],
+  "scope": ["personal"]
 }

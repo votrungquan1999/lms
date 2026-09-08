@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CourseMaterial } from "../course-service";
 import { attachCourseMaterialUrls } from "../course-material-urls";
+import type { CourseMaterial } from "../course-service";
 
 const mockGetPresignedDownloadUrl = vi.fn();
 vi.mock("src/lib/services-singleton", () => ({
@@ -47,7 +47,9 @@ describe("attachCourseMaterialUrls", () => {
     const result = await attachCourseMaterialUrls(input);
 
     // Then each material carries a signed url
-    expect(result[0].url).toBe("https://signed.example/materials/courses/c1/a.pdf");
+    expect(result[0].url).toBe(
+      "https://signed.example/materials/courses/c1/a.pdf",
+    );
     expect(result[1].url).toBe(
       "https://signed.example/materials/courses/c1/b.docx",
     );

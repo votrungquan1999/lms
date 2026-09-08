@@ -159,8 +159,7 @@ export async function GradingPageShell({
     numerator = grades.filter((g) => g !== null).length;
   } else {
     for (const c of cells) {
-      const allGraded =
-        c.answeredCount > 0 && c.gradedCount >= c.answeredCount;
+      const allGraded = c.answeredCount > 0 && c.gradedCount >= c.answeredCount;
       if (allGraded) numerator++;
     }
   }

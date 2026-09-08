@@ -247,9 +247,8 @@ async function main() {
     const answerService = new AnswerService(db, questionService);
 
     let testSubmissionService!: TestSubmissionService;
-    const gradeVisibilityService = new GradeVisibilityService(
-      testService,
-      () => Promise.resolve(testSubmissionService),
+    const gradeVisibilityService = new GradeVisibilityService(testService, () =>
+      Promise.resolve(testSubmissionService),
     );
     const gradeService = new GradeService(
       db,
@@ -272,7 +271,9 @@ async function main() {
     // index alignment with QUESTIONS[i] matches the insertion order below.
 
     for (const seedStudent of STUDENTS) {
-      const existing = await studentService.findByUsername(seedStudent.username);
+      const existing = await studentService.findByUsername(
+        seedStudent.username,
+      );
       if (existing) {
         console.log(
           `  • student ${existing.username} already exists — skipping`,

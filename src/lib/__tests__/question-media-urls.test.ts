@@ -22,10 +22,7 @@ beforeEach(() => {
 });
 
 /** Builds a free_text question with the given media entries. */
-function freeTextQuestion(
-  id: string,
-  media: Question["media"],
-): Question {
+function freeTextQuestion(id: string, media: Question["media"]): Question {
   return {
     id,
     testId: "test-1",
@@ -43,11 +40,26 @@ describe("attachQuestionMediaUrls", () => {
   it("mints a presigned URL per media entry, preserving order across questions", async () => {
     const input: Question[] = [
       freeTextQuestion("q1", [
-        { key: "media/a.png", url: "", contentType: MediaContentType.PNG, order: 0 },
-        { key: "media/b.mp4", url: "", contentType: MediaContentType.MP4, order: 1 },
+        {
+          key: "media/a.png",
+          url: "",
+          contentType: MediaContentType.PNG,
+          order: 0,
+        },
+        {
+          key: "media/b.mp4",
+          url: "",
+          contentType: MediaContentType.MP4,
+          order: 1,
+        },
       ]),
       freeTextQuestion("q2", [
-        { key: "media/c.webp", url: "", contentType: MediaContentType.WEBP, order: 0 },
+        {
+          key: "media/c.webp",
+          url: "",
+          contentType: MediaContentType.WEBP,
+          order: 0,
+        },
       ]),
     ];
 
@@ -72,7 +84,12 @@ describe("attachQuestionMediaUrls", () => {
 
   it("leaves no-media questions untouched, preserves the union, and never mutates input", async () => {
     const withMedia = freeTextQuestion("q1", [
-      { key: "media/a.png", url: "", contentType: MediaContentType.PNG, order: 0 },
+      {
+        key: "media/a.png",
+        url: "",
+        contentType: MediaContentType.PNG,
+        order: 0,
+      },
     ]);
     const singleSelect: SingleSelectQuestion = {
       id: "q2",
