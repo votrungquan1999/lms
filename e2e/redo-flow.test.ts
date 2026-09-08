@@ -101,7 +101,8 @@ test.describe("Redo Flow", () => {
   test("setup: student authenticates and saves auth state", async ({
     browser,
   }) => {
-    const context = await browser.newContext();
+    // storageState: undefined avoids inheriting the project's admin session
+    const context = await browser.newContext({ storageState: undefined });
     const page = await context.newPage();
 
     await page.goto("/student/login");
