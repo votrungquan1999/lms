@@ -971,4 +971,40 @@ describe("Feature: GradingVariantPage", () => {
       within(mainPane).getByText(/No students enrolled/i),
     ).toBeInTheDocument();
   });
+  it("offers the correct-answer release here too, and only while it is needed", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Release Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const withheld = await services.testService.createTest(course.id, {
+      title: "Withheld",
+      description: "",
+      createdBy: "admin",
+      showCorrectAnswerAfterSubmit: false,
+    });
+
+    const { unmount } = render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: withheld.id }),
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: /release correct answers/i }),
+    ).toBeInTheDocument();
+    unmount();
+
+    // This page carries its own copy of the gate; without a test here the
+    // whole block could be deleted and the suite would stay green.
+    await services.testService.releaseCorrectAnswers(withheld.id, "admin");
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: withheld.id }),
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /release correct answers/i }),
+    ).not.toBeInTheDocument();
+  });
 });

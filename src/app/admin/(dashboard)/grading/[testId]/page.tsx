@@ -84,9 +84,15 @@ export default async function GradingVariantPage({
             <ReleaseGradesButton testId={testId} courseId={courseId} />
           </div>
         )}
-        <div className="mt-4">
-          <ReleaseCorrectAnswersButton testId={testId} courseId={courseId} />
-        </div>
+        {!test.showCorrectAnswerAfterSubmit &&
+          !test.correctAnswersReleasedAt && (
+            <div className="mt-4">
+              <ReleaseCorrectAnswersButton
+                testId={testId}
+                courseId={courseId}
+              />
+            </div>
+          )}
       </header>
 
       {
