@@ -81,6 +81,9 @@ test.describe("Image-answer + annotation flow", () => {
     await page.getByText(`@${STUDENT_USERNAME}`).click();
     await page.getByRole("button", { name: "Confirm Enrollments" }).click();
     await expect(page.getByText("updated")).toBeVisible({ timeout: 10000 });
+    // The dialog stays open after Confirm (shows the success message inline) —
+    // close it before continuing on the same page, or it blocks "Add Test".
+    await page.getByRole("button", { name: "Close" }).click();
 
     // Create the test
     await page.getByRole("button", { name: "Add Test" }).click();
@@ -119,15 +122,36 @@ test.describe("Image-answer + annotation flow", () => {
       path: path.join(authDir, "annotation-student.json"),
     });
 
-    await page.getByRole("link", { name: COURSE_TITLE_RE }).click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByRole("link", { name: COURSE_TITLE_RE }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
 
-    // Upload a photo and submit
+    // Upload a photo and submit. On success `AnswerForm` flips straight to its
+    // read-only view in the same render, so the transient success message
+    // never actually mounts — assert the settled state instead ("Edit
+    // Answer"), the same signal every other answer-submit test in this suite
+    // uses.
     await page.getByLabel("Your photos").setInputFiles(photoPath);
     await page.getByRole("button", { name: "Submit Answer" }).click();
-    await expect(page.getByText("submitted successfully")).toBeVisible({
-      timeout: 10000,
-    });
+    await expect(page.getByRole("button", { name: "Edit Answer" })).toBeVisible(
+      { timeout: 10000 },
+    );
+
+    // Finalize the test itself — answering the question alone leaves the test
+    // in a state where the grader can't reveal a grade to the student. Every
+    // other flow in this suite does this same finalize step after answering.
+    await page.getByRole("button", { name: "Submit Test for Grading" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Submit test for grading?" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Confirm Submission" }).click();
+    await expect(
+      page.getByText("submitted and is waiting to be graded"),
+    ).toBeVisible({ timeout: 10000 });
 
     await context.close();
   });
@@ -158,9 +182,19 @@ test.describe("Image-answer + annotation flow", () => {
       timeout: 10000,
     });
 
-    // Grade + release so the student can see it (release control on the page)
+    // Grade + release so the student can see it. Named "Save Grade" exactly —
+    // "Save annotations" (above) and "Save Feedback" (below) also match
+    // /Save/, so `.first()` on that regex actually re-clicked "Save
+    // annotations" and never submitted a score at all. Wait for the save to
+    // actually persist — without this the test ends and Playwright tears
+    // down the page while the grade-save request is still in flight, so it
+    // never lands (same class of bug as the materials upload: a page
+    // closing mid-request aborts it server-side).
     await page.getByLabel("Score").first().fill("80");
-    await page.getByRole("button", { name: /Save/ }).first().click();
+    await page.getByRole("button", { name: "Save Grade" }).click();
+    await expect(page.getByText("Grade saved")).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("student sees the grader's annotation once revealed", async ({
@@ -173,7 +207,12 @@ test.describe("Image-answer + annotation flow", () => {
     await mockS3Put(page);
 
     await page.goto("/student/dashboard");
-    await page.getByRole("link", { name: COURSE_TITLE_RE }).click();
+    // Scoped to "Your courses" — the sidebar nav repeats the same title,
+    // which is otherwise a strict-mode violation.
+    const yourCourses = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Your courses" }) });
+    await yourCourses.getByRole("link", { name: COURSE_TITLE_RE }).click();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
 
     // The graded view shows the student's photo with the grader's stroke over it
