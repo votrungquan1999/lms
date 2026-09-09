@@ -19,6 +19,14 @@ Two tiers sit on top (`src/lib/page-guard.ts`):
 - `requireAdminLogin()` — any recorded Admin.
 - `requireRoleManagerLogin()` — a recorded Admin **and** an email in `ADMIN_EMAILS` (`authService.isAdminEmail`). This gates `/admin/user-roles` and its `grantAdminAction`/`revokeAdminAction`, which re-check ownership themselves rather than trust the page guard. An owner cannot revoke their own admin access.
 
+### Rolling this out locks existing admins out until they are backfilled
+
+`classify()` admits an admin on the recorded role alone, and both tiers above sit *behind* an established `AdminSession` — so `ADMIN_EMAILS` cannot bootstrap anyone back in. Every account created before the field existed resolves to no session at all and loses `/admin`.
+
+`scripts/backfill-user-roles.ts` closes that gap: `@lms.internal` addresses become students, real addresses become admins. Deploy first, then backfill — the script promotes every roleless account, so against an older build it would sweep up new signups (still roleless there) alongside the real backlog. It is scoped to `{ role: { $exists: false } }` and is not a re-runnable sweep.
+
+Run it report-only first; the "real address becomes admin" rule promotes anything that had slipped through, which may be more accounts than expected. Applied to production on 2026-09-10: 8 roleless accounts, 6 to student and 2 to admin.
+
 ## The invite link
 
 `CourseService` (`src/lib/course-service.ts`) stores one `inviteToken` per course:
