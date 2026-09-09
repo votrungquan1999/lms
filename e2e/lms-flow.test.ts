@@ -1,12 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 const STUDENT_NAME = "Test Student";
 const STUDENT_USERNAME = "e2e-student";
 const STUDENT_PASSWORD = "e2e-student-password";
 
 const authDir = path.join(__dirname, "../playwright/.auth");
+
+// Each question in the list renders its own edit form whose content textarea
+// carries the same label, so an unscoped "Content (Markdown)" is ambiguous the
+// moment one question exists. Only the add form holds an "Add Question" button.
+function addQuestionForm(page: Page) {
+  return page
+    .locator("form")
+    .filter({ has: page.getByRole("button", { name: "Add Question" }) });
+}
 
 test.describe("LMS E2E Flow", () => {
   test.describe.configure({ mode: "serial" });
@@ -235,7 +244,7 @@ test.describe("LMS E2E Flow", () => {
 
     // When filling the add question form
     await page.getByLabel("Question Title").fill("Q1: Hello World");
-    await page
+    await addQuestionForm(page)
       .getByLabel("Content (Markdown)")
       .fill("Write a function that returns the string `hello world`.");
     await page.getByRole("button", { name: "Add Question" }).click();
@@ -247,7 +256,9 @@ test.describe("LMS E2E Flow", () => {
 
     // And the form clears automatically (no reload needed)
     await expect(page.getByLabel("Question Title")).toHaveValue("");
-    await expect(page.getByLabel("Content (Markdown)")).toHaveValue("");
+    await expect(
+      addQuestionForm(page).getByLabel("Content (Markdown)"),
+    ).toHaveValue("");
 
     // And the question appears in the list after reload
     await page.reload();
@@ -309,21 +320,24 @@ test.describe("LMS E2E Flow", () => {
     await page.getByRole("button", { name: "Single Select" }).click();
 
     // Then the options builder panel appears on the right
-    await expect(page.getByText("Options")).toBeVisible();
+    await expect(addQuestionForm(page).getByText("Options")).toBeVisible();
 
     // Fill in the question title and content
     await page.getByLabel("Question Title").fill("Q2: MC Capital of France");
-    await page
+    await addQuestionForm(page)
       .getByLabel("Content (Markdown)")
       .fill("What is the capital of France?");
 
     // Fill options (two default options should exist)
-    const optionInputs = page.getByPlaceholder(/Option \d/);
+    const optionInputs = addQuestionForm(page).getByPlaceholder(/Option \d/);
     await optionInputs.nth(0).fill("Berlin");
     await optionInputs.nth(1).fill("Paris");
 
-    // Mark "Paris" (option 2) as correct via its radio button
-    await page.getByRole("radio").nth(1).check();
+    // Named by aria-label, not index — the Test Settings answer-reveal
+    // radiogroup comes first in DOM order and would take .nth(1).
+    await addQuestionForm(page)
+      .getByRole("radio", { name: "Mark option 2 correct" })
+      .check();
 
     // Submit the question
     await page.getByRole("button", { name: "Add Question" }).click();
@@ -335,7 +349,9 @@ test.describe("LMS E2E Flow", () => {
 
     // And the form clears automatically (no reload needed)
     await expect(page.getByLabel("Question Title")).toHaveValue("");
-    await expect(page.getByLabel("Content (Markdown)")).toHaveValue("");
+    await expect(
+      addQuestionForm(page).getByLabel("Content (Markdown)"),
+    ).toHaveValue("");
 
     // And after reload both questions appear in the list
     await page.reload();
@@ -359,20 +375,24 @@ test.describe("LMS E2E Flow", () => {
     await page.getByRole("button", { name: "Multi Select" }).click();
 
     // Then the options builder panel appears (label is specific to multi-select)
-    await expect(page.getByText("Options (pick all correct)")).toBeVisible();
+    await expect(
+      addQuestionForm(page).getByText("Options (pick all correct)"),
+    ).toBeVisible();
 
     // Fill in the question title and content
     await page.getByLabel("Question Title").fill("Q3: MC Planets");
-    await page
+    await addQuestionForm(page)
       .getByLabel("Content (Markdown)")
       .fill(
         "Which of the following are planets in our solar system? Select all that apply.",
       );
 
     // Add a third option (two default ones exist)
-    await page.getByRole("button", { name: "Add Option" }).click();
+    await addQuestionForm(page)
+      .getByRole("button", { name: "Add Option" })
+      .click();
 
-    const optionInputs = page.getByPlaceholder(/Option \d/);
+    const optionInputs = addQuestionForm(page).getByPlaceholder(/Option \d/);
     await optionInputs.nth(0).fill("Earth");
     await optionInputs.nth(1).fill("Mars");
     await optionInputs.nth(2).fill("Sun");
@@ -381,8 +401,12 @@ test.describe("LMS E2E Flow", () => {
     // aria-label, not index — the page's own "Test Settings" checkboxes
     // (Show grade / Show correct answer) come first in DOM order and would
     // shift a bare `getByRole("checkbox").nth(n)` onto the wrong controls.
-    await page.getByRole("checkbox", { name: "Mark option 1 correct" }).check();
-    await page.getByRole("checkbox", { name: "Mark option 2 correct" }).check();
+    await addQuestionForm(page)
+      .getByRole("checkbox", { name: "Mark option 1 correct" })
+      .check();
+    await addQuestionForm(page)
+      .getByRole("checkbox", { name: "Mark option 2 correct" })
+      .check();
 
     // Submit the question
     await page.getByRole("button", { name: "Add Question" }).click();
@@ -394,7 +418,9 @@ test.describe("LMS E2E Flow", () => {
 
     // And the form clears automatically (no reload needed)
     await expect(page.getByLabel("Question Title")).toHaveValue("");
-    await expect(page.getByLabel("Content (Markdown)")).toHaveValue("");
+    await expect(
+      addQuestionForm(page).getByLabel("Content (Markdown)"),
+    ).toHaveValue("");
 
     // And after reload all three questions appear in the list
     await page.reload();

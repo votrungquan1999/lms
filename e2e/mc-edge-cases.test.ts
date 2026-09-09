@@ -120,7 +120,9 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
     const optionInputs = page.getByPlaceholder(/Option \d/);
     await optionInputs.nth(0).fill("Berlin");
     await optionInputs.nth(1).fill("Paris");
-    await page.getByRole("radio").nth(1).check();
+    // Named by aria-label, not index — the Test Settings answer-reveal
+    // radiogroup comes first in DOM order and would take .nth(1).
+    await page.getByRole("radio", { name: "Mark option 2 correct" }).check();
     await page.getByRole("button", { name: "Add Question" }).click();
     await expect(page.getByText("added successfully")).toBeVisible({
       timeout: 10_000,
