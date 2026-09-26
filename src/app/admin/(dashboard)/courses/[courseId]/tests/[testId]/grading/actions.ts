@@ -3,9 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import {
+  AiGradeOutcome,
+  recordAiAcceptance,
+} from "src/lib/ai/ai-acceptance-telemetry";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import {
+  getAiGradeService,
   getAnnotationService,
   getGradeService,
   getRedoRequestService,
@@ -66,7 +71,8 @@ export interface TestFeedbackState {
 }
 
 /**
- * Server action: grades a student's answer for a question.
+ * Server action: grades a student's answer for a question. When the AI had
+ * suggested a grade for it, records how far the teacher's grade is from it.
  */
 export async function gradeQuestionAction(
   _prevState: GradeQuestionState | null,
@@ -106,7 +112,15 @@ export async function gradeQuestionAction(
         "lms.course.id": parsed.data.courseId,
         "lms.student.id": parsed.data.studentId,
       },
-      async () => {
+      async (span) => {
+        // Read before saving, so a failed lookup never reports a saved grade as failed.
+        const aiGradeService = await getAiGradeService();
+        const suggestion = await aiGradeService.getLatestSuggestion(
+          parsed.data.testId,
+          parsed.data.questionId,
+          parsed.data.studentId,
+        );
+
         const gradeService = await getGradeService();
         await gradeService.gradeQuestion({
           testId: parsed.data.testId,
@@ -117,6 +131,14 @@ export async function gradeQuestionAction(
           solution: parsed.data.solution,
           gradedBy: adminUserId,
         });
+
+        if (suggestion) {
+          recordAiAcceptance(span, AiGradeOutcome.ManuallyGraded, suggestion, {
+            score: parsed.data.score,
+            feedback: parsed.data.feedback,
+            solution: parsed.data.solution,
+          });
+        }
 
         revalidatePath(
           `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,

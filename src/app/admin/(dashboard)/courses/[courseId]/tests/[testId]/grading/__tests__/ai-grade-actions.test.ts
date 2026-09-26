@@ -1,3 +1,9 @@
+import { trace } from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { revalidatePathMock } = vi.hoisted(() => ({
@@ -269,6 +275,17 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
   });
 });
 
+/** What `applySuggestion` resolves to: the suggestion row that was applied. */
+const appliedSuggestion = {
+  id: "sugg-1",
+  testId: "test-1",
+  questionId: "q-1",
+  studentId: "stu-1",
+  score: 70,
+  feedback: "AI feedback",
+  solution: "AI solution",
+};
+
 describe("Feature: applyAiSuggestionAction (Step 6 action-layer)", () => {
   beforeEach(() => {
     applySuggestion.mockReset();
@@ -283,7 +300,7 @@ describe("Feature: applyAiSuggestionAction (Step 6 action-layer)", () => {
 
   it("on happy-path success: revalidates the 5 paths (admin + student) and returns the pinned success message", async () => {
     // Given — valid form fields, no overrides; service apply resolves.
-    applySuggestion.mockResolvedValueOnce(undefined);
+    applySuggestion.mockResolvedValueOnce(appliedSuggestion);
 
     const fd = new FormData();
     fd.set("testId", "test-1");
@@ -329,5 +346,101 @@ describe("Feature: applyAiSuggestionAction (Step 6 action-layer)", () => {
     expect(state.message).toBe("Unauthorized: admin access required");
     expect(applySuggestion).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("Feature: a failed AI action's log line links to its trace", () => {
+  let exporter: InMemorySpanExporter;
+
+  beforeEach(() => {
+    exporter = new InMemorySpanExporter();
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({
+        spanProcessors: [new SimpleSpanProcessor(exporter)],
+      }),
+    );
+    hasAnySuggestionsForStudent.mockReset();
+    generateForStudent.mockReset();
+  });
+
+  afterEach(() => {
+    trace.disable();
+    vi.restoreAllMocks();
+  });
+
+  it("prints the failed action's trace id alongside the error, so the log can be matched to the trace in Grafana", async () => {
+    // Given — the grading call fails inside the action's span.
+    hasAnySuggestionsForStudent.mockResolvedValueOnce(false);
+    generateForStudent.mockRejectedValueOnce(new Error("simulated failure"));
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const fd = new FormData();
+    fd.set("testId", "test-1");
+    fd.set("courseId", "course-1");
+    fd.set("studentId", "stu-1");
+
+    // When
+    await autoGradeSubmissionAction(null, fd);
+
+    // Then — the logged line carries the action span's trace id.
+    const actionSpan = exporter
+      .getFinishedSpans()
+      .find((span) => span.name === "action.autoGradeSubmissionAction");
+    const traceId = actionSpan?.spanContext().traceId;
+    expect(traceId).toMatch(/^[0-9a-f]{32}$/);
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining(`trace_id=${traceId}`),
+    );
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("simulated failure"),
+    );
+  });
+});
+
+describe("Feature: applying an AI suggestion records whether the teacher accepted it as-is", () => {
+  let exporter: InMemorySpanExporter;
+
+  beforeEach(() => {
+    exporter = new InMemorySpanExporter();
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({
+        spanProcessors: [new SimpleSpanProcessor(exporter)],
+      }),
+    );
+    applySuggestion.mockReset();
+    requireAdminSession.mockReset().mockResolvedValue({ userId: "admin-1" });
+  });
+
+  afterEach(() => {
+    trace.disable();
+    vi.restoreAllMocks();
+  });
+
+  it("records the AI's score, the score actually applied, the gap, and which texts the teacher changed", async () => {
+    applySuggestion.mockResolvedValueOnce(appliedSuggestion);
+
+    const fd = new FormData();
+    fd.set("testId", "test-1");
+    fd.set("courseId", "course-1");
+    fd.set("studentId", "stu-1");
+    fd.set("suggestionId", "sugg-1");
+    fd.set("scoreOverride", "55");
+    fd.set("feedbackOverride", "AI feedback");
+
+    await applyAiSuggestionAction(null, fd);
+
+    const actionSpan = exporter
+      .getFinishedSpans()
+      .find((span) => span.name === "action.applyAiSuggestionAction");
+    expect(actionSpan?.attributes).toMatchObject({
+      "lms.ai.outcome": "applied",
+      "lms.ai.suggestion_score": 70,
+      "lms.ai.final_score": 55,
+      "lms.ai.score_gap": -15,
+      "lms.ai.feedback_changed": false,
+      "lms.ai.solution_changed": false,
+    });
   });
 });

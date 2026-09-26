@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import {
+  AiGradeOutcome,
+  recordAiAcceptance,
+} from "src/lib/ai/ai-acceptance-telemetry";
 import { getAuthService } from "src/lib/auth-singleton";
+import { logError } from "src/lib/observability/log-error";
 import { withSpan } from "src/lib/observability/with-span";
 import { getAiGradeService } from "src/lib/services-singleton";
 import { z } from "zod";
@@ -95,7 +100,7 @@ export async function autoGradeSubmissionAction(
       },
     );
   } catch (error) {
-    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    logError(error);
     return {
       success: false,
       message: "AI grading failed. Please try again.",
@@ -180,7 +185,7 @@ export async function regenerateSubmissionAction(
       },
     );
   } catch (error) {
-    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    logError(error);
     return {
       success: false,
       message: "AI grading failed. Please try again.",
@@ -268,7 +273,7 @@ export async function regenerateQuestionAction(
       },
     );
   } catch (error) {
-    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    logError(error);
     return {
       success: false,
       message: "AI grading failed. Please try again.",
@@ -349,9 +354,9 @@ export async function applyAiSuggestionAction(
         "lms.course.id": parsed.data.courseId,
         "lms.student.id": parsed.data.studentId,
       },
-      async () => {
+      async (span) => {
         const aiGradeService = await getAiGradeService();
-        await aiGradeService.applySuggestion(
+        const suggestion = await aiGradeService.applySuggestion(
           parsed.data.suggestionId,
           adminUserId,
           {
@@ -360,6 +365,12 @@ export async function applyAiSuggestionAction(
             solutionOverride: parsed.data.solutionOverride,
           },
         );
+        // Mirrors apply-suggestion's `??` resolution of the overrides.
+        recordAiAcceptance(span, AiGradeOutcome.Applied, suggestion, {
+          score: parsed.data.scoreOverride ?? suggestion.score,
+          feedback: parsed.data.feedbackOverride ?? suggestion.feedback,
+          solution: parsed.data.solutionOverride ?? suggestion.solution,
+        });
 
         revalidatePath(
           `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
@@ -382,7 +393,7 @@ export async function applyAiSuggestionAction(
       error instanceof Error
         ? error.message
         : "AI grading failed. Please try again.";
-    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    logError(error);
     return { success: false, message };
   }
 }
