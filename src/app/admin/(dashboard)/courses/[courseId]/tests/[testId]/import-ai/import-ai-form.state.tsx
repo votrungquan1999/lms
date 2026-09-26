@@ -9,6 +9,12 @@ import {
   retryQuestionAction,
 } from "./actions";
 import { extractTextFromDocx, extractTextFromPdf } from "./document-extract";
+import {
+  DocumentFileType,
+  DocumentReadFailure,
+  type DocumentReadFailureReport,
+} from "./document-read-failure";
+import { reportDocumentReadFailureAction } from "./read-failure-actions";
 
 /**
  * One parsed question in the review list, keyed by a stable client id.
@@ -156,6 +162,20 @@ function toReviewedQuestions(drafts: ImportQuestionDraft[]): ParsedQuestion[] {
 const ImportAiContext = createContext<ImportAiContextValue | null>(null);
 
 /**
+ * Tells the server a document could not be read, so the failure is visible
+ * in telemetry even though nothing reached the AI.
+ * @param report - What went wrong; never the file's name or content.
+ */
+async function reportReadFailure(
+  report: DocumentReadFailureReport,
+): Promise<void> {
+  // Best-effort boundary: a failed report must never reach the teacher.
+  try {
+    await reportDocumentReadFailureAction(report);
+  } catch {}
+}
+
+/**
  * Provides AI-import stage state and the async file-selection callback.
  */
 export function ImportAiProvider({
@@ -185,11 +205,31 @@ export function ImportAiProvider({
     }
 
     dispatch({ type: "BUSY" });
+    const fileType =
+      extension === "docx" ? DocumentFileType.Docx : DocumentFileType.Pdf;
 
-    const text =
-      extension === "docx"
-        ? await extractTextFromDocx(file)
-        : await extractTextFromPdf(file);
+    // Boundary: a damaged or locked file throws inside the parser library,
+    // which would otherwise leave the picker stuck on busy.
+    let text: string;
+    try {
+      text =
+        extension === "docx"
+          ? await extractTextFromDocx(file)
+          : await extractTextFromPdf(file);
+    } catch (error) {
+      dispatch({
+        type: "ERROR",
+        message:
+          "This document could not be read. It may be damaged or password-protected. Try a different file.",
+      });
+      void reportReadFailure({
+        fileType,
+        fileSizeBytes: file.size,
+        reason: DocumentReadFailure.ExtractionFailed,
+        errorName: error instanceof Error ? error.name : undefined,
+      });
+      return;
+    }
 
     // Nothing is sent to Google when no text was read — this short-circuit
     // is what makes that true by construction, not a server-side check.
@@ -198,6 +238,11 @@ export function ImportAiProvider({
         type: "ERROR",
         message:
           "No text could be read from this document. Try a different file.",
+      });
+      void reportReadFailure({
+        fileType,
+        fileSizeBytes: file.size,
+        reason: DocumentReadFailure.NoText,
       });
       return;
     }

@@ -11,6 +11,9 @@ vi.mock("../actions", () => ({
   parseQuestionsAction: vi.fn(),
   importAiQuestionsAction: vi.fn(),
 }));
+vi.mock("../read-failure-actions", () => ({
+  reportDocumentReadFailureAction: vi.fn(),
+}));
 
 const push = vi.fn();
 const refresh = vi.fn();
@@ -30,6 +33,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
+import { reportDocumentReadFailureAction } from "../read-failure-actions";
 
 afterEach(() => {
   // resetAllMocks (not clearAllMocks) — also clears a prior test's
@@ -180,6 +184,77 @@ describe("Feature: AI document import — a document with no readable text is re
     );
     expect(parseQuestionsAction).not.toHaveBeenCalled();
   });
+});
+
+describe("Feature: AI document import — a document the browser cannot read says so", () => {
+  it("tells the teacher the file could not be read instead of staying busy, and sends nothing to the AI", async () => {
+    const user = userEvent.setup();
+    vi.mocked(extractTextFromPdf).mockRejectedValue(
+      Object.assign(new Error("Invalid PDF structure."), {
+        name: "InvalidPDFException",
+      }),
+    );
+
+    render(
+      <ImportAiProvider>
+        <ImportAiFilePicker />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
+      </ImportAiProvider>,
+    );
+
+    await user.upload(screen.getByLabelText(/document/i), makePdfFile());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not be read/i,
+    );
+    expect(parseQuestionsAction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: "the parser threw",
+      arrange: () =>
+        vi.mocked(extractTextFromPdf).mockRejectedValue(
+          Object.assign(new Error("Invalid PDF structure."), {
+            name: "InvalidPDFException",
+          }),
+        ),
+      report: { reason: "extraction_failed", errorName: "InvalidPDFException" },
+    },
+    {
+      name: "it held no text",
+      arrange: () => vi.mocked(extractTextFromPdf).mockResolvedValue("   "),
+      report: { reason: "no_text" },
+    },
+  ])(
+    "reports the failed read to the server when $name, with no file name or content",
+    async ({ arrange, report }) => {
+      const user = userEvent.setup();
+      arrange();
+      const file = makePdfFile();
+
+      render(
+        <ImportAiProvider>
+          <ImportAiFilePicker />
+        </ImportAiProvider>,
+      );
+
+      await user.upload(screen.getByLabelText(/document/i), file);
+      await screen.findByRole("alert");
+
+      expect(reportDocumentReadFailureAction).toHaveBeenCalledTimes(1);
+      expect(reportDocumentReadFailureAction).toHaveBeenCalledWith({
+        fileType: "pdf",
+        fileSizeBytes: file.size,
+        ...report,
+      });
+    },
+  );
 });
 
 describe("Feature: AI document import — a document with no questions in it says so", () => {
