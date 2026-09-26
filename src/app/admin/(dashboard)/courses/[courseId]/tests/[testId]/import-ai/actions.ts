@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
 import { questionImportItemSchema } from "src/lib/ai/question-import-schema";
 import { getAuthService } from "src/lib/auth-singleton";
+import { logError } from "src/lib/observability/log-error";
 import { withSpan } from "src/lib/observability/with-span";
 import {
   checkMcOptions,
@@ -77,7 +78,7 @@ export async function parseQuestionsAction(
       },
     );
   } catch (error) {
-    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    logError(error);
     return {
       success: false,
       message: "AI question extraction failed. Please try again.",
@@ -157,7 +158,7 @@ export async function retryQuestionAction(
       },
     );
   } catch (error) {
-    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    logError(error);
     return {
       success: false,
       message: "AI retry failed. Please try again.",
@@ -379,7 +380,7 @@ export async function importAiQuestionsAction(
       },
     );
   } catch (error) {
-    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    logError(error);
 
     // REPLACE deletes before inserting (above); an infra fault here (not a
     // validated business-rule rejection — those return earlier) can leave
