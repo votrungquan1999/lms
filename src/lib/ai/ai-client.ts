@@ -1,6 +1,10 @@
 import { google } from "@ai-sdk/google";
-import type { Span } from "@opentelemetry/api";
-import { generateText, type LanguageModelUsage, Output } from "ai";
+import { generateText, Output } from "ai";
+import {
+  recordAiCall,
+  summarizeIdMatch,
+  summarizeResult,
+} from "src/lib/ai/ai-call-telemetry";
 import { buildGradingPrompt } from "src/lib/ai/grading-prompt";
 import { aiGradeBatchSchema } from "src/lib/ai/grading-schema";
 import {
@@ -12,21 +16,6 @@ import {
   questionRetryResultSchema,
 } from "src/lib/ai/question-import-schema";
 import { withSpan } from "src/lib/observability/with-span";
-
-/**
- * Sets the standard gen_ai token-usage attributes on a span.
- * @param span - The active span to enrich.
- * @param usage - Token counts are `number | undefined`; each is set only when
- * present — never `?? 0` (fabricates a count), never passed as undefined.
- */
-function recordUsage(span: Span, usage: LanguageModelUsage): void {
-  if (usage.inputTokens !== undefined) {
-    span.setAttribute("gen_ai.usage.input_tokens", usage.inputTokens);
-  }
-  if (usage.outputTokens !== undefined) {
-    span.setAttribute("gen_ai.usage.output_tokens", usage.outputTokens);
-  }
-}
 
 /**
  * Input for one item in an AI free-text grading batch.
@@ -149,6 +138,9 @@ export interface QuestionParseClient {
 /** Gemini model id used for the live grading path. */
 const GEMINI_MODEL_ID = "gemini-3.5-flash";
 
+/** Total limit per call, retries included — must stay under the platform's function limit so the failure is recorded. */
+const GEMINI_TIMEOUT_MS = 120_000;
+
 /**
  * Live Gemini-backed `AiClient` implementation.
  *
@@ -181,26 +173,36 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
         "lms.ai.batch_size": items.length,
         "lms.ai.regenerate": opts !== undefined,
       },
-      async (span) => {
-        const result = await generateText({
-          model: google(GEMINI_MODEL_ID),
-          output: Output.object({ schema: aiGradeBatchSchema }),
-          prompt: buildGradingPrompt(items, opts),
-        });
+      (span) =>
+        recordAiCall(span, async () => {
+          const result = await generateText({
+            model: google(GEMINI_MODEL_ID),
+            timeout: GEMINI_TIMEOUT_MS,
+            output: Output.object({ schema: aiGradeBatchSchema }),
+            prompt: buildGradingPrompt(items, opts),
+          });
 
-        recordUsage(span, result.usage);
-
-        const parsed = result.output;
-        if (!parsed) {
-          throw new Error("Gemini returned no parsed output");
-        }
-        return parsed.grades.map((g) => ({
-          questionId: g.questionId,
-          score: g.score,
-          feedback: g.feedback,
-          solution: g.solution,
-        }));
-      },
+          const parsed = result.output;
+          if (!parsed) {
+            throw new Error("Gemini returned no parsed output");
+          }
+          const grades = parsed.grades.map((g) => ({
+            questionId: g.questionId,
+            score: g.score,
+            feedback: g.feedback,
+            solution: g.solution,
+          }));
+          return {
+            value: grades,
+            summary: {
+              ...summarizeResult(result),
+              ...summarizeIdMatch(
+                items.map((item) => item.questionId),
+                grades.map((grade) => grade.questionId),
+              ),
+            },
+          };
+        }),
     );
   }
 
@@ -219,28 +221,34 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
         "gen_ai.operation.name": "generate_content",
         "lms.ai.document_text_length": documentText.length,
       },
-      async (span) => {
-        const result = await generateText({
-          model: google(GEMINI_MODEL_ID),
-          output: Output.object({ schema: questionImportBatchSchema }),
-          prompt: buildQuestionImportPrompt(documentText),
-        });
+      (span) =>
+        recordAiCall(span, async () => {
+          const result = await generateText({
+            model: google(GEMINI_MODEL_ID),
+            timeout: GEMINI_TIMEOUT_MS,
+            output: Output.object({ schema: questionImportBatchSchema }),
+            prompt: buildQuestionImportPrompt(documentText),
+          });
 
-        recordUsage(span, result.usage);
-
-        const parsed = result.output;
-        if (!parsed) {
-          throw new Error("Gemini returned no parsed output");
-        }
-        return parsed.questions.map((q) => ({
-          title: q.title,
-          content: q.content,
-          type: q.type,
-          options: q.options,
-          referenceAnswer: q.referenceAnswer,
-          explanation: q.explanation,
-        }));
-      },
+          const parsed = result.output;
+          if (!parsed) {
+            throw new Error("Gemini returned no parsed output");
+          }
+          return {
+            value: parsed.questions.map((q) => ({
+              title: q.title,
+              content: q.content,
+              type: q.type,
+              options: q.options,
+              referenceAnswer: q.referenceAnswer,
+              explanation: q.explanation,
+            })),
+            summary: {
+              ...summarizeResult(result),
+              questionsReturned: parsed.questions.length,
+            },
+          };
+        }),
     );
   }
 
@@ -264,32 +272,35 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
         "gen_ai.operation.name": "generate_content",
         "lms.ai.document_text_length": documentText.length,
       },
-      async (span) => {
-        const result = await generateText({
-          model: google(GEMINI_MODEL_ID),
-          output: Output.object({ schema: questionRetryResultSchema }),
-          prompt: buildQuestionRetryPrompt(
-            documentText,
-            currentQuestion,
-            correctionNote,
-          ),
-        });
+      (span) =>
+        recordAiCall(span, async () => {
+          const result = await generateText({
+            model: google(GEMINI_MODEL_ID),
+            timeout: GEMINI_TIMEOUT_MS,
+            output: Output.object({ schema: questionRetryResultSchema }),
+            prompt: buildQuestionRetryPrompt(
+              documentText,
+              currentQuestion,
+              correctionNote,
+            ),
+          });
 
-        recordUsage(span, result.usage);
-
-        const parsed = result.output;
-        if (!parsed) {
-          throw new Error("Gemini returned no parsed output");
-        }
-        return {
-          title: parsed.question.title,
-          content: parsed.question.content,
-          type: parsed.question.type,
-          options: parsed.question.options,
-          referenceAnswer: parsed.question.referenceAnswer,
-          explanation: parsed.question.explanation,
-        };
-      },
+          const parsed = result.output;
+          if (!parsed) {
+            throw new Error("Gemini returned no parsed output");
+          }
+          return {
+            value: {
+              title: parsed.question.title,
+              content: parsed.question.content,
+              type: parsed.question.type,
+              options: parsed.question.options,
+              referenceAnswer: parsed.question.referenceAnswer,
+              explanation: parsed.question.explanation,
+            },
+            summary: summarizeResult(result),
+          };
+        }),
     );
   }
 }
