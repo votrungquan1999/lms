@@ -12,7 +12,9 @@
  */
 import { expect, test } from "@playwright/test";
 
-const BASE_URL = "http://localhost:3001";
+// Must follow playwright.config.ts's E2E_PORT, or this spec would drive a
+// different server than the one the suite started (see mc-edge-cases.test.ts).
+const BASE_URL = `http://localhost:${process.env.E2E_PORT ?? "3001"}`;
 const COURSE_TITLE = "Join Request E2E Course";
 const STUDENT_NAME = "Join Request Student";
 const STUDENT_USERNAME = "join-request-e2e-student";
