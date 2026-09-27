@@ -75,6 +75,21 @@ async function uploadTwoQuestions(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("Feature: AI document import — a teacher re-asks the AI about one question", () => {
+  it("gives Retry with AI the same look as Edit, not a plain-text ghost button", async () => {
+    const user = userEvent.setup();
+    await uploadTwoQuestions(user);
+
+    const retryButtons = screen.getAllByRole("button", {
+      name: /retry with ai/i,
+    });
+    const editButtons = screen.getAllByRole("button", { name: /^edit$/i });
+
+    expect(retryButtons[0]).toHaveAttribute(
+      "data-variant",
+      editButtons[0].getAttribute("data-variant"),
+    );
+  });
+
   it("updates only the retried question, leaving the rest of the review list untouched", async () => {
     const user = userEvent.setup();
     await uploadTwoQuestions(user);

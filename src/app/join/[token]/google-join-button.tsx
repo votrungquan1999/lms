@@ -44,7 +44,6 @@ export function GoogleJoinButton({ token }: { token: string }) {
       <Button
         type="button"
         variant="outline"
-        size="lg"
         onClick={handleSignIn}
         disabled={isLoading}
         className="w-full"

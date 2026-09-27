@@ -462,7 +462,7 @@ function RetryQuestionDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="ghost" size="sm">
+        <Button type="button" variant="outline" size="sm">
           Retry with AI
         </Button>
       </DialogTrigger>

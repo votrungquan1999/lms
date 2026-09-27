@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button } from "src/components/ui/button";
 import { Separator } from "src/components/ui/separator";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import {
@@ -121,12 +122,11 @@ export default async function TestDetailPage({
         <ImportQuestionsForm testId={testId} courseId={courseId} />
 
         <div>
-          <Link
-            href={`/admin/courses/${courseId}/tests/${testId}/import-ai`}
-            className="inline-flex items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
-          >
-            Import Questions with AI →
-          </Link>
+          <Button asChild variant="outline">
+            <Link href={`/admin/courses/${courseId}/tests/${testId}/import-ai`}>
+              Import Questions with AI →
+            </Link>
+          </Button>
         </div>
 
         <ComposeFromPoolsForm
@@ -136,12 +136,11 @@ export default async function TestDetailPage({
         />
 
         <div>
-          <Link
-            href={`/admin/courses/${courseId}/tests/${testId}/grading`}
-            className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Grade Students →
-          </Link>
+          <Button asChild>
+            <Link href={`/admin/courses/${courseId}/tests/${testId}/grading`}>
+              Grade Students →
+            </Link>
+          </Button>
         </div>
 
         <Separator />

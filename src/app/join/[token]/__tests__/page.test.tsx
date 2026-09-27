@@ -179,6 +179,50 @@ describe("Feature: someone opening a broken or switched-off join link is told th
 });
 
 /**
+ * Feature: the two ways to join — creating an account or continuing with
+ * Google — sit at the same size, not one taller than the other.
+ */
+describe("Feature: the self-signup and Google join buttons are the same size", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("gives Create Account and Continue with Google the same data-size", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({}),
+    });
+    render(ui);
+
+    const createAccount = screen.getByRole("button", {
+      name: "Create Account",
+    });
+    const continueWithGoogle = screen.getByRole("button", {
+      name: "Continue with Google",
+    });
+
+    expect(continueWithGoogle).toHaveAttribute(
+      "data-size",
+      createAccount.getAttribute("data-size"),
+    );
+  });
+});
+
+/**
  * Feature: opening an invite link never provisions a Google identity on its
  * own — only completing the Google round trip does
  * As a prospective student

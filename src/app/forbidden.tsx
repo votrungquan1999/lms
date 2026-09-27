@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "src/components/ui/button";
 import { LogoutButton } from "./logout-button";
 
 export default function Forbidden() {
@@ -12,12 +13,9 @@ export default function Forbidden() {
           account that has the required role.
         </p>
         <div className="flex items-center justify-center gap-3 pt-2">
-          <Link
-            href="/"
-            className="inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Return Home
-          </Link>
+          <Button asChild>
+            <Link href="/">Return Home</Link>
+          </Button>
           <LogoutButton />
         </div>
       </div>
