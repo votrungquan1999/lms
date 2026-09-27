@@ -65,7 +65,7 @@ export default async function StudentsPage() {
             <Card key={student.id}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">{student.name}</CardTitle>
-                <p className="text-sm text-muted-foreground">
+                <p className="min-w-0 wrap-anywhere text-sm text-muted-foreground">
                   @{student.username}
                 </p>
               </CardHeader>

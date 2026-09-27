@@ -118,9 +118,11 @@ export function ManageEnrollmentsDialog({
                     checked={selected.has(student.id)}
                     onCheckedChange={() => toggleStudent(student.id)}
                   />
-                  <div>
-                    <p className="text-sm font-medium">{student.name}</p>
-                    <p className="text-xs text-muted-foreground">
+                  <div className="min-w-0">
+                    <p className="wrap-anywhere text-sm font-medium">
+                      {student.name}
+                    </p>
+                    <p className="wrap-anywhere text-xs text-muted-foreground">
                       @{student.username}
                     </p>
                   </div>

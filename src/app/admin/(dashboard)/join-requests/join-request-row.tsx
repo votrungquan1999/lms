@@ -15,7 +15,7 @@ export function JoinRequestRow({ row }: { row: JoinRequestRowModel }) {
   return (
     <Card data-testid={`join-request-row-${row.id}`}>
       <CardHeader className="flex flex-row items-center justify-between">
-        <div>
+        <div className="min-w-0 wrap-anywhere">
           <CardTitle className="text-base">{row.studentName}</CardTitle>
           <CardDescription>
             @{row.studentUsername} wants to join {row.courseTitle}

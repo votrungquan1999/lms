@@ -1,13 +1,6 @@
-import { Badge } from "src/components/ui/badge";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "src/components/ui/card";
+import { Card, CardDescription, CardTitle } from "src/components/ui/card";
 import { getPageGuard, getUserRoleService } from "src/lib/services-singleton";
-import { Role } from "src/lib/session";
-import { RoleActionButtons } from "./role-action-buttons";
+import { RoleRow } from "./role-row";
 import type { UserRoleRow } from "./user-roles-page.type";
 
 export const metadata = {
@@ -51,20 +44,12 @@ export default async function UserRolesPage() {
       <div className="flex flex-col gap-3">
         {rows.map((row) => (
           <Card key={row.id} data-testid={`user-role-row-${row.id}`}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
+            <RoleRow userId={row.id} role={row.role}>
+              <div className="min-w-0 wrap-anywhere">
                 <CardTitle className="text-base">{row.name}</CardTitle>
                 <CardDescription>{row.email}</CardDescription>
               </div>
-              <div className="flex items-center gap-3">
-                <Badge
-                  variant={row.role === Role.Admin ? "default" : "secondary"}
-                >
-                  {row.role === Role.Admin ? "Admin" : "Student"}
-                </Badge>
-                <RoleActionButtons userId={row.id} role={row.role} />
-              </div>
-            </CardHeader>
+            </RoleRow>
           </Card>
         ))}
       </div>
