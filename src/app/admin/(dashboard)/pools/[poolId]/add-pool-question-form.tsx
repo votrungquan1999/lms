@@ -313,22 +313,25 @@ function AddPoolQuestionFormInner({ poolId }: { poolId: string }) {
               </Button>
             </form>
           </div>
-
-          {state?.success && (
-            <output className="mt-2 block rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
-              {state.message}
-            </output>
-          )}
-
-          {state && !state.success && (
-            <div
-              className="mt-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
-              role="alert"
-            >
-              {state.message}
-            </div>
-          )}
         </div>
+
+        {/* Status messages live outside the row so they render as a
+            full-width line below the form instead of a column beside it.
+            They also live outside the form so they survive the remount. */}
+        {state?.success && (
+          <output className="mt-4 block wrap-anywhere rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
+            {state.message}
+          </output>
+        )}
+
+        {state && !state.success && (
+          <div
+            className="mt-4 wrap-anywhere rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+            role="alert"
+          >
+            {state.message}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
