@@ -7,18 +7,24 @@ import { describe, expect, it } from "vitest";
 const dbIt = withTestDb(it);
 
 function makeServices(db: Db) {
-  const { answerService, gradeService, testSubmissionService } =
-    buildCoreServices(db);
+  const {
+    answerService,
+    gradeService,
+    testSubmissionService,
+    testStartService,
+  } = buildCoreServices(db);
   const testStatusService = new TestStatusService(
     answerService,
     testSubmissionService,
     gradeService,
+    testStartService,
   );
   return {
     answerService,
     gradeService,
     testStatusService,
     testSubmissionService,
+    testStartService,
   };
 }
 
@@ -34,6 +40,22 @@ describe("TestStatusService", () => {
         3,
       );
       expect(status).toBe("not_started");
+    },
+  );
+
+  dbIt(
+    "should return 'in_progress' when a timed test was started but nothing has been answered yet",
+    async ({ db }) => {
+      const { testStartService, testStatusService } = makeServices(db);
+
+      await testStartService.recordStart("test-1", "student-1", new Date());
+
+      const status = await testStatusService.getStatus(
+        "test-1",
+        "student-1",
+        3,
+      );
+      expect(status).toBe("in_progress");
     },
   );
 
@@ -59,7 +81,7 @@ describe("TestStatusService", () => {
   );
 
   dbIt(
-    "should return 'submitted' when student answered all questions",
+    "should return 'in_progress' when student answered every question but did not press Submit",
     async ({ db }) => {
       const { answerService, testStatusService } = makeServices(db);
 
@@ -81,7 +103,7 @@ describe("TestStatusService", () => {
         "student-1",
         2,
       );
-      expect(status).toBe("submitted");
+      expect(status).toBe("in_progress");
     },
   );
 
@@ -105,17 +127,17 @@ describe("TestStatusService", () => {
         studentId: "student-in-progress",
         answer: { type: "free_text", text: "Partial" },
       });
-      // student-submitted: both answered, none graded
+      // student-answered-all: both answered, Submit never pressed — in_progress
       await answerService.submitAnswer({
         testId,
         questionId: "q-1",
-        studentId: "student-submitted",
+        studentId: "student-answered-all",
         answer: { type: "free_text", text: "A" },
       });
       await answerService.submitAnswer({
         testId,
         questionId: "q-2",
-        studentId: "student-submitted",
+        studentId: "student-answered-all",
         answer: { type: "free_text", text: "B" },
       });
       // student-graded: both answered, both graded, test submitted
@@ -154,7 +176,7 @@ describe("TestStatusService", () => {
         [
           "student-not-started",
           "student-in-progress",
-          "student-submitted",
+          "student-answered-all",
           "student-graded",
         ],
         totalQuestions,
@@ -162,8 +184,8 @@ describe("TestStatusService", () => {
 
       expect(counts).toEqual({
         not_started: 1,
-        in_progress: 1,
-        submitted: 1,
+        in_progress: 2,
+        submitted: 0,
         graded: 1,
       });
     },
@@ -332,13 +354,12 @@ describe("TestStatusService", () => {
   );
 
   dbIt(
-    "should NOT return 'graded' when every answered question is graded but the test has not been explicitly submitted",
+    "should return 'in_progress' when every answered question is graded but the test has not been explicitly submitted",
     async ({ db }) => {
       // Given: a 2-question test where the student answered both
       // questions and the auto-grader recorded grade rows for both, but
-      // the student has not called submitTest. With the pre-fix code,
-      // grades.length >= totalQuestions short-circuited to Graded even
-      // without an explicit submission — a latent bug.
+      // the student has not called submitTest. Only pressing Submit
+      // moves the status past in_progress, regardless of grading.
       const { answerService, gradeService, testStatusService } =
         makeServices(db);
 
@@ -378,13 +399,9 @@ describe("TestStatusService", () => {
         2,
       );
 
-      // Then: the submit gate keeps the status at 'submitted' (because
-      // the student answered every question, the fallback for
-      // answers.length >= totalQuestions applies), NOT 'graded'. The
-      // strict assertion below catches both the original regression
-      // (Graded without submit) and over-corrections like returning
-      // InProgress when the fallback should apply.
-      expect(status).toBe("submitted");
+      // Then: no explicit submission means in_progress, even though every
+      // answered question already has a grade.
+      expect(status).toBe("in_progress");
     },
   );
 });

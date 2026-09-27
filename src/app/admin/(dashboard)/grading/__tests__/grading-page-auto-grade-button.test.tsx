@@ -51,8 +51,8 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
       createdBy: "admin",
       showGradeAfterSubmit: false,
     });
-    // Two free-text questions so that InProgress (one answer, no submit) is
-    // distinguishable from Submitted (both answers OR submit flag).
+    // Two free-text questions: InProgress (one answer, no submit) vs
+    // Submitted (both answers plus the explicit submit).
     const q1 = await services.questionService.addQuestion(test.id, {
       title: "Q1",
       content: "Explain",

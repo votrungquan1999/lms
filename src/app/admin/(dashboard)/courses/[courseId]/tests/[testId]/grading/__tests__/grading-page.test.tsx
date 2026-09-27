@@ -102,7 +102,7 @@ describe("Feature: GradingPage roster ordering", () => {
       await services.enrollmentService.enrollStudent(course.id, s.id, "admin");
     }
 
-    // Bob: Submitted (both answered)
+    // Bob: Submitted (both answered, submitted, not graded)
     await services.answerService.submitAnswer({
       testId: test.id,
       questionId: q1.id,
@@ -115,6 +115,7 @@ describe("Feature: GradingPage roster ordering", () => {
       studentId: studentIds.B,
       answer: { type: "free_text", text: "B2" },
     });
+    await services.testSubmissionService.submitTest(test.id, studentIds.B);
 
     // Carol: InProgress (one answered)
     await services.answerService.submitAnswer({
@@ -215,6 +216,10 @@ describe("Feature: GradingPage roster ordering", () => {
       studentId: submittedStudent.id,
       answer: { type: "free_text", text: "answer" },
     });
+    await services.testSubmissionService.submitTest(
+      test.id,
+      submittedStudent.id,
+    );
 
     const ui = await GradingPage({
       params: Promise.resolve({ courseId: course.id, testId: test.id }),

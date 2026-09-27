@@ -133,6 +133,22 @@ describe("Student timed test — Start gate", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("reads 'In Progress' once a timed test has been started, before the student has answered anything", async () => {
+    // Given a timed test the student has already started but not answered.
+    const { courseId, testId, studentId, s } = await seedTest(30);
+    await s.testStartService.recordStart(testId, studentId, new Date());
+    mockStudentSession(studentId);
+
+    // When the student page renders.
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId, testId }),
+    });
+    render(ui);
+
+    // Then the status badge reads In Progress, not Not Started.
+    expect(screen.getByText("In Progress")).toBeInTheDocument();
+  });
+
   it("renders a live countdown once a timed test has been started", async () => {
     // Given a timed test the student has already started.
     const { courseId, testId, studentId, s } = await seedTest(30);

@@ -77,6 +77,7 @@ describe("Feature: Dashboard Grading card", () => {
         studentId: s.id,
         answer: { type: "free_text", text: "x" },
       });
+      await services.testSubmissionService.submitTest(test1.id, s.id);
     }
 
     // Sanity reference: q2 unused so test2 has 0 submitted students

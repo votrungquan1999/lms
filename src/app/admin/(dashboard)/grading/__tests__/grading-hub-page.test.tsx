@@ -102,6 +102,7 @@ describe("Feature: GradingHubPage default view", () => {
         studentId,
         answer: { type: "free_text", text: "x" },
       });
+      await services.testSubmissionService.submitTest(testId, studentId);
     }
 
     // testHigh: both Beta students submitted (2 waiting)

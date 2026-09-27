@@ -234,11 +234,13 @@ describe("TestSubmissionService - Integration Tests", () => {
         answerService,
         gradeService,
         testSubmissionService,
+        testStartService,
       } = buildCoreServices(db);
       const testStatusService = new TestStatusService(
         answerService,
         testSubmissionService,
         gradeService,
+        testStartService,
       );
 
       const questionMC = (await questionService.addQuestion("test-mix", {
@@ -664,11 +666,13 @@ describe("TestSubmissionService - Edge Cases", () => {
         gradeService,
         testService,
         testSubmissionService,
+        testStartService,
       } = buildCoreServices(db);
       const testStatusService = new TestStatusService(
         answerService,
         testSubmissionService,
         gradeService,
+        testStartService,
       );
 
       const test = await testService.createTest("course-1", {

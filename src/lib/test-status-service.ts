@@ -1,5 +1,6 @@
 import type { AnswerService } from "./answer-service";
 import type { GradeService } from "./grade-service";
+import type { TestStartService } from "./test-start-service";
 import type { TestSubmissionService } from "./test-submission-service";
 
 /**
@@ -21,16 +22,18 @@ export class TestStatusService {
     private readonly answerService: AnswerService,
     private readonly testSubmissionService: TestSubmissionService,
     private readonly gradeService: GradeService,
+    private readonly testStartService: TestStartService,
   ) {}
 
   /**
    * Derives the test status for a student.
    *
-   * - not_started: no answers submitted and not explicitly submitted
-   * - in_progress: some answers submitted, fewer than total questions, and
-   *   not explicitly submitted
-   * - submitted: student explicitly submitted the test, or answered every
-   *   question without an explicit submission
+   * - not_started: no answers, not explicitly submitted, and (for a timed
+   *   test) no active start record
+   * - in_progress: not explicitly submitted, and either some questions are
+   *   answered or a timed test's clock has started — only pressing Submit
+   *   moves past this
+   * - submitted: student explicitly submitted the test
    * - graded: test was explicitly submitted AND every question the student
    *   *answered* has a grade row. Questions the student left blank do not
    *   need a grade row to reach this state — blanks score 0 by convention.
@@ -55,7 +58,14 @@ export class TestStatusService {
     );
 
     if (answers.length === 0) {
-      return isSubmitted ? TestStatus.Submitted : TestStatus.NotStarted;
+      if (isSubmitted) {
+        return TestStatus.Submitted;
+      }
+      const activeStart = await this.testStartService.getActiveStart(
+        testId,
+        studentId,
+      );
+      return activeStart ? TestStatus.InProgress : TestStatus.NotStarted;
     }
 
     if (isSubmitted) {
@@ -67,10 +77,6 @@ export class TestStatusService {
       if (everyAnsweredHasGrade) {
         return TestStatus.Graded;
       }
-      return TestStatus.Submitted;
-    }
-
-    if (answers.length >= totalQuestions) {
       return TestStatus.Submitted;
     }
 
