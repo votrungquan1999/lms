@@ -94,7 +94,7 @@ export default async function AdminDashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {summaryCards.map((card) => (
           <Link key={card.href} href={card.href}>
-            <Card className="transition-colors hover:bg-accent/50">
+            <Card className="h-full transition-colors hover:bg-accent/50">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">
                   {card.title}
@@ -110,55 +110,53 @@ export default async function AdminDashboardPage() {
         ))}
 
         <Link href="/admin/grading" aria-label="Grading">
-          <Card className="transition-colors hover:bg-accent/50">
+          <Card className="h-full transition-colors hover:bg-accent/50">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Grading</CardTitle>
               <ClipboardCheck className="size-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div
-                    data-stat="tests-needing-grading"
-                    className="text-2xl font-bold"
-                  >
-                    {testsNeedingGrading}
-                  </div>
-                  <CardDescription className="flex items-center gap-1">
-                    Tests needing grading
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <GradingTooltipTrigger>
-                          <HelpCircle className="size-3 text-muted-foreground" />
-                        </GradingTooltipTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        Tests with at least one student waiting for a grade
-                      </TooltipContent>
-                    </Tooltip>
-                  </CardDescription>
+              <div className="flex items-center justify-between gap-2">
+                <div
+                  data-stat="tests-needing-grading"
+                  className="text-2xl font-bold"
+                >
+                  {testsNeedingGrading}
                 </div>
-                <div className="text-right">
-                  <div
-                    data-stat="students-waiting"
-                    className="text-2xl font-bold"
-                  >
-                    {studentsWaiting}
-                  </div>
-                  <CardDescription className="flex items-center justify-end gap-1">
-                    Students waiting
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <GradingTooltipTrigger>
-                          <HelpCircle className="size-3 text-muted-foreground" />
-                        </GradingTooltipTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        Total submissions awaiting grading
-                      </TooltipContent>
-                    </Tooltip>
-                  </CardDescription>
+                <CardDescription className="flex items-center gap-1">
+                  Tests needing grading
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <GradingTooltipTrigger>
+                        <HelpCircle className="size-3 text-muted-foreground" />
+                      </GradingTooltipTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Tests with at least one student waiting for a grade
+                    </TooltipContent>
+                  </Tooltip>
+                </CardDescription>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div
+                  data-stat="students-waiting"
+                  className="text-2xl font-bold"
+                >
+                  {studentsWaiting}
                 </div>
+                <CardDescription className="flex items-center gap-1">
+                  Students waiting
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <GradingTooltipTrigger>
+                        <HelpCircle className="size-3 text-muted-foreground" />
+                      </GradingTooltipTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Total submissions awaiting grading
+                    </TooltipContent>
+                  </Tooltip>
+                </CardDescription>
               </div>
             </CardContent>
           </Card>

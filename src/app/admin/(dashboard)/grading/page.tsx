@@ -176,7 +176,11 @@ export default async function GradingHubPage({
         )}
 
         {filteredRows.map((row) => (
-          <Link key={row.testId} href={`/admin/grading/${row.testId}`}>
+          <Link
+            key={row.testId}
+            href={`/admin/grading/${row.testId}`}
+            className="block"
+          >
             <Card
               className="transition-colors hover:bg-accent/50"
               data-testid={`hub-test-card-${row.testId}`}
