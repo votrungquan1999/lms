@@ -92,4 +92,50 @@ describe("Feature: grader sees MC answers as read-only in the per-question view"
     expect(screen.getByText("No answer — counts as 0")).toBeInTheDocument();
     expect(screen.queryByText("No answer submitted")).not.toBeInTheDocument();
   });
+
+  it("colours the student's pick right or wrong but never shows a missed-correct outline chip", async () => {
+    // Given a single_select question the student answered wrong
+    const services = getTestServices();
+    const question = await services.questionService.addQuestion("test-1", {
+      title: "Capital of France?",
+      content: "",
+      createdBy: "admin-1",
+      type: "single_select",
+      options: [
+        { text: "Berlin", isCorrect: false },
+        { text: "Paris", isCorrect: true },
+      ],
+    });
+    const [wrongOption, correctOption] = question.options as {
+      id: string;
+      isCorrect: boolean;
+    }[];
+    await services.answerService.submitAnswer({
+      testId: "test-1",
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "mc", selectedIds: [wrongOption.id] },
+    });
+
+    // When the grader opens that question's grading pane
+    const ui = await GradingDetailQuestion({
+      test,
+      courseId: "course-1",
+      questionId: question.id,
+      students: [{ id: "student-1", name: "Stu", username: "stu" }],
+      basePath: "/admin/grading/test-1",
+    });
+    render(ui);
+
+    // Then the picked option is coloured to show it was wrong …
+    expect(screen.getByTestId(`mc-chip-${wrongOption.id}`)).toHaveAttribute(
+      "data-state",
+      "selected-wrong",
+    );
+    // … and the unselected correct option never renders as a missed-correct
+    // outline chip here (that outline is not part of this view).
+    expect(
+      screen.queryByTestId(`mc-chip-${correctOption.id}`),
+    ).not.toBeInTheDocument();
+  });
 });

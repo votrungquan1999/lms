@@ -11,6 +11,7 @@ import {
   getCourseJoinRequestService,
   getCourseService,
   getEnrollmentService,
+  getGradeVisibilityService,
   getPageGuard,
   getTestService,
   getTestStatusService,
@@ -52,16 +53,29 @@ export default async function StudentDashboardPage() {
 
   const testService = await getTestService();
   const testStatusService = await getTestStatusService();
+  const gradeVisibilityService = await getGradeVisibilityService();
   const ctx = await getRequestContext();
 
   // Collect per-course test statuses; flatten for the overall summary.
+  // Each raw status is converted to its student-facing value before
+  // summarizing, so a Graded-but-withheld test counts as awaiting grade, not
+  // graded — summarizeTestStatuses itself stays agnostic to the conversion.
   const coursesWithSummary = await Promise.all(
     enrolledCourses.map(async (course) => {
       const tests = await testService.listTests(course.id);
       const statuses: TestStatus[] = await Promise.all(
         tests.map(async (test) => {
           const questionCount = await ctx.questionCountLoader.load(test.id);
-          return testStatusService.getStatus(test.id, studentId, questionCount);
+          const rawStatus = await testStatusService.getStatus(
+            test.id,
+            studentId,
+            questionCount,
+          );
+          return gradeVisibilityService.getStudentFacingStatus(
+            test.id,
+            studentId,
+            rawStatus,
+          );
         }),
       );
       const summary = summarizeTestStatuses(statuses);

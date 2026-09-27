@@ -144,7 +144,8 @@ export function GradedQuestion({
             <McAnswerChips
               selectedIds={studentAnswer.selectedIds}
               options={options}
-              showCorrectAnswers={correctAnswersVisible}
+              colorPicks={correctAnswersVisible}
+              showMissedCorrect={correctAnswersVisible}
             />
           ) : studentAnswer.type === "free_text" ? (
             <p className="whitespace-pre-wrap text-sm">{studentText}</p>

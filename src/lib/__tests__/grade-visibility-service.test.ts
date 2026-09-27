@@ -206,3 +206,92 @@ describe("GradeVisibilityService.canRevealGrades", () => {
     },
   );
 });
+
+describe("GradeVisibilityService.getStudentFacingStatus", () => {
+  dbIt(
+    "reads as Submitted for a Graded test when grades are withheld from the student",
+    async ({ db }) => {
+      const {
+        testService,
+        testSubmissionService,
+        gradeVisibilityService: visibility,
+      } = buildCoreServices(db);
+
+      const test = await testService.createTest("c1", {
+        title: "T",
+        description: "",
+        createdBy: "admin",
+        showGradeAfterSubmit: false,
+      });
+      await testSubmissionService.submitTest(test.id, "student-1");
+      // No release on any of the three tiers — grades stay withheld.
+
+      expect(
+        await visibility.getStudentFacingStatus(
+          test.id,
+          "student-1",
+          TestStatus.Graded,
+        ),
+      ).toBe(TestStatus.Submitted);
+    },
+  );
+
+  dbIt(
+    "reads as Graded for a Graded test once grades are visible to the student",
+    async ({ db }) => {
+      const {
+        testService,
+        testSubmissionService,
+        gradeVisibilityService: visibility,
+      } = buildCoreServices(db);
+
+      const test = await testService.createTest("c1", {
+        title: "T",
+        description: "",
+        createdBy: "admin",
+        showGradeAfterSubmit: true,
+      });
+      await testSubmissionService.submitTest(test.id, "student-1");
+
+      expect(
+        await visibility.getStudentFacingStatus(
+          test.id,
+          "student-1",
+          TestStatus.Graded,
+        ),
+      ).toBe(TestStatus.Graded);
+    },
+  );
+
+  dbIt(
+    "passes a not-started or in-progress status through unchanged while grades are withheld",
+    async ({ db }) => {
+      const { testService, gradeVisibilityService: visibility } =
+        buildCoreServices(db);
+
+      const test = await testService.createTest("c1", {
+        title: "T",
+        description: "",
+        createdBy: "admin",
+        showGradeAfterSubmit: false,
+      });
+
+      // Withheld grades map Graded to Submitted; nothing else may be
+      // swept into that mapping.
+      expect(
+        await visibility.getStudentFacingStatus(
+          test.id,
+          "student-1",
+          TestStatus.NotStarted,
+        ),
+      ).toBe(TestStatus.NotStarted);
+      expect(
+        await visibility.getStudentFacingStatus(
+          test.id,
+          "student-1",
+          TestStatus.InProgress,
+        ),
+      ).toBe(TestStatus.InProgress);
+    },
+  );
+});

@@ -135,6 +135,14 @@ export default async function StudentTestDetailPage({
     testStatus,
   );
 
+  // Badge only: Graded reads as Submitted until grades are visible. Every
+  // lookup below keeps the raw status.
+  const displayStatus = await gradeVisibilityService.getStudentFacingStatus(
+    testId,
+    session.studentId,
+    testStatus,
+  );
+
   // ── Fetch grades via visibility-aware methods ─────────────────────────────
   const gradeService = await getGradeService();
   const grades = await gradeService.getStudentGrades(
@@ -264,7 +272,7 @@ export default async function StudentTestDetailPage({
         description={test.description}
       >
         <div className="flex items-center gap-2">
-          <StatusBadge status={testStatus} />
+          <StatusBadge status={displayStatus} />
         </div>
 
         {activeRedoRequest && (

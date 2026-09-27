@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { McOption } from "src/lib/question-service";
 import {
   getTestServices,
@@ -254,5 +254,46 @@ describe("Feature: Student test page — practice revise/resubmit coexists with 
     // … and no numeric score badge (GradedQuestion's "N/100") ever renders,
     // since no Grade doc was ever created (D2/D9).
     expect(screen.queryByText(/\/100/)).toBeNull();
+  });
+
+  it("colours the finalized 'Your Answer' chip instead of leaving it neutral, with no duplicate missed-correct chip", async () => {
+    const {
+      services,
+      course,
+      test,
+      question,
+      correctOption,
+      wrongOption,
+      student,
+    } = await seedPracticeMcFinalizeScenario();
+
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: student.id,
+      answer: { type: "mc", selectedIds: [wrongOption.id] },
+    });
+    await services.testSubmissionService.submitTest(test.id, student.id);
+
+    mockStudentSession(student.id);
+
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    // Scope to the "Your Answer" block specifically — the wrong pick's chip
+    // also appears inside the Practice Reveal panel's Result block.
+    const yourAnswer = screen
+      .getByText("Your Answer:")
+      .closest("div") as HTMLElement;
+    expect(
+      within(yourAnswer).getByTestId(`mc-chip-${wrongOption.id}`),
+    ).toHaveAttribute("data-state", "selected-wrong");
+    // The correct option's missed-correct chip stays owned by the Practice
+    // Reveal block below — it must not also appear here.
+    expect(
+      within(yourAnswer).queryByTestId(`mc-chip-${correctOption.id}`),
+    ).not.toBeInTheDocument();
   });
 });

@@ -157,6 +157,8 @@ export async function GradingDetailQuestion({
                 <McAnswerChips
                   options={isMcQuestion(question) ? question.options : []}
                   selectedIds={answer.selectedIds}
+                  colorPicks={true}
+                  showMissedCorrect={false}
                 />
               ) : answer.type === "free_text" ? (
                 <pre className="whitespace-pre-wrap text-sm">{answer.text}</pre>

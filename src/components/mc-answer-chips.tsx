@@ -5,8 +5,21 @@ interface McAnswerChipsProps {
   selectedIds: string[];
   /** All options for the question, each with isCorrect */
   options: McOption[];
-  /** When true, also show correct options the student didn't select */
-  showCorrectAnswers?: boolean;
+  /**
+   * Whether a selected chip is coloured to show if that pick is right or
+   * wrong. Required (no default) so a future caller can't silently fall
+   * into the unsafe "reveal" path — when false, every selected chip renders
+   * neutral regardless of showMissedCorrect.
+   */
+  colorPicks: boolean;
+  /**
+   * Whether an unselected-but-correct option also renders, as an outlined
+   * "missed" chip. Required for the same reason as colorPicks — independent
+   * of it, since a caller may want picks coloured without also revealing
+   * which correct option the student missed (e.g. a view that already shows
+   * the full answer key elsewhere).
+   */
+  showMissedCorrect: boolean;
 }
 
 /**
@@ -15,16 +28,18 @@ interface McAnswerChipsProps {
  * rather than its visual classes:
  * - data-state="selected-correct" → solid green (selected and correct)
  * - data-state="selected-wrong"   → solid red   (selected but wrong)
+ * - data-state="selected-neutral" → grey (selected; colorPicks is false)
  * - data-state="missed-correct"   → green outline (correct, not selected;
- *   only rendered when showCorrectAnswers is true)
+ *   only rendered when showMissedCorrect is true)
  *
- * Not-selected options are not rendered unless showCorrectAnswers is true
+ * Not-selected options are not rendered unless showMissedCorrect is true
  * (in which case unselected correct options are shown with an outline style).
  */
 export function McAnswerChips({
   selectedIds,
   options,
-  showCorrectAnswers,
+  colorPicks,
+  showMissedCorrect,
 }: McAnswerChipsProps) {
   const selectedSet = new Set(selectedIds);
 
@@ -35,7 +50,7 @@ export function McAnswerChips({
     const isSelected = selectedSet.has(option.id);
     if (isSelected) {
       chips.push({ option, isSelected: true });
-    } else if (showCorrectAnswers && option.isCorrect) {
+    } else if (showMissedCorrect && option.isCorrect) {
       chips.push({ option, isSelected: false });
     }
   }
@@ -46,8 +61,18 @@ export function McAnswerChips({
     <div className="flex flex-wrap gap-1.5">
       {chips.map(({ option, isSelected }) => {
         let className: string;
-        let chipState: "selected-correct" | "selected-wrong" | "missed-correct";
-        if (isSelected && option.isCorrect) {
+        let chipState:
+          | "selected-correct"
+          | "selected-wrong"
+          | "selected-neutral"
+          | "missed-correct";
+        if (isSelected && !colorPicks) {
+          // Selected, correctness withheld → grey "your pick", regardless
+          // of whether the pick is actually right — nothing may hint at it.
+          chipState = "selected-neutral";
+          className =
+            "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground";
+        } else if (isSelected && option.isCorrect) {
           // Selected + correct → solid green
           chipState = "selected-correct";
           className =

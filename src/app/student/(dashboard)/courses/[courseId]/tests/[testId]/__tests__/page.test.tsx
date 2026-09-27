@@ -153,11 +153,13 @@ describe("Feature: Student test page — MC correct-answer visibility gate", () 
     // The chip for the (unselected) correct option must NOT render — the gate
     // would otherwise have leaked the answer.
     expect(screen.queryByTestId(`mc-chip-${correctOption.id}`)).toBeNull();
-    // The "Your Selection" chip block under the grade must also not render
-    // when the gate is closed: with `isCorrect` redacted to `false` everywhere,
-    // a student who picked the correct answer would otherwise see their pick
-    // painted red. We elide the chips entirely instead.
-    expect(screen.queryByText("Your Selection:")).toBeNull();
+    // The student's own (wrong) pick reads as neutral in the graded view
+    // too, not "selected-wrong" — telling them it was wrong is itself a
+    // partial leak of the withheld key.
+    expect(screen.getByTestId(`mc-chip-${wrongOption.id}`)).toHaveAttribute(
+      "data-state",
+      "selected-neutral",
+    );
   });
 
   it("renders the missed-correct chip when showCorrectAnswerAfterSubmit is on", async () => {
@@ -230,6 +232,64 @@ describe("Feature: Student test page — MC correct-answer visibility gate", () 
     expect(
       screen.getByTestId(`mc-chip-${correctOption.id}`),
     ).toBeInTheDocument();
+  });
+
+  it("colors the student's own correct pick once the answer key is released, even while the score itself is still hidden", async () => {
+    const { services, course, test, question, correctOption, student } =
+      await seedMcScenario({
+        showGradeAfterSubmit: false,
+        showCorrectAnswerAfterSubmit: true,
+      });
+
+    // Student picks the correct option, then submits. The key is released
+    // (showCorrectAnswerAfterSubmit), but the score/grade is not — the two
+    // reveal gates are independent settings.
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: student.id,
+      answer: { type: "mc", selectedIds: [correctOption.id] },
+    });
+    await services.testSubmissionService.submitTest(test.id, student.id);
+
+    mockStudentSession(student.id);
+
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    // The key is out, so the student's own correct pick may be colored.
+    const chip = screen.getByTestId(`mc-chip-${correctOption.id}`);
+    expect(chip).toHaveAttribute("data-state", "selected-correct");
+  });
+
+  it("shows the student's own pick as a neutral chip, not selected-wrong, while both the score and the answer key are withheld", async () => {
+    const { services, course, test, question, correctOption, student } =
+      await seedMcScenario({
+        showGradeAfterSubmit: false,
+        showCorrectAnswerAfterSubmit: false,
+      });
+
+    // Student picks the CORRECT option — the bug this pins is that a
+    // correct pick was shown as wrong once the key is withheld.
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: student.id,
+      answer: { type: "mc", selectedIds: [correctOption.id] },
+    });
+    await services.testSubmissionService.submitTest(test.id, student.id);
+
+    mockStudentSession(student.id);
+
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    const chip = screen.getByTestId(`mc-chip-${correctOption.id}`);
+    expect(chip).toHaveAttribute("data-state", "selected-neutral");
   });
 });
 
@@ -440,5 +500,111 @@ describe("Feature: Student test page — redo cycle preserves submittability aft
     expect(
       screen.getByText(/submitted and is waiting to be graded/i),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Feature: Student test page — Graded reads as Submitted until grades are released", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  /**
+   * Seeds a course + test + 1 free-text question, submitted and graded so
+   * the test is internally Graded, for a student enrolled in it.
+   */
+  async function seedInternallyGradedScenario(opts: {
+    showGradeAfterSubmit: boolean;
+  }) {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+      showGradeAfterSubmit: opts.showGradeAfterSubmit,
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Q1",
+      content: "Explain",
+      createdBy: "admin",
+      type: "free_text",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-1",
+      username: "u1",
+      name: "Stu",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin",
+    );
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: student.id,
+      answer: { type: "free_text", text: "my answer" },
+    });
+    await services.testSubmissionService.submitTest(test.id, student.id);
+    await services.gradeService.gradeQuestion({
+      testId: test.id,
+      questionId: question.id,
+      studentId: student.id,
+      score: 80,
+      feedback: "Good",
+      gradedBy: "admin",
+    });
+    return { services, course, test, student };
+  }
+
+  it("shows the 'Submitted' status badge, not 'Graded', while grades are withheld from the student", async () => {
+    const { course, test, student } = await seedInternallyGradedScenario({
+      showGradeAfterSubmit: false,
+    });
+    // No releaseGrades, no releaseGradeToStudent — the test is internally
+    // Graded but nothing has been released to this student.
+
+    mockStudentSession(student.id);
+
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    expect(screen.getByText("Submitted")).toBeInTheDocument();
+    expect(screen.queryByText("Graded")).not.toBeInTheDocument();
+  });
+
+  it("shows the 'Graded' status badge and the grade once the teacher releases it to the student", async () => {
+    const { services, course, test, student } =
+      await seedInternallyGradedScenario({ showGradeAfterSubmit: false });
+    // An explicit release, not auto-show: the badge and the grade must
+    // both come back once the teacher lets them through.
+    await services.testSubmissionService.releaseGradeToStudent(
+      test.id,
+      student.id,
+      "admin",
+    );
+
+    mockStudentSession(student.id);
+
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    expect(screen.getByText("Graded")).toBeInTheDocument();
+    expect(screen.queryByText("Submitted")).not.toBeInTheDocument();
+    expect(screen.getByText(/80\s*\/\s*100/)).toBeInTheDocument();
   });
 });

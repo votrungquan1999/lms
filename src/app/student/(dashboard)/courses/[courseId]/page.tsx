@@ -13,6 +13,7 @@ import { attachCourseMaterialUrls } from "src/lib/course-material-urls";
 import {
   getCourseService,
   getGradeService,
+  getGradeVisibilityService,
   getPageGuard,
   getQuestionService,
   getTestService,
@@ -61,20 +62,30 @@ export default async function StudentCourseDetailPage({
   const questionService = await getQuestionService();
   const testStatusService = await getTestStatusService();
   const gradeService = await getGradeService();
+  const gradeVisibilityService = await getGradeVisibilityService();
 
   // Compute status and score for each test
   const testsWithStatus = await Promise.all(
     tests.map(async (test) => {
       const questions = await questionService.listQuestions(test.id);
-      const status = await testStatusService.getStatus(
+      const rawStatus = await testStatusService.getStatus(
         test.id,
         session.studentId,
         questions.length,
       );
-      const averageScore =
-        status === TestStatus.Graded
-          ? await gradeService.getAverageScore(test.id, session.studentId)
-          : null;
+      // A Graded-but-withheld test reads as Submitted on the row badge and in
+      // the "N of M graded" count. The average lookup guards itself and takes
+      // the raw status.
+      const status = await gradeVisibilityService.getStudentFacingStatus(
+        test.id,
+        session.studentId,
+        rawStatus,
+      );
+      const averageScore = await gradeService.getStudentAverageScore(
+        test.id,
+        session.studentId,
+        rawStatus,
+      );
       return { ...test, status, questionCount: questions.length, averageScore };
     }),
   );

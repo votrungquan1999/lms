@@ -93,8 +93,8 @@ export function TestQuestionsSection({
 
           // For MC questions, build the option list that's safe to ship to
           // the client. When the gate is closed, every option's `isCorrect`
-          // becomes `false` so selected chips render in the neutral
-          // "selected + !isCorrect" path without revealing the answer key.
+          // becomes `false` so the answer key never reaches the browser via
+          // AnswerForm's props. Chip colouring is gated by `colorPicks`.
           const safeOptions = isMcQuestion(question)
             ? mcRevealOpen
               ? question.options
@@ -203,6 +203,12 @@ export function TestQuestionsSection({
                       <McAnswerChips
                         selectedIds={studentAnswer.selectedIds}
                         options={safeOptions}
+                        colorPicks={mcRevealOpen}
+                        // Practice's own missed-correct chip is the
+                        // dedicated "Practice Reveal" block below
+                        // (hasMcReveal) — don't also show it here once the
+                        // test is finalized, or the chip doubles up.
+                        showMissedCorrect={!isPractice && mcRevealOpen}
                       />
                     ) : studentAnswer.type === "free_text" ? (
                       <p className="whitespace-pre-wrap text-sm">
@@ -291,7 +297,8 @@ export function TestQuestionsSection({
                         <McAnswerChips
                           selectedIds={studentAnswer.selectedIds}
                           options={safeOptions}
-                          showCorrectAnswers
+                          colorPicks={true}
+                          showMissedCorrect={true}
                         />
                       </div>
                     )}

@@ -73,6 +73,9 @@ describe("Feature: McQuestionGradeForm", () => {
       const chip = screen.getByTestId("mc-chip-opt-a");
       expect(chip).toHaveTextContent("Berlin");
       expect(chip).toHaveAttribute("data-state", "selected-wrong");
+      // The unselected correct option never renders a missed-correct
+      // outline chip in this view.
+      expect(screen.queryByTestId("mc-chip-opt-b")).not.toBeInTheDocument();
     });
   });
 });

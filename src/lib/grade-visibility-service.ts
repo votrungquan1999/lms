@@ -55,4 +55,19 @@ export class GradeVisibilityService {
     if (active?.releasedAt) return true;
     return false;
   }
+
+  /**
+   * The single student-facing status rule: a Graded test reads as Submitted
+   * to the student until `canRevealGrades` opens. Every other status passes
+   * through unchanged. For display only — grade lookups take the raw status.
+   */
+  async getStudentFacingStatus(
+    testId: string,
+    studentId: string,
+    rawStatus: TestStatus,
+  ): Promise<TestStatus> {
+    if (rawStatus !== TestStatus.Graded) return rawStatus;
+    const visible = await this.canRevealGrades(testId, studentId, rawStatus);
+    return visible ? TestStatus.Graded : TestStatus.Submitted;
+  }
 }

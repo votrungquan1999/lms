@@ -230,7 +230,12 @@ export function McQuestionGradeForm({
       <p className="text-xs font-medium text-muted-foreground">
         Student Answer:
       </p>
-      <McAnswerChips selectedIds={selectedIds} options={options} />
+      <McAnswerChips
+        selectedIds={selectedIds}
+        options={options}
+        colorPicks={true}
+        showMissedCorrect={false}
+      />
     </div>
   );
 

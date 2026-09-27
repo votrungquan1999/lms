@@ -19,7 +19,14 @@ const OPTIONS = [
 describe("Feature: McAnswerChips", () => {
   describe("Scenario: Student selected the correct option", () => {
     it("should render a selected-correct chip for the correct selection", () => {
-      render(<McAnswerChips selectedIds={["opt-b"]} options={OPTIONS} />);
+      render(
+        <McAnswerChips
+          selectedIds={["opt-b"]}
+          options={OPTIONS}
+          colorPicks={true}
+          showMissedCorrect={true}
+        />,
+      );
 
       const chip = screen.getByTestId("mc-chip-opt-b");
       expect(chip).toHaveTextContent("Paris");
@@ -29,7 +36,14 @@ describe("Feature: McAnswerChips", () => {
 
   describe("Scenario: Student selected a wrong option", () => {
     it("should render a selected-wrong chip for the wrong selection", () => {
-      render(<McAnswerChips selectedIds={["opt-a"]} options={OPTIONS} />);
+      render(
+        <McAnswerChips
+          selectedIds={["opt-a"]}
+          options={OPTIONS}
+          colorPicks={true}
+          showMissedCorrect={true}
+        />,
+      );
 
       const chip = screen.getByTestId("mc-chip-opt-a");
       expect(chip).toHaveTextContent("Berlin");
@@ -40,7 +54,12 @@ describe("Feature: McAnswerChips", () => {
   describe("Scenario: Student selected multiple options (multi-select)", () => {
     it("should render chips for each selected option with correct state", () => {
       render(
-        <McAnswerChips selectedIds={["opt-a", "opt-b"]} options={OPTIONS} />,
+        <McAnswerChips
+          selectedIds={["opt-a", "opt-b"]}
+          options={OPTIONS}
+          colorPicks={true}
+          showMissedCorrect={true}
+        />,
       );
 
       const wrongChip = screen.getByTestId("mc-chip-opt-a");
@@ -53,13 +72,20 @@ describe("Feature: McAnswerChips", () => {
 
   describe("Scenario: No options selected", () => {
     it("should render no chips when selectedIds is empty", () => {
-      render(<McAnswerChips selectedIds={[]} options={OPTIONS} />);
+      render(
+        <McAnswerChips
+          selectedIds={[]}
+          options={OPTIONS}
+          colorPicks={false}
+          showMissedCorrect={false}
+        />,
+      );
 
       expect(screen.queryByTestId(/mc-chip/)).not.toBeInTheDocument();
     });
   });
 
-  describe("Scenario: showCorrectAnswers reveals missed correct options", () => {
+  describe("Scenario: showMissedCorrect reveals missed correct options", () => {
     it("should render an unselected correct option as a missed-correct chip", () => {
       // Given the student selected the wrong answer (Berlin)
       // and the correct answer is Paris (not selected)
@@ -67,7 +93,8 @@ describe("Feature: McAnswerChips", () => {
         <McAnswerChips
           selectedIds={["opt-a"]}
           options={OPTIONS}
-          showCorrectAnswers
+          colorPicks={true}
+          showMissedCorrect={true}
         />,
       );
 
@@ -77,6 +104,30 @@ describe("Feature: McAnswerChips", () => {
       // It should expose the "missed-correct" semantic state (distinct from
       // selected-correct, which uses a solid fill).
       expect(missedChip).toHaveAttribute("data-state", "missed-correct");
+    });
+  });
+
+  describe("Scenario: correctness is withheld from the viewer", () => {
+    it("should render the student's correct pick as neutral, not selected-correct or selected-wrong, and never show a missed-correct chip", () => {
+      // Given the student picked the actually-correct option, but the
+      // answer key hasn't been released to them yet
+      render(
+        <McAnswerChips
+          selectedIds={["opt-b"]}
+          options={OPTIONS}
+          colorPicks={false}
+          showMissedCorrect={false}
+        />,
+      );
+
+      // Then their own pick reads as a neutral "your pick" chip — nothing
+      // hints that it was right
+      const chip = screen.getByTestId("mc-chip-opt-b");
+      expect(chip).toHaveAttribute("data-state", "selected-neutral");
+
+      // And no other option is rendered as a missed-correct chip either
+      expect(screen.queryByTestId("mc-chip-opt-a")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("mc-chip-opt-c")).not.toBeInTheDocument();
     });
   });
 });
