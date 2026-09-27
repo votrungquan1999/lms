@@ -268,4 +268,37 @@ describe("Feature: GradingPage roster ordering", () => {
     const mainPane = screen.getByTestId("grading-main-pane");
     expect(within(mainPane).getByText(/Explain Big-O/)).toBeInTheDocument();
   });
+
+  it("reads the student and question counts with correct grammar, not the literal '(s)'", async () => {
+    const services = getTestServices();
+
+    const course = await services.courseService.createCourse({
+      title: "Grammar Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Grammar Test",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
+    });
+
+    const ui = await GradingPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    // Whole-text match: a regex would also accept "1 questions".
+    expect(
+      screen.getByText("0 students enrolled · 1 question"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/student\(s\)/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/question\(s\)/)).not.toBeInTheDocument();
+  });
 });

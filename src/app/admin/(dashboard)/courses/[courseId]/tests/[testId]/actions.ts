@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
+import { pluralize } from "src/lib/pluralize";
 import type { UpdateQuestionInput } from "src/lib/question-service";
 import { getQuestionService, getTestService } from "src/lib/services-singleton";
 import {
@@ -357,7 +358,7 @@ export async function importQuestionsAction(
 
         return {
           success: true,
-          message: `Successfully imported ${imported.length} question(s)`,
+          message: `Successfully imported ${imported.length} ${pluralize(imported.length, "question")}`,
         };
       },
     );

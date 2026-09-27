@@ -1091,4 +1091,52 @@ describe("Feature: GradingVariantPage", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/grades released/i)).not.toBeInTheDocument();
   });
+
+  it("reads the student and question counts with correct grammar, not the literal '(s)'", async () => {
+    const services = getTestServices();
+
+    const course = await services.courseService.createCourse({
+      title: "Grammar Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Grammar Test",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Q2",
+      content: "Q2",
+      createdBy: "admin",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-1",
+      username: "u1",
+      name: "Stu",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin",
+    );
+
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+      }),
+    );
+
+    expect(screen.getByText(/1 student · 2 questions/)).toBeInTheDocument();
+    expect(screen.queryByText(/student\(s\)/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/question\(s\)/)).not.toBeInTheDocument();
+  });
 });

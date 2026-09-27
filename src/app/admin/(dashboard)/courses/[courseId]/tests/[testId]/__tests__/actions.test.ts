@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   addQuestionAction,
   deleteQuestionAction,
+  importQuestionsAction,
   updateQuestionAction,
 } from "../actions";
 import { requestUploadSlotsAction } from "../question-media-actions";
@@ -760,5 +761,36 @@ describe("Feature: a teacher deletes a question from a test (Step 29)", () => {
     const remaining =
       await getTestServices().questionService.listQuestions("test-1");
     expect(remaining).toHaveLength(1);
+  });
+});
+
+describe("Feature: a teacher imports questions from a JSON file", () => {
+  it("reads the imported count with correct grammar, not the literal '(s)'", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin-1",
+    });
+
+    const formData = new FormData();
+    formData.set("testId", test.id);
+    formData.set("courseId", course.id);
+    const file = new File(
+      [JSON.stringify([{ title: "Q1", content: "C1" }])],
+      "questions.json",
+      { type: "application/json" },
+    );
+    formData.set("file", file);
+
+    const result = await importQuestionsAction(null, formData);
+
+    expect(result.message).toBe("Successfully imported 1 question");
+    expect(result.message).not.toContain("question(s)");
   });
 });

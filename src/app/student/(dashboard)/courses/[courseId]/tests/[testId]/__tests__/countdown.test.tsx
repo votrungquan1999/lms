@@ -56,6 +56,33 @@ describe("TestCountdown — display", () => {
     // Then it shows 00:00 rather than a negative value.
     expect(screen.getByText("00:00")).toBeInTheDocument();
   });
+
+  it("rolls over to h:mm:ss once the remaining time is an hour or more", () => {
+    // Given a 90-minute test that just started.
+    mockNow = DEADLINE - 90 * 60 * 1000;
+    render(<TestCountdown deadlineMs={DEADLINE} testId="t-1" courseId="c-1" />);
+
+    // Then it shows the hour digit, not a bare 90:00.
+    expect(screen.getByText("1:30:00")).toBeInTheDocument();
+  });
+
+  it("stays mm:ss one second below the hour boundary", () => {
+    // Given 3599 seconds remaining.
+    mockNow = DEADLINE - 3599 * 1000;
+    render(<TestCountdown deadlineMs={DEADLINE} testId="t-1" courseId="c-1" />);
+
+    // Then it does not roll over yet.
+    expect(screen.getByText("59:59")).toBeInTheDocument();
+  });
+
+  it("rolls over exactly at the hour boundary", () => {
+    // Given exactly 3600 seconds remaining.
+    mockNow = DEADLINE - 3600 * 1000;
+    render(<TestCountdown deadlineMs={DEADLINE} testId="t-1" courseId="c-1" />);
+
+    // Then it shows the hour digit.
+    expect(screen.getByText("1:00:00")).toBeInTheDocument();
+  });
 });
 
 describe("TestCountdown — auto-submit at zero", () => {

@@ -7,6 +7,7 @@ import { questionImportItemSchema } from "src/lib/ai/question-import-schema";
 import { getAuthService } from "src/lib/auth-singleton";
 import { logError } from "src/lib/observability/log-error";
 import { withSpan } from "src/lib/observability/with-span";
+import { pluralize } from "src/lib/pluralize";
 import {
   checkMcOptions,
   isMcQuestionType,
@@ -72,7 +73,7 @@ export async function parseQuestionsAction(
 
         return {
           success: true,
-          message: `Extracted ${questions.length} question(s)`,
+          message: `Extracted ${questions.length} ${pluralize(questions.length, "question")}`,
           questions,
         };
       },
@@ -374,7 +375,7 @@ export async function importAiQuestionsAction(
 
         return {
           success: true,
-          message: `Imported ${questions.length} question(s)`,
+          message: `Imported ${questions.length} ${pluralize(questions.length, "question")}`,
           importedCount: questions.length,
         };
       },

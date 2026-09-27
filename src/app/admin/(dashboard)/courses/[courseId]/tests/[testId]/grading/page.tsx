@@ -4,6 +4,7 @@ import {
   GradingSort,
 } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { GradingPageShell } from "src/app/admin/(dashboard)/grading/page-body/grading-page-shell";
+import { pluralize } from "src/lib/pluralize";
 import {
   getEnrollmentService,
   getQuestionService,
@@ -63,8 +64,8 @@ export default async function GradingPage({
           Grade: {test.title}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {studentIds.length} student(s) enrolled · {questions.length}{" "}
-          question(s)
+          {studentIds.length} {pluralize(studentIds.length, "student")} enrolled
+          · {questions.length} {pluralize(questions.length, "question")}
         </p>
         {!test.showGradeAfterSubmit && (
           <div className="mt-4">

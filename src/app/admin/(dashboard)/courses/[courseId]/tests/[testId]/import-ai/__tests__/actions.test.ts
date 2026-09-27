@@ -371,3 +371,20 @@ describe("Feature: a failed REPLACE warns that the test may be partly changed", 
     expect(result.message).toBe("connection reset");
   });
 });
+
+describe("Feature: the import confirmation reads the imported count with correct grammar", () => {
+  it("reads 'Imported 1 question', not the literal '(s)'", async () => {
+    const reviewed: ParsedQuestion[] = [
+      { title: "Solo question", content: "Just one.", type: "free_text" },
+    ];
+
+    const result = await importAiQuestionsAction(
+      "test-7",
+      "course-1",
+      reviewed,
+    );
+
+    expect(result.message).toBe("Imported 1 question");
+    expect(result.message).not.toContain("question(s)");
+  });
+});

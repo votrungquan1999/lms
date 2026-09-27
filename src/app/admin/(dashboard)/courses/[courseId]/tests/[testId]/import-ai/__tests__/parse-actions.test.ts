@@ -75,4 +75,15 @@ describe("Feature: parseQuestionsAction turns extracted document text into a rev
       "AI question extraction failed. Please try again.",
     );
   });
+
+  it("reads the extracted count with correct grammar, not the literal '(s)'", async () => {
+    parseQuestionsFromText.mockResolvedValueOnce([
+      { title: "Q1", content: "Explain photosynthesis.", type: "free_text" },
+    ]);
+
+    const state = await parseQuestionsAction("some document text");
+
+    expect(state.message).toBe("Extracted 1 question");
+    expect(state.message).not.toContain("question(s)");
+  });
 });

@@ -50,9 +50,10 @@ export function SubmitTestButton({
             <AlertDialogDescription>
               {allAnswered ? (
                 <>
-                  You have answered all {totalQuestions} question
-                  {totalQuestions !== 1 ? "s" : ""}. You won't be able to edit
-                  your answers after submission.
+                  {totalQuestions === 1
+                    ? "You have answered the question."
+                    : `You have answered all ${totalQuestions} questions.`}{" "}
+                  You won't be able to edit your answers after submission.
                 </>
               ) : (
                 <>
