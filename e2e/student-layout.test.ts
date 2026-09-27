@@ -372,4 +372,51 @@ test.describe("Student layout", () => {
 
     await context.close();
   });
+
+  test("a multiple-choice option renders in the app's teal, matching the Submit button", async ({
+    browser,
+  }) => {
+    const { courseId, testId } = await withDb(async (db) => {
+      const student = await db
+        .collection<StudentDocument>("student")
+        .findOne({ username: STUDENT_USERNAME });
+      if (!student) throw new Error("Student not found after UI creation");
+
+      const courseId = await insertCourse(db, {
+        title: "[layout] Accent Colour Course",
+      });
+      await enroll(db, { courseId, studentId: student.id });
+      const testId = await insertTest(db, courseId, {
+        title: "[layout] Accent Colour Test",
+      });
+      await insertQuestion(db, testId, {
+        title: "[layout] Capital question",
+        type: "single_select",
+        options: [
+          { id: crypto.randomUUID(), text: "Paris", isCorrect: true },
+          { id: crypto.randomUUID(), text: "London", isCorrect: false },
+        ],
+      });
+      return { courseId, testId };
+    });
+
+    const context = await browser.newContext({ storageState: STUDENT_AUTH });
+    const page = await context.newPage();
+    await page.goto(`/student/courses/${courseId}/tests/${testId}`);
+
+    const radio = page.getByLabel("Paris");
+    const submitButton = page.getByRole("button", { name: "Submit Answer" });
+    await expect(radio).toBeVisible();
+    await expect(submitButton).toBeVisible();
+
+    const accentColor = await radio.evaluate(
+      (el) => getComputedStyle(el).accentColor,
+    );
+    const submitBackground = await submitButton.evaluate(
+      (el) => getComputedStyle(el).backgroundColor,
+    );
+    expect(accentColor).toBe(submitBackground);
+
+    await context.close();
+  });
 });

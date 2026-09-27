@@ -144,6 +144,12 @@
   html {
     @apply font-sans;
   }
+  /* Native checkbox/radio inputs default to the browser's blue; tint every
+     one in the app's own colour (student answers, admin authoring forms). */
+  input[type="checkbox"],
+  input[type="radio"] {
+    @apply accent-primary;
+  }
 }
 
 /* ── Prose / Markdown typography ── */

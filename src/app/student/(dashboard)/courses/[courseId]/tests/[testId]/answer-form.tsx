@@ -5,6 +5,7 @@ import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
 import type { McOption } from "src/lib/question-service";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
 import { type SubmitAnswerState, submitAnswerAction } from "./actions";
 import {
   AnswerImagePickerProvider,
@@ -66,6 +67,7 @@ function AnswerFormInner(props: AnswerFormProps) {
   const isMC =
     questionType === "single_select" || questionType === "multi_select";
   const isImage = questionType === "image_answer";
+  const isFreeText = questionType === "free_text";
   const imagePicker = useAnswerImagePickerState();
   const imageActions = useAnswerImagePickerActions();
 
@@ -74,11 +76,23 @@ function AnswerFormInner(props: AnswerFormProps) {
     isMC ? props.existingSelectedIds : [],
   );
 
+  // Controlled so a refused submit can't silently revert it (React 19 resets
+  // uncontrolled fields) and so canSubmit can read it below.
+  const [text, setText] = useState<string>(
+    isFreeText ? props.existingAnswer : "",
+  );
+
   const [isEditing, setIsEditing] = useState(() => {
     if (isMC) return props.existingSelectedIds.length === 0;
     if (isImage) return props.existingImageCount === 0;
     return !props.existingAnswer;
   });
+
+  const canSubmit = isMC
+    ? selectedIds.length > 0
+    : isImage
+      ? imagePicker.selectedFiles.length > 0
+      : text.trim() !== "";
 
   const [state, formAction, isPending] = useActionState<
     SubmitAnswerState | null,
@@ -161,7 +175,17 @@ function AnswerFormInner(props: AnswerFormProps) {
         <div className="rounded-md border bg-muted/50 p-3">
           <p className="whitespace-pre-wrap text-sm">{props.existingAnswer}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            // The box is controlled now, so re-entering edit mode must reseed
+            // it from the saved answer, or it would still hold whatever was
+            // typed before a prior Cancel.
+            setText(props.existingAnswer);
+            setIsEditing(true);
+          }}
+        >
           Edit Answer
         </Button>
       </div>
@@ -170,7 +194,11 @@ function AnswerFormInner(props: AnswerFormProps) {
 
   // ── Editing form ─────────────────────────────────────────────────────────
   return (
-    <form action={formAction} className="space-y-3">
+    <form
+      action={formAction}
+      className="space-y-3"
+      onSubmit={submitWithoutReset(formAction)}
+    >
       <input type="hidden" name="testId" value={testId} />
       <input type="hidden" name="courseId" value={courseId} />
       <input type="hidden" name="questionId" value={questionId} />
@@ -261,14 +289,15 @@ function AnswerFormInner(props: AnswerFormProps) {
         <Textarea
           name="answer"
           placeholder="Type your answer here..."
-          defaultValue={props.existingAnswer}
+          value={text}
+          onChange={(event) => setText(event.target.value)}
           rows={5}
           className="resize-y"
         />
       )}
 
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending || !canSubmit}>
           {isPending ? "Submitting..." : "Submit Answer"}
         </Button>
 
@@ -281,7 +310,13 @@ function AnswerFormInner(props: AnswerFormProps) {
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => setIsEditing(false)}
+            onClick={() => {
+              // The read-only MC view renders from this same state, so
+              // Cancel must roll it back to the saved picks — otherwise it
+              // would show the unsaved edit instead.
+              if (isMC) setSelectedIds(props.existingSelectedIds);
+              setIsEditing(false);
+            }}
           >
             Cancel
           </Button>
