@@ -124,7 +124,9 @@ function AnswerFormInner(props: AnswerFormProps) {
                     : "bg-muted-foreground/30 border"
                 }`}
               />
-              <span className={saved.includes(opt.id) ? "font-medium" : ""}>
+              <span
+                className={`min-w-0 wrap-anywhere ${saved.includes(opt.id) ? "font-medium" : ""}`}
+              >
                 {opt.text}
               </span>
             </div>
@@ -204,7 +206,9 @@ function AnswerFormInner(props: AnswerFormProps) {
                   }}
                   className="shrink-0"
                 />
-                <span className="text-sm">{opt.text}</span>
+                <span className="text-sm min-w-0 wrap-anywhere">
+                  {opt.text}
+                </span>
               </label>
             );
           })}

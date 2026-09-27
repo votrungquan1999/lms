@@ -59,7 +59,7 @@ export default async function GradingPage({
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <header className="w-full">
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="wrap-anywhere text-3xl font-bold tracking-tight">
           Grade: {test.title}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">

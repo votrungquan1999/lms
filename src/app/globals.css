@@ -139,7 +139,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground wrap-break-word;
   }
   html {
     @apply font-sans;
@@ -263,11 +263,15 @@
   text-align: left;
   padding: 0.5em 0.75em;
   border: 1px solid var(--border);
+  /* anywhere (not the body's break-word default) shrinks an unbroken
+     cell value's min-content, so it wraps instead of widening the table. */
+  overflow-wrap: anywhere;
 }
 
 .prose :where(td) {
   padding: 0.5em 0.75em;
   border: 1px solid var(--border);
+  overflow-wrap: anywhere;
 }
 
 /* Horizontal rules */

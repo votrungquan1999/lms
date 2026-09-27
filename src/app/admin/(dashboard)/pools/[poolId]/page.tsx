@@ -41,9 +41,11 @@ export default async function PoolDetailPage({
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <header>
-        <h1 className="text-3xl font-bold tracking-tight">{pool.name}</h1>
+        <h1 className="wrap-anywhere text-3xl font-bold tracking-tight">
+          {pool.name}
+        </h1>
         {pool.description && (
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="wrap-anywhere mt-1 text-sm text-muted-foreground">
             {pool.description}
           </p>
         )}
