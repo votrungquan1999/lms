@@ -79,7 +79,7 @@ export async function autoGradeSubmissionAction(
           return {
             success: false,
             message:
-              "Suggestions already exist for this submission. Use Regenerate to create a new round.",
+              "Suggestions already exist for this submission. Use Regenerate all to create a new round.",
           };
         }
 

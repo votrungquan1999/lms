@@ -312,6 +312,7 @@ const releaseGradesSchema = z.object({
 export interface ReleaseGradesState {
   success: boolean;
   message: string;
+  releasedAt: string | null;
 }
 
 /**
@@ -329,7 +330,11 @@ export async function releaseGradesAction(
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
   } catch {
-    return { success: false, message: "Unauthorized: admin access required" };
+    return {
+      success: false,
+      message: "Unauthorized: admin access required",
+      releasedAt: null,
+    };
   }
 
   const parsed = releaseGradesSchema.safeParse({
@@ -338,7 +343,11 @@ export async function releaseGradesAction(
   });
 
   if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0].message };
+    return {
+      success: false,
+      message: parsed.error.issues[0].message,
+      releasedAt: null,
+    };
   }
 
   try {
@@ -365,7 +374,11 @@ export async function releaseGradesAction(
           `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
         );
 
-        return { success: true, message: "Grades released" };
+        return {
+          success: true,
+          message: "Grades released",
+          releasedAt: new Date().toISOString(),
+        };
       },
     );
   } catch (error) {
@@ -374,6 +387,7 @@ export async function releaseGradesAction(
       success: false,
       message:
         error instanceof Error ? error.message : "Failed to release grades",
+      releasedAt: null,
     };
   }
 }
@@ -707,6 +721,7 @@ const releaseCorrectAnswersSchema = z.object({
 export interface ReleaseCorrectAnswersState {
   success: boolean;
   message: string;
+  releasedAt: string | null;
 }
 
 /**
@@ -725,7 +740,11 @@ export async function releaseCorrectAnswersAction(
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
   } catch {
-    return { success: false, message: "Unauthorized: admin access required" };
+    return {
+      success: false,
+      message: "Unauthorized: admin access required",
+      releasedAt: null,
+    };
   }
 
   const parsed = releaseCorrectAnswersSchema.safeParse({
@@ -734,7 +753,11 @@ export async function releaseCorrectAnswersAction(
   });
 
   if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0].message };
+    return {
+      success: false,
+      message: parsed.error.issues[0].message,
+      releasedAt: null,
+    };
   }
 
   try {
@@ -765,11 +788,19 @@ export async function releaseCorrectAnswersAction(
           `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
         );
 
-        return { success: true, message: "Correct answers released" };
+        return {
+          success: true,
+          message: "Correct answers released",
+          releasedAt: new Date().toISOString(),
+        };
       },
     );
   } catch (error) {
     console.error(error instanceof Error ? error.stack : JSON.stringify(error));
-    return { success: false, message: "Failed to release correct answers" };
+    return {
+      success: false,
+      message: "Failed to release correct answers",
+      releasedAt: null,
+    };
   }
 }

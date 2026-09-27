@@ -78,10 +78,11 @@ describe("Feature: autoGradeSubmissionAction rejects a duplicate initial click",
     // When — second invocation with the same inputs
     const secondState = await autoGradeSubmissionAction(null, fd);
 
-    // Then — rejection with the pinned verbatim message
+    // Then — rejection with the pinned verbatim message, naming the
+    // whole-submission trigger's own label.
     expect(secondState.success).toBe(false);
     expect(secondState.message).toBe(
-      "Suggestions already exist for this submission. Use Regenerate to create a new round.",
+      "Suggestions already exist for this submission. Use Regenerate all to create a new round.",
     );
   });
 });

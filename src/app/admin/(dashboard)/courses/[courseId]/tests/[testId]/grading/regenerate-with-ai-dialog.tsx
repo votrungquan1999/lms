@@ -54,7 +54,7 @@ export function RegenerateWithAiDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button type="button" size="sm" variant="outline">
-          Regenerate
+          Regenerate all
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -84,7 +84,7 @@ export function RegenerateWithAiDialog({
           </div>
 
           <Button type="submit" disabled={isPending} className="w-full">
-            {isPending ? "Regenerating…" : "Regenerate"}
+            {isPending ? "Regenerating…" : "Regenerate all"}
           </Button>
 
           {state?.message && (

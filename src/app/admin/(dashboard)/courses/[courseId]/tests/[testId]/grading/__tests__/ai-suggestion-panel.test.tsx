@@ -287,3 +287,48 @@ describe("Feature: AiSuggestionPanel stale-suggestion badge (Step 8)", () => {
     ).toBeNull();
   });
 });
+
+describe("Feature: Regenerate labels say what they regenerate", () => {
+  it("labels the whole-submission trigger 'Regenerate all' and the per-question trigger 'Regenerate this answer', with no bare 'Regenerate' left", () => {
+    // Given: both regenerate controls rendered together, as the grading page
+    // composes them once a submission already has AI suggestions.
+    const suggestions: AiGradeSuggestion[] = [
+      buildSuggestion({ id: "sugg-1", questionId: "q-42" }),
+    ];
+
+    render(
+      <div>
+        <AutoGradeWithAiButton
+          testId="test-1"
+          courseId="course-1"
+          studentId="student-1"
+          status={TestStatus.Submitted}
+          hasExistingSuggestions={true}
+        />
+        <AiSuggestionPanel
+          testId="test-1"
+          courseId="course-1"
+          studentId="student-1"
+          questionId="q-42"
+          suggestions={suggestions}
+        />
+      </div>,
+    );
+
+    // Then: the whole-submission trigger names its scope.
+    expect(
+      screen.getByRole("button", { name: "Regenerate all" }),
+    ).toBeInTheDocument();
+
+    // Then: the per-question trigger, inside the panel, names its own scope.
+    const panel = screen.getByTestId("ai-suggestion-panel");
+    expect(
+      within(panel).getByRole("button", { name: "Regenerate this answer" }),
+    ).toBeInTheDocument();
+
+    // Then: no ambiguous bare "Regenerate" is left anywhere.
+    expect(
+      screen.queryAllByRole("button", { name: "Regenerate" }),
+    ).toHaveLength(0);
+  });
+});

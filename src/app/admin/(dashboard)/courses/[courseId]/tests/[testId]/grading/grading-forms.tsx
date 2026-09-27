@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { formatReleaseLine } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/test-settings-panel";
 import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import { McAnswerChips } from "src/components/mc-answer-chips";
 import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
@@ -483,20 +484,30 @@ export function RequestRedoButton({
 interface ReleaseGradesButtonProps {
   testId: string;
   courseId: string;
+  /** Persisted release date, if already released. Optional so existing
+   * standalone renders (no release yet) default to the button. */
+  releasedAt?: Date | null;
 }
 
 export function ReleaseGradesButton({
   testId,
   courseId,
+  releasedAt: persistedReleasedAt = null,
 }: ReleaseGradesButtonProps) {
   const [state, formAction, isPending] = useActionState<
     ReleaseGradesState | null,
     FormData
   >(releaseGradesAction, null);
 
-  if (state?.success) {
+  const postActionReleasedAt =
+    state?.success && state.releasedAt ? new Date(state.releasedAt) : null;
+  const resolvedReleasedAt = postActionReleasedAt ?? persistedReleasedAt;
+
+  if (resolvedReleasedAt) {
     return (
-      <p className="text-sm font-medium text-green-600">Grades released ✓</p>
+      <p className="text-sm text-muted-foreground">
+        {formatReleaseLine("Grades", resolvedReleasedAt)}
+      </p>
     );
   }
 
@@ -517,6 +528,9 @@ export function ReleaseGradesButton({
 interface ReleaseCorrectAnswersButtonProps {
   testId: string;
   courseId: string;
+  /** Persisted release date, if already released. Optional so existing
+   * standalone renders (no release yet) default to the button. */
+  releasedAt?: Date | null;
 }
 
 /**
@@ -526,16 +540,21 @@ interface ReleaseCorrectAnswersButtonProps {
 export function ReleaseCorrectAnswersButton({
   testId,
   courseId,
+  releasedAt: persistedReleasedAt = null,
 }: ReleaseCorrectAnswersButtonProps) {
   const [state, formAction, isPending] = useActionState<
     ReleaseCorrectAnswersState | null,
     FormData
   >(releaseCorrectAnswersAction, null);
 
-  if (state?.success) {
+  const postActionReleasedAt =
+    state?.success && state.releasedAt ? new Date(state.releasedAt) : null;
+  const resolvedReleasedAt = postActionReleasedAt ?? persistedReleasedAt;
+
+  if (resolvedReleasedAt) {
     return (
-      <p className="text-sm font-medium text-green-600">
-        Correct answers released ✓
+      <p className="text-sm text-muted-foreground">
+        {formatReleaseLine("Correct answers", resolvedReleasedAt)}
       </p>
     );
   }

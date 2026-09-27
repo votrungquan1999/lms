@@ -26,7 +26,15 @@ interface TestSettingsPanelProps {
   correctAnswersReleasedAt: Date | null;
 }
 
-function formatReleaseLine(label: string, date: Date | null): string {
+/**
+ * "<label> released at <date>" once released, else "<label>: Not released" —
+ * shared with the grading page's own release controls so both surfaces
+ * agree on the wording.
+ * @param label - What was released, e.g. "Grades".
+ * @param date - When it was released, or null if not yet.
+ * @returns The release line to display.
+ */
+export function formatReleaseLine(label: string, date: Date | null): string {
   return date
     ? `${label} released at ${date.toLocaleDateString("en-US")}`
     : `${label}: Not released`;

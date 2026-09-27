@@ -66,20 +66,24 @@ export default async function GradingPage({
           {studentIds.length} student(s) enrolled · {questions.length}{" "}
           question(s)
         </p>
-        {!test.showGradeAfterSubmit && !test.gradesReleasedAt && (
+        {!test.showGradeAfterSubmit && (
           <div className="mt-4">
-            <ReleaseGradesButton testId={testId} courseId={courseId} />
+            <ReleaseGradesButton
+              testId={testId}
+              courseId={courseId}
+              releasedAt={test.gradesReleasedAt}
+            />
           </div>
         )}
-        {!test.showCorrectAnswerAfterSubmit &&
-          !test.correctAnswersReleasedAt && (
-            <div className="mt-4">
-              <ReleaseCorrectAnswersButton
-                testId={testId}
-                courseId={courseId}
-              />
-            </div>
-          )}
+        {!test.showCorrectAnswerAfterSubmit && (
+          <div className="mt-4">
+            <ReleaseCorrectAnswersButton
+              testId={testId}
+              courseId={courseId}
+              releasedAt={test.correctAnswersReleasedAt}
+            />
+          </div>
+        )}
       </header>
 
       {

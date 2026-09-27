@@ -55,7 +55,7 @@ export function RegenerateQuestionDialog({
           variant="ghost"
           data-testid="ai-regenerate-question-trigger"
         >
-          Regenerate
+          Regenerate this answer
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -86,7 +86,7 @@ export function RegenerateQuestionDialog({
           </div>
 
           <Button type="submit" disabled={isPending} className="w-full">
-            {isPending ? "Regenerating…" : "Regenerate"}
+            {isPending ? "Regenerating…" : "Regenerate this answer"}
           </Button>
 
           {state?.message && (

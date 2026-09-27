@@ -204,12 +204,12 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
     // When: admin clicks "Release Grades" (visible only for delayed-release tests)
     await page.getByRole("button", { name: "Release Grades" }).click();
 
-    // Then: button disappears (gradesReleasedAt is now set → page re-renders without it).
-    // Its pending label "Releasing…" counts as still there: "Release Grades" alone
-    // vanishes on click, before the release is saved, and the next test races it.
-    await expect(
-      page.getByRole("button", { name: /^(Release Grades|Releasing…)$/ }),
-    ).toHaveCount(0, { timeout: 10_000 });
+    // Then: the button is replaced by a persistent "Grades released at
+    // <date>" line — a positive signal, not the button's absence, which
+    // raced the pending "Releasing…" label before.
+    await expect(page.getByText(/grades released at/i)).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("student sees score after admin releases grades", async ({
