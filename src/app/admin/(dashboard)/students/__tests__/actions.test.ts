@@ -81,6 +81,7 @@ describe("Feature: Bulk import — teacher previews a roster", () => {
       { name: "Alice", username: "alice", password: "secret123" }, // valid
       { name: "", username: "bob", password: "secret123" }, // missing-field
       { name: "Cara", username: "cara", password: "short" }, // password-too-short
+      { name: "Faye", username: "faye", password: "        " }, // password-blank (8 spaces)
       { name: "Dup One", username: "dup", password: "secret123" }, // dup-in-file
       { name: "Dup Two", username: "dup", password: "secret123" }, // dup-in-file
       { name: "Taker", username: "taken", password: "secret123" }, // already-exists
@@ -96,11 +97,16 @@ describe("Feature: Bulk import — teacher previews a roster", () => {
         username: "cara",
         status: PreviewStatus.PasswordTooShort,
       },
+      {
+        name: "Faye",
+        username: "faye",
+        status: PreviewStatus.PasswordBlank,
+      },
       { name: "Dup One", username: "dup", status: PreviewStatus.DupInFile },
       { name: "Dup Two", username: "dup", status: PreviewStatus.DupInFile },
       { name: "Taker", username: "taken", status: PreviewStatus.AlreadyExists },
     ]);
-    expect(result.summary).toEqual({ total: 6, valid: 1, skipped: 5 });
+    expect(result.summary).toEqual({ total: 7, valid: 1, skipped: 6 });
 
     // Read-only: only the pre-seeded student exists
     const all = await studentService.listStudents();
@@ -159,6 +165,7 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
         { name: "Alice", username: "alice", password: "secret123" }, // created
         { name: "Bob", username: "bob", password: "secret123" }, // created
         { name: "Cara", username: "cara", password: "short" }, // skipped: password-too-short
+        { name: "Faye", username: "faye", password: "        " }, // skipped: password-blank
         { name: "Taker", username: "taken", password: "secret123" }, // skipped: already-exists
       ],
       ["course-1"],
@@ -175,12 +182,17 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
         reason: PreviewStatus.PasswordTooShort,
       },
       {
+        username: "faye",
+        outcome: ImportOutcome.Skipped,
+        reason: PreviewStatus.PasswordBlank,
+      },
+      {
         username: "taken",
         outcome: ImportOutcome.Skipped,
         reason: PreviewStatus.AlreadyExists,
       },
     ]);
-    expect(result.summary).toEqual({ created: 2, skipped: 2, failed: 0 });
+    expect(result.summary).toEqual({ created: 2, skipped: 3, failed: 0 });
 
     // The two new students are persisted (plus the pre-seeded one)
     const all = await studentService.listStudents();
@@ -333,5 +345,22 @@ describe("Feature: Create Student names a short password as a field error", () =
     expect(result.fieldErrors?.password).toBe(
       "Password must be at least 8 characters",
     );
+  });
+});
+
+describe("Feature: Create Student refuses a password made only of spaces", () => {
+  it("returns a password field error and creates no student", async () => {
+    const { studentService } = getTestServices();
+    const form = new FormData();
+    form.set("name", "Alice");
+    form.set("username", "alice");
+    // 8 spaces — passes the 8-character minimum, blank once trimmed
+    form.set("password", "        ");
+
+    const result = await createStudentAction(null, form);
+
+    expect(result.success).toBe(false);
+    expect(result.fieldErrors?.password).toBe("Password cannot be only spaces");
+    expect(await studentService.listStudents()).toHaveLength(0);
   });
 });

@@ -23,18 +23,41 @@ export function StudentLoginForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<{
+    field: "username" | "password";
+    message: string;
+  } | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
     setError(null);
+    setFieldError(null);
 
     const formData = new FormData(event.currentTarget);
     const username = formData.get("username")?.toString().trim() ?? "";
     const password = formData.get("password")?.toString() ?? "";
 
-    if (!username || !password) {
-      setError("Username and password are required");
+    // required blocks a truly empty field in every browser, but not a
+    // whitespace-only one — trim() is what actually catches that.
+    const usernameBlank = username === "";
+    const passwordBlank = password.trim() === "";
+    if (usernameBlank && passwordBlank) {
+      // Both blank: one message, attached to the username field.
+      setFieldError({
+        field: "username",
+        message: "Enter your username and password",
+      });
+      setIsLoading(false);
+      return;
+    }
+    if (usernameBlank) {
+      setFieldError({ field: "username", message: "Enter your username" });
+      setIsLoading(false);
+      return;
+    }
+    if (passwordBlank) {
+      setFieldError({ field: "password", message: "Enter your password" });
       setIsLoading(false);
       return;
     }
@@ -72,7 +95,18 @@ export function StudentLoginForm() {
               required
               autoComplete="username"
               disabled={isLoading}
+              aria-invalid={
+                fieldError?.field === "username" ? "true" : undefined
+              }
+              aria-describedby={
+                fieldError?.field === "username" ? "username-error" : undefined
+              }
             />
+            {fieldError?.field === "username" && (
+              <p id="username-error" className="text-sm text-destructive">
+                {fieldError.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -85,7 +119,18 @@ export function StudentLoginForm() {
               minLength={8}
               autoComplete="current-password"
               disabled={isLoading}
+              aria-invalid={
+                fieldError?.field === "password" ? "true" : undefined
+              }
+              aria-describedby={
+                fieldError?.field === "password" ? "password-error" : undefined
+              }
             />
+            {fieldError?.field === "password" && (
+              <p id="password-error" className="text-sm text-destructive">
+                {fieldError.message}
+              </p>
+            )}
           </div>
 
           {error && (

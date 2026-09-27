@@ -97,6 +97,30 @@ describe("Feature: Auth Service", () => {
   );
 
   dbIt(
+    "registerStudent refuses a password made only of spaces, creating no auth user",
+    async ({ db }) => {
+      const studentService = new StudentService(db);
+      const authService = createAuthService(db, testConfig, studentService);
+
+      // 8 spaces — long enough to pass a bare length check, but blank once
+      // trimmed, so it could never be typed back in to sign in again.
+      await expect(
+        authService.registerStudent({
+          name: "Eve",
+          username: "eve",
+          password: "        ",
+          createdBy: "admin-test",
+        }),
+      ).rejects.toThrow("Password cannot be only spaces");
+
+      const orphanedUser = await db
+        .collection("user")
+        .findOne({ email: "eve@lms.internal" });
+      expect(orphanedUser).toBeNull();
+    },
+  );
+
+  dbIt(
     "student can sign in with username and password created by admin",
     async ({ db }) => {
       const studentService = new StudentService(db);

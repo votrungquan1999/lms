@@ -53,11 +53,18 @@ const googleUsernameSchema = z.object({
 export interface JoinSignupState {
   success: boolean;
   message: string;
+  /** True when the refusal is the invite dying between page load and
+   * submit — lets the form offer the same recovery links as the
+   * invalid-invite card instead of a dead-end message. */
+  invalidInvite?: boolean;
 }
 
 export interface GoogleUsernameSignupState {
   success: boolean;
   message: string;
+  /** True when the invite died between page load and submit — the form
+   * then offers the same recovery links as the invalid-invite card. */
+  invalidInvite?: boolean;
 }
 
 export interface RequestToJoinState {
@@ -110,7 +117,11 @@ export async function joinSignupAction(
         const courseService = await getCourseService();
         const course = await courseService.findByInviteToken(parsed.data.token);
         if (!course) {
-          return { success: false, message: INVALID_INVITE_MESSAGE };
+          return {
+            success: false,
+            message: INVALID_INVITE_MESSAGE,
+            invalidInvite: true,
+          };
         }
 
         const authService = await getAuthService();
@@ -186,7 +197,11 @@ export async function googleUsernameSignupAction(
         const courseService = await getCourseService();
         const course = await courseService.findByInviteToken(parsed.data.token);
         if (!course) {
-          return { success: false, message: INVALID_INVITE_MESSAGE };
+          return {
+            success: false,
+            message: INVALID_INVITE_MESSAGE,
+            invalidInvite: true,
+          };
         }
 
         const authService = await getAuthService();

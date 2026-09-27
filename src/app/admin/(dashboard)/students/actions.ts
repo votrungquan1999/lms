@@ -77,13 +77,12 @@ export async function createStudentAction(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to create student";
-    return {
-      success: false,
-      message,
-      fieldErrors:
-        message === "Username already exists"
-          ? { username: message }
-          : undefined,
-    };
+    let fieldErrors: CreateStudentState["fieldErrors"];
+    if (message === "Username already exists") {
+      fieldErrors = { username: message };
+    } else if (message === "Password cannot be only spaces") {
+      fieldErrors = { password: message };
+    }
+    return { success: false, message, fieldErrors };
   }
 }

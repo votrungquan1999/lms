@@ -49,6 +49,11 @@ function classifyImportRow(
   if (row.password.length < 8) {
     return PreviewStatus.PasswordTooShort;
   }
+  // Caught separately from the length check — a password of 8+ spaces
+  // passes it but is blank once trimmed, so it could never be typed back in.
+  if (row.password.trim() === "") {
+    return PreviewStatus.PasswordBlank;
+  }
   if ((usernameCounts.get(row.username) ?? 0) > 1) {
     return PreviewStatus.DupInFile;
   }

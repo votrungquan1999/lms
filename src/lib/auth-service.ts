@@ -129,6 +129,13 @@ export class AuthService {
    * 2. Delegates student document creation to StudentService
    */
   async registerStudent(input: RegisterStudentInput) {
+    // Rejected before any write: a password of only spaces would pass
+    // better-auth's own length check but could never be typed back in,
+    // since sign-in treats a spaces-only entry as blank.
+    if (input.password.trim() === "") {
+      throw new Error("Password cannot be only spaces");
+    }
+
     // Lowercased BEFORE both the lookup and the email derivation: better-auth
     // always lowercases the email it stores (`email.toLowerCase()`), but our
     // own `findByUsername` is a case-sensitive exact match. Left disagreeing,

@@ -67,4 +67,82 @@ describe("Feature: Student Login Form", () => {
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
   });
+
+  describe("Scenario: username is only spaces", () => {
+    it("names the username field, not the password, and never calls sign-in", async () => {
+      // Setup — a whitespace-only username slips past `required` (only
+      // .trim() catches it), with a real password so the failure can only
+      // be about the username.
+      const user = userEvent.setup();
+      vi.mocked(authClient.signIn.email).mockClear();
+      render(<StudentLoginForm />);
+
+      // Action
+      await user.type(screen.getByLabelText("Username"), "   ");
+      await user.type(screen.getByLabelText("Password"), "password123");
+      await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+      // Assert — the username field itself carries the error, not a
+      // form-level banner naming a field that isn't the problem.
+      const usernameInput = screen.getByLabelText("Username");
+      expect(usernameInput).toHaveAttribute("aria-invalid", "true");
+      const describedById = usernameInput.getAttribute("aria-describedby");
+      expect(describedById).toBeTruthy();
+      expect(
+        document.getElementById(describedById as string),
+      ).toHaveTextContent(/username/i);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(authClient.signIn.email).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Scenario: password is only spaces", () => {
+    it("names the password field, not the username, and never calls sign-in", async () => {
+      // Setup — password isn't trimmed on submit, but `minLength={8}` isn't
+      // enforced by jsdom, so 8 spaces reaches the handler as "blank".
+      const user = userEvent.setup();
+      vi.mocked(authClient.signIn.email).mockClear();
+      render(<StudentLoginForm />);
+
+      // Action
+      await user.type(screen.getByLabelText("Username"), "alice");
+      await user.type(screen.getByLabelText("Password"), "        ");
+      await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+      // Assert
+      const passwordInput = screen.getByLabelText("Password");
+      expect(passwordInput).toHaveAttribute("aria-invalid", "true");
+      const describedById = passwordInput.getAttribute("aria-describedby");
+      expect(describedById).toBeTruthy();
+      expect(
+        document.getElementById(describedById as string),
+      ).toHaveTextContent(/password/i);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(authClient.signIn.email).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Scenario: both username and password are only spaces", () => {
+    it("shows one message naming both fields, attached to the username field", async () => {
+      const user = userEvent.setup();
+      vi.mocked(authClient.signIn.email).mockClear();
+      render(<StudentLoginForm />);
+
+      await user.type(screen.getByLabelText("Username"), "   ");
+      await user.type(screen.getByLabelText("Password"), "        ");
+      await user.click(screen.getByRole("button", { name: "Sign In" }));
+
+      const usernameInput = screen.getByLabelText("Username");
+      expect(usernameInput).toHaveAttribute("aria-invalid", "true");
+      const describedById = usernameInput.getAttribute("aria-describedby");
+      expect(
+        document.getElementById(describedById as string),
+      ).toHaveTextContent("Enter your username and password");
+      expect(screen.getByLabelText("Password")).not.toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      expect(authClient.signIn.email).not.toHaveBeenCalled();
+    });
+  });
 });

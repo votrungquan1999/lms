@@ -264,6 +264,44 @@ describe("Feature: a prospective student is stopped from taking a username someb
   });
 });
 
+describe("Feature: self-signup refuses a password made only of spaces", () => {
+  it("blocks account creation and names the password in the refusal message", async () => {
+    // Given a course with a live invite link
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("name", "Someone");
+    formData.set("username", "someone");
+    // 8 spaces — passes the 8-character minimum, blank once trimmed
+    formData.set("password", "        ");
+
+    // When they submit the self-signup form
+    const result = await joinSignupAction(null, formData);
+
+    // Then registration is refused, naming the password
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Password cannot be only spaces");
+
+    // And no account or join request was created
+    const all = await services.studentService.listStudents();
+    expect(all).toHaveLength(0);
+    expect(
+      await db
+        .collection("course_join_request")
+        .countDocuments({ courseId: course.id }),
+    ).toBe(0);
+  });
+});
+
 /**
  * Feature: a Google signup whose derived username needed a choice can finish
  * joining with a username they pick themselves
@@ -317,6 +355,83 @@ describe("Feature: a Google signup whose derived username needed a choice can fi
       studentDoc?.id ?? "",
     );
     expect(pending).not.toBeNull();
+  });
+});
+
+/**
+ * Feature: a join refused because the invite died mid-form tells the form
+ * so, letting it offer the invalid-invite card's recovery links
+ */
+describe("Feature: a join refused because the invite was switched off mid-form is flagged as a dead invite", () => {
+  it("flags a Google-username submit whose invite was switched off after the page loaded, and creates nothing", async () => {
+    // Given a live invite that is switched off while the form is open, and a
+    // caller still holding a valid Google session
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    await services.courseService.disableInviteToken(course.id);
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "resolveUnclassifiedIdentity",
+    ).mockResolvedValue({
+      authUserId: "google-auth-id-123",
+      email: "late.joiner@gmail.com",
+      name: "Late Joiner",
+    });
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("username", "late-joiner");
+
+    // When they submit their username
+    const result = await googleUsernameSignupAction(null, formData);
+
+    // Then the refusal is flagged as a dead invite, and no student exists
+    expect(result).toEqual({
+      success: false,
+      message:
+        "This join link is no longer valid. Ask whoever shared it with you for a new one.",
+      invalidInvite: true,
+    });
+    expect(await services.studentService.listStudents()).toHaveLength(0);
+  });
+
+  it("flags a self-signup whose invite was switched off after the page loaded, and creates nothing", async () => {
+    // Given a live invite that is switched off while the form is open
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    await services.courseService.disableInviteToken(course.id);
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("name", "Late Joiner");
+    formData.set("username", "late-joiner");
+    formData.set("password", "secret1234");
+
+    // When they submit the self-signup form
+    const result = await joinSignupAction(null, formData);
+
+    // Then the refusal is flagged as a dead invite, and no account exists
+    expect(result).toEqual({
+      success: false,
+      message:
+        "This join link is no longer valid. Ask whoever shared it with you for a new one.",
+      invalidInvite: true,
+    });
+    expect(await services.studentService.listStudents()).toHaveLength(0);
   });
 });
 

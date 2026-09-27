@@ -1,4 +1,6 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
+import { Button } from "src/components/ui/button";
 import {
   Card,
   CardContent,
@@ -46,6 +48,26 @@ export function InvalidInviteCard() {
           a new one.
         </CardDescription>
       </CardHeader>
+      <CardContent className="flex gap-3">
+        <InviteRecoveryLinks />
+      </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The ways forward from a dead invite — shared by the invalid-invite card and
+ * both sign-up forms so every dead-invite screen offers the same links.
+ */
+export function InviteRecoveryLinks() {
+  return (
+    <>
+      <Button asChild>
+        <Link href="/student/login">Student sign in</Link>
+      </Button>
+      <Button asChild variant="outline">
+        <Link href="/">Home</Link>
+      </Button>
+    </>
   );
 }

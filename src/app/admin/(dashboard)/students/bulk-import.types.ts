@@ -16,6 +16,7 @@ export enum PreviewStatus {
   Valid = "valid",
   MissingField = "missing-field",
   PasswordTooShort = "password-too-short",
+  PasswordBlank = "password-blank",
   DupInFile = "dup-in-file",
   AlreadyExists = "already-exists",
 }

@@ -4,10 +4,12 @@ import { useActionState } from "react";
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
 import {
   type GoogleUsernameSignupState,
   googleUsernameSignupAction,
 } from "./actions";
+import { InviteRecoveryLinks } from "./join-page.ui";
 
 /**
  * Client component: lets a Google signup whose derived username was taken
@@ -46,7 +48,11 @@ export function GoogleUsernameForm({
   }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form
+      action={formAction}
+      onSubmit={submitWithoutReset(formAction)}
+      className="space-y-4"
+    >
       <input type="hidden" name="token" value={token} />
 
       <p className="text-sm text-muted-foreground">
@@ -72,6 +78,12 @@ export function GoogleUsernameForm({
           role="alert"
         >
           {state.message}
+        </div>
+      )}
+
+      {state?.invalidInvite && (
+        <div className="flex gap-3">
+          <InviteRecoveryLinks />
         </div>
       )}
 

@@ -162,6 +162,20 @@ describe("Feature: someone opening a broken or switched-off join link is told th
     expect(html[1]).toBe(html[0]);
     expect(html[2]).toBe(html[0]);
   });
+
+  it("offers a way back in — student sign-in or home — for every invalid reason", () => {
+    const { unmount } = render(neverValidUi);
+
+    expect(
+      screen.getByRole("link", { name: "Student sign in" }),
+    ).toHaveAttribute("href", "/student/login");
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+
+    unmount();
+  });
 });
 
 /**

@@ -4,7 +4,9 @@ import { useActionState } from "react";
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
 import { type JoinSignupState, joinSignupAction } from "./actions";
+import { InviteRecoveryLinks } from "./join-page.ui";
 
 /**
  * Client component: lets a prospective student create their own account from
@@ -33,7 +35,11 @@ export function SelfSignupForm({ token }: { token: string }) {
   }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form
+      action={formAction}
+      onSubmit={submitWithoutReset(formAction)}
+      className="space-y-4"
+    >
       <input type="hidden" name="token" value={token} />
 
       <div className="space-y-2">
@@ -79,6 +85,12 @@ export function SelfSignupForm({ token }: { token: string }) {
           role="alert"
         >
           {state.message}
+        </div>
+      )}
+
+      {state?.invalidInvite && (
+        <div className="flex gap-3">
+          <InviteRecoveryLinks />
         </div>
       )}
 
