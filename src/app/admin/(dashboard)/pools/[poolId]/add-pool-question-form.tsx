@@ -21,6 +21,7 @@ import {
   QUESTION_TYPE_LABELS,
 } from "src/lib/question-labels";
 import type { McGradingStrategy } from "src/lib/question-service";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
 import type { SubmittedMedia } from "../../courses/[courseId]/tests/[testId]/question-media.schema";
 import {
   QuestionMediaPickerProvider,
@@ -164,7 +165,12 @@ function AddPoolQuestionFormInner({ poolId }: { poolId: string }) {
               {TYPE_DESCRIPTIONS[questionType]}
             </p>
 
-            <form key={successCount} action={formAction} className="space-y-4">
+            <form
+              key={successCount}
+              action={formAction}
+              onSubmit={submitWithoutReset(formAction)}
+              className="space-y-4"
+            >
               <input type="hidden" name="poolId" value={poolId} />
 
               <div className="space-y-2">

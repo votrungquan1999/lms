@@ -44,6 +44,39 @@ describe("Feature: Add Pool Question Form", () => {
     expect(screen.getByPlaceholderText("Option 2")).toBeInTheDocument();
   });
 
+  it("keeps the typed title, content and the ticked correct-answer marker on screen when the submit is refused", async () => {
+    const user = userEvent.setup();
+    vi.mocked(addPoolQuestionAction).mockClear();
+    vi.mocked(addPoolQuestionAction).mockResolvedValue({
+      success: false,
+      message: "Refused",
+    });
+    render(<AddPoolQuestionForm poolId="pool-1" />);
+
+    await user.click(screen.getByRole("button", { name: /multi select/i }));
+    await user.type(screen.getByLabelText("Question Title"), "Closures");
+    await user.type(
+      screen.getByLabelText("Content (Markdown)"),
+      "Choose all that apply.",
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: /mark option 1 correct/i }),
+    );
+    await user.click(screen.getByRole("button", { name: "Add Question" }));
+
+    await screen.findByRole("alert");
+
+    // Read immediately after the refusal — retyping would append to
+    // whatever a reset left behind, masking the bug this pins.
+    expect(screen.getByLabelText("Question Title")).toHaveValue("Closures");
+    expect(screen.getByLabelText("Content (Markdown)")).toHaveValue(
+      "Choose all that apply.",
+    );
+    expect(
+      screen.getByRole("checkbox", { name: /mark option 1 correct/i }),
+    ).toBeChecked();
+  });
+
   it("does not invoke the add action when the title is empty", async () => {
     const user = userEvent.setup();
     vi.mocked(addPoolQuestionAction).mockClear();

@@ -24,6 +24,7 @@ import {
   isMcQuestionType,
   type McGradingStrategy,
 } from "src/lib/question-service";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
 import { type AddQuestionState, addQuestionAction } from "./actions";
 import type { SubmittedMedia } from "./question-media.schema";
 import {
@@ -182,7 +183,12 @@ function AddQuestionFormInner({
               {TYPE_DESCRIPTIONS[questionType]}
             </p>
 
-            <form key={successCount} action={formAction} className="space-y-4">
+            <form
+              key={successCount}
+              action={formAction}
+              onSubmit={submitWithoutReset(formAction)}
+              className="space-y-4"
+            >
               <input type="hidden" name="testId" value={testId} />
               <input type="hidden" name="courseId" value={courseId} />
 

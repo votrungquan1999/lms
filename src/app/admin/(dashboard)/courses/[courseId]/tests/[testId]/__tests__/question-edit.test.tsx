@@ -1231,3 +1231,161 @@ describe("Feature: Question edit panel — multi-select grading strategy", () =>
     ).toBe(null);
   });
 });
+
+describe("Feature: Question edit panel — a refused save keeps what's on screen", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("keeps the typed title, content and a newly-ticked correct-answer marker when no confirmation is needed (nobody has answered)", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Pick the prime numbers",
+      content: "Choose all that apply.",
+      type: "multi_select",
+      options: [
+        { text: "2", isCorrect: true },
+        { text: "3", isCorrect: false },
+      ],
+      mcGradingStrategy: "all_or_nothing",
+      createdBy: "admin",
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    await user.clear(editPanelField(question.id, "title"));
+    await user.type(
+      editPanelField(question.id, "title"),
+      "Pick the prime numbers (revised)",
+    );
+    // Scoped to this panel — the Add Question form names its own options
+    // "Mark option N correct" too.
+    const panelForm = editPanelField(question.id, "title").closest("form");
+    if (!panelForm) throw new Error("Expected the edit panel's form");
+    const panel = within(panelForm);
+    const optionCheckbox = panel.getByRole("checkbox", {
+      name: /mark option 2 correct/i,
+    });
+    await user.click(optionCheckbox);
+
+    // No student has answered, so Save submits directly (no confirmation).
+    mockRequireAdminSession.mockRejectedValueOnce(new Error("unauthorized"));
+    await user.click(panel.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/unauthorized: admin access required/i),
+      ).toBeInTheDocument();
+    });
+
+    // Read immediately after the refusal — retyping would append to
+    // whatever a reset left behind, masking the bug this pins.
+    expect(editPanelField(question.id, "title")).toHaveValue(
+      "Pick the prime numbers (revised)",
+    );
+    expect(optionCheckbox).toBeChecked();
+
+    const [unchanged] = await services.questionService.listQuestions(test.id);
+    expect(unchanged.title).toBe("Pick the prime numbers");
+  });
+
+  it("keeps the typed title and a newly-ticked correct-answer marker after a refused, confirmed save on an answered question", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Pick the prime numbers",
+      content: "Choose all that apply.",
+      type: "multi_select",
+      options: [
+        { text: "2", isCorrect: true },
+        { text: "3", isCorrect: false },
+      ],
+      mcGradingStrategy: "all_or_nothing",
+      createdBy: "admin",
+    });
+
+    // A student has already answered this question — Save must go through
+    // the D50 confirmation dialog before it submits.
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "mc", selectedIds: [question.options[0].id] },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    await user.clear(editPanelField(question.id, "title"));
+    await user.type(
+      editPanelField(question.id, "title"),
+      "Pick the prime numbers (revised)",
+    );
+    // Scoped to this panel — the Add Question form names its own options
+    // "Mark option N correct" too.
+    const panelForm = editPanelField(question.id, "title").closest("form");
+    if (!panelForm) throw new Error("Expected the edit panel's form");
+    const panel = within(panelForm);
+    const optionCheckbox = panel.getByRole("checkbox", {
+      name: /mark option 2 correct/i,
+    });
+    await user.click(optionCheckbox);
+    await user.click(panel.getByRole("button", { name: /^save$/i }));
+
+    const dialog = await screen.findByRole("alertdialog");
+
+    // The confirmed resubmit is refused.
+    mockRequireAdminSession.mockRejectedValueOnce(new Error("unauthorized"));
+    await user.click(
+      within(dialog).getByRole("button", { name: /save anyway/i }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/unauthorized: admin access required/i),
+      ).toBeInTheDocument();
+    });
+
+    // Read immediately after the refusal — retyping would append to
+    // whatever a reset left behind, masking the bug this pins.
+    expect(editPanelField(question.id, "title")).toHaveValue(
+      "Pick the prime numbers (revised)",
+    );
+    expect(optionCheckbox).toBeChecked();
+
+    const [unchanged] = await services.questionService.listQuestions(test.id);
+    expect(unchanged.title).toBe("Pick the prime numbers");
+  });
+});

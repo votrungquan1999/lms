@@ -285,6 +285,40 @@ describe("Feature: Add Question Form", () => {
     });
   });
 
+  describe("Scenario: Admin's submit is refused", () => {
+    it("keeps the typed title, content and the ticked correct-answer marker on screen", async () => {
+      const user = userEvent.setup();
+      vi.mocked(addQuestionAction).mockResolvedValue({
+        success: false,
+        message: "Refused",
+      });
+      render(<AddQuestionForm testId="test-1" courseId="course-1" />);
+
+      await user.click(screen.getByRole("button", { name: "Multi Select" }));
+      await user.type(screen.getByLabelText("Question Title"), "Q1");
+      await user.type(
+        screen.getByLabelText("Content (Markdown)"),
+        "Choose all that apply.",
+      );
+      await user.click(
+        screen.getByRole("checkbox", { name: /mark option 1 correct/i }),
+      );
+      await user.click(screen.getByRole("button", { name: "Add Question" }));
+
+      await screen.findByRole("alert");
+
+      // Read immediately after the refusal — retyping would append to
+      // whatever a reset left behind, masking the bug this pins.
+      expect(screen.getByLabelText("Question Title")).toHaveValue("Q1");
+      expect(screen.getByLabelText("Content (Markdown)")).toHaveValue(
+        "Choose all that apply.",
+      );
+      expect(
+        screen.getByRole("checkbox", { name: /mark option 1 correct/i }),
+      ).toBeChecked();
+    });
+  });
+
   describe("Scenario: Admin submits without filling the title", () => {
     it("should not invoke the add action when the title is empty", async () => {
       // Setup

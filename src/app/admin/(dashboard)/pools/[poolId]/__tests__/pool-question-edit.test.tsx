@@ -205,6 +205,42 @@ describe("Feature: Pool question edit panel — grading strategy", () => {
   });
 });
 
+describe("Feature: Pool question edit panel — a refused save keeps what's on screen", () => {
+  it("keeps the typed title, content and a newly-ticked correct-answer marker on screen", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updatePoolQuestionAction).mockResolvedValue({
+      success: false,
+      message: "Refused",
+    });
+    const question = singleSelectQuestion([
+      { text: "Paris", isCorrect: true },
+      { text: "London", isCorrect: false },
+    ]);
+
+    render(<PoolQuestionEditPanel question={question} poolId="pool-1" />);
+
+    await user.clear(screen.getByDisplayValue("Pick the capital"));
+    await user.type(
+      screen.getByLabelText(/title/i),
+      "Pick the capital (revised)",
+    );
+    const optionCheckbox = screen.getByRole("radio", {
+      name: /mark option 2 correct/i,
+    });
+    await user.click(optionCheckbox);
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await screen.findByRole("alert");
+
+    // Read immediately after the refusal — retyping would append to
+    // whatever a reset left behind, masking the bug this pins.
+    expect(screen.getByLabelText(/title/i)).toHaveValue(
+      "Pick the capital (revised)",
+    );
+    expect(optionCheckbox).toBeChecked();
+  });
+});
+
 describe("Feature: Delete pool question button (Step 30)", () => {
   it("deletes the pool question on confirm", async () => {
     const user = userEvent.setup();

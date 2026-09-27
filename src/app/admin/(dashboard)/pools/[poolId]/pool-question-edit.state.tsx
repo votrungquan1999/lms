@@ -28,6 +28,7 @@ import {
   QUESTION_TYPE_LABELS,
 } from "src/lib/question-labels";
 import { isMcQuestionType, type QuestionType } from "src/lib/question-service";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
 import {
   deletePoolQuestionAction,
   updatePoolQuestionAction,
@@ -128,7 +129,11 @@ export function PoolQuestionEditPanel({
     );
 
   return (
-    <form action={formAction} className="space-y-3 border-t pt-3">
+    <form
+      action={formAction}
+      onSubmit={submitWithoutReset(formAction)}
+      className="space-y-3 border-t pt-3"
+    >
       <input type="hidden" name="poolQuestionId" value={question.id} />
       <input type="hidden" name="poolId" value={poolId} />
 

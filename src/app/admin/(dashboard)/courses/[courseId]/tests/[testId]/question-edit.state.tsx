@@ -33,6 +33,7 @@ import {
   type Question,
   type QuestionType,
 } from "src/lib/question-service";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
 import {
   deleteQuestionAction,
   type UpdateQuestionState,
@@ -293,14 +294,20 @@ export function QuestionEditPanel({
       ),
     );
 
+  // Both the post-confirm resubmit (below) and the no-confirmation-needed
+  // fallthrough go through this — only the dialog-opening branch is a pure
+  // gate with no submit of its own.
+  const submitAction = submitWithoutReset(formAction);
+
   /**
    * Gates on the form's actual submit event, not just a Save click — this is
    * also what fires when Enter is pressed inside a lone text field (HTML's
    * implicit submission), which a click-only gate would miss entirely.
    */
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     if (bypassGateRef.current) {
       bypassGateRef.current = false;
+      submitAction(event);
       return;
     }
 
@@ -313,7 +320,10 @@ export function QuestionEditPanel({
     if (answeredCount > 0 && changed.length > 0) {
       event.preventDefault();
       setPendingChangeLabels(changed);
+      return;
     }
+
+    submitAction(event);
   }
 
   function handleConfirm() {
