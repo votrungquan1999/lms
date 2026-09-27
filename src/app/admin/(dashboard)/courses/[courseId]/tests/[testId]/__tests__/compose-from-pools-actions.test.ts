@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -52,6 +53,32 @@ describe("composeFromPoolsAction", () => {
     const questions = await questionService.listQuestions("test-1");
     expect(questions).toHaveLength(2);
     expect(questions.map((q) => q.title).sort()).toEqual(["PQ1", "PQ2"]);
+  });
+
+  it("names the emptied pool in the refusal and refreshes its available count", async () => {
+    const { questionPoolService, questionService } = getTestServices();
+    // A real pool with no pool-questions — the draw finds nothing.
+    const pool = await questionPoolService.createPool({
+      name: "Empty Pool",
+      description: "",
+      createdBy: "admin-1",
+    });
+
+    const form = new FormData();
+    form.set("testId", "test-1");
+    form.set("courseId", "course-1");
+    form.set("selections", JSON.stringify([{ poolId: pool.id, count: 1 }]));
+
+    const result = await composeFromPoolsAction(null, form);
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Empty Pool has no questions to draw");
+    expect(await questionService.listQuestions("test-1")).toHaveLength(0);
+    // The stale "(N available)" count on screen must refresh, not just the
+    // form's own success path.
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/admin/courses/course-1/tests/test-1",
+    );
   });
 
   it("rejects a non-admin caller and composes nothing", async () => {

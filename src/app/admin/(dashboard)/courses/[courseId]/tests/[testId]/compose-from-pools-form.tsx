@@ -11,6 +11,8 @@ import {
 } from "src/components/ui/card";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
+import { cn } from "src/lib/utils";
 import {
   type ComposeFromPoolsState,
   composeFromPoolsAction,
@@ -32,13 +34,18 @@ type SelectionState = Record<string, PoolSelection>;
 
 type SelectionAction =
   | { type: "toggle"; poolId: string; max: number }
-  | { type: "setCount"; poolId: string; count: number; max: number };
+  | { type: "setCount"; poolId: string; count: number; max: number }
+  | { type: "reset"; pools: ComposablePool[] };
 
 /** Reducer for the per-pool selection + draw-count state. */
 function selectionReducer(
   state: SelectionState,
   action: SelectionAction,
 ): SelectionState {
+  if (action.type === "reset") {
+    return buildInitialState(action.pools);
+  }
+
   const current = state[action.poolId] ?? { selected: false, count: 1 };
 
   if (action.type === "toggle") {
@@ -97,7 +104,11 @@ export function ComposeFromPoolsForm({
       .filter((pool) => selections[pool.id]?.selected)
       .map((pool) => ({ poolId: pool.id, count: selections[pool.id].count }));
     rawFormData.set("selections", JSON.stringify(chosen));
-    return composeFromPoolsAction(_prevState, rawFormData);
+    const result = await composeFromPoolsAction(_prevState, rawFormData);
+    if (result.success) {
+      dispatch({ type: "reset", pools });
+    }
+    return result;
   }, null);
 
   if (pools.length === 0) {
@@ -113,33 +124,51 @@ export function ComposeFromPoolsForm({
     );
   }
 
+  // Every pool exists but none has a question to draw — the rows are all
+  // disabled already, so name the reason instead of leaving it to the refusal.
+  const allPoolsEmpty = pools.every((pool) => pool.questionCount === 0);
+
   return (
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="text-base">Add from Pools</CardTitle>
         <CardDescription>
-          Draw a fixed set of questions from one or more pools. Copies are
-          frozen into this test at composition.
+          {allPoolsEmpty
+            ? "Your pools have no questions yet. Add questions to a pool before drawing from it."
+            : "Draw a fixed set of questions from one or more pools. Copies are frozen into this test at composition."}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="space-y-4">
+        <form
+          action={formAction}
+          onSubmit={submitWithoutReset(formAction)}
+          className="space-y-4"
+        >
           <input type="hidden" name="testId" value={testId} />
           <input type="hidden" name="courseId" value={courseId} />
 
           <ul className="space-y-2">
             {pools.map((pool) => {
               const selection = selections[pool.id];
+              const isEmpty = pool.questionCount === 0;
               return (
                 <li
                   key={pool.id}
-                  className="flex items-center gap-3 rounded-md border p-3"
+                  className={cn(
+                    "flex items-center gap-3 rounded-md border p-3",
+                    // Not `has-disabled:` — every unticked row's count box is disabled too.
+                    isEmpty && "opacity-50",
+                  )}
                   data-testid="compose-pool-row"
                 >
                   <input
                     type="checkbox"
                     id={`pool-${pool.id}`}
                     checked={selection?.selected ?? false}
+                    // A pool ticked before it emptied stays clickable so the
+                    // teacher can consciously untick it; only an unticked
+                    // empty pool stays disabled.
+                    disabled={isEmpty && !selection?.selected}
                     onChange={() =>
                       dispatch({
                         type: "toggle",
@@ -149,9 +178,12 @@ export function ComposeFromPoolsForm({
                     }
                     aria-label={`Select pool ${pool.name}`}
                   />
-                  <Label htmlFor={`pool-${pool.id}`} className="flex-1">
-                    {pool.name}{" "}
-                    <span className="text-xs text-muted-foreground">
+                  <Label
+                    htmlFor={`pool-${pool.id}`}
+                    className="min-w-0 flex-1 leading-snug"
+                  >
+                    <span className="wrap-anywhere">{pool.name}</span>{" "}
+                    <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
                       ({pool.questionCount} available)
                     </span>
                   </Label>
@@ -169,7 +201,7 @@ export function ComposeFromPoolsForm({
                         max: pool.questionCount,
                       })
                     }
-                    className="w-20"
+                    className="w-20 shrink-0"
                     aria-label={`Count for pool ${pool.name}`}
                   />
                 </li>
@@ -177,7 +209,11 @@ export function ComposeFromPoolsForm({
             })}
           </ul>
 
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button
+            type="submit"
+            disabled={isPending || allPoolsEmpty}
+            className="w-full"
+          >
             {isPending ? "Adding…" : "Add from Pools"}
           </Button>
         </form>

@@ -4,12 +4,18 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
-import type { ComposePoolSelection } from "src/lib/question-compose";
 import {
   getPoolQuestionService,
+  getQuestionPoolService,
   getQuestionService,
 } from "src/lib/services-singleton";
 import { z } from "zod";
+
+/** Names the pool(s) a zero-count draw is blamed on ("X has" / "X, Y have"). */
+function formatEmptyPoolsMessage(names: string[]): string {
+  const verb = names.length === 1 ? "has" : "have";
+  return `${names.join(", ")} ${verb} no questions to draw`;
+}
 
 const composeSchema = z.object({
   testId: z.string().min(1, "Test ID is missing"),
@@ -78,8 +84,11 @@ export async function composeFromPoolsAction(
         const poolQuestionService = await getPoolQuestionService();
         const questionService = await getQuestionService();
 
-        const selections: ComposePoolSelection[] = await Promise.all(
+        // Keep poolId alongside each resolved selection so an empty draw can
+        // name its pool instead of a generic "the selected pools" message.
+        const resolvedSelections = await Promise.all(
           parsed.data.selections.map(async (selection) => ({
+            poolId: selection.poolId,
             count: selection.count,
             questions: await poolQuestionService.listSnapshotInputs(
               selection.poolId,
@@ -87,15 +96,37 @@ export async function composeFromPoolsAction(
           })),
         );
 
+        const testPath = `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`;
         const composed = await questionService.composeFromPools(
           parsed.data.testId,
-          selections,
+          resolvedSelections,
           adminUserId,
         );
 
-        revalidatePath(
-          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-        );
+        // A pool can empty between page render and submit — the client's
+        // disabled checkbox is only a snapshot, so this is the authoritative
+        // check against a false-positive "Added 0 questions" success.
+        if (composed.length === 0) {
+          const emptyPoolIds = resolvedSelections
+            .filter((selection) => selection.questions.length === 0)
+            .map((selection) => selection.poolId);
+          const questionPoolService = await getQuestionPoolService();
+          const emptyPoolNames = await Promise.all(
+            emptyPoolIds.map(async (poolId) => {
+              const pool = await questionPoolService.getPool(poolId);
+              return pool?.name ?? "A pool";
+            }),
+          );
+          // The stale "(N available)" counts came from the pre-submit
+          // render — refresh them so a retry doesn't repeat this refusal.
+          revalidatePath(testPath);
+          return {
+            success: false,
+            message: formatEmptyPoolsMessage(emptyPoolNames),
+          };
+        }
+
+        revalidatePath(testPath);
         return {
           success: true,
           message: `Added ${composed.length} question${composed.length !== 1 ? "s" : ""} from pools`,

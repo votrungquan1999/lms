@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { insertCourse, insertTest, withDb } from "./seed";
+import {
+  expectNoPageOverflow,
+  expectWrapped,
+  insertCourse,
+  insertPool,
+  insertPoolQuestion,
+  insertTest,
+  withDb,
+} from "./seed";
 
 test.describe("Test page layout", () => {
   test("an unbroken test title never pushes the Delete Test button off the test page", async ({
@@ -53,5 +61,67 @@ test.describe("Test page layout", () => {
     });
 
     expect(Math.abs(cardWidth - availableWidth)).toBeLessThanOrEqual(1);
+  });
+
+  test("an unbroken pool name never crushes its row in Add from Pools", async ({
+    page,
+  }) => {
+    // ~2x the widest container, so a later widening can't silently hollow
+    // this; the pool list is global, so a random tag keeps re-runs distinct.
+    const tag = crypto.randomUUID().slice(0, 8);
+    const unbrokenName = `[layout] averylongunbrokenpoolname${tag}${"thatshouldwrapinsteadofcrushingtherow".repeat(5)}`;
+    const { courseId, testId } = await withDb(async (db) => {
+      const courseId = await insertCourse(db);
+      const testId = await insertTest(db, courseId);
+      await insertPool(db, { name: unbrokenName });
+      return { courseId, testId };
+    });
+
+    await page.goto(`/admin/courses/${courseId}/tests/${testId}`);
+    const row = page.getByTestId("compose-pool-row").filter({
+      hasText: unbrokenName,
+    });
+
+    // The unbroken name wraps inside the row instead of crushing it...
+    await expectWrapped(row.getByText(unbrokenName));
+    await expectNoPageOverflow(page);
+
+    // ...while the availability text stays on one line.
+    const { availableHeight, availableLineHeight } = await row
+      .getByText(/available\)$/)
+      .evaluate((el) => ({
+        availableHeight: el.getBoundingClientRect().height,
+        availableLineHeight: Number.parseFloat(getComputedStyle(el).lineHeight),
+      }));
+    expect(availableHeight).toBeLessThanOrEqual(availableLineHeight * 1.2);
+  });
+
+  test("only a pool with no questions is muted in Add from Pools", async ({
+    page,
+  }) => {
+    // The pool list is global, so a random tag keeps re-runs distinct.
+    const tag = crypto.randomUUID().slice(0, 8);
+    const filledName = `[layout] ${tag} Filled pool`;
+    const emptyName = `[layout] ${tag} Empty pool`;
+    const { courseId, testId } = await withDb(async (db) => {
+      const courseId = await insertCourse(db);
+      const testId = await insertTest(db, courseId);
+      const filledPoolId = await insertPool(db, { name: filledName });
+      await insertPoolQuestion(db, filledPoolId);
+      await insertPool(db, { name: emptyName });
+      return { courseId, testId };
+    });
+
+    await page.goto(`/admin/courses/${courseId}/tests/${testId}`);
+    const opacityOf = (name: string) =>
+      page
+        .getByTestId("compose-pool-row")
+        .filter({ hasText: name })
+        .evaluate((el) => getComputedStyle(el).opacity);
+
+    // An unticked pool that has questions reads at full strength...
+    expect(await opacityOf(filledName)).toBe("1");
+    // ...and only the empty one is muted.
+    expect(await opacityOf(emptyName)).toBe("0.5");
   });
 });

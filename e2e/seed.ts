@@ -13,6 +13,7 @@ import { type Db, MongoClient } from "mongodb";
 import type { AnswerDocument } from "../src/lib/answer-service";
 import type { CourseDocument } from "../src/lib/course-service";
 import type { EnrollmentDocument } from "../src/lib/enrollment-service";
+import type { PoolQuestionDocument } from "../src/lib/pool-question-service";
 import type { QuestionPoolDocument } from "../src/lib/question-pool-service";
 import type { QuestionDocument } from "../src/lib/question-service";
 import type { StudentDocument } from "../src/lib/student-service";
@@ -187,6 +188,38 @@ export async function insertPool(
     ...overrides,
   };
   await db.collection<QuestionPoolDocument>("question_pool").insertOne(doc);
+  return doc.id;
+}
+
+export async function insertPoolQuestion(
+  db: Db,
+  poolId: string,
+  overrides: Partial<PoolQuestionDocument> = {},
+): Promise<string> {
+  const now = new Date();
+  const doc: PoolQuestionDocument = {
+    id: crypto.randomUUID(),
+    poolId,
+    title: "[layout] Pool question",
+    content: "",
+    order: 1,
+    createdAt: now,
+    createdBy: "seed",
+    updatedAt: null,
+    updatedBy: null,
+    type: "free_text",
+    options: null,
+    weight: 1,
+    mcGradingStrategy: null,
+    explanation: null,
+    referenceAnswer: null,
+    answerRevealMode: null,
+    media: [],
+    deletedAt: null,
+    deletedBy: null,
+    ...overrides,
+  };
+  await db.collection<PoolQuestionDocument>("pool_question").insertOne(doc);
   return doc.id;
 }
 
