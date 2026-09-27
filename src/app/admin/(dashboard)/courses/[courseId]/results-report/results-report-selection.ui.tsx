@@ -24,7 +24,12 @@ export function StudentChoiceList(): React.ReactNode {
       {students.map((student) => (
         <div key={student.id} className="flex items-center gap-2">
           <RadioGroupItem value={student.id} id={`student-${student.id}`} />
-          <Label htmlFor={`student-${student.id}`}>{student.name}</Label>
+          <Label
+            htmlFor={`student-${student.id}`}
+            className="min-w-0 wrap-anywhere"
+          >
+            {student.name}
+          </Label>
         </div>
       ))}
     </RadioGroup>
@@ -46,7 +51,9 @@ export function TestChoiceList(): React.ReactNode {
             checked={selectedTestIds.includes(test.id)}
             onCheckedChange={() => toggleTest(test.id)}
           />
-          <Label htmlFor={`test-${test.id}`}>{test.title}</Label>
+          <Label htmlFor={`test-${test.id}`} className="min-w-0 wrap-anywhere">
+            {test.title}
+          </Label>
         </div>
       ))}
     </div>

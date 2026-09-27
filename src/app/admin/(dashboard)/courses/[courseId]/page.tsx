@@ -93,11 +93,13 @@ export default async function CourseDetailPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
-      <header className="w-full max-w-2xl flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{course.title}</h1>
+      <header className="w-full max-w-5xl flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-3xl font-bold tracking-tight wrap-anywhere">
+            {course.title}
+          </h1>
           {course.description && (
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground wrap-anywhere">
               {course.description}
             </p>
           )}
@@ -109,7 +111,7 @@ export default async function CourseDetailPage({
         </Button>
       </header>
 
-      <section className="w-full max-w-2xl space-y-6">
+      <section className="w-full max-w-5xl space-y-6">
         <ShareInviteLink courseId={courseId} inviteToken={course.inviteToken} />
 
         <Separator />
@@ -134,7 +136,7 @@ export default async function CourseDetailPage({
                     key={student.id}
                     className="flex items-center gap-2 rounded-md border p-3"
                   >
-                    <div>
+                    <div className="min-w-0 wrap-anywhere">
                       <p className="text-sm font-medium">{student.name}</p>
                       <p className="text-xs text-muted-foreground">
                         @{student.username}
@@ -169,7 +171,7 @@ export default async function CourseDetailPage({
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="space-y-1 flex-1 block">
-                      <div className="flex items-center justify-between pointer-events-none">
+                      <div className="flex items-center justify-between gap-4 pointer-events-none">
                         <Link
                           href={`/admin/courses/${courseId}/tests/${test.id}`}
                           className="hover:underline pointer-events-auto"
@@ -181,7 +183,7 @@ export default async function CourseDetailPage({
                         {test.totalStudents > 0 && (
                           <Link
                             href={`/admin/grading/${test.id}`}
-                            className="text-xs text-muted-foreground mr-4 pointer-events-auto hover:underline"
+                            className="shrink-0 whitespace-nowrap text-xs text-muted-foreground pointer-events-auto hover:underline"
                           >
                             {test.statusCounts[TestStatus.Graded]}/
                             {test.totalStudents} graded

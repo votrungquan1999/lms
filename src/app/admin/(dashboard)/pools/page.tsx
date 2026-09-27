@@ -52,9 +52,9 @@ export default async function PoolsPage() {
             >
               <Card className="transition-colors hover:bg-accent/50">
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center justify-between text-lg">
-                    <span>{pool.name}</span>
-                    <span className="text-sm font-normal text-muted-foreground">
+                  <CardTitle className="flex items-center justify-between gap-4 text-lg">
+                    <span className="min-w-0 wrap-anywhere">{pool.name}</span>
+                    <span className="shrink-0 whitespace-nowrap text-sm font-normal text-muted-foreground">
                       {counts[index]} question
                       {counts[index] !== 1 ? "s" : ""}
                     </span>

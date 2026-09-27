@@ -52,7 +52,7 @@ export default async function ImportAiPage({
       </header>
 
       <ImportAiProvider>
-        <section className="w-full max-w-2xl space-y-6">
+        <section className="w-full max-w-5xl space-y-6">
           <ImportAiFilePicker />
           <QuestionPreviewList
             testId={testId}

@@ -199,6 +199,18 @@ export async function expectNoPageOverflow(page: Page): Promise<void> {
   expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
 }
 
+/**
+ * The text breaks onto more than one line — proof its fixture is long enough
+ * to press on its container, so a later widening can't silently hollow the test.
+ */
+export async function expectWrapped(locator: Locator): Promise<void> {
+  const { height, lineHeight } = await locator.evaluate((el) => ({
+    height: el.getBoundingClientRect().height,
+    lineHeight: Number.parseFloat(getComputedStyle(el).lineHeight),
+  }));
+  expect(height).toBeGreaterThan(lineHeight * 1.5);
+}
+
 /** An element's own content never overflows its box (clipped or scrolled). */
 export async function expectNotClipped(locator: Locator): Promise<void> {
   const { scrollWidth, clientWidth } = await locator.evaluate((el) => ({

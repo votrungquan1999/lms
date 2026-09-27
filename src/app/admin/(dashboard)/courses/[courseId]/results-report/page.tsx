@@ -39,7 +39,7 @@ export default async function ResultsReportPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
-      <header className="w-full max-w-2xl">
+      <header className="w-full max-w-5xl">
         <h1 className="text-3xl font-bold tracking-tight">Export Results</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Pick one student and the tests to include, then export a PDF to share
@@ -52,7 +52,7 @@ export default async function ResultsReportPage({
         students={students}
         tests={tests}
       >
-        <section className="w-full max-w-2xl space-y-6">
+        <section className="w-full max-w-5xl space-y-6">
           <div className="space-y-3">
             <h2 className="text-xl font-semibold">Student</h2>
             <StudentChoiceList />

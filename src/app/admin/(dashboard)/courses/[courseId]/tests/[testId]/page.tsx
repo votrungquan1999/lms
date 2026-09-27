@@ -75,11 +75,13 @@ export default async function TestDetailPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
-      <header className="flex w-full max-w-2xl items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{test.title}</h1>
+      <header className="flex w-full max-w-5xl items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-3xl font-bold tracking-tight wrap-anywhere">
+            {test.title}
+          </h1>
           {test.description && (
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground wrap-anywhere">
               {test.description}
             </p>
           )}
@@ -101,7 +103,7 @@ export default async function TestDetailPage({
         <DeleteTestButton testId={testId} courseId={courseId} />
       </header>
 
-      <section className="w-full max-w-2xl space-y-6">
+      <section className="w-full max-w-5xl space-y-6">
         <TestSettingsPanel
           courseId={courseId}
           testId={testId}
