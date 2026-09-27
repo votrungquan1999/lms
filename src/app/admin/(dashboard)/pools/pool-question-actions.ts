@@ -105,7 +105,11 @@ export async function addPoolQuestionAction(
             // Blank/whitespace-only values normalize to "absent" (persisted null).
             referenceAnswer: data.referenceAnswer || undefined,
             explanation: data.explanation || undefined,
-            answerRevealMode: data.answerRevealMode,
+            // "inherit" is the form's explicit "use the test's setting" choice.
+            answerRevealMode:
+              data.answerRevealMode === "inherit"
+                ? undefined
+                : data.answerRevealMode,
           });
         } else if (data.type === "single_select") {
           await poolQuestionService.addPoolQuestion(data.poolId, {

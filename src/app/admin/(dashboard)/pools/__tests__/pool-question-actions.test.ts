@@ -145,6 +145,25 @@ describe("addPoolQuestionAction", () => {
     expect(question.answerRevealMode).toBeUndefined();
   });
 
+  it("stores no override when the teacher keeps the explicit 'use the test's setting' choice", async () => {
+    // The add form now always sends this value when the control is untouched,
+    // so it must land exactly like an omitted field, never as a stored mode.
+    const form = new FormData();
+    form.set("type", "free_text");
+    form.set("poolId", "pool-1");
+    form.set("title", "Explain diffusion");
+    form.set("content", "Write a short paragraph.");
+    form.set("answerRevealMode", "inherit");
+
+    const result = await addPoolQuestionAction(null, form);
+
+    expect(result.success).toBe(true);
+    const [question] =
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1");
+    if (question.type !== "free_text") throw new Error("type narrow");
+    expect(question.answerRevealMode).toBeUndefined();
+  });
+
   it("rejects a non-admin caller and stores nothing", async () => {
     requireAdminSession.mockRejectedValueOnce(new Error("forbidden"));
 

@@ -20,6 +20,12 @@ import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
 import type { PoolQuestion } from "src/lib/pool-question-service";
+import {
+  ANSWER_REVEAL_MODE_HEADING,
+  ANSWER_REVEAL_MODE_INHERIT_LABEL,
+  ANSWER_REVEAL_MODE_LABELS,
+  QUESTION_TYPE_LABELS,
+} from "src/lib/question-labels";
 import { isMcQuestionType, type QuestionType } from "src/lib/question-service";
 import {
   deletePoolQuestionAction,
@@ -158,7 +164,7 @@ export function PoolQuestionEditPanel({
               id={`pool-type-free-text-${question.id}`}
             />
             <Label htmlFor={`pool-type-free-text-${question.id}`}>
-              Free Text
+              {QUESTION_TYPE_LABELS.free_text}
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -167,7 +173,7 @@ export function PoolQuestionEditPanel({
               id={`pool-type-single-select-${question.id}`}
             />
             <Label htmlFor={`pool-type-single-select-${question.id}`}>
-              Single Select
+              {QUESTION_TYPE_LABELS.single_select}
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -176,7 +182,7 @@ export function PoolQuestionEditPanel({
               id={`pool-type-multi-select-${question.id}`}
             />
             <Label htmlFor={`pool-type-multi-select-${question.id}`}>
-              Multi Select
+              {QUESTION_TYPE_LABELS.multi_select}
             </Label>
           </div>
         </RadioGroup>
@@ -192,7 +198,7 @@ export function PoolQuestionEditPanel({
             defaultValue={originalReferenceAnswer}
           />
           <div className="space-y-1">
-            <Label>How this question shows its answer</Label>
+            <Label>{ANSWER_REVEAL_MODE_HEADING}</Label>
             <RadioGroup
               name="answerRevealMode"
               defaultValue={originalAnswerRevealMode ?? "inherit"}
@@ -203,7 +209,7 @@ export function PoolQuestionEditPanel({
                   id={`pool-reveal-inherit-${question.id}`}
                 />
                 <Label htmlFor={`pool-reveal-inherit-${question.id}`}>
-                  Inherit from the test
+                  {ANSWER_REVEAL_MODE_INHERIT_LABEL}
                 </Label>
               </div>
               <div className="flex items-center gap-2">
@@ -212,7 +218,7 @@ export function PoolQuestionEditPanel({
                   id={`pool-reveal-diff-${question.id}`}
                 />
                 <Label htmlFor={`pool-reveal-diff-${question.id}`}>
-                  Show side-by-side once composed
+                  {ANSWER_REVEAL_MODE_LABELS.diff}
                 </Label>
               </div>
               <div className="flex items-center gap-2">
@@ -221,7 +227,7 @@ export function PoolQuestionEditPanel({
                   id={`pool-reveal-plain-${question.id}`}
                 />
                 <Label htmlFor={`pool-reveal-plain-${question.id}`}>
-                  Show the answer plainly once composed
+                  {ANSWER_REVEAL_MODE_LABELS.plain}
                 </Label>
               </div>
             </RadioGroup>

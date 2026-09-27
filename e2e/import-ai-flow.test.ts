@@ -118,7 +118,7 @@ test.describe("AI Document Import Flow", () => {
     // some text — reached the mock, i.e. the real browser Worker + Turbopack
     // bundling genuinely ran.
     await expect(page.getByText(PDF_TEXT_RECEIVED_MARKER)).toBeVisible();
-    await expect(page.getByText(/free response/i)).toBeVisible();
+    await expect(page.getByText(/free text/i)).toBeVisible();
   });
 
   test("admin clicks Import and the question is actually written onto the test", async ({

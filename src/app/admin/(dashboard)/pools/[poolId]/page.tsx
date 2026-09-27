@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { MarkdownContent } from "src/components/markdown-content";
 import { Badge } from "src/components/ui/badge";
 import {
   Card,
@@ -6,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "src/components/ui/card";
+import { QUESTION_TYPE_LABELS } from "src/lib/question-labels";
 import {
   getPoolQuestionService,
   getQuestionPoolService,
@@ -15,12 +17,6 @@ import {
   DeletePoolQuestionButton,
   PoolQuestionEditPanel,
 } from "./pool-question-edit.state";
-
-const TYPE_LABELS: Record<string, string> = {
-  free_text: "Free Text",
-  single_select: "Single Select",
-  multi_select: "Multi Select",
-};
 
 export default async function PoolDetailPage({
   params,
@@ -63,7 +59,7 @@ export default async function PoolDetailPage({
                   <span className="flex items-center gap-2">
                     {question.title}
                     <Badge variant="outline">
-                      {TYPE_LABELS[question.type] ?? question.type}
+                      {QUESTION_TYPE_LABELS[question.type]}
                     </Badge>
                   </span>
                   <DeletePoolQuestionButton
@@ -74,9 +70,15 @@ export default async function PoolDetailPage({
               </CardHeader>
               <CardContent className="space-y-3">
                 {question.content && (
-                  <p className="text-sm text-muted-foreground line-clamp-3">
-                    {question.content}
-                  </p>
+                  <MarkdownContent
+                    content={
+                      question.content.length > 200
+                        ? `${question.content.slice(0, 200)}…`
+                        : question.content
+                    }
+                    compact
+                    className="text-muted-foreground line-clamp-3"
+                  />
                 )}
                 <PoolQuestionEditPanel question={question} poolId={poolId} />
               </CardContent>

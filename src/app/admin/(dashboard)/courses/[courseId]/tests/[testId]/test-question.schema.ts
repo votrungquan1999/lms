@@ -26,7 +26,9 @@ export const addQuestionSchema = z.discriminatedUnion("type", [
     content: z.string().default(""),
     referenceAnswer: z.string().trim().optional(),
     explanation: z.string().trim().optional(),
-    answerRevealMode: z.enum(["diff", "plain"]).optional(),
+    // "inherit" is the form's explicit "use the test's setting" choice —
+    // the action treats it the same as absent.
+    answerRevealMode: z.enum(["inherit", "diff", "plain"]).optional(),
   }),
   z.object({
     type: z.literal("single_select"),

@@ -6,6 +6,10 @@ import { Checkbox } from "src/components/ui/checkbox";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
+import {
+  ANSWER_REVEAL_MODE_HEADING,
+  ANSWER_REVEAL_MODE_LABELS,
+} from "src/lib/question-labels";
 import { submitWithoutReset } from "src/lib/submit-without-reset";
 import type { AnswerRevealMode } from "src/lib/test-service";
 import { setTestSettingsAction } from "./settings-actions";
@@ -114,18 +118,18 @@ export function TestSettingsPanel({
         </div>
 
         <div className="space-y-1">
-          <Label>How students see their answer</Label>
+          <Label>{ANSWER_REVEAL_MODE_HEADING}</Label>
           <RadioGroup name="answerRevealMode" defaultValue={answerRevealMode}>
             <div className="flex items-center gap-2">
               <RadioGroupItem value="diff" id="answer-reveal-diff" />
               <Label htmlFor="answer-reveal-diff">
-                Side-by-side comparison
+                {ANSWER_REVEAL_MODE_LABELS.diff}
               </Label>
             </div>
             <div className="flex items-center gap-2">
               <RadioGroupItem value="plain" id="answer-reveal-plain" />
               <Label htmlFor="answer-reveal-plain">
-                Correct answer written out plainly
+                {ANSWER_REVEAL_MODE_LABELS.plain}
               </Label>
             </div>
           </RadioGroup>

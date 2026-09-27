@@ -13,6 +13,12 @@ import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
+import {
+  ANSWER_REVEAL_MODE_HEADING,
+  ANSWER_REVEAL_MODE_INHERIT_LABEL,
+  ANSWER_REVEAL_MODE_LABELS,
+  QUESTION_TYPE_LABELS,
+} from "src/lib/question-labels";
 import type { SubmittedMedia } from "../../courses/[courseId]/tests/[testId]/question-media.schema";
 import {
   QuestionMediaPickerProvider,
@@ -35,10 +41,11 @@ interface OptionDraft {
   isCorrect: boolean;
 }
 
+/** Pool questions can't be `image_answer`, so this pulls only the 3 types they support. */
 const TYPE_LABELS: Record<QuestionType, string> = {
-  free_text: "Free Text",
-  single_select: "Single Select",
-  multi_select: "Multi Select",
+  free_text: QUESTION_TYPE_LABELS.free_text,
+  single_select: QUESTION_TYPE_LABELS.single_select,
+  multi_select: QUESTION_TYPE_LABELS.multi_select,
 };
 
 const TYPE_DESCRIPTIONS: Record<QuestionType, string> = {
@@ -269,21 +276,24 @@ function AddPoolQuestionFormInner({ poolId }: { poolId: string }) {
                     placeholder="Explain what makes a good answer…"
                   />
                   <div className="space-y-1">
-                    <Label>
-                      Answer display for this question{" "}
-                      <span className="text-xs text-muted-foreground">
-                        (optional)
-                      </span>
-                    </Label>
-                    {/* No defaultValue: nothing checked means "inherit the test's setting". */}
-                    <RadioGroup name="answerRevealMode">
+                    <Label>{ANSWER_REVEAL_MODE_HEADING}</Label>
+                    <RadioGroup name="answerRevealMode" defaultValue="inherit">
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem
+                          value="inherit"
+                          id="pool-question-answer-reveal-inherit"
+                        />
+                        <Label htmlFor="pool-question-answer-reveal-inherit">
+                          {ANSWER_REVEAL_MODE_INHERIT_LABEL}
+                        </Label>
+                      </div>
                       <div className="flex items-center gap-2">
                         <RadioGroupItem
                           value="diff"
                           id="pool-question-answer-reveal-diff"
                         />
                         <Label htmlFor="pool-question-answer-reveal-diff">
-                          Compare side by side
+                          {ANSWER_REVEAL_MODE_LABELS.diff}
                         </Label>
                       </div>
                       <div className="flex items-center gap-2">
@@ -292,13 +302,10 @@ function AddPoolQuestionFormInner({ poolId }: { poolId: string }) {
                           id="pool-question-answer-reveal-plain"
                         />
                         <Label htmlFor="pool-question-answer-reveal-plain">
-                          Write out the correct answer
+                          {ANSWER_REVEAL_MODE_LABELS.plain}
                         </Label>
                       </div>
                     </RadioGroup>
-                    <p className="text-xs text-muted-foreground">
-                      Leave unselected to use the test's own setting.
-                    </p>
                   </div>
                 </div>
               )}

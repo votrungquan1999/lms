@@ -13,6 +13,12 @@ import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
+import {
+  ANSWER_REVEAL_MODE_HEADING,
+  ANSWER_REVEAL_MODE_INHERIT_LABEL,
+  ANSWER_REVEAL_MODE_LABELS,
+  QUESTION_TYPE_LABELS,
+} from "src/lib/question-labels";
 import { isMcQuestionType } from "src/lib/question-service";
 import { type AddQuestionState, addQuestionAction } from "./actions";
 import type { SubmittedMedia } from "./question-media.schema";
@@ -36,13 +42,6 @@ interface OptionDraft {
   text: string;
   isCorrect: boolean;
 }
-
-const TYPE_LABELS: Record<QuestionType, string> = {
-  free_text: "Free Text",
-  single_select: "Single Select",
-  multi_select: "Multi Select",
-  image_answer: "Image Answer",
-};
 
 const TYPE_DESCRIPTIONS: Record<QuestionType, string> = {
   free_text: "Open-ended answer — graded manually by the teacher.",
@@ -158,7 +157,9 @@ function AddQuestionFormInner({
         <div className="flex gap-0 rounded-lg border overflow-hidden">
           {/* ── Left sidebar: type picker ───────────────────────────────── */}
           <QuestionTypeSidebar
-            options={Object.entries(TYPE_LABELS) as [QuestionType, string][]}
+            options={
+              Object.entries(QUESTION_TYPE_LABELS) as [QuestionType, string][]
+            }
             value={questionType}
             onSelect={setQuestionType}
           />
@@ -294,21 +295,24 @@ function AddQuestionFormInner({
                     placeholder="Explain what makes a good answer…"
                   />
                   <div className="space-y-1">
-                    <Label>
-                      Answer display for this question{" "}
-                      <span className="text-xs text-muted-foreground">
-                        (optional)
-                      </span>
-                    </Label>
-                    {/* No defaultValue: nothing checked means "inherit the test's setting". */}
-                    <RadioGroup name="answerRevealMode">
+                    <Label>{ANSWER_REVEAL_MODE_HEADING}</Label>
+                    <RadioGroup name="answerRevealMode" defaultValue="inherit">
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem
+                          value="inherit"
+                          id="question-answer-reveal-inherit"
+                        />
+                        <Label htmlFor="question-answer-reveal-inherit">
+                          {ANSWER_REVEAL_MODE_INHERIT_LABEL}
+                        </Label>
+                      </div>
                       <div className="flex items-center gap-2">
                         <RadioGroupItem
                           value="diff"
                           id="question-answer-reveal-diff"
                         />
                         <Label htmlFor="question-answer-reveal-diff">
-                          Compare side by side
+                          {ANSWER_REVEAL_MODE_LABELS.diff}
                         </Label>
                       </div>
                       <div className="flex items-center gap-2">
@@ -317,13 +321,10 @@ function AddQuestionFormInner({
                           id="question-answer-reveal-plain"
                         />
                         <Label htmlFor="question-answer-reveal-plain">
-                          Write out the correct answer
+                          {ANSWER_REVEAL_MODE_LABELS.plain}
                         </Label>
                       </div>
                     </RadioGroup>
-                    <p className="text-xs text-muted-foreground">
-                      Leave unselected to use the test's own setting.
-                    </p>
                   </div>
                 </div>
               )}

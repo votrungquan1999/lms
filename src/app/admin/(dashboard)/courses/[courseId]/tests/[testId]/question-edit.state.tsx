@@ -21,6 +21,12 @@ import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
 import {
+  ANSWER_REVEAL_MODE_HEADING,
+  ANSWER_REVEAL_MODE_INHERIT_LABEL,
+  ANSWER_REVEAL_MODE_LABELS,
+  QUESTION_TYPE_LABELS,
+} from "src/lib/question-labels";
+import {
   isMcQuestion,
   isMcQuestionType,
   type Question,
@@ -342,7 +348,9 @@ export function QuestionEditPanel({
               value="free_text"
               id={`type-free-text-${question.id}`}
             />
-            <Label htmlFor={`type-free-text-${question.id}`}>Free Text</Label>
+            <Label htmlFor={`type-free-text-${question.id}`}>
+              {QUESTION_TYPE_LABELS.free_text}
+            </Label>
           </div>
           <div className="flex items-center gap-2">
             <RadioGroupItem
@@ -350,7 +358,7 @@ export function QuestionEditPanel({
               id={`type-single-select-${question.id}`}
             />
             <Label htmlFor={`type-single-select-${question.id}`}>
-              Single Select
+              {QUESTION_TYPE_LABELS.single_select}
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -359,7 +367,7 @@ export function QuestionEditPanel({
               id={`type-multi-select-${question.id}`}
             />
             <Label htmlFor={`type-multi-select-${question.id}`}>
-              Multi Select
+              {QUESTION_TYPE_LABELS.multi_select}
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -368,7 +376,7 @@ export function QuestionEditPanel({
               id={`type-image-answer-${question.id}`}
             />
             <Label htmlFor={`type-image-answer-${question.id}`}>
-              Image Answer
+              {QUESTION_TYPE_LABELS.image_answer}
             </Label>
           </div>
         </RadioGroup>
@@ -384,7 +392,7 @@ export function QuestionEditPanel({
             defaultValue={originalReferenceAnswer}
           />
           <div className="space-y-1">
-            <Label>How this question shows its answer</Label>
+            <Label>{ANSWER_REVEAL_MODE_HEADING}</Label>
             <RadioGroup
               name="answerRevealMode"
               defaultValue={originalAnswerRevealMode ?? "inherit"}
@@ -395,7 +403,7 @@ export function QuestionEditPanel({
                   id={`reveal-inherit-${question.id}`}
                 />
                 <Label htmlFor={`reveal-inherit-${question.id}`}>
-                  Inherit from the test
+                  {ANSWER_REVEAL_MODE_INHERIT_LABEL}
                 </Label>
               </div>
               <div className="flex items-center gap-2">
@@ -404,7 +412,7 @@ export function QuestionEditPanel({
                   id={`reveal-diff-${question.id}`}
                 />
                 <Label htmlFor={`reveal-diff-${question.id}`}>
-                  Show side-by-side for this question
+                  {ANSWER_REVEAL_MODE_LABELS.diff}
                 </Label>
               </div>
               <div className="flex items-center gap-2">
@@ -413,7 +421,7 @@ export function QuestionEditPanel({
                   id={`reveal-plain-${question.id}`}
                 />
                 <Label htmlFor={`reveal-plain-${question.id}`}>
-                  Show the answer plainly for this question
+                  {ANSWER_REVEAL_MODE_LABELS.plain}
                 </Label>
               </div>
             </RadioGroup>

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   getTestServices,
@@ -60,11 +60,23 @@ describe("Feature: Test Settings Panel — answer-reveal display choice", () => 
     });
     const { unmount } = render(firstVisit);
 
+    // Scoped to the settings panel — the Add Question form on this same
+    // page now shares the exact "Side-by-side comparison"/"Correct answer
+    // written out plainly" wording for its own per-question override.
+    const settingsPanel = screen
+      .getByRole("heading", { name: "Test Settings" })
+      .closest("div");
+    if (!settingsPanel) throw new Error("Expected the settings panel to exist");
+
     // Given: the test starts on side-by-side comparison
-    expect(screen.getByRole("radio", { name: /side-by-side/i })).toBeChecked();
+    expect(
+      within(settingsPanel).getByRole("radio", { name: /side-by-side/i }),
+    ).toBeChecked();
 
     // When: the admin picks "plain" and saves
-    await user.click(screen.getByRole("radio", { name: /plainly/i }));
+    await user.click(
+      within(settingsPanel).getByRole("radio", { name: /plainly/i }),
+    );
     await user.click(screen.getByRole("button", { name: /save settings/i }));
 
     await waitFor(() => {
@@ -81,9 +93,19 @@ describe("Feature: Test Settings Panel — answer-reveal display choice", () => 
     });
     render(secondVisit);
 
-    expect(screen.getByRole("radio", { name: /plainly/i })).toBeChecked();
+    const settingsPanelAgain = screen
+      .getByRole("heading", { name: "Test Settings" })
+      .closest("div");
+    if (!settingsPanelAgain) {
+      throw new Error("Expected the settings panel to exist");
+    }
     expect(
-      screen.getByRole("radio", { name: /side-by-side/i }),
+      within(settingsPanelAgain).getByRole("radio", { name: /plainly/i }),
+    ).toBeChecked();
+    expect(
+      within(settingsPanelAgain).getByRole("radio", {
+        name: /side-by-side/i,
+      }),
     ).not.toBeChecked();
   });
 });

@@ -32,6 +32,7 @@ import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
+import { QUESTION_TYPE_LABELS } from "src/lib/question-labels";
 import type { ImportMode } from "./actions";
 import type { ImportQuestionDraft } from "./import-ai-form.state";
 import { useImportAi } from "./import-ai-form.state";
@@ -40,13 +41,6 @@ import {
   useQuestionEditActions,
   useQuestionEditState,
 } from "./question-edit.state";
-
-/** Human-readable label for each question type the AI can identify. */
-const TYPE_LABELS: Record<string, string> = {
-  free_text: "Free response",
-  single_select: "Multiple choice (one answer)",
-  multi_select: "Multiple choice (multiple answers)",
-};
 
 /**
  * File picker for the document to import; shows an error if unusable.
@@ -381,7 +375,9 @@ function QuestionCard({
             <span>{question.title}</span>
           </span>
           <span className="flex items-center gap-2">
-            <Badge variant="outline">{TYPE_LABELS[question.type]}</Badge>
+            <Badge variant="outline">
+              {QUESTION_TYPE_LABELS[question.type]}
+            </Badge>
             <RetryQuestionDialog question={question} />
             <Button
               type="button"

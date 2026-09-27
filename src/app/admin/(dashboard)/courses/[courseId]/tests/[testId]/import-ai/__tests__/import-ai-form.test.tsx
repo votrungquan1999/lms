@@ -93,10 +93,8 @@ describe("Feature: AI document import — a teacher uploads a Word document of q
 
     expect(await screen.findByText("Q1")).toBeInTheDocument();
     expect(screen.getByText("Q2")).toBeInTheDocument();
-    expect(screen.getByText(/free response/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/multiple choice \(one answer\)/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Free Text")).toBeInTheDocument();
+    expect(screen.getByText("Single Select")).toBeInTheDocument();
   });
 });
 
@@ -129,7 +127,7 @@ describe("Feature: AI document import — a teacher uploads a PDF of questions f
     await user.upload(screen.getByLabelText(/document/i), makePdfFile());
 
     expect(await screen.findByText("Q1")).toBeInTheDocument();
-    expect(screen.getByText(/free response/i)).toBeInTheDocument();
+    expect(screen.getByText("Free Text")).toBeInTheDocument();
     expect(extractTextFromPdf).toHaveBeenCalledTimes(1);
   });
 

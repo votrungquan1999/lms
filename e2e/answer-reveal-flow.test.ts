@@ -234,10 +234,12 @@ test.describe("Answer Reveal — diff mode", () => {
 
     // Switch this test's reveal mode to side-by-side comparison ("diff") via
     // the Test Settings panel — the setting the product exposes for this.
+    // By id: Add Question's own per-question override radio on this same
+    // page shares this exact wording now.
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
     await page.getByText(TEST_TITLE).click();
-    await page.getByRole("radio", { name: "Side-by-side comparison" }).click();
+    await page.locator("#answer-reveal-diff").click();
     await page.getByRole("button", { name: "Save Settings" }).click();
     await expect(page.getByText("Settings saved")).toBeVisible({
       timeout: 10000,

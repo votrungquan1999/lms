@@ -7,15 +7,20 @@ import {
   CardHeader,
   CardTitle,
 } from "src/components/ui/card";
+import {
+  ANSWER_REVEAL_MODE_HEADING,
+  ANSWER_REVEAL_MODE_INHERIT_LABEL,
+  ANSWER_REVEAL_MODE_LABELS,
+  QUESTION_TYPE_LABELS,
+} from "src/lib/question-labels";
 import { isMcQuestion, type Question } from "src/lib/question-service";
 import type { AnswerRevealMode } from "src/lib/test-service";
 import { DeleteQuestionButton, QuestionEditPanel } from "./question-edit.state";
 
 /** Renders a free_text question's reveal-mode override as read-only text; absent means it inherits the test's own choice. */
 function answerRevealModeLabel(mode: AnswerRevealMode | undefined): string {
-  if (mode === "diff") return "Side-by-side comparison";
-  if (mode === "plain") return "Plain";
-  return "Inherits test default";
+  if (mode === undefined) return ANSWER_REVEAL_MODE_INHERIT_LABEL;
+  return ANSWER_REVEAL_MODE_LABELS[mode];
 }
 
 /**
@@ -127,7 +132,9 @@ export function QuestionList({
                     )}
                   </p>
                   <p>
-                    <span className="font-medium">Shows answer:</span>{" "}
+                    <span className="font-medium">
+                      {ANSWER_REVEAL_MODE_HEADING}:
+                    </span>{" "}
                     {answerRevealModeLabel(question.answerRevealMode)}
                   </p>
                 </div>
@@ -136,9 +143,7 @@ export function QuestionList({
                 <div className="space-y-1 text-sm">
                   <p>
                     <span className="font-medium">Type:</span>{" "}
-                    {question.type === "single_select"
-                      ? "Single choice"
-                      : "Multiple choice"}
+                    {QUESTION_TYPE_LABELS[question.type]}
                   </p>
                   <p>
                     <span className="font-medium">Grading:</span>{" "}

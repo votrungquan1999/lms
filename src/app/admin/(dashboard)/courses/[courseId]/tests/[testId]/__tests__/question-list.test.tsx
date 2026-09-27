@@ -202,7 +202,33 @@ describe("Feature: Question read-visibility", () => {
           selector: "p",
         }),
       ).toBeInTheDocument();
-      expect(screen.getByText("Plain")).toBeInTheDocument();
+      // The heading text is its own text node inside the <span>; the edit
+      // panel below renders the identical heading as a <label> (one
+      // wording everywhere), so scoping to "span" picks the summary's own.
+      expect(
+        screen.getByText("How students see their answer:", {
+          selector: "span",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/correct answer written out plainly/i, {
+          selector: "p",
+        }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("Scenario: a free_text question has no reveal-mode override", () => {
+    it("shows the shared inherit label instead of a pool/list-only wording", () => {
+      const question = freeTextQuestion({ answerRevealMode: undefined });
+
+      render(<QuestionList questions={[question]} courseId="course-1" />);
+
+      // Scoped to the read-only <p> — the edit panel below also offers
+      // "Use the test's setting" as its own inherit radio's Label.
+      expect(
+        screen.getByText(/use the test's setting/i, { selector: "p" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -215,10 +241,11 @@ describe("Feature: Question read-visibility", () => {
 
       render(<QuestionList questions={[question]} courseId="course-1" />);
 
-      // Scoped to "Single choice" specifically — Step 28's type-switcher
-      // control in the edit panel below also renders a "Single Select"
-      // label, which a bare /single/i would ambiguously also match.
-      expect(screen.getByText(/single choice/i)).toBeInTheDocument();
+      // Scoped to the "Type:" line's own paragraph — the edit panel below
+      // also renders a "Single Select" label for its type radio, so a bare
+      // getByText(/single select/i) would match both.
+      const typeLine = screen.getByText(/^Type:$/).closest("p");
+      expect(typeLine).toHaveTextContent("Single Select");
       expect(screen.getByText("4")).toBeInTheDocument();
       expect(screen.getByText(/7.*correct/i)).toBeInTheDocument();
       expect(screen.getByText(/all.or.nothing/i)).toBeInTheDocument();

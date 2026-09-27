@@ -13,6 +13,7 @@ import {
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestDetailPage from "../page";
+import { QuestionEditPanel } from "../question-edit.state";
 
 const mockRequireAdminSession = vi.fn();
 
@@ -76,15 +77,21 @@ describe("Feature: Question edit panel — answer-reveal override", () => {
     });
     render(page);
 
-    // Given: the question has no override yet — it inherits the test's default
-    expect(
-      screen.getByRole("radio", { name: /inherit from the test/i }),
-    ).toBeChecked();
-
-    // When: the teacher switches this one question to side-by-side and saves
-    await user.click(
-      screen.getByRole("radio", { name: /side-by-side for this question/i }),
+    // Given: the question has no override yet — it inherits the test's
+    // default. Scoped by id — the Add Question form on this same page
+    // shares the exact "Use the test's setting" wording.
+    const inheritRadio = document.getElementById(
+      `reveal-inherit-${question.id}`,
     );
+    if (!inheritRadio) throw new Error("Expected the inherit radio to exist");
+    expect(inheritRadio).toBeChecked();
+
+    // When: the teacher switches this one question to side-by-side and saves.
+    // Scoped by id — the test settings panel on this same page now shares
+    // the exact "Side-by-side comparison" wording.
+    const diffRadio = document.getElementById(`reveal-diff-${question.id}`);
+    if (!diffRadio) throw new Error("Expected the diff radio to exist");
+    await user.click(diffRadio);
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() => {
@@ -96,6 +103,93 @@ describe("Feature: Question edit panel — answer-reveal override", () => {
     expect(updated).toMatchObject({
       id: question.id,
       answerRevealMode: "diff",
+    });
+  });
+
+  it("uses the same answer-display heading and option wording as the test settings panel", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+    });
+
+    // Rendered alone: on the full page the settings panel and Add Question
+    // share this wording, which would make the queries ambiguous.
+    render(
+      <QuestionEditPanel
+        question={question}
+        courseId={course.id}
+        answeredCount={0}
+      />,
+    );
+
+    expect(
+      screen.getByText("How students see their answer"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: "Use the test's setting" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: "Side-by-side comparison" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", {
+        name: "Correct answer written out plainly",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("clears an answer-reveal override when the teacher picks 'Use the test's setting'", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+      answerRevealMode: "diff",
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    const inheritRadio = document.getElementById(
+      `reveal-inherit-${question.id}`,
+    );
+    if (!inheritRadio) throw new Error("Expected the inherit radio to exist");
+    await user.click(inheritRadio);
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const [updated] = await services.questionService.listQuestions(test.id);
+    expect(updated).toMatchObject({
+      id: question.id,
+      answerRevealMode: undefined,
     });
   });
 });
@@ -251,12 +345,12 @@ describe("Feature: Question edit panel — model answer and explanation", () => 
     // No free-text-only controls on an MC question's own edit panel
     // (AddQuestionForm's own default-type Model Answer field is a separate,
     // unrelated field elsewhere on this page — see `editPanelField`'s note).
+    // Checked by id, not an unscoped role query — the Add Question form's
+    // own inherit radio shares this same "Use the test's setting" wording.
     expect(document.getElementById(`reference-answer-${question.id}`)).toBe(
       null,
     );
-    expect(
-      screen.queryByRole("radio", { name: /inherit from the test/i }),
-    ).not.toBeInTheDocument();
+    expect(document.getElementById(`reveal-inherit-${question.id}`)).toBe(null);
 
     await user.type(
       editPanelField(question.id, "explanation"),

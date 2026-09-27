@@ -125,6 +125,27 @@ describe("Feature: Pool question edit panel (Step 30)", () => {
       { id: "opt-1", text: "London", isCorrect: false },
     ]);
   });
+
+  it("shows the same answer-display heading and wording as the test settings panel, without a pool-specific suffix", () => {
+    const question = freeTextQuestion();
+
+    render(<PoolQuestionEditPanel question={question} poolId="pool-1" />);
+
+    expect(
+      screen.getByText("How students see their answer"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: "Use the test's setting" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: "Side-by-side comparison" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", {
+        name: "Correct answer written out plainly",
+      }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("Feature: Delete pool question button (Step 30)", () => {

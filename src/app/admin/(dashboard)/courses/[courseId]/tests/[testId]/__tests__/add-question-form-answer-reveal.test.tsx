@@ -63,7 +63,9 @@ describe("Feature: Add Question Form — per-question answer-reveal override", (
       "Explain photosynthesis",
     );
     await user.click(
-      screen.getByRole("radio", { name: /write out the correct answer/i }),
+      screen.getByRole("radio", {
+        name: /correct answer written out plainly/i,
+      }),
     );
     await user.click(screen.getByRole("button", { name: "Add Question" }));
     // The success banner lives outside <form> and survives the remount, so it
@@ -114,7 +116,9 @@ describe("Feature: Add Question Form — per-question answer-reveal override", (
     await user.click(screen.getByRole("button", { name: /single select/i }));
 
     expect(
-      screen.queryByRole("radio", { name: /write out the correct answer/i }),
+      screen.queryByRole("radio", {
+        name: /correct answer written out plainly/i,
+      }),
     ).not.toBeInTheDocument();
   });
 });

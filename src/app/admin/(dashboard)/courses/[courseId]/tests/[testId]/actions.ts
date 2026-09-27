@@ -236,7 +236,11 @@ export async function addQuestionAction(
             // Blank/whitespace-only values normalize to "absent" (persisted null).
             referenceAnswer: data.referenceAnswer || undefined,
             explanation: data.explanation || undefined,
-            answerRevealMode: data.answerRevealMode,
+            // "inherit" is the form's explicit "use the test's setting" choice.
+            answerRevealMode:
+              data.answerRevealMode === "inherit"
+                ? undefined
+                : data.answerRevealMode,
           });
         } else if (data.type === "image_answer") {
           await questionService.addQuestion(data.testId, {
