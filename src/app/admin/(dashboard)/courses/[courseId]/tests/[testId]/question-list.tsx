@@ -65,17 +65,14 @@ export function QuestionList({
   /** Distinct answered-student count per question id (Step 23 / D49). Absent id means nobody has answered yet. */
   answeredCounts?: Map<string, number>;
 }) {
-  if (questions.length === 0) {
-    return (
-      <p className="text-center text-muted-foreground">
-        No questions yet. Add one above or import from JSON.
-      </p>
-    );
-  }
-
   return (
     <div className="space-y-3">
       <h2 className="text-xl font-semibold">Questions ({questions.length})</h2>
+      {questions.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          No questions yet. Add one above or import from JSON.
+        </p>
+      )}
       {questions.map((question) => {
         const preview =
           question.content.length > 200

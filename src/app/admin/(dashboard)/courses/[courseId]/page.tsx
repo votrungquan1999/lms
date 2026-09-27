@@ -158,12 +158,13 @@ export default async function CourseDetailPage({
 
         <Separator />
 
-        <CreateTestDialog courseId={courseId} />
-
-        {testsWithSummary.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-xl font-semibold">Tests</h2>
-            {testsWithSummary.map((test) => (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Tests ({tests.length})</h2>
+            <CreateTestDialog courseId={courseId} />
+          </div>
+          {testsWithSummary.length > 0 ? (
+            testsWithSummary.map((test) => (
               <Card
                 key={test.id}
                 className="transition-colors hover:bg-accent/50 group"
@@ -225,15 +226,11 @@ export default async function CourseDetailPage({
                   </div>
                 </CardHeader>
               </Card>
-            ))}
-          </div>
-        )}
-
-        {tests.length === 0 && (
-          <p className="text-center text-muted-foreground">
-            No tests yet. Create one above.
-          </p>
-        )}
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">No tests yet.</p>
+          )}
+        </div>
       </section>
     </div>
   );

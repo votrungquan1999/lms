@@ -163,6 +163,27 @@ test.describe("Course layout", () => {
     expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(columnRight + 1);
   });
 
+  test('an unbroken course title never makes the Export Results breadcrumb scroll the page sideways, and never shortens "Export Results"', async ({
+    page,
+  }) => {
+    // No hyphens/spaces: browsers treat those as soft break points even
+    // without a wrap utility, so a broken string would not reproduce this.
+    const unbrokenCourseTitle = `[layout] averylongunbrokenbreadcrumbcoursetitle${"thatmustneveroverflowthepage".repeat(5)}`;
+
+    const courseId = await withDb(async (db) =>
+      insertCourse(db, { title: unbrokenCourseTitle }),
+    );
+
+    // The current segment ("Export Results") is short and static — the
+    // overflow instead came from the course-title link ahead of it, which
+    // wraps (the bar grows) while "Export Results" reads in full.
+    await page.goto(`/admin/courses/${courseId}/results-report`);
+    const nav = page.getByRole("navigation", { name: "breadcrumb" });
+    await expectWrapped(nav.getByRole("link", { name: unbrokenCourseTitle }));
+    await expectNotClipped(nav.locator('[aria-current="page"]'));
+    await expectNoPageOverflow(page);
+  });
+
   test("unbroken student names never overflow the Manage Enrollments dialog", async ({
     page,
   }) => {

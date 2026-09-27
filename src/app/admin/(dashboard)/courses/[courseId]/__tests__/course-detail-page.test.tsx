@@ -82,3 +82,49 @@ describe("Feature: CourseDetailPage X/Y graded badge links to grading", () => {
     );
   });
 });
+
+describe("Feature: Course page always shows the Tests heading beside Add Test", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("shows a 'Tests (0)' heading next to Add Test even when the course has no tests yet", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+
+    const ui = await CourseDetailPage({
+      params: Promise.resolve({ courseId: course.id }),
+    });
+    render(ui);
+
+    const heading = screen.getByRole("heading", { name: "Tests (0)" });
+    const addTestButton = screen.getByRole("button", { name: "Add Test" });
+    expect(heading.parentElement).toContainElement(addTestButton);
+  });
+
+  it("styles the empty Tests message the same as its sibling empty sections, not centred", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+
+    const ui = await CourseDetailPage({
+      params: Promise.resolve({ courseId: course.id }),
+    });
+    render(ui);
+
+    expect(screen.getByText(/no tests yet/i).className).toBe(
+      screen.getByText("No materials yet.").className,
+    );
+  });
+});

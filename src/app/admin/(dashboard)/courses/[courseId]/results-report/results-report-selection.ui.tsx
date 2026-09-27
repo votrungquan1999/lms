@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "src/components/ui/button";
 import { Checkbox } from "src/components/ui/checkbox";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
+import { buildCourseDetailHref } from "../href";
 import { buildResultsReportDownloadHref } from "./href";
 import { useResultsReportSelection } from "./results-report-selection.state";
 
@@ -12,8 +14,21 @@ import { useResultsReportSelection } from "./results-report-selection.state";
  * The student single-choice list for the results-report export view.
  */
 export function StudentChoiceList(): React.ReactNode {
-  const { students, selectedStudentId, selectStudent } =
+  const { courseId, students, selectedStudentId, selectStudent } =
     useResultsReportSelection();
+
+  if (students.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <Link
+          href={buildCourseDetailHref(courseId)}
+          className="underline hover:no-underline"
+        >
+          No students enrolled yet
+        </Link>
+      </p>
+    );
+  }
 
   return (
     <RadioGroup
@@ -40,7 +55,21 @@ export function StudentChoiceList(): React.ReactNode {
  * The test multi-choice (checkbox) list for the results-report export view.
  */
 export function TestChoiceList(): React.ReactNode {
-  const { tests, selectedTestIds, toggleTest } = useResultsReportSelection();
+  const { courseId, tests, selectedTestIds, toggleTest } =
+    useResultsReportSelection();
+
+  if (tests.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <Link
+          href={buildCourseDetailHref(courseId)}
+          className="underline hover:no-underline"
+        >
+          No tests yet
+        </Link>
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -83,8 +112,15 @@ export function ExportButton(): React.ReactNode {
   }
 
   return (
-    <Button type="button" disabled={!isReady} onClick={handleExport}>
-      Export PDF
-    </Button>
+    <div className="space-y-2">
+      <Button type="button" disabled={!isReady} onClick={handleExport}>
+        Export PDF
+      </Button>
+      {!isReady && (
+        <p className="text-sm text-muted-foreground">
+          Pick a student and at least one test
+        </p>
+      )}
+    </div>
   );
 }

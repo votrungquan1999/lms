@@ -157,6 +157,23 @@ describe("Feature: Question List media preview", () => {
 });
 
 /**
+ * Feature: A test with no questions yet still shows its "Questions (N)"
+ * heading, styled like its sibling empty sections.
+ */
+describe("Feature: Question list always shows its heading, even when empty", () => {
+  it("shows a 'Questions (0)' heading and non-centered empty text when there are no questions yet", () => {
+    render(<QuestionList questions={[]} courseId="course-1" />);
+
+    expect(
+      screen.getByRole("heading", { name: "Questions (0)" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/no questions yet/i).className).toBe(
+      "text-sm text-muted-foreground",
+    );
+  });
+});
+
+/**
  * Feature: A teacher can see what a question already holds (Step 19)
  * As a teacher who already wrote a question
  * I want its stored model answer, explanation and answer-reveal setting visible on its card

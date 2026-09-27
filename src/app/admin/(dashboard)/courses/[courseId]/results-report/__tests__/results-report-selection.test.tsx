@@ -115,4 +115,68 @@ describe("results-report export view", () => {
     await user.click(screen.getByLabelText("Test A"));
     expect(exportButton).toBeEnabled();
   });
+
+  it("hints why Export PDF is disabled until a student and a test are picked", async () => {
+    // Given the export view with nothing selected.
+    const user = userEvent.setup();
+    renderView();
+
+    // Then the disabled button carries a hint explaining what it needs.
+    expect(
+      screen.getByText("Pick a student and at least one test"),
+    ).toBeInTheDocument();
+
+    // When the admin picks a student and a test, the hint disappears.
+    await user.click(screen.getByLabelText("Alice"));
+    await user.click(screen.getByLabelText("Test A"));
+    expect(
+      screen.queryByText("Pick a student and at least one test"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains why each list is empty and links back to the course page", () => {
+    // Given a course with no enrolled students and no tests.
+    render(
+      <ResultsReportSelectionProvider
+        courseId="course-1"
+        students={[]}
+        tests={[]}
+      >
+        <StudentChoiceList />
+        <TestChoiceList />
+      </ResultsReportSelectionProvider>,
+    );
+
+    // Then each list explains itself and links back to the course page.
+    expect(
+      screen.getByRole("link", { name: /no students enrolled yet/i }),
+    ).toHaveAttribute("href", "/admin/courses/course-1");
+    expect(screen.getByRole("link", { name: /no tests yet/i })).toHaveAttribute(
+      "href",
+      "/admin/courses/course-1",
+    );
+  });
+
+  it("lets each list decide its own empty state independently", () => {
+    // Given a course with students enrolled but no tests yet.
+    render(
+      <ResultsReportSelectionProvider
+        courseId="course-1"
+        students={makeStudents()}
+        tests={[]}
+      >
+        <StudentChoiceList />
+        <TestChoiceList />
+      </ResultsReportSelectionProvider>,
+    );
+
+    // Then only the empty tests list shows its explanation.
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /no tests yet/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/no students enrolled yet/i),
+    ).not.toBeInTheDocument();
+  });
 });
