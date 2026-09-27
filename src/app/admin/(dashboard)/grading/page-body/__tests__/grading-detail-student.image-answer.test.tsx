@@ -93,4 +93,57 @@ describe("Feature: per-student grading view renders image_answer submissions", (
       screen.getByRole("spinbutton", { name: /score/i }),
     ).toBeInTheDocument();
   });
+
+  it("shows 'No answer — counts as 0' and no score form for a blank image_answer question once the student has submitted", async () => {
+    // Given an image_answer question the student never answered, submitted.
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const testDoc = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(testDoc.id, {
+      type: "image_answer",
+      title: "Handwritten Q",
+      content: "Upload your work",
+      createdBy: "admin",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-2",
+      username: "stu2",
+      name: "Stu2",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin",
+    );
+    // Q1 deliberately left blank, then explicitly submitted.
+    await services.testSubmissionService.submitTest(testDoc.id, student.id);
+
+    // When the per-student grading view renders.
+    const ui = await GradingDetailStudent({
+      test: testDoc,
+      courseId: course.id,
+      student: {
+        id: student.id,
+        name: student.name,
+        username: student.username,
+      },
+      basePath: "/admin/grading/test-1",
+    });
+    render(ui);
+
+    // Then the blank reads "counts as 0" and no score form is offered.
+    expect(screen.getByText("No answer — counts as 0")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("spinbutton", { name: /score/i }),
+    ).not.toBeInTheDocument();
+  });
 });

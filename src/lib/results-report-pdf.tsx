@@ -35,13 +35,19 @@ const styles = StyleSheet.create({
  * Presentation-only label for a score that may be pending manual grading.
  * @param score - The numeric score, or null when not yet graded.
  * @param gradeStatus - Whether the score is finalised or pending.
+ * @param hasAnswer - Whether the student answered (per-question only);
+ * a counted blank names itself so the reader doesn't mistake it for a real 0.
  */
 function scoreLabel(
   score: number | null,
   gradeStatus: QuestionGradeStatus,
+  hasAnswer = true,
 ): string {
   if (gradeStatus === QuestionGradeStatus.Pending || score === null) {
     return "Pending";
+  }
+  if (!hasAnswer) {
+    return `${score} (no answer)`;
   }
   return String(score);
 }
@@ -56,7 +62,8 @@ function QuestionRow(question: QuestionBreakdownEntry): ReactElement {
       <Text style={styles.questionTitle}>{question.title}</Text>
       <Text style={styles.meta}>Answer: {question.answer.join(", ")}</Text>
       <Text style={styles.meta}>
-        Score: {scoreLabel(question.score, question.gradeStatus)}
+        Score:{" "}
+        {scoreLabel(question.score, question.gradeStatus, question.hasAnswer)}
       </Text>
       {question.feedback ? (
         <Text style={styles.meta}>Feedback: {question.feedback}</Text>

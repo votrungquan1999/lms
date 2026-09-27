@@ -229,12 +229,12 @@ describe("Feature: GradingVariantPage", () => {
     render(ui);
 
     // Then: the roster cell contains the name, a status badge, and the
-    // literal "0/1 graded" count text.
+    // literal "0/1 graded · 1 blank" count text (Q2 was never answered).
     const cell = screen.getByTestId(`roster-cell-${student.id}`);
     expect(within(cell).getByText("Zara")).toBeInTheDocument();
     const badge = cell.querySelector("[data-status]");
     expect(badge?.getAttribute("data-status")).toBe("submitted");
-    expect(within(cell).getByText("0/1 graded")).toBeInTheDocument();
+    expect(within(cell).getByText("0/1 graded · 1 blank")).toBeInTheDocument();
   });
 
   it("should focus the student identified by ?studentId= in the main pane and mark that roster cell aria-current", async () => {

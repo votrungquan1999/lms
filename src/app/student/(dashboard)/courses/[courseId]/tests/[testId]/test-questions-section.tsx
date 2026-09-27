@@ -35,6 +35,8 @@ interface TestQuestionsSectionProps {
   hasActiveRedo: boolean;
   canAnswer: boolean;
   correctAnswersVisible: boolean;
+  /** Whether this student may see their grades yet (the grade-reveal rule). */
+  gradesVisible: boolean;
   /** Effective free-text reveal mode per question: override, or the test default. */
   answerRevealModeMap: Map<string, AnswerRevealMode>;
   /** Whole-test practice flag — drives the MC reveal-gate branch below. */
@@ -43,7 +45,6 @@ interface TestQuestionsSectionProps {
   revealMap: Map<string, boolean>;
   /** Per-question submission counts, for the practice "Attempt N" indicator. */
   attemptCountMap: Map<string, number>;
-  gradeCount: number;
 }
 
 /**
@@ -64,11 +65,11 @@ export function TestQuestionsSection({
   hasActiveRedo,
   canAnswer,
   correctAnswersVisible,
+  gradesVisible,
   answerRevealModeMap,
   isPractice,
   revealMap,
   attemptCountMap,
-  gradeCount,
 }: TestQuestionsSectionProps) {
   return (
     <section className="w-full space-y-8">
@@ -211,6 +212,15 @@ export function TestQuestionsSection({
                   </div>
                 )}
 
+                {/* ── Blank question, once grades are visible ──
+                    Mirrors the teacher's "No answer — counts as 0": the
+                    average already counts this as 0, so the student sees
+                    why instead of a silently missing answer. Withheld
+                    grades hide this 0 like every other score. */}
+                {!canAnswer && !studentAnswer && gradesVisible && (
+                  <p className="text-sm text-muted-foreground">No answer — 0</p>
+                )}
+
                 {/* ── Practice-mode reveal (free_text and MC) ──
                     free_text: `question.referenceAnswer`/`.explanation` only
                     survive the page-level scrub when the reveal gate is
@@ -309,7 +319,7 @@ export function TestQuestionsSection({
         </>
       )}
 
-      {isSubmitted && !hasActiveRedo && gradeCount === 0 && (
+      {isSubmitted && !hasActiveRedo && !gradesVisible && (
         <div className="space-y-3">
           <div className="rounded-md border border-info/30 bg-info/10 p-3 text-sm text-foreground">
             Your test has been submitted and is waiting to be graded.

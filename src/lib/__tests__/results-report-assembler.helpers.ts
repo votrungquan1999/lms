@@ -19,6 +19,7 @@ export function makeAssembler(db: Db) {
     core.testSubmissionService,
     core.gradeService,
     core.testStartService,
+    core.testService,
   );
   const assembler = new ResultsReportAssembler(
     studentService,

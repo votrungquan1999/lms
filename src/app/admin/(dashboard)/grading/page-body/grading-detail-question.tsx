@@ -2,6 +2,7 @@ import { CompactGradeForm } from "src/app/admin/(dashboard)/courses/[courseId]/t
 import { AnnotationTool } from "src/app/admin/(dashboard)/grading/page-body/annotation-tool";
 import { CollapsibleQuestionDescription } from "src/app/admin/(dashboard)/grading/page-body/grading-detail-question.ui";
 import { StudentStatusBadge } from "src/app/admin/(dashboard)/grading/student-status-badge";
+import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import { McAnswerChips } from "src/components/mc-answer-chips";
 import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
 import { QuestionMedia } from "src/components/question-media.ui";
@@ -16,6 +17,7 @@ import {
   getTestStatusService,
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
+import { hasSubmitted } from "src/lib/test-status-service";
 
 interface RosterStudent {
   id: string;
@@ -104,6 +106,14 @@ export async function GradingDetailQuestion({
     }),
   );
 
+  // Must mirror the CompactGradeForm gate below (`answer === undefined ?
+  // null : ...`) exactly, or Save & Next could target a student with
+  // nothing to land on.
+  const answeredStudentIds = rows
+    .filter((row) => row.answer !== undefined)
+    .map((row) => row.student.id)
+    .join(",");
+
   return (
     <div className="space-y-4">
       <header className="space-y-1">
@@ -135,12 +145,13 @@ export async function GradingDetailQuestion({
               </div>
 
               {answer === undefined ? (
-                // MC's "Not answered — 0" (below) already covers this case —
+                // McReadOnlyScore (below) already shows the MC blank wording —
                 // showing the generic line too would just duplicate it.
                 !isMc && (
-                  <p className="text-xs italic text-muted-foreground">
-                    No answer submitted (counts as 0).
-                  </p>
+                  <BlankAnswerNote
+                    isSubmitted={hasSubmitted(status)}
+                    score={grade?.score ?? null}
+                  />
                 )
               ) : answer.type === "mc" ? (
                 <McAnswerChips
@@ -164,8 +175,9 @@ export async function GradingDetailQuestion({
                 <McReadOnlyScore
                   selectedIds={answer?.type === "mc" ? answer.selectedIds : []}
                   score={grade?.score ?? null}
+                  isSubmitted={hasSubmitted(status)}
                 />
-              ) : (
+              ) : answer === undefined ? null : (
                 <CompactGradeForm
                   testId={test.id}
                   courseId={courseId}
@@ -178,7 +190,7 @@ export async function GradingDetailQuestion({
                   existingSolution={grade?.solution ?? null}
                   studentStatus={status}
                   saveAndNext={{
-                    candidateIds: students.map((s) => s.id).join(","),
+                    candidateIds: answeredStudentIds,
                     currentStudentId: student.id,
                     returnPath: basePath,
                     mode: "question" as const,

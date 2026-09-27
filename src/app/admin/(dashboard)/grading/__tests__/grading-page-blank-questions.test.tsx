@@ -101,11 +101,216 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     render(ui);
 
     // Then: the student card uses the answered-question count as the
-    // badge denominator (1/1, not 1/2), and the status badge reads
-    // "Graded" — proving Step 1's TestStatusService change + Step 6's
-    // denominator change both took effect end-to-end through the UI.
+    // badge denominator (1/1, not 1/2), names the one blank question, and
+    // the status badge reads "Graded" — proving Step 1's TestStatusService
+    // change + Step 6's denominator change both took effect end-to-end
+    // through the UI, plus the blank count the student's pill now admits.
     const card = await screen.findByTestId(`student-card-${student.id}`);
-    expect(within(card).getByText("1/1 graded")).toBeInTheDocument();
+    expect(within(card).getByText("1/1 graded · 1 blank")).toBeInTheDocument();
     expect(within(card).getByText("Graded")).toBeInTheDocument();
+    // And the blank free-text question reads as a counted 0 for a Graded
+    // student, not as an answer still to come.
+    expect(
+      within(card).getByText("No answer — counts as 0"),
+    ).toBeInTheDocument();
+  });
+
+  it("counts an all-blank Graded student in the 'students fully graded' progress fraction", async () => {
+    // Given a 1-question test with two enrolled students: one submits
+    // having answered nothing at all (Graded, all-blank); the other never
+    // opens the test (NotStarted).
+    const services = getTestServices();
+
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(test.id, {
+      title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
+      type: "free_text",
+    });
+
+    const gradedBlank = await services.studentService.createStudentDocument({
+      authUserId: "auth-graded-blank",
+      username: "graded-blank",
+      name: "Graded Blank",
+      createdBy: "admin",
+    });
+    const untouched = await services.studentService.createStudentDocument({
+      authUserId: "auth-untouched",
+      username: "untouched",
+      name: "Untouched",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      gradedBlank.id,
+      "admin",
+    );
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      untouched.id,
+      "admin",
+    );
+    await services.testSubmissionService.submitTest(test.id, gradedBlank.id);
+
+    // When: the admin grading page renders.
+    const ui = await GradingPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    // Then: the all-blank Graded student counts toward "fully graded",
+    // the untouched student does not — 1 of 2.
+    const fraction = screen.getByTestId("grading-progress-fraction");
+    expect(fraction.textContent).toBe("1 of 2 students fully graded");
+  });
+
+  it("counts a submitted student's blank answer toward the By-question 'students graded' fraction", async () => {
+    // Given a 1-question test with three enrolled students: one submits
+    // having left the question blank (counts as 0, nothing left to grade);
+    // one submits an answer the teacher has not scored yet; the other
+    // never opens the test (not submitted, still genuinely open).
+    const services = getTestServices();
+
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const q1 = await services.questionService.addQuestion(test.id, {
+      title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
+      type: "free_text",
+    });
+
+    const submittedBlank = await services.studentService.createStudentDocument({
+      authUserId: "auth-submitted-blank",
+      username: "submitted-blank",
+      name: "Submitted Blank",
+      createdBy: "admin",
+    });
+    const untouched = await services.studentService.createStudentDocument({
+      authUserId: "auth-untouched-2",
+      username: "untouched-2",
+      name: "Untouched Two",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      submittedBlank.id,
+      "admin",
+    );
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      untouched.id,
+      "admin",
+    );
+    await services.testSubmissionService.submitTest(test.id, submittedBlank.id);
+    const awaiting = await services.studentService.createStudentDocument({
+      authUserId: "auth-awaiting",
+      username: "awaiting",
+      name: "Awaiting Score",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      awaiting.id,
+      "admin",
+    );
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: q1.id,
+      studentId: awaiting.id,
+      answer: { type: "free_text", text: "needs a teacher" },
+    });
+    await services.testSubmissionService.submitTest(test.id, awaiting.id);
+
+    // When: the admin grading page renders in By-question mode.
+    const ui = await GradingPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+      searchParams: Promise.resolve({ mode: "question", questionId: q1.id }),
+    });
+    render(ui);
+
+    // Then: only the submitted blank counts as resolved for this question;
+    // the unscored answer and the untouched student do not — 1 of 3.
+    const fraction = screen.getByTestId("grading-progress-fraction");
+    expect(fraction.textContent).toBe("1 of 3 students graded");
+  });
+
+  it("does not call an unanswered question blank while the student can still answer it", async () => {
+    // Given: a 2-question test; the student answered Q1 and has not
+    // submitted, so Q2 is still open, not blank.
+    const services = getTestServices();
+
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const q1 = await services.questionService.addQuestion(test.id, {
+      title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
+      type: "free_text",
+    });
+    await services.questionService.addQuestion(test.id, {
+      title: "Q2",
+      content: "Q2",
+      createdBy: "admin",
+      type: "free_text",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-open",
+      username: "open-user",
+      name: "Open Olga",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin",
+    );
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: q1.id,
+      studentId: student.id,
+      answer: { type: "free_text", text: "Q1 so far" },
+    });
+
+    // When: the admin grading page renders focused on that student.
+    const ui = await GradingPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+      searchParams: Promise.resolve({ studentId: student.id }),
+    });
+    render(ui);
+
+    // Then: neither the roster cell nor the student's own pill admits a
+    // blank yet.
+    const cell = screen.getByTestId(`roster-cell-${student.id}`);
+    expect(within(cell).getByText("0/1 graded")).toBeInTheDocument();
+    const card = screen.getByTestId(`student-card-${student.id}`);
+    expect(within(card).getByText("0/1 graded")).toBeInTheDocument();
+    expect(screen.queryByText(/blank/)).toBeNull();
   });
 });

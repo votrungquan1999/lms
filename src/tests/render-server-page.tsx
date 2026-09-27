@@ -111,6 +111,7 @@ function makeServices(db: Db): TestServices {
     testSubmissionService,
     gradeService,
     testStartService,
+    testService,
   );
   // Real Gemini wrapper — service-page tests that exercise the AI path must
   // override `getAiGradeService` directly in their own `vi.mock(...)` factory.

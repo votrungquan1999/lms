@@ -79,8 +79,9 @@ describe("Feature: McQuestionGradeForm", () => {
 
 describe("Feature: McQuestionGradeForm read-only display", () => {
   describe("Scenario: MC grading is read-only, keyed on the student's selection", () => {
-    it("should hide the grade form controls and show 'Not answered — 0' when unanswered, or the real score when answered wrong", () => {
-      // Given an MC question the student never answered (no selection)
+    it("should hide the grade form controls and show 'No answer submitted' before submit, or the real score when answered wrong", () => {
+      // Given an MC question the student never answered (no selection),
+      // not yet submitted (BASE_PROPS carries no studentStatus).
       const { container: unanswered } = render(
         <McQuestionGradeForm
           {...BASE_PROPS}
@@ -96,8 +97,10 @@ describe("Feature: McQuestionGradeForm read-only display", () => {
       expect(
         within(unanswered).queryByRole("button", { name: /save/i }),
       ).not.toBeInTheDocument();
+      // And the blank reads the same pre-submit wording as free text and
+      // image, not a counted 0 before the student submits.
       expect(
-        within(unanswered).getByText("Not answered — 0"),
+        within(unanswered).getByText("No answer submitted"),
       ).toBeInTheDocument();
 
       // Given the same question, this time answered wrong (real score 0)
@@ -112,14 +115,14 @@ describe("Feature: McQuestionGradeForm read-only display", () => {
 
       // Then it shows the real score, not the "not answered" framing
       expect(
-        within(answeredWrong).queryByText("Not answered — 0"),
+        within(answeredWrong).queryByText("No answer submitted"),
       ).not.toBeInTheDocument();
       expect(within(answeredWrong).getByText(/score/i)).toHaveTextContent("0");
 
       // Given the rare answered-but-not-yet-auto-graded MC: the student DID
       // select an option, but no grade row exists (score null). The label is
       // keyed on the SELECTION, not on the null grade (R2) — so this must show
-      // the score, NOT "Not answered — 0" (which a `score === null` key gives).
+      // the score, NOT the blank wording (which a `score === null` key gives).
       const { container: answeredNoGrade } = render(
         <McQuestionGradeForm
           {...BASE_PROPS}
@@ -130,9 +133,30 @@ describe("Feature: McQuestionGradeForm read-only display", () => {
       );
 
       expect(
-        within(answeredNoGrade).queryByText("Not answered — 0"),
+        within(answeredNoGrade).queryByText("No answer submitted"),
       ).not.toBeInTheDocument();
       expect(within(answeredNoGrade).getByText(/score/i)).toBeInTheDocument();
+    });
+
+    it("should show 'No answer — counts as 0' for a blank MC question once the student has submitted", () => {
+      // Given an MC question the student left blank, test now submitted.
+      const { container } = render(
+        <McQuestionGradeForm
+          {...BASE_PROPS}
+          selectedIds={[]}
+          options={MC_OPTIONS}
+          studentStatus={TestStatus.Graded}
+        />,
+      );
+
+      // Then the blank reads the same wording as free text and image,
+      // not the pre-submit "No answer submitted".
+      expect(
+        within(container).getByText("No answer — counts as 0"),
+      ).toBeInTheDocument();
+      expect(
+        within(container).queryByText("No answer submitted"),
+      ).not.toBeInTheDocument();
     });
   });
 });
@@ -153,10 +177,45 @@ describe("Feature: FreeTextQuestionGradeForm", () => {
   });
 
   describe("Scenario: Student has not answered", () => {
-    it("should show 'No answer submitted' when answerText is null", () => {
-      render(<FreeTextQuestionGradeForm {...BASE_PROPS} answerText={null} />);
+    it("should show 'No answer submitted' when answerText is null and the student has not submitted yet", () => {
+      render(
+        <FreeTextQuestionGradeForm
+          {...BASE_PROPS}
+          answerText={null}
+          studentStatus={TestStatus.InProgress}
+        />,
+      );
 
       expect(screen.getByText("No answer submitted")).toBeInTheDocument();
+    });
+
+    it("should show 'No answer — counts as 0' once the student has submitted, with no grading form", () => {
+      render(
+        <FreeTextQuestionGradeForm
+          {...BASE_PROPS}
+          answerText={null}
+          studentStatus={TestStatus.Submitted}
+        />,
+      );
+
+      expect(screen.getByText("No answer — counts as 0")).toBeInTheDocument();
+      expect(screen.queryByLabelText(/score/i)).not.toBeInTheDocument();
+    });
+
+    it("should show the stored score instead of 'counts as 0' when the blank question was already graded", () => {
+      render(
+        <FreeTextQuestionGradeForm
+          {...BASE_PROPS}
+          answerText={null}
+          studentStatus={TestStatus.Submitted}
+          existingScore={50}
+        />,
+      );
+
+      expect(screen.getByText("No answer — scored 50")).toBeInTheDocument();
+      expect(
+        screen.queryByText("No answer — counts as 0"),
+      ).not.toBeInTheDocument();
     });
   });
 });

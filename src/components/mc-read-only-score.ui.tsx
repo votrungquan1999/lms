@@ -1,5 +1,7 @@
 "use client";
 
+import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
+
 /**
  * Read-only display of an MC question's grading outcome. MC questions are
  * auto-graded on submit, so both grading surfaces show this instead of an
@@ -12,20 +14,24 @@
  * mislabeled as "not answered".
  * @param selectedIds - IDs of the options the student selected.
  * @param score - The auto-graded score (null only when unanswered).
+ * @param isSubmitted - Whether the student has submitted the test. Renders
+ * the shared `BlankAnswerNote` when unanswered — same wording and style as
+ * free text and image.
  */
 export function McReadOnlyScore({
   selectedIds,
   score,
+  isSubmitted,
 }: {
   selectedIds: string[];
   score: number | null;
+  isSubmitted: boolean;
 }) {
   if (selectedIds.length === 0) {
-    return (
-      <p className="text-sm font-medium text-muted-foreground">
-        Not answered — 0
-      </p>
-    );
+    // A stored score with no selection can't happen through today's MC flow
+    // (auto-grading only writes a grade when the student answered), but
+    // BlankAnswerNote's stored-score branch is kept for parity.
+    return <BlankAnswerNote isSubmitted={isSubmitted} score={score} />;
   }
 
   return <p className="text-sm font-medium">Score: {score ?? 0}</p>;

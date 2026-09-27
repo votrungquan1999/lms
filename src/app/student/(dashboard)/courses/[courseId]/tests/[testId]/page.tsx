@@ -21,6 +21,7 @@ import {
   getAnswerService,
   getCourseService,
   getGradeService,
+  getGradeVisibilityService,
   getPageGuard,
   getQuestionService,
   getRedoRequestService,
@@ -123,6 +124,15 @@ export default async function StudentTestDetailPage({
     testId,
     session.studentId,
     questions.length,
+  );
+
+  // Same reveal rule the grade lookups below apply; the blank-question
+  // marker has no grade row of its own to be gated through them.
+  const gradeVisibilityService = await getGradeVisibilityService();
+  const gradesVisible = await gradeVisibilityService.canRevealGrades(
+    testId,
+    session.studentId,
+    testStatus,
   );
 
   // ── Fetch grades via visibility-aware methods ─────────────────────────────
@@ -327,11 +337,11 @@ export default async function StudentTestDetailPage({
             hasActiveRedo={!!activeRedoRequest}
             canAnswer={canAnswer}
             correctAnswersVisible={correctAnswersVisible}
+            gradesVisible={gradesVisible}
             answerRevealModeMap={answerRevealModeMap}
             isPractice={test.isPractice}
             revealMap={revealMap}
             attemptCountMap={attemptCountMap}
-            gradeCount={grades.length}
           />
         </>
       )}

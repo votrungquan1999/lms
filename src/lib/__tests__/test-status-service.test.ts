@@ -12,12 +12,14 @@ function makeServices(db: Db) {
     gradeService,
     testSubmissionService,
     testStartService,
+    testService,
   } = buildCoreServices(db);
   const testStatusService = new TestStatusService(
     answerService,
     testSubmissionService,
     gradeService,
     testStartService,
+    testService,
   );
   return {
     answerService,
@@ -25,6 +27,7 @@ function makeServices(db: Db) {
     testStatusService,
     testSubmissionService,
     testStartService,
+    testService,
   };
 }
 
@@ -56,6 +59,48 @@ describe("TestStatusService", () => {
         3,
       );
       expect(status).toBe("in_progress");
+    },
+  );
+
+  dbIt(
+    "should return 'graded' when a student explicitly submits a test having answered nothing at all",
+    async ({ db }) => {
+      const { testSubmissionService, testStatusService } = makeServices(db);
+
+      await testSubmissionService.submitTest("test-1", "student-1");
+
+      const status = await testStatusService.getStatus(
+        "test-1",
+        "student-1",
+        3,
+      );
+      expect(status).toBe("graded");
+    },
+  );
+
+  dbIt(
+    "should return 'submitted', not 'graded', when a practice test is explicitly submitted having answered nothing at all",
+    async ({ db }) => {
+      // Given: a practice test — exempt from the all-blank-is-Graded rule,
+      // so a blank practice submission reads Submitted, exactly like an
+      // answered practice submission.
+      const { testService, testSubmissionService, testStatusService } =
+        makeServices(db);
+      const practiceTest = await testService.createTest("course-1", {
+        title: "Practice Quiz",
+        description: "",
+        createdBy: "admin-1",
+        isPractice: true,
+      });
+
+      await testSubmissionService.submitTest(practiceTest.id, "student-1");
+
+      const status = await testStatusService.getStatus(
+        practiceTest.id,
+        "student-1",
+        3,
+      );
+      expect(status).toBe("submitted");
     },
   );
 

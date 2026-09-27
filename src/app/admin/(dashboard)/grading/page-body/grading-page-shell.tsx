@@ -7,7 +7,7 @@ import {
   getTestStatusService,
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
-import { TestStatus } from "src/lib/test-status-service";
+import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { GradingDetailQuestion } from "./grading-detail-question";
 import { GradingDetailStudent } from "./grading-detail-student";
 import {
@@ -86,6 +86,10 @@ export async function GradingPageShell({
         status,
         gradedCount: grades.length,
         answeredCount: latestAnswers.length,
+        // A question is only "blank" once the student can no longer answer it.
+        blankCount: hasSubmitted(status)
+          ? questions.length - latestAnswers.length
+          : 0,
       };
     }),
   );
@@ -151,17 +155,31 @@ export async function GradingPageShell({
   const denominator = orderedStudents.length;
   let numerator = 0;
   if (selection.mode === GradingMode.Question && focusedQuestion) {
-    const grades = await Promise.all(
-      orderedStudents.map((s) =>
-        gradeService.getGrade(test.id, focusedQuestion.id, s.id),
-      ),
+    const statusById = new Map(
+      cellsInEnrollmentOrder.map((c) => [c.id, c.status]),
     );
-    numerator = grades.filter((g) => g !== null).length;
+    const resolved = await Promise.all(
+      orderedStudents.map(async (s) => {
+        const grade = await gradeService.getGrade(
+          test.id,
+          focusedQuestion.id,
+          s.id,
+        );
+        if (grade !== null) return true;
+        // No grade row: only a submitted student's blank counts as
+        // resolved — an in-progress student may still go back and answer.
+        const status = statusById.get(s.id);
+        if (!status || !hasSubmitted(status)) return false;
+        const answers = await answerService.getLatestAnswers(test.id, s.id);
+        return !answers.some((a) => a.questionId === focusedQuestion.id);
+      }),
+    );
+    numerator = resolved.filter(Boolean).length;
   } else {
-    for (const c of cells) {
-      const allGraded = c.answeredCount > 0 && c.gradedCount >= c.answeredCount;
-      if (allGraded) numerator++;
-    }
+    // "Fully graded" now means exactly Graded status — an all-blank
+    // submission is vacuously fully graded, so this can no longer require
+    // answeredCount > 0.
+    numerator = cells.filter((c) => c.status === TestStatus.Graded).length;
   }
   const progressLabel =
     selection.mode === GradingMode.Question

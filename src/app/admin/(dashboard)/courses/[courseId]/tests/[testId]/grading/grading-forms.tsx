@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import { McAnswerChips } from "src/components/mc-answer-chips";
 import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
 import {
@@ -18,7 +19,7 @@ import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
 import type { McOption } from "src/lib/question-service";
-import { TestStatus } from "src/lib/test-status-service";
+import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import {
   type GradeQuestionState,
   gradeQuestionAction,
@@ -161,6 +162,12 @@ export function FreeTextQuestionGradeForm({
   id,
   ...rest
 }: FreeTextQuestionGradeFormProps) {
+  const { studentStatus, existingScore } = rest;
+  // Blank labelling only kicks in once the student has submitted — before
+  // that, the question is simply not answered yet, not "counted".
+  const isSubmitted =
+    studentStatus !== undefined && hasSubmitted(studentStatus);
+
   const answerDisplay = answerText ? (
     <div className="space-y-1">
       <p className="text-xs font-medium text-muted-foreground">
@@ -171,7 +178,7 @@ export function FreeTextQuestionGradeForm({
       </pre>
     </div>
   ) : (
-    <p className="text-xs italic text-muted-foreground">No answer submitted</p>
+    <BlankAnswerNote isSubmitted={isSubmitted} score={existingScore} />
   );
 
   return (
@@ -212,8 +219,11 @@ export function McQuestionGradeForm({
   questionTitle,
   questionOrder,
   existingScore,
+  studentStatus,
   id,
 }: McQuestionGradeFormProps) {
+  const isSubmitted =
+    studentStatus !== undefined && hasSubmitted(studentStatus);
   const answerDisplay = (
     <div className="space-y-1">
       <p className="text-xs font-medium text-muted-foreground">
@@ -234,7 +244,11 @@ export function McQuestionGradeForm({
         {questionTitle}
       </h4>
       {answerDisplay}
-      <McReadOnlyScore selectedIds={selectedIds} score={existingScore} />
+      <McReadOnlyScore
+        selectedIds={selectedIds}
+        score={existingScore}
+        isSubmitted={isSubmitted}
+      />
     </div>
   );
 }

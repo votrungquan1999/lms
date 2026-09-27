@@ -1,5 +1,6 @@
 import type { AnswerService } from "./answer-service";
 import type { GradeService } from "./grade-service";
+import type { TestService } from "./test-service";
 import type { TestStartService } from "./test-start-service";
 import type { TestSubmissionService } from "./test-submission-service";
 
@@ -14,6 +15,16 @@ export enum TestStatus {
 }
 
 /**
+ * Whether the student has pressed Submit, so an unanswered question is now a
+ * blank that counts as 0 rather than one they may still answer.
+ * @param status - The student's derived test status.
+ * @returns True for Submitted and Graded.
+ */
+export function hasSubmitted(status: TestStatus): boolean {
+  return status === TestStatus.Submitted || status === TestStatus.Graded;
+}
+
+/**
  * TestStatusService — derives the status of a test for a student
  * by combining data from AnswerService, TestSubmissionService, and GradeService.
  */
@@ -23,6 +34,7 @@ export class TestStatusService {
     private readonly testSubmissionService: TestSubmissionService,
     private readonly gradeService: GradeService,
     private readonly testStartService: TestStartService,
+    private readonly testService: TestService,
   ) {}
 
   /**
@@ -33,10 +45,13 @@ export class TestStatusService {
    * - in_progress: not explicitly submitted, and either some questions are
    *   answered or a timed test's clock has started — only pressing Submit
    *   moves past this
-   * - submitted: student explicitly submitted the test
+   * - submitted: student explicitly submitted the test and answered at
+   *   least one question that still needs a grade row
    * - graded: test was explicitly submitted AND every question the student
-   *   *answered* has a grade row. Questions the student left blank do not
-   *   need a grade row to reach this state — blanks score 0 by convention.
+   *   *answered* has a grade row. Blanks need no grade row — they score 0
+   *   by convention — so an entirely blank submission is Graded too,
+   *   unless the test is practice (practice tests never grade, so a blank
+   *   practice submission stays Submitted).
    */
   async getStatus(
     testId: string,
@@ -59,7 +74,16 @@ export class TestStatusService {
 
     if (answers.length === 0) {
       if (isSubmitted) {
-        return TestStatus.Submitted;
+        // Practice tests never create grades, so a blank practice submission
+        // is exempt from the all-blank-is-Graded rule — it reads Submitted
+        // forever, same as an answered practice submission.
+        const test = await this.testService.getTest(testId);
+        if (test?.isPractice) {
+          return TestStatus.Submitted;
+        }
+        // A submitted-but-entirely-blank test is Graded, not stuck at
+        // Submitted forever — every question counts as 0 by convention.
+        return TestStatus.Graded;
       }
       const activeStart = await this.testStartService.getActiveStart(
         testId,

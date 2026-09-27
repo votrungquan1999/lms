@@ -9,6 +9,7 @@ import {
 } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { ReleaseGradeForStudentControl } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/release-grade-for-student";
 import { AnnotationTool } from "src/app/admin/(dashboard)/grading/page-body/annotation-tool";
+import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import {
   Card,
   CardContent,
@@ -34,7 +35,7 @@ import {
   getTestSubmissionService,
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
-import { TestStatus } from "src/lib/test-status-service";
+import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { StudentStatusBadge } from "../student-status-badge";
 
 interface GradingDetailStudentProps {
@@ -133,6 +134,10 @@ export async function GradingDetailStudent({
 
   const gradedCount = grades.length;
   const answeredCount = latestAnswers.length;
+  // A question is only "blank" once the student can no longer answer it.
+  const blankCount = hasSubmitted(status)
+    ? questions.length - answeredCount
+    : 0;
   const allGraded = answeredCount > 0 && gradedCount >= answeredCount;
   const badgeClassName = allGraded
     ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
@@ -178,6 +183,7 @@ export async function GradingDetailStudent({
                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassName}`}
               >
                 {gradedCount}/{answeredCount} graded
+                {blankCount > 0 && ` · ${blankCount} blank`}
               </span>
               {!test.isPractice && (
                 <RequestRedoButton
@@ -276,9 +282,10 @@ export async function GradingDetailStudent({
                       />
                     </div>
                   ) : (
-                    <p className="text-xs italic text-muted-foreground">
-                      No answer submitted
-                    </p>
+                    <BlankAnswerNote
+                      isSubmitted={hasSubmitted(status)}
+                      score={grade?.score ?? null}
+                    />
                   )}
                   {photos.length > 0 && (
                     <CompactGradeForm

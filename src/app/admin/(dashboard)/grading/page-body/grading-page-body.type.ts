@@ -26,4 +26,6 @@ export interface RosterStudentCellModel {
   gradedCount: number;
   /** Number of questions the student submitted an answer for. */
   answeredCount: number;
+  /** Number of the test's questions the student left entirely blank. */
+  blankCount: number;
 }

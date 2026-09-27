@@ -35,6 +35,7 @@ export function RosterCell({ cell }: RosterCellProps) {
         <StudentStatusBadge status={cell.status} />
         <span>
           {cell.gradedCount}/{cell.answeredCount} graded
+          {cell.blankCount > 0 && ` · ${cell.blankCount} blank`}
         </span>
       </div>
     </div>

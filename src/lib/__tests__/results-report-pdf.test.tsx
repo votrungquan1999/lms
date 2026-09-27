@@ -51,6 +51,7 @@ function makeModel(): StudentResultsReport {
             gradeStatus: QuestionGradeStatus.Graded,
             score: 8,
             feedback: "Good",
+            hasAnswer: true,
           },
         ],
       },
@@ -69,6 +70,7 @@ function makeModel(): StudentResultsReport {
             gradeStatus: QuestionGradeStatus.Pending,
             score: null,
             feedback: null,
+            hasAnswer: true,
           },
         ],
       },
@@ -102,5 +104,52 @@ describe("renderResultsReportToBuffer", () => {
     expect(text).toContain("Test B");
     expect(text).toContain("Explain X");
     expect(text).toContain("Capital of France?");
+  });
+
+  it("labels a counted-blank question's score '0 (no answer)' but a genuinely graded question's score plainly", () => {
+    // Given a submitted, graded test with a blank question (counted 0) next
+    // to an answered, scored question.
+    const model: StudentResultsReport = {
+      student: { id: "s-1", username: "alice", name: "Alice" },
+      tests: [
+        {
+          testId: "t-A",
+          title: "Test A",
+          score: 4,
+          gradeStatus: QuestionGradeStatus.Graded,
+          status: TestStatus.Graded,
+          overallFeedback: null,
+          questions: [
+            {
+              questionId: "q-blank",
+              title: "Blank question",
+              answer: [],
+              gradeStatus: QuestionGradeStatus.Graded,
+              score: 0,
+              feedback: null,
+              hasAnswer: false,
+            },
+            {
+              questionId: "q-answered",
+              title: "Answered question",
+              answer: ["My answer"],
+              gradeStatus: QuestionGradeStatus.Graded,
+              score: 8,
+              feedback: null,
+              hasAnswer: true,
+            },
+          ],
+        },
+      ],
+    };
+
+    // When the document element tree is built.
+    const text = collectText(ResultsReportDocument(model));
+
+    // Then the blank's row names the counted zero as having no answer, and
+    // the answered row's real score has no such suffix.
+    expect(text).toContain("0 (no answer)");
+    expect(text).toContain("8");
+    expect(text).not.toContain("8 (no answer)");
   });
 });

@@ -138,5 +138,132 @@ describe("Feature: Student sees grades and average for a submitted test with one
     // the inverse of the existing page-ai-suggestions-isolation test —
     // if Step 1 regressed, the page would land on this branch instead.
     expect(screen.queryByText(/waiting to be graded/i)).toBeNull();
+
+    // And: the blank question (Q2) is marked "No answer — 0", matching
+    // the teacher's own "No answer — counts as 0" wording and explaining
+    // why the average is less than 80.
+    expect(screen.getByText("No answer — 0")).toBeInTheDocument();
+  });
+
+  it("does not mark the blank question 'No answer — 0' while the teacher has not released grades", async () => {
+    // Given: the same graded submission (Q1 answered and scored, Q2 blank),
+    // but grades are neither shown after submit nor released.
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test with one blank",
+      description: "",
+      createdBy: "admin-1",
+      showGradeAfterSubmit: false,
+    });
+    const q1 = await services.questionService.addQuestion(test.id, {
+      title: "Answered question",
+      content: "Please answer.",
+      createdBy: "admin-1",
+      type: "free_text",
+    });
+    await services.questionService.addQuestion(test.id, {
+      title: "Skipped question",
+      content: "Optional.",
+      createdBy: "admin-1",
+      type: "free_text",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-stu",
+      username: "stu",
+      name: "Stu Dent",
+      createdBy: "admin-1",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin-1",
+    );
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: q1.id,
+      studentId: student.id,
+      answer: { type: "free_text", text: "my answer" },
+    });
+    await services.testSubmissionService.submitTest(test.id, student.id);
+    await services.gradeService.gradeQuestion({
+      testId: test.id,
+      questionId: q1.id,
+      studentId: student.id,
+      score: 80,
+      feedback: "Good",
+      gradedBy: "admin-1",
+    });
+
+    // When: the student opens the test page.
+    mockStudentSession(student.id);
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    // Then: no score of any kind reaches the student — neither the
+    // average nor the blank question's 0.
+    expect(screen.queryByText(/average score/i)).toBeNull();
+    expect(screen.queryByText("No answer — 0")).toBeNull();
+  });
+
+  it("does not show the 'waiting to be graded' banner when the submission is entirely blank and grades are visible", async () => {
+    // Given: a 2-question test the student submits without answering
+    // anything — no submitAnswer calls at all, so auto-grading (MC-only)
+    // never runs and no real grade rows exist.
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "All-blank test",
+      description: "",
+      createdBy: "admin-1",
+      showGradeAfterSubmit: true,
+    });
+    await services.questionService.addQuestion(test.id, {
+      title: "Q1",
+      content: "Please answer.",
+      createdBy: "admin-1",
+      type: "free_text",
+    });
+    await services.questionService.addQuestion(test.id, {
+      title: "Q2",
+      content: "Please answer.",
+      createdBy: "admin-1",
+      type: "free_text",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-stu",
+      username: "stu",
+      name: "Stu Dent",
+      createdBy: "admin-1",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin-1",
+    );
+    await services.testSubmissionService.submitTest(test.id, student.id);
+
+    // When: the student opens the test page.
+    mockStudentSession(student.id);
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    // Then: the all-blank submission auto-reaches Graded (D5), so the
+    // average (0) renders — and "waiting to be graded" must not also
+    // appear, since the two claims contradict each other.
+    expect(screen.getByText(/average score/i)).toBeInTheDocument();
+    expect(screen.queryByText(/waiting to be graded/i)).toBeNull();
   });
 });

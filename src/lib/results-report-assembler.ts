@@ -4,7 +4,11 @@ import type { Question, QuestionService } from "./question-service";
 import type { Student, StudentService } from "./student-service";
 import type { TestFeedbackService } from "./test-feedback-service";
 import type { TestService } from "./test-service";
-import type { TestStatus, TestStatusService } from "./test-status-service";
+import {
+  hasSubmitted,
+  type TestStatus,
+  type TestStatusService,
+} from "./test-status-service";
 
 /**
  * Whether a score is finalised (graded, including a genuine 0) or still
@@ -24,7 +28,9 @@ export enum QuestionGradeStatus {
 export interface QuestionBreakdownEntry {
   questionId: string;
   title: string;
-  /** Resolved answer text(s). Empty when the student did not answer. */
+  /** Resolved answer text(s). Empty when the student did not answer, and
+   * always empty for image_answer (no text to show) even when answered —
+   * use `hasAnswer`, not this array's length, to tell blank from answered. */
   answer: string[];
   /** Pending when there is no grade row yet; Graded once scored (incl. 0). */
   gradeStatus: QuestionGradeStatus;
@@ -32,6 +38,9 @@ export interface QuestionBreakdownEntry {
   score: number | null;
   /** null when the question has no grade row yet. */
   feedback: string | null;
+  /** Whether the student submitted any answer to this question at all
+   * (distinct from `answer`'s resolved display text). */
+  hasAnswer: boolean;
 }
 
 /**
@@ -114,15 +123,21 @@ export class ResultsReportAssembler {
       const questionBreakdown: QuestionBreakdownEntry[] = questions.map((q) => {
         const answer = answers.find((a) => a.questionId === q.id);
         const grade = grades.find((g) => g.questionId === q.id);
+        // A submitted blank is Graded with score 0 by convention; before
+        // submit it may still be answered. An answered question with no
+        // grade row is genuinely Pending review.
+        const isCountedBlank = !grade && !answer && hasSubmitted(status);
         return {
           questionId: q.id,
           title: q.title,
           answer: resolveAnswer(q, answer?.answer),
-          gradeStatus: grade
-            ? QuestionGradeStatus.Graded
-            : QuestionGradeStatus.Pending,
-          score: grade ? grade.score : null,
+          gradeStatus:
+            grade || isCountedBlank
+              ? QuestionGradeStatus.Graded
+              : QuestionGradeStatus.Pending,
+          score: grade ? grade.score : isCountedBlank ? 0 : null,
           feedback: grade ? grade.feedback : null,
+          hasAnswer: answer !== undefined,
         };
       });
 
