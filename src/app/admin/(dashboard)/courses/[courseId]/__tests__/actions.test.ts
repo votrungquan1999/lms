@@ -17,6 +17,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 
 import {
+  createTestAction,
   disableInviteLinkAction,
   getInviteLinkAction,
   regenerateInviteLinkAction,
@@ -257,5 +258,29 @@ describe("Feature: an admin switches a course's join link off entirely", () => {
 
     // Then the course page is revalidated so the dead link stops showing
     expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${course.id}`);
+  });
+});
+
+describe("Feature: Create Test names a blank title as a field error", () => {
+  it("returns a title field error, not just the form-wide message", async () => {
+    // Given a course to hold the new test
+    const { courseService } = getTestServices();
+    const course = await courseService.createCourse({
+      title: "Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+
+    const formData = new FormData();
+    formData.set("courseId", course.id);
+    formData.set("title", "   ");
+    formData.set("description", "");
+
+    // When the admin submits a whitespace-only title
+    const result = await createTestAction(null, formData);
+
+    // Then the error names the title field, not only the banner
+    expect(result.success).toBe(false);
+    expect(result.fieldErrors?.title).toBe("Test title is required");
   });
 });

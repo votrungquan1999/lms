@@ -13,6 +13,7 @@ import {
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { useNow } from "src/hooks/use-now";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
 import { type CreateStudentState, createStudentAction } from "./actions";
 
 const AUTO_CLOSE_MS = 3000;
@@ -26,15 +27,20 @@ export function CreateStudentDialog() {
   const [open, setOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const [closeAt, setCloseAt] = useState<number | null>(null);
+  // A closed-and-reopened dialog abandons the last attempt — its error
+  // banner must not resurface until the admin submits again.
+  const [dismissed, setDismissed] = useState(false);
   const now = useNow();
 
   const [state, formAction, isPending] = useActionState<
     CreateStudentState | null,
     FormData
   >(async (prevState, formData) => {
+    setDismissed(false);
     const result = await createStudentAction(prevState, formData);
     if (result.success) {
       setCloseAt(Date.now() + AUTO_CLOSE_MS);
+      setFormKey((k) => k + 1);
     }
     return result;
   }, null);
@@ -42,17 +48,27 @@ export function CreateStudentDialog() {
   // Derived countdown — no intervals needed
   const remaining = closeAt !== null ? Math.ceil((closeAt - now) / 1000) : null;
 
-  // Auto-close when countdown expires
+  // Auto-close when countdown expires — the form itself already cleared at
+  // success time, so this only closes the dialog.
   useEffect(() => {
     if (remaining !== null && remaining <= 0) {
       setOpen(false);
-      setFormKey((k) => k + 1);
       setCloseAt(null);
     }
   }, [remaining]);
 
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      // Closing early (before the countdown finishes) abandons the
+      // attempt just like letting it auto-close does.
+      setCloseAt(null);
+      setDismissed(true);
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>Add Student</Button>
       </DialogTrigger>
@@ -64,7 +80,12 @@ export function CreateStudentDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <form key={formKey} action={formAction} className="space-y-4">
+        <form
+          key={formKey}
+          action={formAction}
+          onSubmit={submitWithoutReset(formAction)}
+          className="space-y-4"
+        >
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
             <Input
@@ -86,7 +107,23 @@ export function CreateStudentDialog() {
               required
               placeholder="e.g. alice"
               autoComplete="off"
+              aria-invalid={
+                !dismissed && state?.fieldErrors?.username ? "true" : undefined
+              }
+              aria-describedby={
+                !dismissed && state?.fieldErrors?.username
+                  ? "student-username-error"
+                  : undefined
+              }
             />
+            {!dismissed && state?.fieldErrors?.username && (
+              <p
+                id="student-username-error"
+                className="text-sm text-destructive"
+              >
+                {state.fieldErrors.username}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -99,7 +136,23 @@ export function CreateStudentDialog() {
               minLength={8}
               placeholder="Minimum 8 characters"
               autoComplete="new-password"
+              aria-invalid={
+                !dismissed && state?.fieldErrors?.password ? "true" : undefined
+              }
+              aria-describedby={
+                !dismissed && state?.fieldErrors?.password
+                  ? "student-password-error"
+                  : undefined
+              }
             />
+            {!dismissed && state?.fieldErrors?.password && (
+              <p
+                id="student-password-error"
+                className="text-sm text-destructive"
+              >
+                {state.fieldErrors.password}
+              </p>
+            )}
           </div>
 
           <Button type="submit" disabled={isPending} className="w-full">
@@ -113,14 +166,18 @@ export function CreateStudentDialog() {
           </output>
         )}
 
-        {state && !state.success && (
-          <div
-            className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
-            role="alert"
-          >
-            {state.message}
-          </div>
-        )}
+        {!dismissed &&
+          state &&
+          !state.success &&
+          !state.fieldErrors?.username &&
+          !state.fieldErrors?.password && (
+            <div
+              className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+              role="alert"
+            >
+              {state.message}
+            </div>
+          )}
       </DialogContent>
     </Dialog>
   );

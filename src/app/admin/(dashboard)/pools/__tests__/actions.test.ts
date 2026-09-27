@@ -34,6 +34,17 @@ afterEach(async () => {
 });
 
 describe("Pool actions", () => {
+  it("names a blank pool name as a field error, not just the form-wide message", async () => {
+    const form = new FormData();
+    form.set("name", "   ");
+    form.set("description", "");
+
+    const result = await createPoolAction(null, form);
+
+    expect(result.success).toBe(false);
+    expect(result.fieldErrors?.name).toBe("Pool name is required");
+  });
+
   it("createPoolAction persists a pool an admin can then see in the list", async () => {
     const form = new FormData();
     form.set("name", "Geometry");

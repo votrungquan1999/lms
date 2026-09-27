@@ -99,6 +99,44 @@ describe("Feature: Test Settings Panel — admin edits visibility flags", () => 
     );
   });
 
+  it("Admin unticks a previously-on flag, submits, and it stays unticked with DB false", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+      // Seed the flag ON so unticking is observable against its mount value.
+      showGradeAfterSubmit: true,
+    });
+
+    const ui = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    const gradeCheckbox = screen.getByRole("checkbox", {
+      name: /show grade after submit/i,
+    });
+    expect(gradeCheckbox).toBeChecked();
+
+    await user.click(gradeCheckbox);
+    await user.click(screen.getByRole("button", { name: /save settings/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/saved/i);
+    });
+
+    expect(gradeCheckbox).not.toBeChecked();
+    const after = await services.testService.getTest(test.id);
+    expect(after?.showGradeAfterSubmit).toBe(false);
+  });
+
   it("Admin toggles practice mode on, submits, and DB reflects the change", async () => {
     const user = userEvent.setup();
     const services = getTestServices();
@@ -132,6 +170,11 @@ describe("Feature: Test Settings Panel — admin edits visibility flags", () => 
 
     const after = await services.testService.getTest(test.id);
     expect(after?.isPractice).toBe(true);
+
+    // The box (and the time limit it disables) must still reflect the
+    // saved choice, not revert to its pre-submit value.
+    expect(practiceCheckbox).toBeChecked();
+    expect(screen.getByLabelText(/time limit \(minutes\)/i)).toBeDisabled();
   });
 
   it("renders the formatted release dates in muted text when both are set", async () => {
@@ -199,6 +242,47 @@ describe("Feature: Test Settings Panel — admin edits visibility flags", () => 
     ).toBeInTheDocument();
   });
 
+  it("hides the saved confirmation once a control changes again without saving", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+      showGradeAfterSubmit: false,
+      showCorrectAnswerAfterSubmit: false,
+    });
+
+    const ui = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(ui);
+
+    await user.click(
+      screen.getByRole("checkbox", { name: /show grade after submit/i }),
+    );
+    await user.click(screen.getByRole("button", { name: /save settings/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/saved/i);
+    });
+
+    // Change a different control without saving — the confirmation no
+    // longer describes what's on screen, so it must disappear.
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /show correct answer after submit/i,
+      }),
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("On admin auth failure, DB is untouched and error UI is shown", async () => {
     const user = userEvent.setup();
     const services = getTestServices();
@@ -239,5 +323,9 @@ describe("Feature: Test Settings Panel — admin edits visibility flags", () => 
     const after = await services.testService.getTest(test.id);
     expect(after?.showGradeAfterSubmit).toBe(false);
     expect(after?.showCorrectAnswerAfterSubmit).toBe(false);
+
+    // The ticked checkbox must still read as ticked — not reverted to its
+    // stale mount value — so a retry doesn't silently resubmit the old flag.
+    expect(gradeCheckbox).toBeChecked();
   });
 });

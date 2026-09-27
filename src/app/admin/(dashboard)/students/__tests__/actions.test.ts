@@ -21,6 +21,7 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => authHolder.authService),
 }));
 
+import { createStudentAction } from "../actions";
 import { ImportOutcome, PreviewStatus } from "../bulk-import.types";
 import {
   bulkImportStudentsAction,
@@ -294,5 +295,43 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
     expect(result.message).toContain("Unauthorized");
     const all = await getTestServices().studentService.listStudents();
     expect(all).toHaveLength(0);
+  });
+});
+
+describe("Feature: Create Student names a taken username as a field error", () => {
+  it("returns a username field error, not just the form-wide message", async () => {
+    // Given a student already registered with "alice"
+    const form1 = new FormData();
+    form1.set("name", "Alice");
+    form1.set("username", "alice");
+    form1.set("password", "password123");
+    await createStudentAction(null, form1);
+
+    // When a second admin tries to create another student with the same username
+    const form2 = new FormData();
+    form2.set("name", "Alice Two");
+    form2.set("username", "alice");
+    form2.set("password", "password123");
+    const result = await createStudentAction(null, form2);
+
+    // Then the error names the username field, not only the banner
+    expect(result.success).toBe(false);
+    expect(result.fieldErrors?.username).toBe("Username already exists");
+  });
+});
+
+describe("Feature: Create Student names a short password as a field error", () => {
+  it("returns a password field error, not just the form-wide message", async () => {
+    const form = new FormData();
+    form.set("name", "Alice");
+    form.set("username", "alice");
+    form.set("password", "short");
+
+    const result = await createStudentAction(null, form);
+
+    expect(result.success).toBe(false);
+    expect(result.fieldErrors?.password).toBe(
+      "Password must be at least 8 characters",
+    );
   });
 });

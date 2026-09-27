@@ -13,6 +13,7 @@ import {
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
 import { createPoolAction, type PoolActionState } from "./actions";
 
 /**
@@ -20,13 +21,29 @@ import { createPoolAction, type PoolActionState } from "./actions";
  */
 export function CreatePoolDialog() {
   const [open, setOpen] = useState(false);
+  const [successCount, setSuccessCount] = useState(0);
+  // A closed-and-reopened dialog abandons the last attempt — its banner
+  // must not resurface until the admin submits again.
+  const [dismissed, setDismissed] = useState(false);
   const [state, formAction, isPending] = useActionState<
     PoolActionState | null,
     FormData
-  >(createPoolAction, null);
+  >(async (_prevState, formData) => {
+    setDismissed(false);
+    const result = await createPoolAction(_prevState, formData);
+    if (result.success) {
+      setSuccessCount((c) => c + 1);
+    }
+    return result;
+  }, null);
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) setDismissed(true);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>Add Pool</Button>
       </DialogTrigger>
@@ -38,7 +55,12 @@ export function CreatePoolDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form
+          key={successCount}
+          action={formAction}
+          onSubmit={submitWithoutReset(formAction)}
+          className="space-y-4"
+        >
           <div className="space-y-2">
             <Label htmlFor="name">Pool Name</Label>
             <Input
@@ -48,7 +70,20 @@ export function CreatePoolDialog() {
               required
               placeholder="e.g. Algebra basics"
               autoComplete="off"
+              aria-invalid={
+                !dismissed && state?.fieldErrors?.name ? "true" : undefined
+              }
+              aria-describedby={
+                !dismissed && state?.fieldErrors?.name
+                  ? "pool-name-error"
+                  : undefined
+              }
             />
+            {!dismissed && state?.fieldErrors?.name && (
+              <p id="pool-name-error" className="text-sm text-destructive">
+                {state.fieldErrors.name}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -66,13 +101,13 @@ export function CreatePoolDialog() {
           </Button>
         </form>
 
-        {state?.success && (
+        {!dismissed && state?.success && (
           <output className="block rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
             {state.message}
           </output>
         )}
 
-        {state && !state.success && (
+        {!dismissed && state && !state.success && !state.fieldErrors?.name && (
           <div
             className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             role="alert"

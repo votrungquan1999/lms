@@ -24,6 +24,7 @@ const deletePoolSchema = z.object({
 export interface PoolActionState {
   success: boolean;
   message: string;
+  fieldErrors?: { name?: string };
 }
 
 /**
@@ -50,7 +51,13 @@ export async function createPoolAction(
   });
 
   if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0].message };
+    const issue = parsed.error.issues[0];
+    return {
+      success: false,
+      message: issue.message,
+      fieldErrors:
+        issue.path[0] === "name" ? { name: issue.message } : undefined,
+    };
   }
 
   try {

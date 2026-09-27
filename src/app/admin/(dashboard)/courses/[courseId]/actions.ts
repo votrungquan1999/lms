@@ -267,6 +267,7 @@ const createTestSchema = z.object({
 export interface CreateTestState {
   success: boolean;
   message: string;
+  fieldErrors?: { title?: string };
 }
 
 /**
@@ -295,7 +296,13 @@ export async function createTestAction(
   });
 
   if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0].message };
+    const issue = parsed.error.issues[0];
+    return {
+      success: false,
+      message: issue.message,
+      fieldErrors:
+        issue.path[0] === "title" ? { title: issue.message } : undefined,
+    };
   }
 
   try {

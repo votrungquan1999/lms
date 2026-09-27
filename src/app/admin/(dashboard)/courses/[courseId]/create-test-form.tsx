@@ -14,6 +14,7 @@ import {
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
+import { submitWithoutReset } from "src/lib/submit-without-reset";
 import { type CreateTestState, createTestAction } from "./actions";
 
 /**
@@ -21,13 +22,29 @@ import { type CreateTestState, createTestAction } from "./actions";
  */
 export function CreateTestDialog({ courseId }: { courseId: string }) {
   const [open, setOpen] = useState(false);
+  const [successCount, setSuccessCount] = useState(0);
+  // A closed-and-reopened dialog abandons the last attempt — its banner
+  // must not resurface until the admin submits again.
+  const [dismissed, setDismissed] = useState(false);
   const [state, formAction, isPending] = useActionState<
     CreateTestState | null,
     FormData
-  >(createTestAction, null);
+  >(async (_prevState, formData) => {
+    setDismissed(false);
+    const result = await createTestAction(_prevState, formData);
+    if (result.success) {
+      setSuccessCount((c) => c + 1);
+    }
+    return result;
+  }, null);
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) setDismissed(true);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline">Add Test</Button>
       </DialogTrigger>
@@ -37,7 +54,12 @@ export function CreateTestDialog({ courseId }: { courseId: string }) {
           <DialogDescription>Add a new test to this course.</DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form
+          key={successCount}
+          action={formAction}
+          onSubmit={submitWithoutReset(formAction)}
+          className="space-y-4"
+        >
           <input type="hidden" name="courseId" value={courseId} />
 
           <div className="space-y-2">
@@ -49,7 +71,20 @@ export function CreateTestDialog({ courseId }: { courseId: string }) {
               required
               placeholder="e.g. Midterm Exam"
               autoComplete="off"
+              aria-invalid={
+                !dismissed && state?.fieldErrors?.title ? "true" : undefined
+              }
+              aria-describedby={
+                !dismissed && state?.fieldErrors?.title
+                  ? "test-title-error"
+                  : undefined
+              }
             />
+            {!dismissed && state?.fieldErrors?.title && (
+              <p id="test-title-error" className="text-sm text-destructive">
+                {state.fieldErrors.title}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -79,13 +114,13 @@ export function CreateTestDialog({ courseId }: { courseId: string }) {
           </Button>
         </form>
 
-        {state?.success && (
+        {!dismissed && state?.success && (
           <output className="block rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
             {state.message}
           </output>
         )}
 
-        {state && !state.success && (
+        {!dismissed && state && !state.success && !state.fieldErrors?.title && (
           <div
             className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
             role="alert"

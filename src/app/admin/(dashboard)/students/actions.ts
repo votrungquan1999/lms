@@ -8,6 +8,7 @@ import { withSpan } from "src/lib/observability/with-span";
 export interface CreateStudentState {
   success: boolean;
   message: string;
+  fieldErrors?: { username?: string; password?: string };
   student?: {
     id: string;
     username: string;
@@ -46,10 +47,8 @@ export async function createStudentAction(
   }
 
   if (password.length < 8) {
-    return {
-      success: false,
-      message: "Password must be at least 8 characters",
-    };
+    const message = "Password must be at least 8 characters";
+    return { success: false, message, fieldErrors: { password: message } };
   }
 
   try {
@@ -78,6 +77,13 @@ export async function createStudentAction(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to create student";
-    return { success: false, message };
+    return {
+      success: false,
+      message,
+      fieldErrors:
+        message === "Username already exists"
+          ? { username: message }
+          : undefined,
+    };
   }
 }
