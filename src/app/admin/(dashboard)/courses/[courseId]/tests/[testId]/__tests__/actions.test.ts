@@ -2,6 +2,7 @@ import type { Db } from "mongodb";
 import {
   type FreeTextQuestion,
   MediaContentType,
+  type MultiSelectQuestion,
   type QuestionDocument,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
@@ -264,6 +265,118 @@ describe("Feature: teacher attaches media to a question", () => {
         await getTestServices().questionService.listQuestions("test-1");
       expect(questions).toHaveLength(0);
     });
+  });
+});
+
+describe("Feature: a teacher chooses all-or-nothing or partial credit for a multi-select question", () => {
+  it("persists the chosen grading strategy when adding a multi_select question", async () => {
+    const formData = new FormData();
+    formData.set("type", "multi_select");
+    formData.set("testId", "test-1");
+    formData.set("courseId", "course-1");
+    formData.set("title", "Pick the prime numbers");
+    formData.set("content", "Choose all that apply.");
+    formData.set(
+      "options",
+      JSON.stringify([
+        { text: "2", isCorrect: true },
+        { text: "3", isCorrect: true },
+        { text: "4", isCorrect: false },
+      ]),
+    );
+    formData.set("mcGradingStrategy", "partial");
+
+    const result = await addQuestionAction(null, formData);
+
+    expect(result.success).toBe(true);
+    const [question] =
+      await getTestServices().questionService.listQuestions("test-1");
+    expect((question as MultiSelectQuestion).mcGradingStrategy).toBe("partial");
+  });
+
+  it("persists a changed grading strategy when editing a multi_select question", async () => {
+    const question = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Pick the prime numbers",
+        content: "Choose all that apply.",
+        type: "multi_select",
+        options: [
+          { text: "2", isCorrect: true },
+          { text: "3", isCorrect: true },
+          { text: "4", isCorrect: false },
+        ],
+        mcGradingStrategy: "all_or_nothing",
+        createdBy: "admin-1",
+      },
+    );
+
+    const formData = new FormData();
+    formData.set("questionId", question.id);
+    formData.set("testId", "test-1");
+    formData.set("courseId", "course-1");
+    formData.set("mcGradingStrategy", "partial");
+
+    const result = await updateQuestionAction(null, formData);
+
+    expect(result.success).toBe(true);
+    const [updated] =
+      await getTestServices().questionService.listQuestions("test-1");
+    expect((updated as MultiSelectQuestion).mcGradingStrategy).toBe("partial");
+  });
+
+  it("scores the next submission with the edited rule while an earlier submission keeps its score", async () => {
+    const services = getTestServices();
+    const question = await services.questionService.addQuestion("test-1", {
+      title: "Pick the prime numbers",
+      content: "Choose all that apply.",
+      type: "multi_select",
+      options: [
+        { text: "2", isCorrect: true },
+        { text: "3", isCorrect: true },
+        { text: "4", isCorrect: false },
+      ],
+      mcGradingStrategy: "all_or_nothing",
+      createdBy: "admin-1",
+    });
+    // One of the two correct options: 0 under all-or-nothing, 50 under partial.
+    const halfRight = {
+      type: "mc" as const,
+      selectedIds: [question.options[0].id],
+    };
+    await services.answerService.submitAnswer({
+      testId: "test-1",
+      questionId: question.id,
+      studentId: "student-before",
+      answer: halfRight,
+    });
+    await services.testSubmissionService.submitTest("test-1", "student-before");
+
+    const formData = new FormData();
+    formData.set("questionId", question.id);
+    formData.set("testId", "test-1");
+    formData.set("courseId", "course-1");
+    formData.set("mcGradingStrategy", "partial");
+    expect((await updateQuestionAction(null, formData)).success).toBe(true);
+
+    await services.answerService.submitAnswer({
+      testId: "test-1",
+      questionId: question.id,
+      studentId: "student-after",
+      answer: halfRight,
+    });
+    await services.testSubmissionService.submitTest("test-1", "student-after");
+
+    const [earlier] = await services.gradeService.getGrades(
+      "test-1",
+      "student-before",
+    );
+    const [later] = await services.gradeService.getGrades(
+      "test-1",
+      "student-after",
+    );
+    expect(earlier.score).toBe(0);
+    expect(later.score).toBe(50);
   });
 });
 

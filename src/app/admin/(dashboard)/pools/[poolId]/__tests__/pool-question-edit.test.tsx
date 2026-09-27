@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type {
   PoolFreeTextQuestion,
+  PoolMultiSelectQuestion,
   PoolSingleSelectQuestion,
 } from "src/lib/pool-question-service";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -145,6 +146,62 @@ describe("Feature: Pool question edit panel (Step 30)", () => {
         name: "Correct answer written out plainly",
       }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Feature: Pool question edit panel — grading strategy", () => {
+  it("starts on the question's stored grading strategy and submits a changed choice", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updatePoolQuestionAction).mockResolvedValue({
+      success: true,
+      message: "Question updated",
+    });
+    const question: PoolMultiSelectQuestion = {
+      id: "pq-3",
+      poolId: "pool-1",
+      title: "Pick the prime numbers",
+      content: "Choose all that apply.",
+      order: 1,
+      createdAt: new Date(0),
+      weight: 1,
+      media: [],
+      type: "multi_select",
+      // Stored as partial, not the control's own All-or-nothing fallback.
+      mcGradingStrategy: "partial",
+      options: [
+        { id: "opt-0", text: "2", isCorrect: true },
+        { id: "opt-1", text: "3", isCorrect: true },
+        { id: "opt-2", text: "4", isCorrect: false },
+      ],
+    };
+
+    render(<PoolQuestionEditPanel question={question} poolId="pool-1" />);
+
+    expect(screen.getByRole("radio", { name: "Partial credit" })).toBeChecked();
+
+    await user.click(screen.getByRole("radio", { name: "All-or-nothing" }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const submitted = vi.mocked(updatePoolQuestionAction).mock
+      .calls[0][1] as FormData;
+    expect(submitted.get("mcGradingStrategy")).toBe("all_or_nothing");
+  });
+
+  it("hides the grading control for a single_select pool question", () => {
+    const question = singleSelectQuestion([
+      { text: "Paris", isCorrect: true },
+      { text: "London", isCorrect: false },
+    ]);
+
+    render(<PoolQuestionEditPanel question={question} poolId="pool-1" />);
+
+    expect(
+      screen.queryByRole("radio", { name: "All-or-nothing" }),
+    ).not.toBeInTheDocument();
   });
 });
 

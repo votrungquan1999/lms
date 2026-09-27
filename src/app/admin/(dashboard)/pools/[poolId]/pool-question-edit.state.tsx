@@ -24,6 +24,7 @@ import {
   ANSWER_REVEAL_MODE_HEADING,
   ANSWER_REVEAL_MODE_INHERIT_LABEL,
   ANSWER_REVEAL_MODE_LABELS,
+  MC_GRADING_STRATEGY_LABELS,
   QUESTION_TYPE_LABELS,
 } from "src/lib/question-labels";
 import { isMcQuestionType, type QuestionType } from "src/lib/question-service";
@@ -76,6 +77,8 @@ export function PoolQuestionEditPanel({
     question.type !== "free_text" || question.explanation !== undefined
       ? question.explanation
       : undefined;
+  const originalMcGradingStrategy =
+    question.type === "multi_select" ? question.mcGradingStrategy : undefined;
 
   const [state, formAction, isPending] = useActionState(
     (
@@ -296,6 +299,35 @@ export function PoolQuestionEditPanel({
           <Button type="button" variant="outline" size="sm" onClick={addOption}>
             + Add Option
           </Button>
+        </div>
+      )}
+
+      {selectedType === "multi_select" && (
+        <div className="space-y-1">
+          <Label>Grading</Label>
+          <RadioGroup
+            name="mcGradingStrategy"
+            defaultValue={originalMcGradingStrategy ?? "all_or_nothing"}
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem
+                value="all_or_nothing"
+                id={`pool-grading-all-or-nothing-${question.id}`}
+              />
+              <Label htmlFor={`pool-grading-all-or-nothing-${question.id}`}>
+                {MC_GRADING_STRATEGY_LABELS.all_or_nothing}
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem
+                value="partial"
+                id={`pool-grading-partial-${question.id}`}
+              />
+              <Label htmlFor={`pool-grading-partial-${question.id}`}>
+                {MC_GRADING_STRATEGY_LABELS.partial}
+              </Label>
+            </div>
+          </RadioGroup>
         </div>
       )}
 

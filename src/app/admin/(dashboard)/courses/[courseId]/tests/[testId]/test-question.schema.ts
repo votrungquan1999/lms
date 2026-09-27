@@ -94,6 +94,8 @@ export const editQuestionSchema = z.object({
   type: z
     .enum(["free_text", "single_select", "multi_select", "image_answer"])
     .optional(),
+  // multi_select-only; absent means "leave unchanged".
+  mcGradingStrategy: z.enum(["all_or_nothing", "partial"]).optional(),
 });
 
 /** Schema validating the JSON file body for bulk question import. */

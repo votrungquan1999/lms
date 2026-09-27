@@ -65,4 +65,6 @@ export const editPoolQuestionSchema = z.object({
     .min(2, "At least 2 options are required")
     .optional(),
   type: z.enum(["free_text", "single_select", "multi_select"]).optional(),
+  // multi_select-only; absent means "leave unchanged".
+  mcGradingStrategy: z.enum(["all_or_nothing", "partial"]).optional(),
 });

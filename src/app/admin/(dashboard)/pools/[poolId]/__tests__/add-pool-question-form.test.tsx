@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { addPoolQuestionAction } from "../../pool-question-actions";
@@ -127,5 +127,62 @@ describe("Feature: Add Pool Question Form", () => {
         name: /correct answer written out plainly/i,
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the grading control only for Multi Select, defaults to All-or-nothing, and submits the chosen strategy", async () => {
+    const user = userEvent.setup();
+    vi.mocked(addPoolQuestionAction).mockClear();
+    vi.mocked(addPoolQuestionAction).mockResolvedValue({
+      success: true,
+      message: "Question added to pool",
+    });
+    render(<AddPoolQuestionForm poolId="pool-1" />);
+
+    expect(
+      screen.queryByRole("radio", { name: "All-or-nothing" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /single select/i }));
+    expect(
+      screen.queryByRole("radio", { name: "All-or-nothing" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /multi select/i }));
+
+    expect(screen.getByRole("radio", { name: "All-or-nothing" })).toBeChecked();
+
+    await user.click(screen.getByRole("radio", { name: "Partial credit" }));
+    await user.type(screen.getByLabelText("Question Title"), "Closures");
+    await user.click(screen.getByRole("button", { name: "Add Question" }));
+
+    expect(
+      await screen.findByText("Question added to pool"),
+    ).toBeInTheDocument();
+    const submittedForm = vi.mocked(addPoolQuestionAction).mock
+      .calls[0][1] as FormData;
+    expect(submittedForm.get("mcGradingStrategy")).toBe("partial");
+  });
+
+  it("keeps the chosen grading strategy after a successful add, like the type", async () => {
+    const user = userEvent.setup();
+    vi.mocked(addPoolQuestionAction).mockClear();
+    vi.mocked(addPoolQuestionAction).mockResolvedValue({
+      success: true,
+      message: "Question added to pool",
+    });
+    render(<AddPoolQuestionForm poolId="pool-1" />);
+
+    await user.click(screen.getByRole("button", { name: /multi select/i }));
+    await user.click(screen.getByRole("radio", { name: "Partial credit" }));
+    await user.type(screen.getByLabelText("Question Title"), "Closures");
+    await user.click(screen.getByRole("button", { name: "Add Question" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Question Title")).toHaveValue(""),
+    );
+
+    expect(screen.getByRole("button", { name: /multi select/i })).toHaveClass(
+      "bg-background",
+    );
+    expect(screen.getByRole("radio", { name: "Partial credit" })).toBeChecked();
   });
 });

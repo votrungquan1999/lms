@@ -68,6 +68,7 @@ export async function updateQuestionAction(
     content: formData.get("content") ?? undefined,
     ...(options !== undefined && { options }),
     type: formData.get("type") ?? undefined,
+    mcGradingStrategy: formData.get("mcGradingStrategy") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -121,6 +122,9 @@ export async function updateQuestionAction(
         }
         if (data.type !== undefined) {
           input.type = data.type;
+        }
+        if (data.mcGradingStrategy !== undefined) {
+          input.mcGradingStrategy = data.mcGradingStrategy;
         }
 
         await questionService.updateQuestion(
@@ -192,6 +196,7 @@ export async function addQuestionAction(
     explanation: formData.get("explanation")?.toString(),
     referenceAnswer: formData.get("referenceAnswer")?.toString(),
     answerRevealMode: formData.get("answerRevealMode")?.toString(),
+    mcGradingStrategy: formData.get("mcGradingStrategy")?.toString(),
   });
 
   if (!parsed.success) {

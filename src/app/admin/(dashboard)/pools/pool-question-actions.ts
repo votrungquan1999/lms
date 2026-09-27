@@ -63,6 +63,7 @@ export async function addPoolQuestionAction(
     explanation: formData.get("explanation")?.toString(),
     referenceAnswer: formData.get("referenceAnswer")?.toString(),
     answerRevealMode: formData.get("answerRevealMode")?.toString(),
+    mcGradingStrategy: formData.get("mcGradingStrategy")?.toString(),
   });
 
   if (!parsed.success) {
@@ -190,6 +191,7 @@ export async function updatePoolQuestionAction(
     content: formData.get("content") ?? undefined,
     ...(options !== undefined && { options }),
     type: formData.get("type") ?? undefined,
+    mcGradingStrategy: formData.get("mcGradingStrategy") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -233,6 +235,9 @@ export async function updatePoolQuestionAction(
         }
         if (data.type !== undefined) {
           input.type = data.type;
+        }
+        if (data.mcGradingStrategy !== undefined) {
+          input.mcGradingStrategy = data.mcGradingStrategy;
         }
 
         await poolQuestionService.updatePoolQuestion(

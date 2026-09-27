@@ -17,9 +17,13 @@ import {
   ANSWER_REVEAL_MODE_HEADING,
   ANSWER_REVEAL_MODE_INHERIT_LABEL,
   ANSWER_REVEAL_MODE_LABELS,
+  MC_GRADING_STRATEGY_LABELS,
   QUESTION_TYPE_LABELS,
 } from "src/lib/question-labels";
-import { isMcQuestionType } from "src/lib/question-service";
+import {
+  isMcQuestionType,
+  type McGradingStrategy,
+} from "src/lib/question-service";
 import { type AddQuestionState, addQuestionAction } from "./actions";
 import type { SubmittedMedia } from "./question-media.schema";
 import {
@@ -94,6 +98,11 @@ function AddQuestionFormInner({
     useQuestionMediaPickerActions();
   const [questionType, setQuestionType] = useState<QuestionType>("free_text");
   const [options, setOptions] = useState<OptionDraft[]>(INITIAL_OPTIONS);
+  // Lifted like `questionType` (not a native uncontrolled radio inside the
+  // remounted form) so a successful add keeps the chosen strategy instead
+  // of resetting it, the same way the chosen type stays selected.
+  const [mcGradingStrategy, setMcGradingStrategy] =
+    useState<McGradingStrategy>("all_or_nothing");
 
   const [successCount, setSuccessCount] = useState(0);
 
@@ -104,6 +113,9 @@ function AddQuestionFormInner({
     rawFormData.set("type", questionType);
     if (isMcQuestionType(questionType)) {
       rawFormData.set("options", JSON.stringify(options));
+    }
+    if (questionType === "multi_select") {
+      rawFormData.set("mcGradingStrategy", mcGradingStrategy);
     }
 
     // Upload media to S3 before creating the question. A failure here aborts
@@ -266,6 +278,38 @@ function AddQuestionFormInner({
                   >
                     + Add Option
                   </Button>
+                </div>
+              )}
+
+              {/* Multi-select-only: all-or-nothing vs. partial credit */}
+              {questionType === "multi_select" && (
+                <div className="space-y-1">
+                  <Label>Grading</Label>
+                  <RadioGroup
+                    value={mcGradingStrategy}
+                    onValueChange={(value) =>
+                      setMcGradingStrategy(value as McGradingStrategy)
+                    }
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem
+                        value="all_or_nothing"
+                        id="question-grading-all-or-nothing"
+                      />
+                      <Label htmlFor="question-grading-all-or-nothing">
+                        {MC_GRADING_STRATEGY_LABELS.all_or_nothing}
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem
+                        value="partial"
+                        id="question-grading-partial"
+                      />
+                      <Label htmlFor="question-grading-partial">
+                        {MC_GRADING_STRATEGY_LABELS.partial}
+                      </Label>
+                    </div>
+                  </RadioGroup>
                 </div>
               )}
 

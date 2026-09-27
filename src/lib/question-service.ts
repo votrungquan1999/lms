@@ -282,6 +282,12 @@ export interface UpdateQuestionInput {
    * who had selected it.
    */
   options?: { id?: string; text: string; isCorrect: boolean }[];
+  /**
+   * multi_select only. No clear state — switching away from
+   * multi_select is what nulls it (the type-switch block below), not this
+   * field on its own.
+   */
+  mcGradingStrategy?: McGradingStrategy;
 }
 
 /**
@@ -550,6 +556,11 @@ export class QuestionService {
     }
     if ("content" in input && input.content !== undefined) {
       set.content = input.content;
+    }
+    // Set BEFORE the type-switch block below, which nulls it when the
+    // resolved type is no longer MC — that null must win over this value.
+    if ("mcGradingStrategy" in input) {
+      set.mcGradingStrategy = input.mcGradingStrategy ?? null;
     }
     const optionsProvided = "options" in input && input.options !== undefined;
     const typeChanging =

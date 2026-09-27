@@ -180,6 +180,31 @@ describe("addPoolQuestionAction", () => {
       await getTestServices().poolQuestionService.listPoolQuestions("pool-1"),
     ).toHaveLength(0);
   });
+
+  it("persists the chosen grading strategy on a multi_select pool question", async () => {
+    const form = new FormData();
+    form.set("type", "multi_select");
+    form.set("poolId", "pool-1");
+    form.set("title", "Pick the prime numbers");
+    form.set("content", "Choose all that apply.");
+    form.set(
+      "options",
+      JSON.stringify([
+        { text: "2", isCorrect: true },
+        { text: "3", isCorrect: true },
+        { text: "4", isCorrect: false },
+      ]),
+    );
+    form.set("mcGradingStrategy", "partial");
+
+    const result = await addPoolQuestionAction(null, form);
+
+    expect(result.success).toBe(true);
+    const [question] =
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1");
+    if (question.type !== "multi_select") throw new Error("type narrow");
+    expect(question.mcGradingStrategy).toBe("partial");
+  });
 });
 
 /** Builds the FormData a pool question edit panel submits. */
@@ -230,6 +255,35 @@ describe("updatePoolQuestionAction (Step 30)", () => {
       testId: null,
       action: "update",
     });
+  });
+
+  it("persists a changed grading strategy when editing a multi_select pool question", async () => {
+    const question =
+      await getTestServices().poolQuestionService.addPoolQuestion("pool-1", {
+        type: "multi_select",
+        title: "Pick the prime numbers",
+        content: "Choose all that apply.",
+        createdBy: "admin-1",
+        options: [
+          { text: "2", isCorrect: true },
+          { text: "3", isCorrect: true },
+          { text: "4", isCorrect: false },
+        ],
+        mcGradingStrategy: "all_or_nothing",
+      });
+
+    const result = await updatePoolQuestionAction(
+      null,
+      buildUpdatePoolQuestionFormData(question.id, {
+        mcGradingStrategy: "partial",
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    const [updated] =
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1");
+    if (updated.type !== "multi_select") throw new Error("type narrow");
+    expect(updated.mcGradingStrategy).toBe("partial");
   });
 
   it("stores no options when switching a pool question into free_text, even though the FormData still carries an options payload (D54)", async () => {

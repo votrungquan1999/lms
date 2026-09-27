@@ -24,6 +24,7 @@ import {
   ANSWER_REVEAL_MODE_HEADING,
   ANSWER_REVEAL_MODE_INHERIT_LABEL,
   ANSWER_REVEAL_MODE_LABELS,
+  MC_GRADING_STRATEGY_LABELS,
   QUESTION_TYPE_LABELS,
 } from "src/lib/question-labels";
 import {
@@ -82,6 +83,10 @@ const OPTIONS_CHANGED_LABEL =
 /** Severity wording for a type switch (Step 28 / D46) — a blanket statement, since no saved answer survives it. */
 const TYPE_CHANGED_LABEL =
   "the question type — this invalidates every answer already given for it";
+
+/** Wording for a grading-rule-only change: names that the rule, not the scoring of past submissions, is what changes. */
+const GRADING_STRATEGY_CHANGED_LABEL =
+  "the grading rule — applies to future submissions; existing scores stay";
 
 /**
  * Reads the panel's current (uncontrolled) field values from `formData` and
@@ -159,6 +164,16 @@ function deriveChangedFieldLabels(
     }
   }
 
+  if (!typeChanged && question.type === "multi_select") {
+    const mcGradingStrategy = formData.get("mcGradingStrategy")?.toString();
+    if (
+      mcGradingStrategy !== undefined &&
+      mcGradingStrategy !== question.mcGradingStrategy
+    ) {
+      labels.push(GRADING_STRATEGY_CHANGED_LABEL);
+    }
+  }
+
   return labels;
 }
 
@@ -202,6 +217,8 @@ export function QuestionEditPanel({
     question.type === "free_text" || isMcQuestion(question)
       ? question.explanation
       : undefined;
+  const originalMcGradingStrategy =
+    question.type === "multi_select" ? question.mcGradingStrategy : undefined;
 
   // Options aren't plain uncontrolled inputs (rows can be added/removed), so
   // they're tracked as component state, prefilled from the stored question,
@@ -490,6 +507,35 @@ export function QuestionEditPanel({
           <Button type="button" variant="outline" size="sm" onClick={addOption}>
             + Add Option
           </Button>
+        </div>
+      )}
+
+      {selectedType === "multi_select" && (
+        <div className="space-y-1">
+          <Label>Grading</Label>
+          <RadioGroup
+            name="mcGradingStrategy"
+            defaultValue={originalMcGradingStrategy ?? "all_or_nothing"}
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem
+                value="all_or_nothing"
+                id={`grading-all-or-nothing-${question.id}`}
+              />
+              <Label htmlFor={`grading-all-or-nothing-${question.id}`}>
+                {MC_GRADING_STRATEGY_LABELS.all_or_nothing}
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem
+                value="partial"
+                id={`grading-partial-${question.id}`}
+              />
+              <Label htmlFor={`grading-partial-${question.id}`}>
+                {MC_GRADING_STRATEGY_LABELS.partial}
+              </Label>
+            </div>
+          </RadioGroup>
         </div>
       )}
 

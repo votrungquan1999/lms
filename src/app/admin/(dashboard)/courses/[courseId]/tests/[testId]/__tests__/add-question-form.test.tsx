@@ -68,6 +68,73 @@ describe("Feature: Add Question Form", () => {
     });
   });
 
+  describe("Scenario: Admin chooses partial credit for a multi-select question", () => {
+    it("shows the grading control only for Multi Select, defaults to All-or-nothing, and submits the chosen strategy", async () => {
+      // Given the add-question form, still on its default free_text type
+      const user = userEvent.setup();
+      vi.mocked(addQuestionAction).mockClear();
+      vi.mocked(addQuestionAction).mockResolvedValue({
+        success: true,
+        message: "Question added successfully",
+      });
+      render(<AddQuestionForm testId="test-1" courseId="course-1" />);
+
+      // Then no grading control exists yet, nor for Single Select
+      expect(
+        screen.queryByRole("radio", { name: "All-or-nothing" }),
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Single Select" }));
+      expect(
+        screen.queryByRole("radio", { name: "All-or-nothing" }),
+      ).not.toBeInTheDocument();
+
+      // When the admin switches to Multi Select
+      await user.click(screen.getByRole("button", { name: "Multi Select" }));
+
+      // Then it appears, defaulting to All-or-nothing
+      expect(
+        screen.getByRole("radio", { name: "All-or-nothing" }),
+      ).toBeChecked();
+
+      // When the admin picks Partial credit and submits
+      await user.click(screen.getByRole("radio", { name: "Partial credit" }));
+      await user.type(screen.getByLabelText("Question Title"), "Q1");
+      await user.click(screen.getByRole("button", { name: "Add Question" }));
+
+      await waitFor(() => expect(addQuestionAction).toHaveBeenCalled());
+      const formData = vi.mocked(addQuestionAction).mock.calls[0][1];
+      expect(formData.get("mcGradingStrategy")).toBe("partial");
+    });
+
+    it("keeps the chosen grading strategy after a successful add, like the type", async () => {
+      const user = userEvent.setup();
+      vi.mocked(addQuestionAction).mockClear();
+      vi.mocked(addQuestionAction).mockResolvedValue({
+        success: true,
+        message: "Question added successfully",
+      });
+      render(<AddQuestionForm testId="test-1" courseId="course-1" />);
+
+      await user.click(screen.getByRole("button", { name: "Multi Select" }));
+      await user.click(screen.getByRole("radio", { name: "Partial credit" }));
+      await user.type(screen.getByLabelText("Question Title"), "Q1");
+      await user.click(screen.getByRole("button", { name: "Add Question" }));
+
+      await waitFor(() =>
+        expect(screen.getByLabelText("Question Title")).toHaveValue(""),
+      );
+
+      // The type sidebar and the grading choice both survive the remount
+      // that clears the rest of the form.
+      expect(screen.getByRole("button", { name: "Multi Select" })).toHaveClass(
+        "bg-background",
+      );
+      expect(
+        screen.getByRole("radio", { name: "Partial credit" }),
+      ).toBeChecked();
+    });
+  });
+
   describe("Scenario: Content textarea is configured for markdown", () => {
     it("should have sufficient rows for pasting markdown", () => {
       // Setup & Action

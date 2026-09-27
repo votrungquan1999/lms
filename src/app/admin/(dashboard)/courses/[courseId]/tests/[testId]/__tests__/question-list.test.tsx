@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import {
   type FreeTextQuestion,
   MediaContentType,
+  type MultiSelectQuestion,
   type Question,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
@@ -52,6 +53,26 @@ function singleSelectQuestion(
     media: [],
     type: "single_select",
     mcGradingStrategy: "all_or_nothing",
+    options: options.map((o, i) => ({ id: `opt-${i}`, ...o })),
+  };
+}
+
+/** Builds a minimal multi_select question, media-free, for the grading-strategy tests. */
+function multiSelectQuestion(
+  options: { text: string; isCorrect: boolean }[],
+  mcGradingStrategy: MultiSelectQuestion["mcGradingStrategy"] = "all_or_nothing",
+): MultiSelectQuestion {
+  return {
+    id: "q-1",
+    testId: "test-1",
+    title: "Pick the prime numbers",
+    content: "Choose all that apply.",
+    order: 1,
+    createdAt: new Date(0),
+    weight: 1,
+    media: [],
+    type: "multi_select",
+    mcGradingStrategy,
     options: options.map((o, i) => ({ id: `opt-${i}`, ...o })),
   };
 }
@@ -232,8 +253,8 @@ describe("Feature: Question read-visibility", () => {
     });
   });
 
-  describe("Scenario: a multiple-choice question already has options and a grading strategy", () => {
-    it("shows the question's type, options with the correct one marked, and its grading strategy", () => {
+  describe("Scenario: a single-select question already has options", () => {
+    it("shows the question's type and options with the correct one marked, with no Grading line (the strategy is meaningless for single-select)", () => {
       const question = singleSelectQuestion([
         { text: "4", isCorrect: false },
         { text: "7", isCorrect: true },
@@ -248,7 +269,27 @@ describe("Feature: Question read-visibility", () => {
       expect(typeLine).toHaveTextContent("Single Select");
       expect(screen.getByText("4")).toBeInTheDocument();
       expect(screen.getByText(/7.*correct/i)).toBeInTheDocument();
-      expect(screen.getByText(/all.or.nothing/i)).toBeInTheDocument();
+      expect(screen.queryByText(/^Grading:$/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Scenario: a multi-select question has a grading strategy", () => {
+    it("shows the Grading line naming the stored strategy", () => {
+      const question = multiSelectQuestion(
+        [
+          { text: "2", isCorrect: true },
+          { text: "3", isCorrect: true },
+          { text: "4", isCorrect: false },
+        ],
+        "partial",
+      );
+
+      render(<QuestionList questions={[question]} courseId="course-1" />);
+
+      // Scoped to the "Grading:" line's own paragraph — the edit panel below
+      // will also offer a "Partial credit" radio option.
+      const gradingLine = screen.getByText(/^Grading:$/).closest("p");
+      expect(gradingLine).toHaveTextContent("Partial credit");
     });
   });
 });

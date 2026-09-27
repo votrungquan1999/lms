@@ -11,6 +11,7 @@ import {
   ANSWER_REVEAL_MODE_HEADING,
   ANSWER_REVEAL_MODE_INHERIT_LABEL,
   ANSWER_REVEAL_MODE_LABELS,
+  MC_GRADING_STRATEGY_LABELS,
   QUESTION_TYPE_LABELS,
 } from "src/lib/question-labels";
 import { isMcQuestion, type Question } from "src/lib/question-service";
@@ -145,12 +146,12 @@ export function QuestionList({
                     <span className="font-medium">Type:</span>{" "}
                     {QUESTION_TYPE_LABELS[question.type]}
                   </p>
-                  <p>
-                    <span className="font-medium">Grading:</span>{" "}
-                    {question.mcGradingStrategy === "partial"
-                      ? "Partial credit"
-                      : "All-or-nothing"}
-                  </p>
+                  {question.type === "multi_select" && (
+                    <p>
+                      <span className="font-medium">Grading:</span>{" "}
+                      {MC_GRADING_STRATEGY_LABELS[question.mcGradingStrategy]}
+                    </p>
+                  )}
                   <ul className="list-inside list-disc">
                     {question.options.map((option) => (
                       <li key={option.id}>

@@ -1,4 +1,4 @@
-import type { QuestionType } from "src/lib/question-service";
+import type { McGradingStrategy, QuestionType } from "src/lib/question-service";
 import type { AnswerRevealMode } from "src/lib/test-service";
 
 /**
@@ -25,4 +25,13 @@ export const ANSWER_REVEAL_MODE_INHERIT_LABEL = "Use the test's setting";
 export const ANSWER_REVEAL_MODE_LABELS: Record<AnswerRevealMode, string> = {
   diff: "Side-by-side comparison",
   plain: "Correct answer written out plainly",
+};
+
+/**
+ * One wording per multi-select grading strategy, used by the
+ * question list's "Grading:" line and the Add forms/edit panels' own radio.
+ */
+export const MC_GRADING_STRATEGY_LABELS: Record<McGradingStrategy, string> = {
+  all_or_nothing: "All-or-nothing",
+  partial: "Partial credit",
 };

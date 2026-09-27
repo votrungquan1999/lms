@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type {
   FreeTextQuestion,
+  MultiSelectQuestion,
   SingleSelectQuestion,
 } from "src/lib/question-service";
 import {
@@ -1054,5 +1055,179 @@ describe("Feature: Question edit panel — question type", () => {
 
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog).toHaveTextContent(/invalidates every answer/i);
+  });
+});
+
+describe("Feature: Question edit panel — multi-select grading strategy", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("starts on the question's stored grading strategy and saves a changed choice", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    // Stored as partial, not the control's own All-or-nothing fallback, so
+    // the panel must read the stored rule to start on it.
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Pick the prime numbers",
+      content: "Choose all that apply.",
+      type: "multi_select",
+      options: [
+        { text: "2", isCorrect: true },
+        { text: "3", isCorrect: true },
+        { text: "4", isCorrect: false },
+      ],
+      mcGradingStrategy: "partial",
+      createdBy: "admin",
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    const partialRadio = document.getElementById(
+      `grading-partial-${question.id}`,
+    );
+    if (!partialRadio) throw new Error("Expected the partial radio to exist");
+    expect(partialRadio).toBeChecked();
+
+    const allOrNothingRadio = document.getElementById(
+      `grading-all-or-nothing-${question.id}`,
+    );
+    if (!allOrNothingRadio) {
+      throw new Error("Expected the all-or-nothing radio to exist");
+    }
+    await user.click(allOrNothingRadio);
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const [updated] = (await services.questionService.listQuestions(
+      test.id,
+    )) as MultiSelectQuestion[];
+    expect(updated.mcGradingStrategy).toBe("all_or_nothing");
+  });
+
+  it("warns and names the grading rule when it's the only change on an answered multi_select question", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Pick the prime numbers",
+      content: "Choose all that apply.",
+      type: "multi_select",
+      options: [
+        { text: "2", isCorrect: true },
+        { text: "3", isCorrect: true },
+        { text: "4", isCorrect: false },
+      ],
+      mcGradingStrategy: "all_or_nothing",
+      createdBy: "admin",
+    });
+
+    // A student has already answered this question.
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "mc", selectedIds: [question.options[0].id] },
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    const partialRadio = document.getElementById(
+      `grading-partial-${question.id}`,
+    );
+    if (!partialRadio) throw new Error("Expected the partial radio to exist");
+    await user.click(partialRadio);
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/grading rule/i);
+    expect(dialog).toHaveTextContent(/future submissions/i);
+    expect(dialog).toHaveTextContent(/existing scores stay/i);
+
+    // Nothing saved yet — the write is gated behind confirmation.
+    const [beforeConfirm] = (await services.questionService.listQuestions(
+      test.id,
+    )) as MultiSelectQuestion[];
+    expect(beforeConfirm.mcGradingStrategy).toBe("all_or_nothing");
+
+    await user.click(
+      within(dialog).getByRole("button", { name: /save anyway/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const [afterConfirm] = (await services.questionService.listQuestions(
+      test.id,
+    )) as MultiSelectQuestion[];
+    expect(afterConfirm.mcGradingStrategy).toBe("partial");
+  });
+
+  it("hides the grading control for a single_select question", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Pick the prime number",
+      content: "Choose one.",
+      type: "single_select",
+      options: [
+        { text: "4", isCorrect: false },
+        { text: "7", isCorrect: true },
+      ],
+      createdBy: "admin",
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    render(page);
+
+    expect(
+      document.getElementById(`grading-all-or-nothing-${question.id}`),
+    ).toBe(null);
   });
 });
