@@ -1,10 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import type { GradeDocument } from "../src/lib/grade-service";
 import type { StudentDocument } from "../src/lib/student-service";
+import type { TestSubmissionDocument } from "../src/lib/test-submission-service";
 import {
   enroll,
+  expectNoPageOverflow,
   expectNotClipped,
+  expectWrapped,
   insertAnswer,
   insertCourse,
   insertQuestion,
@@ -93,6 +97,120 @@ test.describe("Student layout", () => {
     const panel = page.getByText(unbrokenAddress, { exact: true });
     await expect(panel).toBeVisible();
     await expectNotClipped(panel);
+
+    await context.close();
+  });
+
+  test("the student breadcrumbs wrap a long unbroken course and test title instead of scrolling the page sideways", async ({
+    browser,
+  }) => {
+    // No hyphens: browsers treat "-" as a soft break point even without a
+    // wrap utility, so a hyphenated string would not reproduce the overflow.
+    const unbrokenTitle = `[layout] ${"averylongunbrokenstudenttesttitletoken".repeat(8)}`;
+    const unbrokenCourseTitle = `[layout] ${"averylongunbrokenstudentcoursetitletoken".repeat(8)}`;
+    const { courseId, testId } = await withDb(async (db) => {
+      const student = await db
+        .collection<StudentDocument>("student")
+        .findOne({ username: STUDENT_USERNAME });
+      if (!student) throw new Error("Student not found after UI creation");
+
+      const courseId = await insertCourse(db, {
+        title: unbrokenCourseTitle,
+      });
+      await enroll(db, { courseId, studentId: student.id });
+      const testId = await insertTest(db, courseId, {
+        title: unbrokenTitle,
+      });
+      await insertQuestion(db, testId);
+      return { courseId, testId };
+    });
+
+    const context = await browser.newContext({ storageState: STUDENT_AUTH });
+    const page = await context.newPage();
+    await page.goto(`/student/courses/${courseId}/tests/${testId}`);
+
+    // Test page: both the course link and the current test title wrap.
+    const trail = page.getByRole("navigation", { name: "breadcrumb" });
+    const crumb = trail.getByText(unbrokenTitle, { exact: true });
+    await expect(crumb).toBeVisible();
+    await expectWrapped(crumb);
+    await expectWrapped(trail.getByRole("link", { name: unbrokenCourseTitle }));
+    await expectNoPageOverflow(page);
+
+    // Course page: its current course title wraps too.
+    await page.goto(`/student/courses/${courseId}`);
+    const courseCrumb = page
+      .getByRole("navigation", { name: "breadcrumb" })
+      .getByText(unbrokenCourseTitle, { exact: true });
+    await expect(courseCrumb).toBeVisible();
+    await expectWrapped(courseCrumb);
+    await expectNoPageOverflow(page);
+
+    await context.close();
+  });
+
+  test("the graded view shows a long question title in full, wrapped instead of cut off with an ellipsis", async ({
+    browser,
+  }) => {
+    const longTitle = `[layout] ${"AVeryLongUnbrokenQuestionTitleToken".repeat(7)}`;
+    const { courseId, testId } = await withDb(async (db) => {
+      const student = await db
+        .collection<StudentDocument>("student")
+        .findOne({ username: STUDENT_USERNAME });
+      if (!student) throw new Error("Student not found after UI creation");
+
+      const courseId = await insertCourse(db, {
+        title: "[layout] Graded View Course",
+      });
+      await enroll(db, { courseId, studentId: student.id });
+      const testId = await insertTest(db, courseId, {
+        title: "[layout] Graded View Test",
+      });
+      const questionId = await insertQuestion(db, testId, {
+        title: longTitle,
+      });
+      await insertAnswer(db, {
+        testId,
+        questionId,
+        studentId: student.id,
+        answer: { type: "free_text", text: "My answer" },
+      });
+      // Grade + submit directly — a one-off insert (extract-at-3 not met).
+      await db.collection<GradeDocument>("grade").insertOne({
+        id: crypto.randomUUID(),
+        testId,
+        questionId,
+        studentId: student.id,
+        score: 90,
+        feedback: "",
+        solution: null,
+        gradedAt: new Date(),
+        gradedBy: "seed",
+        updatedAt: null,
+        updatedBy: null,
+      });
+      await db.collection<TestSubmissionDocument>("test_submission").insertOne({
+        id: crypto.randomUUID(),
+        testId,
+        studentId: student.id,
+        submittedAt: new Date(),
+        deletedAt: null,
+        releasedAt: null,
+        releasedBy: null,
+      });
+      return { courseId, testId };
+    });
+
+    const context = await browser.newContext({ storageState: STUDENT_AUTH });
+    const page = await context.newPage();
+    await page.goto(`/student/courses/${courseId}/tests/${testId}`);
+
+    const title = page.getByText(`Question 1: ${longTitle}`, {
+      exact: true,
+    });
+    await expect(title).toBeVisible();
+    await expectWrapped(title);
+    await expectNoPageOverflow(page);
 
     await context.close();
   });

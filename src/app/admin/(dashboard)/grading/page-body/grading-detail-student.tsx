@@ -138,7 +138,9 @@ export async function GradingDetailStudent({
   const blankCount = hasSubmitted(status)
     ? questions.length - answeredCount
     : 0;
-  const allGraded = answeredCount > 0 && gradedCount >= answeredCount;
+  // Graded status alone decides "done", so an all-blank Graded submission
+  // (0/0) is green rather than the not-started grey.
+  const allGraded = status === TestStatus.Graded;
   const badgeClassName = allGraded
     ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
     : gradedCount > 0
@@ -170,8 +172,8 @@ export async function GradingDetailStudent({
     >
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xl">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <CardTitle className="text-xl min-w-0 wrap-anywhere">
               {student.name}{" "}
               <span className="text-sm font-normal text-muted-foreground">
                 @{student.username}
@@ -180,7 +182,7 @@ export async function GradingDetailStudent({
             <div className="flex items-center gap-3">
               <StudentStatusBadge status={status} />
               <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassName}`}
+                className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassName}`}
               >
                 {gradedCount}/{answeredCount} graded
                 {blankCount > 0 && ` · ${blankCount} blank`}

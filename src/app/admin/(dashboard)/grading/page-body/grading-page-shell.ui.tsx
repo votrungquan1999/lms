@@ -31,7 +31,7 @@ export function TwoPaneShell({
         {pivot}
         {progress}
       </div>
-      <div className="grid grid-cols-[18rem_1fr] gap-6">
+      <div className="grid grid-cols-[18rem_minmax(0,1fr)] items-start gap-6">
         <aside
           className="rounded-md border border-border bg-card p-2"
           data-testid="grading-roster"

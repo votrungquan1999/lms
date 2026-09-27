@@ -17,18 +17,21 @@ export default async function CourseDetailBreadcrumb({
   const { courseId } = await params;
   const courseService = await getCourseService();
   const course = await courseService.getCourse(courseId);
+  const currentPageText = course?.title ?? "Course";
 
   return (
     <Breadcrumb>
-      <BreadcrumbList>
-        <BreadcrumbItem>
+      <BreadcrumbList className="flex-nowrap">
+        <BreadcrumbItem className="shrink-0">
           <BreadcrumbLink asChild>
             <Link href="/admin/courses">Courses</Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
-        <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbPage>{course?.title ?? "Course"}</BreadcrumbPage>
+        <BreadcrumbSeparator className="shrink-0" />
+        <BreadcrumbItem className="min-w-0">
+          <BreadcrumbPage className="block truncate" title={currentPageText}>
+            {currentPageText}
+          </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>

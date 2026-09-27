@@ -134,8 +134,8 @@ export async function GradingDetailQuestion({
               data-testid={`student-card-${student.id}`}
               className="rounded-md border border-border bg-card p-3 space-y-2"
             >
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-sm font-medium min-w-0 wrap-anywhere">
                   {student.name}{" "}
                   <span className="text-xs font-normal text-muted-foreground">
                     @{student.username}

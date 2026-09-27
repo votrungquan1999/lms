@@ -31,16 +31,16 @@ export default async function GradingBreadcrumb({
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbLink asChild>
+        <BreadcrumbItem className="min-w-0">
+          <BreadcrumbLink asChild className="block min-w-0 wrap-anywhere">
             <Link href={`/admin/courses/${courseId}`}>
               {course?.title ?? "Course"}
             </Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbLink asChild>
+        <BreadcrumbItem className="min-w-0">
+          <BreadcrumbLink asChild className="block min-w-0 wrap-anywhere">
             <Link href={`/admin/courses/${courseId}/tests/${testId}`}>
               {test?.title ?? "Test"}
             </Link>

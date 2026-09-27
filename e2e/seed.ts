@@ -244,6 +244,19 @@ export async function expectWrapped(locator: Locator): Promise<void> {
   expect(height).toBeGreaterThan(lineHeight * 1.5);
 }
 
+/**
+ * The element's own text stays on one line — the `expectWrapped` converse,
+ * for a `shrink-0 whitespace-nowrap` fixed-shape item (a pill, a link) that
+ * must hold its line even when a long sibling squeezes the row around it.
+ */
+export async function expectSingleLine(locator: Locator): Promise<void> {
+  const { height, lineHeight } = await locator.evaluate((el) => ({
+    height: el.getBoundingClientRect().height,
+    lineHeight: Number.parseFloat(getComputedStyle(el).lineHeight),
+  }));
+  expect(height).toBeLessThanOrEqual(lineHeight * 1.5);
+}
+
 /** An element's own content never overflows its box (clipped or scrolled). */
 export async function expectNotClipped(locator: Locator): Promise<void> {
   const { scrollWidth, clientWidth } = await locator.evaluate((el) => ({

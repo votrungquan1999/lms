@@ -453,7 +453,9 @@ export function RequestRedoButton({
 
   if (state?.success || hasActiveRedoRequest) {
     return (
-      <p className="text-sm font-medium text-orange-600">Redo requested ↩</p>
+      <p className="shrink-0 whitespace-nowrap text-sm font-medium text-orange-600">
+        Redo requested ↩
+      </p>
     );
   }
 

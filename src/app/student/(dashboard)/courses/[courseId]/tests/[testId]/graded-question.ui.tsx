@@ -45,7 +45,7 @@ export function GradedQuestionShell({
       <Collapsible open={open} onOpenChange={setOpen}>
         <CardHeader>
           <CollapsibleTrigger className="group/trigger flex w-full items-center justify-between gap-3 text-left">
-            <span className="min-w-0 truncate text-lg font-semibold">
+            <span className="min-w-0 wrap-anywhere text-lg font-semibold">
               {questionLabel}
             </span>
             <span className="flex shrink-0 items-center gap-2">

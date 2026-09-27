@@ -48,6 +48,65 @@ test.describe("Course layout", () => {
     await expectNoPageOverflow(page);
   });
 
+  test("an unbroken course or test title truncates the breadcrumb's current segment with a full-text tooltip instead of scrolling the course or test page sideways", async ({
+    page,
+  }) => {
+    // No hyphens/spaces: browsers treat those as soft break points even
+    // without a wrap utility, so a broken string would not reproduce this.
+    const unbrokenCourseTitle = `[layout] averylongunbrokenbreadcrumbcoursetitle${"thatmustneveroverflowthepage".repeat(5)}`;
+    const unbrokenTestTitle = `[layout] averylongunbrokenbreadcrumbtesttitle${"thatmustneveroverflowthepage".repeat(5)}`;
+
+    const { courseId, testId } = await withDb(async (db) => {
+      const courseId = await insertCourse(db, { title: unbrokenCourseTitle });
+      const testId = await insertTest(db, courseId, {
+        title: unbrokenTestTitle,
+      });
+      return { courseId, testId };
+    });
+
+    // Course-detail: the current segment is the long course title itself.
+    await page.goto(`/admin/courses/${courseId}`);
+    const courseCurrent = page
+      .getByRole("navigation", { name: "breadcrumb" })
+      .locator('[aria-current="page"]');
+    await expect(courseCurrent).toHaveAttribute("title", unbrokenCourseTitle);
+    await expectNoPageOverflow(page);
+
+    // Test-detail: the current segment is the long test title; the course
+    // title is a middle (non-current) link and must still stay reachable.
+    await page.goto(`/admin/courses/${courseId}/tests/${testId}`);
+    const testCurrent = page
+      .getByRole("navigation", { name: "breadcrumb" })
+      .locator('[aria-current="page"]');
+    await expect(testCurrent).toHaveAttribute("title", unbrokenTestTitle);
+    await expectWrapped(
+      page.getByRole("navigation", { name: "breadcrumb" }).getByRole("link", {
+        name: unbrokenCourseTitle,
+      }),
+    );
+    await expectNoPageOverflow(page);
+  });
+
+  test("a long course title makes the test page's breadcrumb grow instead of shortening a short test title", async ({
+    page,
+  }) => {
+    const longCourseTitle = `[layout] ${"A Long Spaced Breadcrumb Course Title ".repeat(5)}`;
+
+    const { courseId, testId } = await withDb(async (db) => {
+      const courseId = await insertCourse(db, { title: longCourseTitle });
+      const testId = await insertTest(db, courseId, { title: "Quiz 1" });
+      return { courseId, testId };
+    });
+
+    await page.goto(`/admin/courses/${courseId}/tests/${testId}`);
+    const nav = page.getByRole("navigation", { name: "breadcrumb" });
+    // The middle segment wraps (the bar grows) and the short current
+    // segment reads in full, with no "…".
+    await expectWrapped(nav.getByRole("link", { name: longCourseTitle }));
+    await expectNotClipped(nav.locator('[aria-current="page"]'));
+    await expectNoPageOverflow(page);
+  });
+
   test("a test's graded counter and a pool's question counter never wrap onto a second line next to a long title", async ({
     page,
   }) => {

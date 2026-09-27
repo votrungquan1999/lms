@@ -244,16 +244,18 @@ export default async function StudentTestDetailPage({
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
+              <BreadcrumbItem className="min-w-0">
+                <BreadcrumbLink asChild className="wrap-anywhere">
                   <Link href={`/student/courses/${courseId}`}>
                     {course?.title ?? "Course"}
                   </Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{test.title}</BreadcrumbPage>
+              <BreadcrumbItem className="min-w-0">
+                <BreadcrumbPage className="wrap-anywhere">
+                  {test.title}
+                </BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>

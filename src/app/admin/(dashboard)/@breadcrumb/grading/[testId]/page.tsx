@@ -22,19 +22,20 @@ export default async function GradingTestBreadcrumb({
   const courseService = await getCourseService();
   const course = test ? await courseService.getCourse(test.courseId) : null;
 
+  const currentPageText = `${test?.title ?? "Test"}${course?.title ? ` (${course.title})` : ""}`;
+
   return (
     <Breadcrumb>
-      <BreadcrumbList>
-        <BreadcrumbItem>
+      <BreadcrumbList className="flex-nowrap">
+        <BreadcrumbItem className="shrink-0">
           <BreadcrumbLink asChild>
             <Link href="/admin/grading">Grading</Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
-        <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbPage>
-            {test?.title ?? "Test"}
-            {course?.title ? ` (${course.title})` : ""}
+        <BreadcrumbSeparator className="shrink-0" />
+        <BreadcrumbItem className="min-w-0">
+          <BreadcrumbPage className="block truncate" title={currentPageText}>
+            {currentPageText}
           </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
