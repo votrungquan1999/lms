@@ -1,23 +1,30 @@
 /**
- * Bun script: Seed a few sample question pools (the global "Question Bank")
- * so the pools feature can be tried end-to-end — browse the Question Bank,
- * open a pool, see authored questions, and "Add from pools" when editing a test.
+ * Bun script: Seed a few sample question pools into one school's "Question
+ * Bank" so the pools feature can be tried end-to-end — browse the Question
+ * Bank, open a pool, see authored questions, and "Add from pools" when editing
+ * a test.
  *
  * Usage:
- *   bun scripts/seed-pools.ts
+ *   bun scripts/seed-pools.ts [--school <slug>] [--mongo-uri <local-uri>]
+ *
+ * --school names the school by slug (default `default`), created if missing.
  *
  * The target DB is HARDCODED to the local instance below (NOT read from env)
  * so this seed can never accidentally run against a staging/prod database.
- * Change LOCAL_MONGO_URI by hand if your local Mongo lives elsewhere.
+ * Pass --mongo-uri (still localhost-only) if your local Mongo lives elsewhere.
  *
- * Idempotent: a pool is matched by name; if it already exists the script
- * leaves it (and its questions) untouched. To re-seed fresh, delete the pools
- * in the UI or drop the `question_pool` / `pool_question` collections.
+ * Idempotent per school: a pool is matched by name within the school; if it
+ * already exists the script leaves it (and its questions) untouched. To
+ * re-seed fresh, delete the pools in the UI or drop the `question_pool` /
+ * `pool_question` collections.
  */
 
 import { MongoClient } from "mongodb";
 import { PoolQuestionService } from "../src/lib/pool-question-service";
 import { QuestionPoolService } from "../src/lib/question-pool-service";
+import { SchoolService } from "../src/lib/school-service";
+import { isLocalMongoUri } from "./mongo-uri-guard";
+import { getArgValue } from "./script-args";
 
 const SEED_AUTHOR = "seed-script";
 
@@ -140,25 +147,35 @@ const POOLS: SeedPool[] = [
 ];
 
 async function main() {
-  const mongoUri = LOCAL_MONGO_URI;
+  // A flag, unlike an env var, can never come from .env.local; the guard
+  // below still keeps it local.
+  const mongoUri = getArgValue(process.argv, "--mongo-uri") ?? LOCAL_MONGO_URI;
 
   // Belt-and-braces: refuse to run unless the target is a local host. This
-  // guards against the constant being edited to a remote URI by mistake.
-  if (!/localhost|127\.0\.0\.1/.test(mongoUri)) {
+  // guards against the constant (or the flag) naming a remote URI by mistake.
+  if (!isLocalMongoUri(mongoUri)) {
     throw new Error(
       `Refusing to seed: ${mongoUri} is not a local database. This script only seeds localhost.`,
     );
   }
 
-  console.log(`Seeding pools against ${mongoUri}`);
+  const schoolSlug = getArgValue(process.argv, "--school") ?? "default";
+  console.log(`Seeding pools against ${mongoUri} (school: ${schoolSlug})`);
 
   const client = new MongoClient(mongoUri);
   await client.connect();
 
   try {
     const db = client.db();
-    const poolService = new QuestionPoolService(db);
-    const poolQuestionService = new PoolQuestionService(db);
+    const schoolService = new SchoolService(db);
+    const school = await schoolService.ensureSchoolBySlug({
+      slug: schoolSlug,
+      name: schoolSlug,
+      createdBy: SEED_AUTHOR,
+    });
+
+    const poolService = new QuestionPoolService(db, school.id);
+    const poolQuestionService = new PoolQuestionService(db, school.id);
 
     const existingPools = await poolService.listPools();
     const existingByName = new Map(existingPools.map((p) => [p.name, p]));

@@ -8,7 +8,8 @@
  *
  * Reads MONGODB_URI from env (Bun auto-loads .env.local) and defaults to
  * mongodb://localhost:27017/lms. Assumes the sandbox course from
- * `seed-test-states.ts` already exists; seeds a new test inside it.
+ * `seed-test-states.ts` already exists; seeds a new test inside it, in that
+ * course's school.
  *
  * Idempotent: skips test creation if already present, and skips any
  * student that already exists (re-applying a submission would fail because
@@ -18,13 +19,16 @@
 
 import { type Db, MongoClient } from "mongodb";
 import { AnswerService } from "../src/lib/answer-service";
+import type { CourseDocument } from "../src/lib/course-service";
 import { EnrollmentService } from "../src/lib/enrollment-service";
 import { GradeService } from "../src/lib/grade-service";
 import { GradeVisibilityService } from "../src/lib/grade-visibility-service";
 import { QuestionService } from "../src/lib/question-service";
+import { SchoolDirectory } from "../src/lib/school-directory";
 import { StudentService } from "../src/lib/student-service";
 import type { TestDocument } from "../src/lib/test-service";
 import { TestService } from "../src/lib/test-service";
+import { TestStartService } from "../src/lib/test-start-service";
 import { TestSubmissionService } from "../src/lib/test-submission-service";
 
 const SEED_AUTHOR = "seed-script";
@@ -231,20 +235,33 @@ async function main() {
   try {
     const db = client.db();
 
-    const courseExists = await db
-      .collection("course")
+    const course = await db
+      .collection<CourseDocument>("course")
       .findOne({ id: COURSE_ID });
-    if (!courseExists) {
+    if (!course) {
       throw new Error(
         `Course ${COURSE_ID} does not exist. Run \`bun scripts/seed-test-states.ts\` first to seed the sandbox course.`,
       );
     }
+    if (!course.schoolId) {
+      throw new Error(
+        `Course ${COURSE_ID} has no school yet. Run \`bun scripts/seed-test-states.ts\` (which assigns one) first.`,
+      );
+    }
+    const schoolId = course.schoolId;
+    const schoolDirectory = new SchoolDirectory(db);
 
-    const testService = new TestService(db);
+    const testService = new TestService(db, schoolId);
     const questionService = new QuestionService(db);
-    const studentService = new StudentService(db);
+    const studentService = new StudentService(db, schoolId);
     const enrollmentService = new EnrollmentService(db);
-    const answerService = new AnswerService(db, questionService);
+    const testStartService = new TestStartService(db);
+    const answerService = new AnswerService(
+      db,
+      questionService,
+      testService,
+      testStartService,
+    );
 
     let testSubmissionService!: TestSubmissionService;
     const gradeVisibilityService = new GradeVisibilityService(testService, () =>
@@ -256,9 +273,14 @@ async function main() {
       answerService,
       gradeVisibilityService,
     );
-    testSubmissionService = new TestSubmissionService(db, gradeService);
+    testSubmissionService = new TestSubmissionService(
+      db,
+      gradeService,
+      testService,
+      testStartService,
+    );
 
-    await ensureTest(db);
+    await ensureTest(db, schoolId);
     await ensureQuestions(questionService);
 
     const questionsOnTest = await questionService.listQuestions(TEST_ID);
@@ -271,7 +293,7 @@ async function main() {
     // index alignment with QUESTIONS[i] matches the insertion order below.
 
     for (const seedStudent of STUDENTS) {
-      const existing = await studentService.findByUsername(
+      const existing = await schoolDirectory.findByUsername(
         seedStudent.username,
       );
       if (existing) {
@@ -336,9 +358,10 @@ async function main() {
 }
 
 /**
- * Inserts the coding test with a stable id if it does not exist.
+ * Inserts the coding test with a stable id if it does not exist, in the
+ * sandbox course's school.
  */
-async function ensureTest(db: Db): Promise<void> {
+async function ensureTest(db: Db, schoolId: string): Promise<void> {
   const tests = db.collection<TestDocument>("test");
   const existing = await tests.findOne({ id: TEST_ID, deletedAt: null });
   if (existing) {
@@ -365,6 +388,7 @@ async function ensureTest(db: Db): Promise<void> {
     updatedBy: null,
     deletedAt: null,
     deletedBy: null,
+    schoolId,
   };
   await tests.insertOne(doc);
   console.log(`  ✓ created test ${TEST_ID}`);

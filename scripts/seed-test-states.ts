@@ -4,7 +4,10 @@
  * impersonated via the auth user id) without manually constructing fixtures.
  *
  * Usage:
- *   bun scripts/seed-test-states.ts
+ *   bun scripts/seed-test-states.ts [--school <slug>]
+ *
+ * --school names the school by slug (default `default`), created if missing.
+ * Sandbox rows left without a school by an older build are stamped with it.
  *
  * Reads MONGODB_URI from env (Bun auto-loads .env.local) and defaults to
  * mongodb://localhost:27017/lms.
@@ -33,11 +36,17 @@ import {
   type SingleSelectQuestion,
 } from "../src/lib/question-service";
 import { RedoRequestService } from "../src/lib/redo-request-service";
-import { StudentService } from "../src/lib/student-service";
+import { SchoolDirectory } from "../src/lib/school-directory";
+import { SchoolService } from "../src/lib/school-service";
+import {
+  type StudentDocument,
+  StudentService,
+} from "../src/lib/student-service";
 import type { TestDocument } from "../src/lib/test-service";
 import { TestService } from "../src/lib/test-service";
 import { TestStartService } from "../src/lib/test-start-service";
 import { TestSubmissionService } from "../src/lib/test-submission-service";
+import { getArgValue } from "./script-args";
 
 const SEED_AUTHOR = "seed-script";
 
@@ -157,9 +166,18 @@ async function main() {
 
   try {
     const db = client.db();
-    const testService = new TestService(db);
+    const schoolSlug = getArgValue(process.argv, "--school") ?? "default";
+    const schoolService = new SchoolService(db);
+    const school = await schoolService.ensureSchoolBySlug({
+      slug: schoolSlug,
+      name: schoolSlug,
+      createdBy: SEED_AUTHOR,
+    });
+    const schoolDirectory = new SchoolDirectory(db);
+
+    const testService = new TestService(db, school.id);
     const questionService = new QuestionService(db);
-    const studentService = new StudentService(db);
+    const studentService = new StudentService(db, school.id);
     const enrollmentService = new EnrollmentService(db);
     const testStartService = new TestStartService(db);
     const answerService = new AnswerService(
@@ -190,17 +208,17 @@ async function main() {
     const redoRequestService = new RedoRequestService(db, testService);
 
     // Course.
-    await ensureCourse(db);
+    await ensureCourse(db, school.id);
 
     // Two tests with opposite visibility settings — questions are identical.
-    const testVisible = await ensureTest(db, TEST_VISIBLE_ID, {
+    const testVisible = await ensureTest(db, TEST_VISIBLE_ID, school.id, {
       title: "Sandbox: All visibility ON",
       description:
         "Grades and correct answers revealed after submission. Every per-student scenario lives on this test.",
       showCorrectAnswerAfterSubmit: true,
       showGradeAfterSubmit: true,
     });
-    await ensureTest(db, TEST_HIDDEN_ID, {
+    await ensureTest(db, TEST_HIDDEN_ID, school.id, {
       title: "Sandbox: All visibility OFF",
       description:
         "Grades hidden until per-question release. Use this to verify the visibility gate on the student test page.",
@@ -225,10 +243,20 @@ async function main() {
     }
 
     for (const seedStudent of STUDENTS) {
-      const existing = await studentService.findByUsername(
+      const existing = await schoolDirectory.findByUsername(
         seedStudent.username,
       );
       if (existing) {
+        // Rerun on data an older, school-less build left behind: stamp it
+        // rather than skip it silently forever.
+        if (existing.schoolId == null) {
+          await db
+            .collection<StudentDocument>("student")
+            .updateOne({ id: existing.id }, { $set: { schoolId: school.id } });
+          console.log(
+            `  • student ${existing.username} had no school — stamped ${schoolSlug}`,
+          );
+        }
         // Idempotent path: skip state seeding for already-seeded students.
         // AnswerService and TestSubmissionService both throw on duplicates,
         // so re-applying a scenario to an existing student is unsafe. Drop
@@ -301,13 +329,19 @@ async function main() {
 // through the services so we exercise the same schema the app uses.
 
 /**
- * Inserts the sandbox course with a stable id if it does not exist.
+ * Inserts the sandbox course with a stable id if it does not exist. Stamps
+ * the given school onto an existing row left over from a school-less build.
  */
-async function ensureCourse(db: Db): Promise<void> {
+async function ensureCourse(db: Db, schoolId: string): Promise<void> {
   const courses = db.collection<CourseDocument>("course");
   const existing = await courses.findOne({ id: COURSE_ID });
   if (existing) {
-    console.log(`  • course ${COURSE_ID} already exists`);
+    if (existing.schoolId == null) {
+      await courses.updateOne({ id: COURSE_ID }, { $set: { schoolId } });
+      console.log(`  • course ${COURSE_ID} had no school — stamped it`);
+    } else {
+      console.log(`  • course ${COURSE_ID} already exists`);
+    }
     return;
   }
   await courses.insertOne({
@@ -318,6 +352,7 @@ async function ensureCourse(db: Db): Promise<void> {
     createdBy: SEED_AUTHOR,
     updatedAt: null,
     updatedBy: null,
+    schoolId,
   });
   console.log(`  ✓ created course ${COURSE_ID}`);
 }
@@ -330,17 +365,24 @@ interface EnsureTestInput {
 }
 
 /**
- * Inserts a test with a stable id (or returns the existing one). Returns the
- * document so callers can read the canonical id back.
+ * Inserts a test with a stable id (or returns the existing one). Stamps the
+ * given school onto an existing row left over from a school-less build.
+ * Returns the document so callers can read the canonical id back.
  */
 async function ensureTest(
   db: Db,
   testId: string,
+  schoolId: string,
   input: EnsureTestInput,
 ): Promise<TestDocument> {
   const tests = db.collection<TestDocument>("test");
   const existing = await tests.findOne({ id: testId, deletedAt: null });
   if (existing) {
+    if (existing.schoolId == null) {
+      await tests.updateOne({ id: testId }, { $set: { schoolId } });
+      console.log(`  • test ${testId} had no school — stamped it`);
+      return { ...existing, schoolId };
+    }
     console.log(`  • test ${testId} already exists`);
     return existing;
   }
@@ -363,6 +405,7 @@ async function ensureTest(
     updatedBy: null,
     deletedAt: null,
     deletedBy: null,
+    schoolId,
   };
   await tests.insertOne(doc);
   console.log(`  ✓ created test ${testId}`);

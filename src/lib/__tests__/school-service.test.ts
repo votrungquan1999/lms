@@ -79,6 +79,38 @@ describe("Feature: the platform owner creates a school and sees every school", (
 });
 
 /**
+ * Feature: the operator finds or creates a school by slug
+ * As a seed script or the backfill
+ * I want ensureSchoolBySlug to be an idempotent upsert
+ * So that a rerun with a different name never changes the existing school
+ */
+describe("Feature: the operator finds or creates a school by slug", () => {
+  dbIt(
+    "creates the school on first call, and a later call with a different name returns the same school unchanged",
+    async ({ db }) => {
+      const schoolService = new SchoolService(db);
+
+      const first = await schoolService.ensureSchoolBySlug({
+        slug: "default",
+        name: "Default school",
+        createdBy: "seed-script",
+      });
+
+      const second = await schoolService.ensureSchoolBySlug({
+        slug: "default",
+        name: "A different name",
+        createdBy: "seed-script",
+      });
+
+      expect(second).toEqual(first);
+      expect(second.name).toBe("Default school");
+      const schools = await schoolService.listSchools();
+      expect(schools).toHaveLength(1);
+    },
+  );
+});
+
+/**
  * Feature: the platform owner manages a school's admins
  * As the platform owner
  * I want to add and remove a school's admins by membership

@@ -87,6 +87,39 @@ export class SchoolService {
   }
 
   /**
+   * Finds a school by slug, or creates it. `$setOnInsert` means a rerun
+   * with a different name never changes an existing school's name or id —
+   * used by seed scripts and the backfill, which must never fight the
+   * owner's own naming.
+   */
+  async ensureSchoolBySlug(input: {
+    slug: string;
+    name: string;
+    createdBy: string;
+  }): Promise<School> {
+    await this.schools.updateOne(
+      { slug: input.slug },
+      {
+        $setOnInsert: {
+          id: crypto.randomUUID(),
+          name: input.name,
+          slug: input.slug,
+          createdAt: new Date(),
+          createdBy: input.createdBy,
+        },
+      },
+      { upsert: true },
+    );
+    const doc = await this.schools.findOne({ slug: input.slug });
+    if (!doc) {
+      throw new Error(
+        `ensureSchoolBySlug: no school found for slug "${input.slug}" after upsert`,
+      );
+    }
+    return this.toSchool(doc);
+  }
+
+  /**
    * Adds a membership — the given user becomes a school admin of the given
    * school. Stamps `schoolAccessManagedAt` on the user, so the backfill
    * never re-grants an account whose access was managed by hand.

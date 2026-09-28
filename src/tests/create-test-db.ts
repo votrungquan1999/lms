@@ -45,21 +45,29 @@ interface TestDbContext {
  * ```
  */
 export function withTestDb(testFn: TestAPI) {
-  return (name: string, fn: (ctx: TestDbContext) => Promise<void>) => {
-    testFn(name, async () => {
-      const mongoUri = process.env.MONGODB_URI ?? "mongodb://localhost:27017";
-      const dbName = `lms-test-${randomUUID()}`;
+  return (
+    name: string,
+    fn: (ctx: TestDbContext) => Promise<void>,
+    timeout?: number,
+  ) => {
+    testFn(
+      name,
+      async () => {
+        const mongoUri = process.env.MONGODB_URI ?? "mongodb://localhost:27017";
+        const dbName = `lms-test-${randomUUID()}`;
 
-      const client = new MongoClient(mongoUri);
-      await client.connect();
-      const db = client.db(dbName);
+        const client = new MongoClient(mongoUri);
+        await client.connect();
+        const db = client.db(dbName);
 
-      try {
-        await fn({ db, client });
-      } finally {
-        await client.db(dbName).dropDatabase();
-        await client.close();
-      }
-    });
+        try {
+          await fn({ db, client });
+        } finally {
+          await client.db(dbName).dropDatabase();
+          await client.close();
+        }
+      },
+      timeout,
+    );
   };
 }
