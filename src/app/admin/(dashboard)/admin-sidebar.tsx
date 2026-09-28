@@ -27,6 +27,7 @@ import {
   SidebarRail,
 } from "src/components/ui/sidebar";
 import { authClient } from "src/lib/auth-client";
+import { SchoolSwitcher } from "./school-switcher";
 
 const navItems = [
   { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
@@ -43,9 +44,13 @@ const needActionsItems = [
 export function AdminSidebar({
   email,
   isOwner = false,
+  school = null,
+  schools = [],
 }: {
   email: string;
   isOwner?: boolean;
+  school?: { id: string; name: string } | null;
+  schools?: { id: string; name: string }[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -75,6 +80,25 @@ export function AdminSidebar({
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {school &&
+            (schools.length > 1 ? (
+              <SidebarMenuItem>
+                <SchoolSwitcher
+                  activeSchoolName={school.name}
+                  otherSchools={schools.filter((s) => s.id !== school.id)}
+                />
+              </SidebarMenuItem>
+            ) : (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  size="sm"
+                  className="text-muted-foreground"
+                  tooltip={school.name}
+                >
+                  <span className="truncate">{school.name}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
         </SidebarMenu>
       </SidebarHeader>
 

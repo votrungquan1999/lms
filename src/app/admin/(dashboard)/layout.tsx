@@ -6,7 +6,7 @@ import {
 } from "src/components/ui/sidebar";
 import { TooltipProvider } from "src/components/ui/tooltip";
 import { getAuthService } from "src/lib/auth-singleton";
-import { getPageGuard } from "src/lib/services-singleton";
+import { getPageGuard, getSchoolService } from "src/lib/services-singleton";
 import { AdminSidebar } from "./admin-sidebar";
 
 export default async function AdminDashboardLayout({
@@ -25,10 +25,20 @@ export default async function AdminDashboardLayout({
   const authService = await getAuthService();
   const isOwner = await authService.isAdminEmail(adminSession.email);
 
+  // Tier-1 only: a school-less admin (owner console, no-school page) still
+  // gets a working layout, just with no school in the sidebar.
+  const schoolService = await getSchoolService();
+  const schools = await schoolService.listSchoolsForUser(adminSession.userId);
+
   return (
     <TooltipProvider>
       <SidebarProvider>
-        <AdminSidebar email={adminSession.email} isOwner={isOwner} />
+        <AdminSidebar
+          email={adminSession.email}
+          isOwner={isOwner}
+          school={adminSession.school}
+          schools={schools}
+        />
         <SidebarInset>
           <header className="flex min-h-12 shrink-0 items-center gap-2 border-b px-4 py-2">
             <SidebarTrigger className="-ml-1" />

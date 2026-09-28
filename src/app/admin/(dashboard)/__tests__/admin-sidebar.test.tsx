@@ -75,3 +75,55 @@ describe("Feature: AdminSidebar Question Bank link", () => {
     expect(link.getAttribute("href")).toBe("/admin/pools");
   });
 });
+
+/**
+ * Feature: AdminSidebar renders safely with no active school
+ * As the LMS system
+ * I want the sidebar to hide the school name and switcher, and keep
+ * everything else, when the admin has no active school
+ * So that the owner console and the no-school page can render inside the
+ * same layout without a school to show
+ */
+describe("Feature: AdminSidebar renders safely with no active school", () => {
+  // Green-from-first: `school`/`schools` default to `null`/`[]`, so the
+  // no-school render path IS the scaffold — no meaningful red is possible.
+  it("shows no school name or switcher, and keeps nav and owner items intact", () => {
+    render(
+      <TooltipProvider>
+        <SidebarProvider>
+          <AdminSidebar email="admin@test" isOwner school={null} schools={[]} />
+        </SidebarProvider>
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.queryByTestId("school-switcher-trigger"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Dashboard/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Schools/ })).toBeInTheDocument();
+  });
+});
+
+/**
+ * Feature: AdminSidebar shows a one-school admin's school name
+ * As a school admin (teacher) who belongs to exactly one school
+ * I want to see my school's name in the sidebar
+ * So that I always know which school my next action lands in
+ */
+describe("Feature: AdminSidebar shows a one-school admin's school name", () => {
+  it("shows the school's name and no switcher when the admin has one school", () => {
+    const school = { id: "school-1", name: "Acme School" };
+    render(
+      <TooltipProvider>
+        <SidebarProvider>
+          <AdminSidebar email="admin@test" school={school} schools={[school]} />
+        </SidebarProvider>
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Acme School")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("school-switcher-trigger"),
+    ).not.toBeInTheDocument();
+  });
+});
