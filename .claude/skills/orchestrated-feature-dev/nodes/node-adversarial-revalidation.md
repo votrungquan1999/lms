@@ -4,6 +4,8 @@ Check the **actual implemented code** against the frozen behavior-risk catalog. 
 
 > **Task workspace:** All state files live in the task working directory `<ws>` (`./tmp/<identifier>/`) given in your prompt. Every state-file path below is relative to `<ws>`.
 
+> **Report only — never touch git.** Several instances of you run in parallel alongside conformance validation, so staging, committing, or rebasing here would race the others and corrupt the branch. Report your findings; the operator triages them and a single fix sub-agent applies whatever is accepted.
+
 ## What makes this different from conformance validation
 
 Conformance validation (5a) asks "did each step match the plan?" — it trusts the plan as the spec. **You do the opposite:** you take the frozen `<ws>/BEHAVIOR_RISKS.md` as the source of truth for *expected* behavior on paths the plan never specified, and you probe whether the real implementation actually survives them.

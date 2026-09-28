@@ -14,8 +14,8 @@ For each task, Claude Code MUST double-check:
 - ALWAYS check all applicable rules before making any changes.
 - ALWAYS explain which rules were applied in the output.
 - MUST keep file size small and reasonable for AI context management.
-- NEVER require running/building the server to validate output.
-- NEVER run `npm run build` or `npm run dev` after completing tasks, the user will handle this.
+- NEVER make validating your work depend on the user starting the server — the proof is an automated test, not "run the dev server and look".
+- NEVER leave `npm run build` or `npm run dev` running after a task; the user owns their dev loop. Tests are the exception — see **Running Servers in Tests**.
 - ALWAYS use `npm install` to install packages. NEVER add packages directly to `package.json`.
 - AI MAY replace entire components or structures if it improves clarity/compliance.
 - For complex changes, AI MUST ask:
@@ -23,6 +23,17 @@ For each task, Claude Code MUST double-check:
   - "Which rules apply here?"
   - "Did I miss any relevant rules?"
 - Apply the multi-shot method of prompt engineering: After editing around 5 files, should ask the user to review if the current direction is correct, then continue with the next 5 files. This iterative feedback approach helps ensure the AI stays aligned with user expectations and corrects course early if needed.
+
+## Running Servers in Tests
+
+The two no-server rules above are about the **user's** dev loop. They do not apply to the test harness: an automated test that boots the app is the intended way to validate a flow, and integration/e2e tests are expected to do exactly that.
+
+- **A test MAY start a server.** Standing the app up, driving it, and shutting it down inside a test run is not "running the dev server".
+- **Go through the project's own test command** (`npm run test:e2e` and friends), never a hand-rolled `npm run dev &` — the script owns env loading, ports, and teardown.
+- **Never watch mode** in an agent terminal; it hangs a non-interactive shell. Use the run-once form (`vitest run`, not `vitest`).
+- **Isolate from any dev server the user already has open** — own port, own build/output dir. Sharing either one deadlocks the run against their process.
+- **Tear down on every exit path**, failures included. A leaked server poisons the next run and holds the user's port.
+- **Capture the child process's output.** "Server failed to start" with stdio discarded says nothing; surface its stderr or you are debugging blind.
 
 ## Scope Management
 

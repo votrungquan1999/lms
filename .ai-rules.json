@@ -18,15 +18,18 @@
     "ai-kanban-track-session",
     "ai-kanban-work-card",
     "bdd-design",
+    "claude-usage",
     "code-refactoring",
     "commit-plan",
     "context7",
     "create-implementation-plan",
     "create-pr",
-    "feature-development-workflow",
+    "feature-dev-lite",
     "find-patterns",
     "knowledge-base",
     "orchestrated-feature-dev",
+    "pre-compact-flush",
+    "recall",
     "repo-knowledge",
     "review-changes",
     "root-cause-analysis",
@@ -36,8 +39,11 @@
     "test-quality-reviewer",
     "validate-pr-comments",
     "web-search",
-    "pr-comment-triage"
+    "pr-comment-triage",
+    "scout-and-plan",
+    "orchestrated-reasoning",
+    "monthly-dca-research"
   ],
-  "hooks": ["kanban-track"],
+  "hooks": ["flush-debt", "kanban-track", "spec-reminder"],
   "scope": ["personal"]
 }

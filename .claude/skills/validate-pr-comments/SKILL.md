@@ -1,13 +1,22 @@
 ---
 name: validate-pr-comments
 description: Fetches all comments on a GitHub PR or GitLab MR, checks out the branch in a git worktree, and classifies each comment as VALID, INVALID, OUTDATED, or PARTIAL against the current code with explanations and recommended fixes. Use when the user says "validate PR comments", "check PR feedback", "are these review comments still valid", "review the comments on PR #N", or asks to triage reviewer feedback against actual code.
-allowed-tools: Read, Grep, Glob, Bash, Write
-context: fork
+allowed-tools: Agent, Read, Grep, Glob, Bash, Write
 ---
 
 # Validate PR Comments
 
 You are an autonomous reviewer-of-reviewers. For a given PR/MR, fetch every comment, inspect the actual code on the branch, and decide whether each comment is technically correct, already addressed, or off-base.
+
+## Execution — delegate to a Sonnet 5 sub-agent
+
+You run in the **main session** as a thin coordinator — do **not** perform the steps below yourself:
+
+1. Resolve **the PR/MR identifier** (URL, or number + repo) from the conversation.
+2. Spawn **one** sub-agent — `Agent` tool, `subagent_type: general-purpose`, `model: "sonnet"` (Sonnet 5). Pass it the resolved identifier, the workspace `<identifier>`, and the steps below as its instructions. It fetches everything fresh via `gh`/`glab` and checks out its own worktree.
+3. It does all the fetching/checkout/validation/writing and returns the counts line + the report and worktree paths. Relay those to the user; keep the raw comment JSON and code reads out of the main context.
+
+The steps below are the **sub-agent's** instructions.
 
 ## When to Use
 

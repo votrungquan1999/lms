@@ -37,6 +37,15 @@ content to a temp file and pass it with `--file` / `--problem-file` / `--resolut
 quoting multi-line markdown on the shell is fragile. Short, single-line bodies can use the
 inline `--body` / `--problem` / `--resolution` flags, or pipe via stdin.
 
+## Editing or removing entries
+
+Both address an entry by its id (get the id from `kb search` / `kb get`):
+
+- **Update** — `npx @quanvo99/ai-rules@latest kb update <id> --title "..."` (or `--body` / `--body-file` / `--scope` / `--global`, at least one required). Patches only the fields you pass; omitted fields stay intact.
+- **Delete** — `npx @quanvo99/ai-rules@latest kb delete <id>` removes an entry permanently.
+
+Both exit non-zero on an unknown `<id>`.
+
 ## Drafts Need Approval
 
 **Every capture creates a DRAFT.** A human reviewer must approve it before it surfaces in

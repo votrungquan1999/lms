@@ -16,6 +16,15 @@ This returns the card's task: title, description, and the workspace bookkeeping 
 - Make commits on the `aikanban/card-<N>` branch as you go.
 - Stay on this one card; do not pick up others.
 
+### Log as you go
+
+Two different signals, don't conflate them: progress is *what changed and where*, a decision is *the why behind a choice*.
+
+- At **meaningful checkpoints** (a step finished, a blocker hit, a plan changed), leave a state-bearing note: `append_progress(<id>, <note>)`.
+- At **real decision points** (a non-trivial choice, tradeoff, or reversal) — not every step — record the reasoning: `append_decision(<id>, <decision>, <why>)`. Keep `decision` under **200 characters** and `why` under **400**: past that the call is refused with `ERR_VALIDATION` naming the actual length, and you must rewrite it shorter and retry — skipping it loses the record. If a later decision reverses an earlier one, call `mark_decision_outdated(<id>, <index>, <supersededByIndex>)` so the log stays honest.
+
+If a moment is genuinely both, log both — but don't restate the same text in each.
+
 ## Complete
 
 When the work is ready for a human to review:

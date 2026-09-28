@@ -1,7 +1,7 @@
 ---
 name: ai-kanban-work-card
 description: Drives a generic, pre-started Claude Code session to work one AI-Kanban card end to end — claim it, create the git worktree(s), declare the workspace, fetch context, do the work, and move it to review. Use when the user types "/ai-kanban-work-card <id>", or says "work this card", "pick up card <id>", or "start the AI-Kanban card <id>".
-allowed-tools: Bash, mcp__ai-kanban-dispatch__claim_card, mcp__ai-kanban-dispatch__get_card_context, mcp__ai-kanban-dispatch__set_status, mcp__ai-kanban-dispatch__set_workspace
+allowed-tools: Bash, mcp__ai-kanban-dispatch__claim_card, mcp__ai-kanban-dispatch__get_card_context, mcp__ai-kanban-dispatch__set_status, mcp__ai-kanban-dispatch__set_workspace, mcp__ai-kanban-dispatch__append_progress, mcp__ai-kanban-dispatch__append_decision, mcp__ai-kanban-dispatch__mark_decision_outdated
 ---
 
 # AI-Kanban: Work a Card

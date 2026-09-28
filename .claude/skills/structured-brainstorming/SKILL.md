@@ -213,7 +213,7 @@ When helpful, use:
 
 **Not good for:**
 - Quick code fixes (use directly)
-- Well-defined implementation tasks (use feature-development-workflow)
+- Well-defined implementation tasks (use feature-dev-lite)
 - Simple questions with clear answers
 
 ---
