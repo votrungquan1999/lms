@@ -70,4 +70,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
   await db
     .collection("enrollment")
     .createIndex({ courseId: 1, studentId: 1 }, { unique: true });
+
+  // The owner-typed slug is a school's only unique key; names may repeat.
+  await db.collection("school").createIndex({ slug: 1 }, { unique: true });
 }

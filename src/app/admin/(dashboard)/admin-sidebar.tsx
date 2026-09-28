@@ -3,6 +3,7 @@
 import {
   BookOpen,
   ClipboardCheck,
+  Landmark,
   LayoutDashboard,
   Library,
   LogOut,
@@ -127,6 +128,18 @@ export function AdminSidebar({
             <SidebarGroupLabel>Owner</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith("/admin/schools")}
+                    tooltip="Schools"
+                  >
+                    <Link href="/admin/schools">
+                      <Landmark />
+                      <span>Schools</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild

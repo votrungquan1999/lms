@@ -344,6 +344,21 @@ export class AuthService {
   }
 
   /**
+   * Requires the current session to be the platform OWNER: a
+   * recorded admin AND an ADMIN_EMAILS address. Needs no school — schools
+   * and school admins are created before any school exists to create them
+   * in.
+   */
+  async requireOwnerSession(headers: Headers): Promise<AdminSession> {
+    const session = await this.requireAdminSession(headers);
+    const isOwner = await this.isAdminEmail(session.email);
+    if (!isOwner) {
+      throw new Error("Unauthorized: owner access required");
+    }
+    return session;
+  }
+
+  /**
    * Requires the current session to be a student.
    * Throws if not authenticated or not a student.
    */

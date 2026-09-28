@@ -80,6 +80,13 @@ describe("Feature: Production database boot wires the safety indexes", () => {
           (index) => index.key.courseId === 1 && index.key.studentId === 1,
         );
         expect(enrollmentUniqueIndex?.unique).toBe(true);
+
+        // ...and the school slug unique index exists
+        const schoolIndexes = await listIndexesOrEmpty(db, "school");
+        const schoolSlugUniqueIndex = schoolIndexes.find(
+          (index) => index.key.slug === 1,
+        );
+        expect(schoolSlugUniqueIndex?.unique).toBe(true);
       } finally {
         const client = getMongoClient();
         if (client) {

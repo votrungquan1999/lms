@@ -17,6 +17,7 @@ import { QuestionPoolService } from "./question-pool-service";
 import { QuestionService } from "./question-service";
 import { RedoRequestService } from "./redo-request-service";
 import { S3StorageService } from "./s3-storage-service";
+import { SchoolService } from "./school-service";
 import { StudentService } from "./student-service";
 import { TestFeedbackService } from "./test-feedback-service";
 import { TestService } from "./test-service";
@@ -50,6 +51,7 @@ let questionParseClient: QuestionParseClient | null = null;
 let questionPoolService: QuestionPoolService | null = null;
 let poolQuestionService: PoolQuestionService | null = null;
 let s3StorageService: S3StorageService | null = null;
+let schoolService: SchoolService | null = null;
 let studentService: StudentService | null = null;
 let pageGuard: PageGuard | null = null;
 let userRoleService: UserRoleService | null = null;
@@ -299,6 +301,14 @@ export async function getS3StorageService(): Promise<S3StorageService> {
     );
   }
   return s3StorageService;
+}
+
+export async function getSchoolService(): Promise<SchoolService> {
+  if (!schoolService) {
+    const db = await getDatabase();
+    schoolService = tracedService(new SchoolService(db), "school");
+  }
+  return schoolService;
 }
 
 export async function getStudentService(): Promise<StudentService> {

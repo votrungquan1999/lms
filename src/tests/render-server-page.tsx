@@ -17,6 +17,7 @@ import { QuestionPoolService } from "src/lib/question-pool-service";
 import { QuestionService } from "src/lib/question-service";
 import { RedoRequestService } from "src/lib/redo-request-service";
 import type { S3StorageService } from "src/lib/s3-storage-service";
+import { SchoolService } from "src/lib/school-service";
 import { StudentService } from "src/lib/student-service";
 import { TestFeedbackService } from "src/lib/test-feedback-service";
 import { TestService } from "src/lib/test-service";
@@ -45,6 +46,7 @@ export interface TestServices {
   questionService: QuestionService;
   redoRequestService: RedoRequestService;
   s3StorageService: S3StorageService;
+  schoolService: SchoolService;
   studentService: StudentService;
   testFeedbackService: TestFeedbackService;
   testService: TestService;
@@ -132,6 +134,7 @@ function makeServices(db: Db): TestServices {
   const redoRequestService = new RedoRequestService(db, testService);
   const pageGuard = new PageGuard(enrollmentService);
   const userRoleService = new UserRoleService(db);
+  const schoolService = new SchoolService(db);
   // Deterministic fake S3 service — no AWS SDK pulled into jsdom (type-only import).
   const s3StorageService = {
     getPresignedUploadUrl: async (key: string, _contentType: string) => ({
@@ -158,6 +161,7 @@ function makeServices(db: Db): TestServices {
     questionService,
     redoRequestService,
     s3StorageService,
+    schoolService,
     studentService,
     testFeedbackService,
     testService,
@@ -238,6 +242,7 @@ export function servicesSingletonMockFactory() {
     getQuestionService: async () => getTestServices().questionService,
     getRedoRequestService: async () => getTestServices().redoRequestService,
     getS3StorageService: async () => getTestServices().s3StorageService,
+    getSchoolService: async () => getTestServices().schoolService,
     getStudentService: async () => getTestServices().studentService,
     getTestFeedbackService: async () => getTestServices().testFeedbackService,
     getTestService: async () => getTestServices().testService,
