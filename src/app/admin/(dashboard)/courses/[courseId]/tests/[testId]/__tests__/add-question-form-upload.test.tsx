@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TEST_SCHOOL } from "src/tests/create-test-db";
+import type { Db } from "mongodb";
+import type { CourseDocument } from "src/lib/course-service";
+import type { TestDocument } from "src/lib/test-service";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -30,12 +33,49 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
+let db: Db;
+
 beforeEach(async () => {
-  await setupTestDb();
+  const setup = await setupTestDb();
+  db = setup.db;
   requireAdminSession.mockResolvedValue({
     userId: "admin-1",
     role: "admin",
     school: TEST_SCHOOL,
+  });
+  // The form is rendered with fixed testId="test-1"/courseId="course-1" —
+  // the parent check now needs a real test with those exact ids.
+  await db.collection<CourseDocument>("course").insertOne({
+    id: "course-1",
+    title: "Course",
+    description: "",
+    createdAt: new Date(),
+    createdBy: "admin-1",
+    updatedAt: null,
+    updatedBy: null,
+    materials: [],
+    inviteToken: null,
+    schoolId: TEST_SCHOOL_ID,
+  });
+  await db.collection<TestDocument>("test").insertOne({
+    id: "test-1",
+    courseId: "course-1",
+    title: "Test",
+    description: "",
+    showCorrectAnswerAfterSubmit: true,
+    showGradeAfterSubmit: true,
+    answerRevealMode: "plain",
+    timeLimitMinutes: null,
+    isPractice: false,
+    correctAnswersReleasedAt: null,
+    gradesReleasedAt: null,
+    createdAt: new Date(),
+    createdBy: "admin-1",
+    updatedAt: null,
+    updatedBy: null,
+    deletedAt: null,
+    deletedBy: null,
+    schoolId: TEST_SCHOOL_ID,
   });
   vi.stubGlobal(
     "fetch",

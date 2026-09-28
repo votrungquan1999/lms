@@ -36,9 +36,11 @@ export async function setEnrollmentsAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -61,6 +63,12 @@ export async function setEnrollmentsAction(
         "lms.course.id": parsed.data.courseId,
       },
       async () => {
+        const courseService = await getCourseService(schoolId);
+        const course = await courseService.getCourse(parsed.data.courseId);
+        if (!course) {
+          return { success: false, message: "Course not found" };
+        }
+
         const enrollmentService = await getEnrollmentService();
         await enrollmentService.setEnrolledStudents(parsed.data.courseId, {
           desired: parsed.data.studentIds,
@@ -321,6 +329,12 @@ export async function createTestAction(
         "lms.course.id": parsed.data.courseId,
       },
       async () => {
+        const courseService = await getCourseService(schoolId);
+        const course = await courseService.getCourse(parsed.data.courseId);
+        if (!course) {
+          return { success: false, message: "Course not found" };
+        }
+
         const testService = await getTestService(schoolId);
         const test = await testService.createTest(parsed.data.courseId, {
           title: parsed.data.title,

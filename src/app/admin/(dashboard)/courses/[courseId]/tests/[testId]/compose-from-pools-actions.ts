@@ -8,8 +8,10 @@ import {
   getPoolQuestionService,
   getQuestionPoolService,
   getQuestionService,
+  getTestService,
 } from "src/lib/services-singleton";
 import { z } from "zod";
+import { resolveOwnedTest } from "./test-parent-check";
 
 /** Names the pool(s) a zero-count draw is blamed on ("X has" / "X, Y have"). */
 function formatEmptyPoolsMessage(names: string[]): string {
@@ -83,6 +85,13 @@ export async function composeFromPoolsAction(
         "lms.test.id": parsed.data.testId,
       },
       async () => {
+        const testService = await getTestService(schoolId);
+        await resolveOwnedTest(
+          testService,
+          parsed.data.testId,
+          parsed.data.courseId,
+        );
+
         const poolQuestionService = await getPoolQuestionService(schoolId);
         const questionService = await getQuestionService(schoolId);
 

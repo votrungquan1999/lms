@@ -1,3 +1,4 @@
+import type { Db } from "mongodb";
 import { revalidatePath } from "next/cache";
 import {
   getTestServices,
@@ -16,15 +17,41 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
-import { TEST_SCHOOL } from "src/tests/create-test-db";
+import type { TestDocument } from "src/lib/test-service";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import { composeFromPoolsAction } from "../compose-from-pools-actions";
 
+let db: Db;
+
 beforeEach(async () => {
-  await setupTestDb();
+  const setup = await setupTestDb();
+  db = setup.db;
   requireAdminSession.mockResolvedValue({
     userId: "admin-1",
     role: "admin",
     school: TEST_SCHOOL,
+  });
+  // Every row below references "test-1" / "course-1" literally — the parent
+  // check now needs a test with those exact ids to resolve.
+  await db.collection<TestDocument>("test").insertOne({
+    id: "test-1",
+    courseId: "course-1",
+    title: "Test",
+    description: "",
+    showCorrectAnswerAfterSubmit: true,
+    showGradeAfterSubmit: true,
+    answerRevealMode: "plain",
+    timeLimitMinutes: null,
+    isPractice: false,
+    correctAnswersReleasedAt: null,
+    gradesReleasedAt: null,
+    createdAt: new Date(),
+    createdBy: "admin-1",
+    updatedAt: null,
+    updatedBy: null,
+    deletedAt: null,
+    deletedBy: null,
+    schoolId: TEST_SCHOOL_ID,
   });
 });
 

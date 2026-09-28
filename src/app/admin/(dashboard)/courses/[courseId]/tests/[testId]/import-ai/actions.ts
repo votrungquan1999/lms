@@ -16,8 +16,10 @@ import {
 import {
   getQuestionParseClient,
   getQuestionService,
+  getTestService,
 } from "src/lib/services-singleton";
 import { z } from "zod";
+import { resolveOwnedTest } from "../test-parent-check";
 
 /** Caps the text sent to Gemini — see D41 (a long exam paper stays affordable). */
 const MAX_DOCUMENT_TEXT_LENGTH = 200_000;
@@ -337,6 +339,16 @@ export async function importAiQuestionsAction(
       message: invalidQuestion.message,
       invalidQuestionIndex: invalidQuestion.index,
     };
+  }
+
+  // Runs before REPLACE's delete loop and outside the try/catch below — a
+  // foreign test must never reach the REPLACE-only "partial import" message.
+  try {
+    const testService = await getTestService(schoolId);
+    await resolveOwnedTest(testService, testId, courseId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Test not found";
+    return { success: false, message };
   }
 
   try {

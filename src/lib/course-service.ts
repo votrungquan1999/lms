@@ -178,14 +178,18 @@ export class CourseService {
    * materials. The `order` is derived from the current material count.
    * @param courseId - The course to attach the material to.
    * @param input - The material metadata (S3 key, content type, name, size).
+   * @throws If the course does not exist in this school.
    */
   async addCourseMaterial(
     courseId: string,
     input: AddCourseMaterialInput,
   ): Promise<void> {
-    const course = await this.courses.findOne({ id: courseId });
+    const course = await this.courses.findOne({
+      id: courseId,
+      schoolId: this.schoolId,
+    });
     if (!course) {
-      return;
+      throw new Error("Course not found");
     }
 
     const material: CourseMaterialDocument = {
@@ -204,19 +208,23 @@ export class CourseService {
   }
 
   /**
-   * Removes a material from a course by its S3 key. No-op when the course or
-   * key is unknown (`$pull` matches nothing).
+   * Removes a material from a course by its S3 key. No-op when the key is
+   * unknown (`$pull` matches nothing) — only a missing course throws.
    * @param courseId - The course to remove the material from.
    * @param materialKey - The S3 key of the material to remove.
+   * @throws If the course does not exist in this school.
    */
   async removeCourseMaterial(
     courseId: string,
     materialKey: string,
   ): Promise<void> {
-    await this.courses.updateOne(
-      { id: courseId },
+    const result = await this.courses.updateOne(
+      { id: courseId, schoolId: this.schoolId },
       { $pull: { materials: { key: materialKey } } },
     );
+    if (result.matchedCount === 0) {
+      throw new Error("Course not found");
+    }
   }
 
   /**
@@ -227,7 +235,10 @@ export class CourseService {
    * @throws If the course does not exist.
    */
   async getOrCreateInviteToken(courseId: string): Promise<string> {
-    const course = await this.courses.findOne({ id: courseId });
+    const course = await this.courses.findOne({
+      id: courseId,
+      schoolId: this.schoolId,
+    });
     if (!course) {
       throw new Error("Course not found");
     }
@@ -253,7 +264,7 @@ export class CourseService {
   async regenerateInviteToken(courseId: string): Promise<string> {
     const token = crypto.randomUUID();
     const result = await this.courses.updateOne(
-      { id: courseId },
+      { id: courseId, schoolId: this.schoolId },
       { $set: { inviteToken: token } },
     );
     if (result.matchedCount === 0) {
@@ -271,7 +282,7 @@ export class CourseService {
    */
   async disableInviteToken(courseId: string): Promise<void> {
     const result = await this.courses.updateOne(
-      { id: courseId },
+      { id: courseId, schoolId: this.schoolId },
       { $set: { inviteToken: null } },
     );
     if (result.matchedCount === 0) {

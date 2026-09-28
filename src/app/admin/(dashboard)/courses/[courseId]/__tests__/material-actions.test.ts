@@ -39,8 +39,16 @@ afterEach(async () => {
 describe("Feature: instructor uploads course materials", () => {
   describe("requesting material upload slots", () => {
     it("returns a course-scoped presigned PUT slot for each file, in order", async () => {
+      // Given a course
+      const { courseService } = getTestServices();
+      const course = await courseService.createCourse({
+        title: "Algorithms",
+        description: "",
+        createdBy: "admin-1",
+      });
+
       // When the instructor requests slots for two files
-      const result = await requestMaterialUploadSlotsAction("course-1", [
+      const result = await requestMaterialUploadSlotsAction(course.id, [
         {
           fileName: "syllabus.pdf",
           contentType: MaterialContentType.PDF,
@@ -62,7 +70,9 @@ describe("Feature: instructor uploads course materials", () => {
         fileName: "syllabus.pdf",
         order: 0,
       });
-      expect(result.slots?.[0].key).toContain("materials/courses/course-1/");
+      expect(result.slots?.[0].key).toContain(
+        `materials/courses/${course.id}/`,
+      );
       expect(result.slots?.[1]).toMatchObject({
         contentType: MaterialContentType.DOCX,
         order: 1,

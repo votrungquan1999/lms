@@ -150,3 +150,110 @@ describe("Feature: a school admin can never open another school's course by id",
     },
   );
 });
+
+/**
+ * Feature: a school admin can never write to another school's course by id
+ * As a school admin
+ * I want the join-link and material mutators to refuse another school's course id
+ * So that another school's course can never be changed through mine
+ */
+describe("Feature: a school admin can never write to another school's course by id", () => {
+  dbIt(
+    "getOrCreateInviteToken refuses a course that belongs to another school",
+    async ({ db }) => {
+      const foreignCourse = await new CourseService(
+        db,
+        "school-b",
+      ).createCourse({ title: "Foreign", description: "", createdBy: "admin" });
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
+
+      await expect(
+        courseService.getOrCreateInviteToken(foreignCourse.id),
+      ).rejects.toThrow("Course not found");
+    },
+  );
+
+  dbIt(
+    "regenerateInviteToken refuses a course that belongs to another school",
+    async ({ db }) => {
+      const foreignCourse = await new CourseService(
+        db,
+        "school-b",
+      ).createCourse({ title: "Foreign", description: "", createdBy: "admin" });
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
+
+      await expect(
+        courseService.regenerateInviteToken(foreignCourse.id),
+      ).rejects.toThrow("Course not found");
+    },
+  );
+
+  dbIt(
+    "disableInviteToken refuses a course that belongs to another school",
+    async ({ db }) => {
+      const foreignCourse = await new CourseService(
+        db,
+        "school-b",
+      ).createCourse({ title: "Foreign", description: "", createdBy: "admin" });
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
+
+      await expect(
+        courseService.disableInviteToken(foreignCourse.id),
+      ).rejects.toThrow("Course not found");
+    },
+  );
+
+  dbIt(
+    "addCourseMaterial refuses a course that belongs to another school, and adds nothing",
+    async ({ db }) => {
+      const foreignService = new CourseService(db, "school-b");
+      const foreignCourse = await foreignService.createCourse({
+        title: "Foreign",
+        description: "",
+        createdBy: "admin",
+      });
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
+
+      await expect(
+        courseService.addCourseMaterial(foreignCourse.id, {
+          key: "materials/courses/x/a.pdf",
+          contentType: "application/pdf",
+          fileName: "a.pdf",
+          size: 100,
+        }),
+      ).rejects.toThrow("Course not found");
+
+      const reloaded = await foreignService.getCourse(foreignCourse.id);
+      expect(reloaded?.materials).toHaveLength(0);
+    },
+  );
+
+  dbIt(
+    "removeCourseMaterial refuses a course that belongs to another school, and removes nothing",
+    async ({ db }) => {
+      const foreignService = new CourseService(db, "school-b");
+      const foreignCourse = await foreignService.createCourse({
+        title: "Foreign",
+        description: "",
+        createdBy: "admin",
+      });
+      await foreignService.addCourseMaterial(foreignCourse.id, {
+        key: "materials/courses/x/a.pdf",
+        contentType: "application/pdf",
+        fileName: "a.pdf",
+        size: 100,
+      });
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
+
+      await expect(
+        courseService.removeCourseMaterial(
+          foreignCourse.id,
+          "materials/courses/x/a.pdf",
+        ),
+      ).rejects.toThrow("Course not found");
+
+      const reloaded = await foreignService.getCourse(foreignCourse.id);
+      expect(reloaded?.materials).toHaveLength(1);
+    },
+  );
+});

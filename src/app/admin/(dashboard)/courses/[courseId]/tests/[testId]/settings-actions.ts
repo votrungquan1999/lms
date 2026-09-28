@@ -6,6 +6,7 @@ import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import { getTestService } from "src/lib/services-singleton";
 import { z } from "zod";
+import { resolveOwnedTest } from "./test-parent-check";
 
 export interface SetTestSettingsState {
   success: boolean;
@@ -78,6 +79,11 @@ export async function setTestSettingsAction(
       },
       async () => {
         const testService = await getTestService(schoolId);
+        await resolveOwnedTest(
+          testService,
+          parsed.data.testId,
+          parsed.data.courseId,
+        );
         await testService.updateTestSettings(parsed.data.testId, {
           showGradeAfterSubmit: parsed.data.showGradeAfterSubmit,
           showCorrectAnswerAfterSubmit:

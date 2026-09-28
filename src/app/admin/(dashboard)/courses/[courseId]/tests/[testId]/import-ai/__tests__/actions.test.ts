@@ -45,8 +45,25 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
+/** Creates a real course + test so the parent check has something to resolve. */
+async function createTest(): Promise<{ courseId: string; testId: string }> {
+  const { courseService, testService } = getTestServices();
+  const course = await courseService.createCourse({
+    title: "Course",
+    description: "",
+    createdBy: "admin-1",
+  });
+  const test = await testService.createTest(course.id, {
+    title: "Test",
+    description: "",
+    createdBy: "admin-1",
+  });
+  return { courseId: course.id, testId: test.id };
+}
+
 describe("Feature: importing the reviewed AI-extracted list onto the test", () => {
   it("writes the reviewed questions onto the test in the order the teacher reviewed them", async () => {
+    const { courseId, testId } = await createTest();
     // A mixed-type reviewed list, in the order the teacher left it after review.
     const reviewed: ParsedQuestion[] = [
       {
@@ -75,15 +92,11 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
       },
     ];
 
-    const result = await importAiQuestionsAction(
-      "test-1",
-      "course-1",
-      reviewed,
-    );
+    const result = await importAiQuestionsAction(testId, courseId, reviewed);
 
     expect(result.success).toBe(true);
     const questions =
-      await getTestServices().questionService.listQuestions("test-1");
+      await getTestServices().questionService.listQuestions(testId);
     expect(questions.map((q) => q.title)).toEqual([
       "Q1: photosynthesis",
       "Q2: pick the prime",
@@ -98,6 +111,7 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
   });
 
   it("rejects the whole batch and names the offending question when one cannot be accepted, importing none of them", async () => {
+    const { courseId, testId } = await createTest();
     // Question 2 has TWO correct options — a wrong key, not a missing one,
     // so D32's relaxation for AI import does not cover it either.
     const reviewed: ParsedQuestion[] = [
@@ -126,11 +140,7 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
       },
     ];
 
-    const result = await importAiQuestionsAction(
-      "test-1",
-      "course-1",
-      reviewed,
-    );
+    const result = await importAiQuestionsAction(testId, courseId, reviewed);
 
     expect(result.success).toBe(false);
     expect(result.message).toContain("Question 2");
@@ -139,11 +149,12 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
     // question's own card rather than a bare page-level banner.
     expect(result.invalidQuestionIndex).toBe(1);
     const questions =
-      await getTestServices().questionService.listQuestions("test-1");
+      await getTestServices().questionService.listQuestions(testId);
     expect(questions).toHaveLength(0);
   });
 
   it("imports a keyless single_select and a keyless multi_select rather than rejecting the batch (D32)", async () => {
+    const { courseId, testId } = await createTest();
     // Q1 (free_text) writes first so a write-time regression — checkMcOptions
     // run without D32's relaxation — shows up as a partial import, not a
     // clean pre-write rejection.
@@ -173,15 +184,11 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
       },
     ];
 
-    const result = await importAiQuestionsAction(
-      "test-1",
-      "course-1",
-      reviewed,
-    );
+    const result = await importAiQuestionsAction(testId, courseId, reviewed);
 
     expect(result.success).toBe(true);
     const questions =
-      await getTestServices().questionService.listQuestions("test-1");
+      await getTestServices().questionService.listQuestions(testId);
     expect(questions).toHaveLength(3);
     expect(
       (questions[1] as SingleSelectQuestion).options.every((o) => !o.isCorrect),
@@ -192,6 +199,7 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
   });
 
   it("leaves nothing written on a genuinely invalid batch — the all-or-nothing guarantee, asserted directly rather than left incidental", async () => {
+    const { courseId, testId } = await createTest();
     // Two correct options on a single_select is a WRONG key, not a missing
     // one — D32's relaxation does not cover it, so this batch is still
     // rejected outright and must leave zero questions behind.
@@ -207,25 +215,26 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
       },
     ];
 
-    const result = await importAiQuestionsAction("test-2", "course-1", failing);
+    const result = await importAiQuestionsAction(testId, courseId, failing);
 
     expect(result.success).toBe(false);
     const questions =
-      await getTestServices().questionService.listQuestions("test-2");
+      await getTestServices().questionService.listQuestions(testId);
     expect(questions).toHaveLength(0);
   });
 });
 
 describe("Feature: replacing a test's questions deletes the old ones and writes the reviewed ones (Step 34 / D37 REPLACE)", () => {
   it("soft-deletes every existing question and writes the reviewed list in its place", async () => {
+    const { courseId, testId } = await createTest();
     const questionService = getTestServices().questionService;
-    const oldQ1 = await questionService.addQuestion("test-3", {
+    const oldQ1 = await questionService.addQuestion(testId, {
       type: "free_text",
       title: "Old Q1",
       content: "Old content.",
       createdBy: "admin-1",
     });
-    const oldQ2 = await questionService.addQuestion("test-3", {
+    const oldQ2 = await questionService.addQuestion(testId, {
       type: "free_text",
       title: "Old Q2",
       content: "Old content 2.",
@@ -237,14 +246,14 @@ describe("Feature: replacing a test's questions deletes the old ones and writes 
     ];
 
     const result = await importAiQuestionsAction(
-      "test-3",
-      "course-1",
+      testId,
+      courseId,
       reviewed,
       "replace",
     );
 
     expect(result.success).toBe(true);
-    const questions = await questionService.listQuestions("test-3");
+    const questions = await questionService.listQuestions(testId);
     expect(questions.map((q) => q.title)).toEqual(["New Q1"]);
     expect(questions[0].order).toBe(1);
 
@@ -269,8 +278,9 @@ describe("Feature: replacing a test's questions deletes the old ones and writes 
   // rejected batch structurally cannot reach it; there is no code path this
   // test could catch mid-implementation the way the test above did.
   it("validates before deleting anything — a rejected REPLACE batch leaves the existing questions untouched", async () => {
+    const { courseId, testId } = await createTest();
     const questionService = getTestServices().questionService;
-    await questionService.addQuestion("test-4", {
+    await questionService.addQuestion(testId, {
       type: "free_text",
       title: "Untouched Q1",
       content: "Stays put.",
@@ -290,28 +300,29 @@ describe("Feature: replacing a test's questions deletes the old ones and writes 
     ];
 
     const result = await importAiQuestionsAction(
-      "test-4",
-      "course-1",
+      testId,
+      courseId,
       failing,
       "replace",
     );
 
     expect(result.success).toBe(false);
-    const questions = await questionService.listQuestions("test-4");
+    const questions = await questionService.listQuestions(testId);
     expect(questions.map((q) => q.title)).toEqual(["Untouched Q1"]);
   });
 });
 
 describe("Feature: a failed REPLACE warns that the test may be partly changed", () => {
   it("names the REPLACE-specific risk, distinct from a generic failure, when an infra fault interrupts the delete-then-insert loop partway through", async () => {
+    const { courseId, testId } = await createTest();
     const questionService = getTestServices().questionService;
-    const oldQ1 = await questionService.addQuestion("test-5", {
+    const oldQ1 = await questionService.addQuestion(testId, {
       type: "free_text",
       title: "Old Q1",
       content: "Old content.",
       createdBy: "admin-1",
     });
-    await questionService.addQuestion("test-5", {
+    await questionService.addQuestion(testId, {
       type: "free_text",
       title: "Old Q2",
       content: "Old content 2.",
@@ -332,8 +343,8 @@ describe("Feature: a failed REPLACE warns that the test may be partly changed", 
       .mockRejectedValueOnce(new Error("connection reset"));
 
     const result = await importAiQuestionsAction(
-      "test-5",
-      "course-1",
+      testId,
+      courseId,
       reviewed,
       "replace",
     );
@@ -348,7 +359,7 @@ describe("Feature: a failed REPLACE warns that the test may be partly changed", 
 
     // And the scenario the message warns about is real: one old question
     // gone, the other intact, no new question landed.
-    const remaining = await questionService.listQuestions("test-5");
+    const remaining = await questionService.listQuestions(testId);
     expect(remaining.map((q) => q.title)).toEqual(["Old Q2"]);
     const questionCollection = db.collection<QuestionDocument>("question");
     const deletedDoc = await questionCollection.findOne({ id: oldQ1.id });
@@ -356,6 +367,7 @@ describe("Feature: a failed REPLACE warns that the test may be partly changed", 
   });
 
   it("keeps APPEND's generic failure message on the same kind of infra fault — the new wording is REPLACE-only", async () => {
+    const { courseId, testId } = await createTest();
     const questionService = getTestServices().questionService;
     const reviewed: ParsedQuestion[] = [
       { title: "New Q1", content: "Fresh content.", type: "free_text" },
@@ -366,8 +378,8 @@ describe("Feature: a failed REPLACE warns that the test may be partly changed", 
     );
 
     const result = await importAiQuestionsAction(
-      "test-6",
-      "course-1",
+      testId,
+      courseId,
       reviewed,
       "append",
     );
@@ -379,15 +391,12 @@ describe("Feature: a failed REPLACE warns that the test may be partly changed", 
 
 describe("Feature: the import confirmation reads the imported count with correct grammar", () => {
   it("reads 'Imported 1 question', not the literal '(s)'", async () => {
+    const { courseId, testId } = await createTest();
     const reviewed: ParsedQuestion[] = [
       { title: "Solo question", content: "Just one.", type: "free_text" },
     ];
 
-    const result = await importAiQuestionsAction(
-      "test-7",
-      "course-1",
-      reviewed,
-    );
+    const result = await importAiQuestionsAction(testId, courseId, reviewed);
 
     expect(result.message).toBe("Imported 1 question");
     expect(result.message).not.toContain("question(s)");

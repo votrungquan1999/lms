@@ -1,4 +1,5 @@
 import type { Db } from "mongodb";
+import type { CourseDocument } from "src/lib/course-service";
 import {
   type FreeTextQuestion,
   MediaContentType,
@@ -6,7 +7,8 @@ import {
   type QuestionDocument,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
-import { TEST_SCHOOL } from "src/tests/create-test-db";
+import type { TestDocument } from "src/lib/test-service";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -40,6 +42,40 @@ beforeEach(async () => {
     userId: "admin-1",
     role: "admin",
     school: TEST_SCHOOL,
+  });
+  // Seeded raw with fixed ids — every action row below references "course-1"
+  // / "test-1" literally, and the parent check now needs both to resolve.
+  await db.collection<CourseDocument>("course").insertOne({
+    id: "course-1",
+    title: "Course",
+    description: "",
+    createdAt: new Date(),
+    createdBy: "admin-1",
+    updatedAt: null,
+    updatedBy: null,
+    materials: [],
+    inviteToken: null,
+    schoolId: TEST_SCHOOL_ID,
+  });
+  await db.collection<TestDocument>("test").insertOne({
+    id: "test-1",
+    courseId: "course-1",
+    title: "Test",
+    description: "",
+    showCorrectAnswerAfterSubmit: true,
+    showGradeAfterSubmit: true,
+    answerRevealMode: "plain",
+    timeLimitMinutes: null,
+    isPractice: false,
+    correctAnswersReleasedAt: null,
+    gradesReleasedAt: null,
+    createdAt: new Date(),
+    createdBy: "admin-1",
+    updatedAt: null,
+    updatedBy: null,
+    deletedAt: null,
+    deletedBy: null,
+    schoolId: TEST_SCHOOL_ID,
   });
 });
 

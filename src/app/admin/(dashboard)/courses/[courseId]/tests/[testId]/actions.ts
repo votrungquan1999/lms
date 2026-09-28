@@ -11,6 +11,7 @@ import {
   type SubmittedMedia,
   submittedMediaSchema,
 } from "./question-media.schema";
+import { assertQuestionInTest, resolveOwnedTest } from "./test-parent-check";
 import {
   addQuestionSchema,
   editQuestionSchema,
@@ -87,7 +88,18 @@ export async function updateQuestionAction(
         "lms.test.id": parsed.data.testId,
       },
       async () => {
+        const testService = await getTestService(schoolId);
+        await resolveOwnedTest(
+          testService,
+          parsed.data.testId,
+          parsed.data.courseId,
+        );
         const questionService = await getQuestionService(schoolId);
+        await assertQuestionInTest(
+          questionService,
+          parsed.data.testId,
+          parsed.data.questionId,
+        );
         const data = parsed.data;
 
         // Each field is only touched when its control actually rendered
@@ -234,6 +246,12 @@ export async function addQuestionAction(
         "lms.course.id": parsed.data.courseId,
       },
       async () => {
+        const testService = await getTestService(schoolId);
+        await resolveOwnedTest(
+          testService,
+          parsed.data.testId,
+          parsed.data.courseId,
+        );
         const questionService = await getQuestionService(schoolId);
         const data = parsed.data;
         if (data.type === "free_text") {
@@ -353,6 +371,9 @@ export async function importQuestionsAction(
           };
         }
 
+        const testService = await getTestService(schoolId);
+        await resolveOwnedTest(testService, testId, courseId);
+
         const questionService = await getQuestionService(schoolId);
         const imported = await questionService.importQuestions(
           testId,
@@ -422,6 +443,7 @@ export async function deleteTestAction(
       },
       async () => {
         const testService = await getTestService(schoolId);
+        await resolveOwnedTest(testService, testId, courseId);
         await testService.deleteTest(testId, adminUserId);
 
         revalidatePath(`/admin/courses/${courseId}`);
@@ -485,7 +507,10 @@ export async function deleteQuestionAction(
         "lms.test.id": testId,
       },
       async () => {
+        const testService = await getTestService(schoolId);
+        await resolveOwnedTest(testService, testId, courseId);
         const questionService = await getQuestionService(schoolId);
+        await assertQuestionInTest(questionService, testId, questionId);
         await questionService.deleteQuestion(questionId, adminUserId);
 
         revalidatePath(`/admin/courses/${courseId}/tests/${testId}`);

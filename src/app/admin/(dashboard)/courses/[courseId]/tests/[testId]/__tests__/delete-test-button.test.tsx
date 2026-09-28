@@ -17,6 +17,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 
 vi.mock("src/lib/services-singleton", () => ({
   getTestService: vi.fn().mockResolvedValue({
+    getTest: vi.fn().mockResolvedValue({ id: "test-1", courseId: "course-1" }),
     deleteTest: (...args: unknown[]) => mockDeleteTest(...args),
   }),
   getQuestionService: vi.fn(),

@@ -36,8 +36,10 @@ export async function requestMaterialUploadSlotsAction(
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
+  let schoolId: string;
   try {
-    await authService.requireAdminSession(requestHeaders);
+    const session = await authService.requireAdminSession(requestHeaders);
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -53,34 +55,50 @@ export async function requestMaterialUploadSlotsAction(
     return { success: false, message: parsed.error.issues[0].message };
   }
 
-  return withSpan(
-    "action.requestMaterialUploadSlotsAction",
-    { "lms.action.name": "requestMaterialUploadSlotsAction" },
-    async () => {
-      const s3 = await getS3StorageService();
+  try {
+    return await withSpan(
+      "action.requestMaterialUploadSlotsAction",
+      { "lms.action.name": "requestMaterialUploadSlotsAction" },
+      async () => {
+        const courseService = await getCourseService(schoolId);
+        const course = await courseService.getCourse(courseId);
+        if (!course) {
+          return { success: false, message: "Course not found" };
+        }
 
-      const slots = await Promise.all(
-        parsed.data.map(async (file, index) => {
-          const extension =
-            MATERIAL_EXTENSION_BY_CONTENT_TYPE[
-              file.contentType as MaterialContentType
-            ];
-          const key = `materials/courses/${courseId}/${randomUUID()}.${extension}`;
-          const { url } = await s3.getPresignedUploadUrl(key, file.contentType);
-          return {
-            key,
-            url,
-            contentType: file.contentType,
-            fileName: file.fileName,
-            size: file.size,
-            order: index,
-          };
-        }),
-      );
+        const s3 = await getS3StorageService();
 
-      return { success: true, message: "Upload slots created", slots };
-    },
-  );
+        const slots = await Promise.all(
+          parsed.data.map(async (file, index) => {
+            const extension =
+              MATERIAL_EXTENSION_BY_CONTENT_TYPE[
+                file.contentType as MaterialContentType
+              ];
+            const key = `materials/courses/${courseId}/${randomUUID()}.${extension}`;
+            const { url } = await s3.getPresignedUploadUrl(
+              key,
+              file.contentType,
+            );
+            return {
+              key,
+              url,
+              contentType: file.contentType,
+              fileName: file.fileName,
+              size: file.size,
+              order: index,
+            };
+          }),
+        );
+
+        return { success: true, message: "Upload slots created", slots };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to create upload slots";
+    return { success: false, message };
+  }
 }
 
 /**
@@ -121,21 +139,28 @@ export async function addCourseMaterialAction(
     return { success: false, message: "Invalid material key" };
   }
 
-  return withSpan(
-    "action.addCourseMaterialAction",
-    { "lms.action.name": "addCourseMaterialAction" },
-    async () => {
-      const courseService = await getCourseService(schoolId);
-      await courseService.addCourseMaterial(courseId, {
-        key: parsed.data.key,
-        contentType: parsed.data.contentType,
-        fileName: parsed.data.fileName,
-        size: parsed.data.size,
-      });
-      revalidatePath(`/admin/courses/${courseId}`);
-      return { success: true, message: "Material added" };
-    },
-  );
+  try {
+    return await withSpan(
+      "action.addCourseMaterialAction",
+      { "lms.action.name": "addCourseMaterialAction" },
+      async () => {
+        const courseService = await getCourseService(schoolId);
+        await courseService.addCourseMaterial(courseId, {
+          key: parsed.data.key,
+          contentType: parsed.data.contentType,
+          fileName: parsed.data.fileName,
+          size: parsed.data.size,
+        });
+        revalidatePath(`/admin/courses/${courseId}`);
+        return { success: true, message: "Material added" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to add material";
+    return { success: false, message };
+  }
 }
 
 /**
@@ -160,14 +185,21 @@ export async function removeCourseMaterialAction(
     return { success: false, message: "Unauthorized: admin access required" };
   }
 
-  return withSpan(
-    "action.removeCourseMaterialAction",
-    { "lms.action.name": "removeCourseMaterialAction" },
-    async () => {
-      const courseService = await getCourseService(schoolId);
-      await courseService.removeCourseMaterial(courseId, materialKey);
-      revalidatePath(`/admin/courses/${courseId}`);
-      return { success: true, message: "Material removed" };
-    },
-  );
+  try {
+    return await withSpan(
+      "action.removeCourseMaterialAction",
+      { "lms.action.name": "removeCourseMaterialAction" },
+      async () => {
+        const courseService = await getCourseService(schoolId);
+        await courseService.removeCourseMaterial(courseId, materialKey);
+        revalidatePath(`/admin/courses/${courseId}`);
+        return { success: true, message: "Material removed" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    const message =
+      error instanceof Error ? error.message : "Failed to remove material";
+    return { success: false, message };
+  }
 }
