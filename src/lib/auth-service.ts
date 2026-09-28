@@ -1,8 +1,9 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { type Db, ObjectId } from "mongodb";
+import { readActiveSchoolCookie } from "./active-school-cookie";
 import type { AppConfig } from "./config";
-import type { SchoolService } from "./school-service";
+import type { SchoolService, UserSchool } from "./school-service";
 import { AdminSession, Role, type Session, StudentSession } from "./session";
 import type { StudentService } from "./student-service";
 
@@ -109,6 +110,43 @@ function toInternalEmail(username: string): string {
 type BetterAuthSessionUser = NonNullable<
   Awaited<ReturnType<ReturnType<typeof createBetterAuth>["api"]["getSession"]>>
 >["user"];
+
+/**
+ * The active-school chain: the only membership; else the cookie's school
+ * if the admin still belongs to it; else the first school by name. Mongo's
+ * default sort is case-sensitive, so the name sort runs here in app code
+ * instead of a query-level `.sort()` — the admin's own membership list is
+ * always small enough for this to be cheap.
+ */
+function resolveActiveSchool(
+  schools: UserSchool[],
+  cookieSchoolId: string | undefined,
+): UserSchool | null {
+  if (schools.length === 1) {
+    return schools[0];
+  }
+  if (schools.length === 0) {
+    return null;
+  }
+
+  // The cookie value is only ever compared against the admin's own
+  // memberships, never used in a query — a tampered or revoked id just
+  // fails to match and falls through to the name-sorted default below.
+  const cookieMatch = cookieSchoolId
+    ? schools.find((school) => school.id === cookieSchoolId)
+    : undefined;
+  if (cookieMatch) {
+    return cookieMatch;
+  }
+
+  const sortedByName = [...schools].sort((a, b) => {
+    const byName = a.name.localeCompare(b.name, undefined, {
+      sensitivity: "base",
+    });
+    return byName !== 0 ? byName : a.id.localeCompare(b.id);
+  });
+  return sortedByName[0];
+}
 
 /** AuthService's collaborators, named so adding one never shifts every call site. */
 export interface AuthServiceDeps {
@@ -255,12 +293,19 @@ export class AuthService {
    * coupling that let BUG-4 (an authenticated caller looping back to login)
    * happen in the first place.
    */
-  private async classify(user: BetterAuthSessionUser): Promise<Session | null> {
+  private async classify(
+    user: BetterAuthSessionUser,
+    headers: Headers,
+  ): Promise<Session | null> {
     // Admin-ness is a recorded fact on the user, never an email-string match.
     if (isRecordedAdmin(user.role)) {
-      // A single membership is the active school; any other count resolves none.
+      // Read fresh on every call — never cached — so a revoked membership
+      // or a newly added one is honored on the very next request.
       const schools = await this.schoolService.listSchoolsForUser(user.id);
-      const school = schools.length === 1 ? schools[0] : null;
+      const school = resolveActiveSchool(
+        schools,
+        readActiveSchoolCookie(headers),
+      );
       return new AdminSession({ userId: user.id, email: user.email, school });
     }
 
@@ -292,7 +337,7 @@ export class AuthService {
       return null;
     }
 
-    return this.classify(betterAuthSession.user);
+    return this.classify(betterAuthSession.user, plainHeaders);
   }
 
   /**
@@ -309,7 +354,7 @@ export class AuthService {
       return LoginEntryState.SignedOut;
     }
 
-    const session = await this.classify(betterAuthSession.user);
+    const session = await this.classify(betterAuthSession.user, headers);
     if (session instanceof AdminSession) {
       return LoginEntryState.Admin;
     }
@@ -342,7 +387,7 @@ export class AuthService {
       return null;
     }
 
-    const session = await this.classify(betterAuthSession.user);
+    const session = await this.classify(betterAuthSession.user, headers);
     if (session) {
       return null;
     }
