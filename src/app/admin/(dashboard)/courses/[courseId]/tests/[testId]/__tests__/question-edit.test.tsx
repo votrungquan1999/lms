@@ -929,6 +929,169 @@ describe("Feature: Question edit panel — answer options", () => {
       expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
     });
   });
+
+  it("keeps an added option's id stable across a later save, so a student's pick on it survives", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = (await services.questionService.addQuestion(test.id, {
+      title: "Pick the capital",
+      content: "Choose one.",
+      createdBy: "admin",
+      type: "single_select",
+      options: [
+        { text: "Paris", isCorrect: true },
+        { text: "London", isCorrect: false },
+      ],
+    })) as SingleSelectQuestion;
+    const originalIds = question.options.map((o) => o.id);
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    const { rerender } = render(page);
+
+    // Add a third option and save.
+    await user.click(screen.getByRole("button", { name: /add option/i }));
+    const newOptionInput = document.getElementById(
+      `option-text-${question.id}-2`,
+    );
+    if (!newOptionInput) throw new Error("Expected a third option input");
+    await user.type(newOptionInput, "Berlin");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const [afterFirstSave] = (await services.questionService.listQuestions(
+      test.id,
+    )) as SingleSelectQuestion[];
+    const newOption = afterFirstSave.options.find(
+      (o) => !originalIds.includes(o.id),
+    );
+    if (!newOption) throw new Error("Expected a newly minted option");
+
+    // A student picks the newly added option.
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "mc", selectedIds: [newOption.id] },
+    });
+
+    // Mirrors the post-save server revalidation: the panel receives the
+    // freshly persisted question (with the new option's real id) as props.
+    const refreshedPage = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+    rerender(refreshedPage);
+
+    // A second save changes only the title — a real change to an answered
+    // question, so a confirmation is expected, but it must name the title
+    // alone: the options were never actually touched.
+    await user.clear(editPanelField(question.id, "title"));
+    await user.type(
+      editPanelField(question.id, "title"),
+      "Pick the capital (revised)",
+    );
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("You're about to change the title");
+    expect(dialog).not.toHaveTextContent(/answer options/i);
+    await user.click(
+      within(dialog).getByRole("button", { name: /save anyway/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    });
+
+    const [afterSecondSave] = (await services.questionService.listQuestions(
+      test.id,
+    )) as SingleSelectQuestion[];
+    expect(afterSecondSave.title).toBe("Pick the capital (revised)");
+    // The added option's id is unchanged — a second save never re-mints it.
+    expect(afterSecondSave.options.find((o) => o.text === "Berlin")?.id).toBe(
+      newOption.id,
+    );
+
+    // The student's pick still resolves to a real, current option.
+    const answers = await services.answerService.getLatestAnswers(
+      test.id,
+      "student-1",
+    );
+    const studentAnswer = answers.find((a) => a.questionId === question.id);
+    expect(studentAnswer?.answer).toEqual({
+      type: "mc",
+      selectedIds: [newOption.id],
+    });
+    expect(afterSecondSave.options.map((o) => o.id)).toContain(newOption.id);
+  });
+
+  it("still shows the save confirmation and the added option once the saved question comes back", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Pick the capital",
+      content: "Choose one.",
+      createdBy: "admin",
+      type: "single_select",
+      options: [
+        { text: "Paris", isCorrect: true },
+        { text: "London", isCorrect: false },
+      ],
+    });
+
+    const { rerender } = render(
+      await TestDetailPage({
+        params: Promise.resolve({ courseId: course.id, testId: test.id }),
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: /add option/i }));
+    const newOptionInput = document.getElementById(
+      `option-text-${question.id}-2`,
+    );
+    if (!newOptionInput) throw new Error("Expected a third option input");
+    await user.type(newOptionInput, "Berlin");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Question updated");
+    });
+
+    // The save's own page refresh: the question now carries the new
+    // option's freshly minted id.
+    rerender(
+      await TestDetailPage({
+        params: Promise.resolve({ courseId: course.id, testId: test.id }),
+      }),
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Question updated");
+    expect(document.getElementById(`option-text-${question.id}-2`)).toHaveValue(
+      "Berlin",
+    );
+  });
 });
 
 /**

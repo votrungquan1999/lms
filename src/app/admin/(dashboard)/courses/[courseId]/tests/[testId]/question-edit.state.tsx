@@ -55,6 +55,37 @@ interface OptionDraft {
 }
 
 /**
+ * Stable string of a question's persisted option ids. It changes when a
+ * successful save mints an id for a newly added option (or drops one), which
+ * is how `QuestionEditPanel` knows to re-derive its option rows from the
+ * refreshed props — otherwise it would keep the pre-save, id-less row, mint a
+ * new id for it on every later save, and detach a student's recorded pick.
+ * @param question - The question to derive a key from.
+ * @returns The question's id joined with its options' ids, in order.
+ */
+function questionOptionsKey(question: Question): string {
+  return isMcQuestion(question)
+    ? `${question.id}:${question.options.map((o) => o.id).join(",")}`
+    : question.id;
+}
+
+/**
+ * The options editor's starting rows for a question: its stored options with
+ * their ids, or none for a non-MC question.
+ * @param question - The question whose options seed the editor.
+ * @returns One draft row per stored option, in order.
+ */
+function optionDraftsOf(question: Question): OptionDraft[] {
+  return isMcQuestion(question)
+    ? question.options.map((o) => ({
+        id: o.id,
+        text: o.text,
+        isCorrect: o.isCorrect,
+      }))
+    : [];
+}
+
+/**
  * D69: true when the editor rows still match the stored options exactly.
  * A keyless MC question (D32/D44) is only editable while an unrelated save
  * leaves `options` out of the payload — the service re-runs the answer-key
@@ -225,15 +256,19 @@ export function QuestionEditPanel({
   // they're tracked as component state, prefilled from the stored question,
   // and injected into FormData just before the real action runs — same
   // technique `AddQuestionForm` uses for its own (unrelated) options builder.
-  const [options, setOptions] = useState<OptionDraft[]>(
-    isMcQuestion(question)
-      ? question.options.map((o) => ({
-          id: o.id,
-          text: o.text,
-          isCorrect: o.isCorrect,
-        }))
-      : [],
+  const [options, setOptions] = useState<OptionDraft[]>(() =>
+    optionDraftsOf(question),
   );
+
+  // A save that minted or dropped an option id comes back as fresh props.
+  // Re-derive the rows in place rather than remounting, so the save's
+  // confirmation and every other field survive the refresh.
+  const optionsKey = questionOptionsKey(question);
+  const [syncedOptionsKey, setSyncedOptionsKey] = useState(optionsKey);
+  if (syncedOptionsKey !== optionsKey) {
+    setSyncedOptionsKey(optionsKey);
+    setOptions(optionDraftsOf(question));
+  }
 
   const [state, formAction, isPending] = useActionState<
     UpdateQuestionState | null,
