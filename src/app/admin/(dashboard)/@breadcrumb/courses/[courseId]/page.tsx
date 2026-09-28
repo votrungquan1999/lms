@@ -7,15 +7,17 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "src/components/ui/breadcrumb";
-import { getCourseService } from "src/lib/services-singleton";
+import { getCourseService, getPageGuard } from "src/lib/services-singleton";
 
 export default async function CourseDetailBreadcrumb({
   params,
 }: {
   params: Promise<{ courseId: string }>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const { courseId } = await params;
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(session.school.id);
   const course = await courseService.getCourse(courseId);
   const currentPageText = course?.title ?? "Course";
 

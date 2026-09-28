@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import type { Db } from "mongodb";
 import { AdminSession } from "src/lib/session";
 import {
   getTestServices,
@@ -31,8 +32,10 @@ vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
  * before any school exists to grant them into
  */
 describe("Feature: the schools console is owner-only", () => {
+  let db: Db;
+
   beforeEach(async () => {
-    await setupTestDb();
+    ({ db } = await setupTestDb());
   });
 
   afterEach(async () => {
@@ -53,6 +56,8 @@ describe("Feature: the schools console is owner-only", () => {
   });
 
   it("renders the list for the owner, even before any school exists", async () => {
+    // The harness always creates a default school; remove it for this row.
+    await db.collection("school").deleteMany({});
     signInAs(
       new AdminSession({
         userId: "owner-1",

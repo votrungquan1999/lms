@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -14,7 +15,10 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({
-    requireAdminSession: vi.fn(async () => ({ userId: "admin-1" })),
+    requireAdminSession: vi.fn(async () => ({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    })),
   })),
 }));
 

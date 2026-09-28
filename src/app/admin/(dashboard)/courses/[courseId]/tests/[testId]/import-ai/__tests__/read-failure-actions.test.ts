@@ -13,6 +13,7 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   DocumentFileType,
   DocumentReadFailure,
@@ -29,7 +30,9 @@ beforeEach(() => {
       spanProcessors: [new SimpleSpanProcessor(exporter)],
     }),
   );
-  requireAdminSession.mockReset().mockResolvedValue({ userId: "admin-1" });
+  requireAdminSession
+    .mockReset()
+    .mockResolvedValue({ userId: "admin-1", school: TEST_SCHOOL });
 });
 
 afterEach(() => {

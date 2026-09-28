@@ -7,19 +7,25 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "src/components/ui/breadcrumb";
-import { getCourseService, getTestService } from "src/lib/services-singleton";
+import {
+  getCourseService,
+  getPageGuard,
+  getTestService,
+} from "src/lib/services-singleton";
 
 export default async function GradingTestBreadcrumb({
   params,
 }: {
   params: Promise<{ testId: string }>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const { testId } = await params;
 
   const testService = await getTestService();
   const test = await testService.getTest(testId);
 
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(session.school.id);
   const course = test ? await courseService.getCourse(test.courseId) : null;
 
   const currentPageText = `${test?.title ?? "Test"}${course?.title ? ` (${course.title})` : ""}`;

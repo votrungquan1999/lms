@@ -8,6 +8,7 @@ import {
 import {
   getCourseService,
   getEnrollmentService,
+  getPageGuard,
   getQuestionService,
   getTestService,
   getTestStatusService,
@@ -82,11 +83,13 @@ export default async function GradingHubPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const params = await searchParams;
   const filter = resolveFilter(params.filter);
 
   const testService = await getTestService();
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(session.school.id);
   const enrollmentService = await getEnrollmentService();
   const questionService = await getQuestionService();
   const testStatusService = await getTestStatusService();

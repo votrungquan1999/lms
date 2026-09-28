@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import type { AiGradeSuggestionDocument } from "src/lib/ai-grade-types";
 import { AI_GRADER_ID, AI_MODEL_NAME } from "src/lib/ai-grade-types";
 import { StudentSession } from "src/lib/session";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -48,6 +49,7 @@ function mockStudentSession(studentId: string) {
     userId: `auth-${studentId}`,
     username: `u-${studentId}`,
     studentId,
+    schoolId: TEST_SCHOOL_ID,
   });
   signInAs(session);
   mockRequireStudentSession.mockResolvedValue(session);
@@ -102,6 +104,7 @@ describe("Feature: Student test page — AI suggestions are isolated (Step 10)",
       username: "u1",
       name: "Stu",
       createdBy: "admin-1",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

@@ -97,8 +97,10 @@ export async function addCourseMaterialAction(
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
+  let schoolId: string;
   try {
-    await authService.requireAdminSession(requestHeaders);
+    const session = await authService.requireAdminSession(requestHeaders);
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -123,7 +125,7 @@ export async function addCourseMaterialAction(
     "action.addCourseMaterialAction",
     { "lms.action.name": "addCourseMaterialAction" },
     async () => {
-      const courseService = await getCourseService();
+      const courseService = await getCourseService(schoolId);
       await courseService.addCourseMaterial(courseId, {
         key: parsed.data.key,
         contentType: parsed.data.contentType,
@@ -150,8 +152,10 @@ export async function removeCourseMaterialAction(
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
+  let schoolId: string;
   try {
-    await authService.requireAdminSession(requestHeaders);
+    const session = await authService.requireAdminSession(requestHeaders);
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -160,7 +164,7 @@ export async function removeCourseMaterialAction(
     "action.removeCourseMaterialAction",
     { "lms.action.name": "removeCourseMaterialAction" },
     async () => {
-      const courseService = await getCourseService();
+      const courseService = await getCourseService(schoolId);
       await courseService.removeCourseMaterial(courseId, materialKey);
       revalidatePath(`/admin/courses/${courseId}`);
       return { success: true, message: "Material removed" };

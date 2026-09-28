@@ -1,7 +1,7 @@
 import { CourseService } from "src/lib/course-service";
 import { EnrollmentService } from "src/lib/enrollment-service";
 import { TestService } from "src/lib/test-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -20,7 +20,7 @@ describe("Feature: Admin Course Management Flow", () => {
     dbIt(
       "should create a course with title and description",
       async ({ db }) => {
-        const courseService = new CourseService(db);
+        const courseService = new CourseService(db, TEST_SCHOOL_ID);
 
         const course = await courseService.createCourse({
           title: "Introduction to Algorithms",
@@ -37,7 +37,7 @@ describe("Feature: Admin Course Management Flow", () => {
     dbIt(
       "should list courses in reverse chronological order",
       async ({ db }) => {
-        const courseService = new CourseService(db);
+        const courseService = new CourseService(db, TEST_SCHOOL_ID);
         await courseService.createCourse({
           title: "Course A",
           description: "",
@@ -58,7 +58,7 @@ describe("Feature: Admin Course Management Flow", () => {
     );
 
     dbIt("should get a course by ID", async ({ db }) => {
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const created = await courseService.createCourse({
         title: "My Course",
         description: "desc",
@@ -74,7 +74,7 @@ describe("Feature: Admin Course Management Flow", () => {
 
   describe("Scenario: Admin manages enrollment", () => {
     dbIt("should enroll a student without error", async ({ db }) => {
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const enrollmentService = new EnrollmentService(db);
       const course = await courseService.createCourse({
         title: "Test Course",
@@ -92,7 +92,7 @@ describe("Feature: Admin Course Management Flow", () => {
     dbIt(
       "should succeed without duplicating an already-enrolled student",
       async ({ db }) => {
-        const courseService = new CourseService(db);
+        const courseService = new CourseService(db, TEST_SCHOOL_ID);
         const enrollmentService = new EnrollmentService(db);
         const course = await courseService.createCourse({
           title: "Test Course",
@@ -119,7 +119,7 @@ describe("Feature: Admin Course Management Flow", () => {
     );
 
     dbIt("should bulk enroll students and skip duplicates", async ({ db }) => {
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const enrollmentService = new EnrollmentService(db);
       const course = await courseService.createCourse({
         title: "Test Course",
@@ -141,7 +141,7 @@ describe("Feature: Admin Course Management Flow", () => {
 
   describe("Scenario: Admin manages tests", () => {
     dbIt("should create a test associated with a course", async ({ db }) => {
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const testService = new TestService(db);
       const course = await courseService.createCourse({
         title: "Algorithms",
@@ -161,7 +161,7 @@ describe("Feature: Admin Course Management Flow", () => {
     });
 
     dbIt("should list only tests for the specified course", async ({ db }) => {
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const testService = new TestService(db);
       const courseA = await courseService.createCourse({
         title: "A",

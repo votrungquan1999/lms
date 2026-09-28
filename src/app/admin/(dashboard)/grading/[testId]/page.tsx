@@ -12,6 +12,7 @@ import { pluralize } from "src/lib/pluralize";
 import {
   getCourseService,
   getEnrollmentService,
+  getPageGuard,
   getQuestionService,
   getTestService,
 } from "src/lib/services-singleton";
@@ -36,6 +37,8 @@ export default async function GradingVariantPage({
   params: Promise<{ testId: string }>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const { testId } = await params;
   const sp = (await searchParams) ?? {};
   const rawStudentId = sp.studentId;
@@ -61,7 +64,7 @@ export default async function GradingVariantPage({
   }
 
   const courseId = test.courseId;
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(session.school.id);
   const course = await courseService.getCourse(courseId);
 
   const enrollmentService = await getEnrollmentService();

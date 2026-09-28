@@ -19,6 +19,8 @@ export interface GoogleStudentProvisionInput {
   email: string;
   name: string;
   courseId: string;
+  /** The invite course's school, which the new student joins. */
+  schoolId: string;
 }
 
 /**
@@ -89,6 +91,7 @@ export async function provisionGoogleStudent(
     username,
     name: input.name,
     createdBy: "google-signup",
+    schoolId: input.schoolId,
   });
 
   await deps.courseJoinRequestService.createRequest({

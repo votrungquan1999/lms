@@ -16,6 +16,7 @@ import type { EnrollmentDocument } from "../src/lib/enrollment-service";
 import type { PoolQuestionDocument } from "../src/lib/pool-question-service";
 import type { QuestionPoolDocument } from "../src/lib/question-pool-service";
 import type { QuestionDocument } from "../src/lib/question-service";
+import type { SchoolDocument } from "../src/lib/school-service";
 import type { StudentDocument } from "../src/lib/student-service";
 import type { TestDocument } from "../src/lib/test-service";
 import { E2E_MONGODB_URI } from "./mongodb-uri";
@@ -29,6 +30,22 @@ export async function withDb<T>(fn: (db: Db) => Promise<T>): Promise<T> {
   } finally {
     await client.close();
   }
+}
+
+/** The e2e admin's school; seeded rows must land there to be visible to them. */
+const E2E_SCHOOL_SLUG = "e2e";
+
+/** Resolves the e2e school's id by slug, failing loudly if setup never created it. */
+async function e2eSchoolId(db: Db): Promise<string> {
+  const school = await db
+    .collection<SchoolDocument>("school")
+    .findOne({ slug: E2E_SCHOOL_SLUG });
+  if (!school) {
+    throw new Error(
+      `No "${E2E_SCHOOL_SLUG}" school — auth.setup.ts creates it.`,
+    );
+  }
+  return school.id;
 }
 
 export async function insertCourse(
@@ -46,6 +63,7 @@ export async function insertCourse(
     updatedBy: null,
     materials: [],
     inviteToken: null,
+    schoolId: await e2eSchoolId(db),
     ...overrides,
   };
   await db.collection<CourseDocument>("course").insertOne(doc);
@@ -130,6 +148,7 @@ export async function insertStudent(
     createdBy: "seed",
     updatedAt: null,
     updatedBy: null,
+    schoolId: await e2eSchoolId(db),
     ...overrides,
   };
   await db.collection<StudentDocument>("student").insertOne(doc);

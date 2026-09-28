@@ -4,7 +4,7 @@ import { EnrollmentService } from "src/lib/enrollment-service";
 import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -20,7 +20,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
   describe("Scenario: Student views enrolled courses", () => {
     dbIt("should list all courses a student is enrolled in", async ({ db }) => {
       // Setup
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const enrollmentService = new EnrollmentService(db);
       const courseA = await courseService.createCourse({
         title: "Course A",
@@ -65,7 +65,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
       "should fetch multiple courses by IDs in a single query",
       async ({ db }) => {
         // Setup
-        const courseService = new CourseService(db);
+        const courseService = new CourseService(db, TEST_SCHOOL_ID);
         const courseA = await courseService.createCourse({
           title: "Course A",
           description: "",
@@ -92,7 +92,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
       "should return empty array for getCoursesByIds with empty input",
       async ({ db }) => {
         // Setup
-        const courseService = new CourseService(db);
+        const courseService = new CourseService(db, TEST_SCHOOL_ID);
 
         // Action
         const courses = await courseService.getCoursesByIds([]);
@@ -162,7 +162,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
       "should support complete flow: enroll → view tests → submit answers",
       async ({ db }) => {
         // Setup services
-        const courseService = new CourseService(db);
+        const courseService = new CourseService(db, TEST_SCHOOL_ID);
         const enrollmentService = new EnrollmentService(db);
         const testService = new TestService(db);
         const questionService = new QuestionService(db);

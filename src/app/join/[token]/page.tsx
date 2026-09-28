@@ -7,7 +7,7 @@ import {
 } from "src/lib/google-student-provisioner";
 import {
   getCourseJoinRequestService,
-  getCourseService,
+  getSchoolDirectory,
   getStudentService,
 } from "src/lib/services-singleton";
 import { isStudentSession } from "src/lib/session";
@@ -35,16 +35,19 @@ export default async function JoinPage({
 }) {
   const { token } = await params;
 
-  const courseService = await getCourseService();
-  const course = await courseService.findByInviteToken(token);
+  // No session here, so the course's school comes from the platform-wide
+  // directory; a course with no school yet is an invalid invite.
+  const schoolDirectory = await getSchoolDirectory();
+  const invite = await schoolDirectory.findCourseByInviteToken(token);
 
-  if (!course) {
+  if (!invite?.schoolId) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
         <InvalidInviteCard />
       </main>
     );
   }
+  const { course, schoolId } = invite;
 
   const authService = await getAuthService();
   const requestHeaders = await headers();
@@ -94,7 +97,7 @@ export default async function JoinPage({
       ]);
       googleOutcome = await provisionGoogleStudent(
         { studentService, courseJoinRequestService },
-        { ...googleIdentity, courseId: course.id },
+        { ...googleIdentity, courseId: course.id, schoolId },
       );
       if (googleOutcome === GoogleProvisionOutcome.NeedsUsername) {
         // D49: pre-fill with the sanitised candidate where one exists — this

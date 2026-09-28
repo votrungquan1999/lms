@@ -12,7 +12,9 @@ const { revalidatePathMock } = vi.hoisted(() => ({
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
-const requireAdminSession = vi.fn().mockResolvedValue({ userId: "admin-1" });
+const requireAdminSession = vi
+  .fn()
+  .mockResolvedValue({ userId: "admin-1", school: TEST_SCHOOL });
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
@@ -38,6 +40,7 @@ vi.mock("src/lib/services-singleton", () => ({
   })),
 }));
 
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   applyAiSuggestionAction,
   autoGradeSubmissionAction,
@@ -172,7 +175,10 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
     regenerateForQuestion.mockReset();
     revalidatePathMock.mockReset();
     requireAdminSession.mockReset();
-    requireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    requireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(() => {
@@ -292,7 +298,10 @@ describe("Feature: applyAiSuggestionAction (Step 6 action-layer)", () => {
     applySuggestion.mockReset();
     revalidatePathMock.mockReset();
     requireAdminSession.mockReset();
-    requireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    requireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(() => {
@@ -411,7 +420,9 @@ describe("Feature: applying an AI suggestion records whether the teacher accepte
       }),
     );
     applySuggestion.mockReset();
-    requireAdminSession.mockReset().mockResolvedValue({ userId: "admin-1" });
+    requireAdminSession
+      .mockReset()
+      .mockResolvedValue({ userId: "admin-1", school: TEST_SCHOOL });
   });
 
   afterEach(() => {

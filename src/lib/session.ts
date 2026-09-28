@@ -56,11 +56,19 @@ export class StudentSession extends Session {
   readonly username: string;
   /** Domain student document ID (from the `student` collection). */
   readonly studentId: string;
+  /** The student's one school, from their student record. */
+  readonly schoolId: string;
 
-  constructor(input: { userId: string; username: string; studentId: string }) {
+  constructor(input: {
+    userId: string;
+    username: string;
+    studentId: string;
+    schoolId: string;
+  }) {
     super(input.userId);
     this.username = input.username;
     this.studentId = input.studentId;
+    this.schoolId = input.schoolId;
   }
 }
 

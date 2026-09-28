@@ -17,8 +17,9 @@ import { QuestionPoolService } from "src/lib/question-pool-service";
 import { QuestionService } from "src/lib/question-service";
 import { RedoRequestService } from "src/lib/redo-request-service";
 import type { S3StorageService } from "src/lib/s3-storage-service";
-import { SchoolService } from "src/lib/school-service";
-import type { Session } from "src/lib/session";
+import { SchoolDirectory } from "src/lib/school-directory";
+import { type SchoolDocument, SchoolService } from "src/lib/school-service";
+import { AdminSession, type Session } from "src/lib/session";
 import { StudentService } from "src/lib/student-service";
 import { TestFeedbackService } from "src/lib/test-feedback-service";
 import { TestService } from "src/lib/test-service";
@@ -26,6 +27,7 @@ import { TestStartService } from "src/lib/test-start-service";
 import { TestStatusService } from "src/lib/test-status-service";
 import { TestSubmissionService } from "src/lib/test-submission-service";
 import { UserRoleService } from "src/lib/user-role-service";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "./create-test-db";
 
 /**
  * Real services constructed against a per-test isolated MongoDB.
@@ -47,6 +49,7 @@ export interface TestServices {
   questionService: QuestionService;
   redoRequestService: RedoRequestService;
   s3StorageService: S3StorageService;
+  schoolDirectory: SchoolDirectory;
   schoolService: SchoolService;
   studentService: StudentService;
   testFeedbackService: TestFeedbackService;
@@ -57,16 +60,35 @@ export interface TestServices {
   userRoleService: UserRoleService;
 }
 
+/** Services built for one school — one set per school in the harness. */
+interface SchoolBoundServices {
+  courseService: CourseService;
+}
+
+/** Services shared by every school — one instance per test database. */
+type SharedServices = Omit<TestServices, keyof SchoolBoundServices>;
+
 interface TestDbHandle {
   client: MongoClient;
   db: Db;
 }
 
 let currentDb: TestDbHandle | null = null;
-let currentServices: TestServices | null = null;
-// PageGuard's harness session. Default: signed out; tests opt in with signInAs().
+let currentShared: SharedServices | null = null;
+let currentSchools: Map<string, SchoolBoundServices> | null = null;
+// PageGuard's harness session. Default: the default school's admin (set in
+// setupTestDb); tests opt into anyone else with signInAs().
 let currentSession: Session | null = null;
 let currentIsAdminEmail = false;
+
+/** The admin every test is signed in as unless it calls signInAs(). */
+function defaultSchoolAdminSession(): AdminSession {
+  return new AdminSession({
+    userId: "0000000000000000000000a1",
+    email: "test-admin@example.com",
+    school: TEST_SCHOOL,
+  });
+}
 
 /**
  * Signs the harness's PageGuard in as `session` — the single source every
@@ -81,7 +103,11 @@ export function signInAs(
   currentIsAdminEmail = options.isAdminEmail ?? false;
 }
 
-function makeServices(db: Db): TestServices {
+/**
+ * Builds the services shared by every school. A single PageGuard keeps one
+ * `currentSession` for the whole test.
+ */
+function makeSharedServices(db: Db): SharedServices {
   const questionChangeLogService = new QuestionChangeLogService(db);
   // Lazy thunk — AnswerService itself depends on QuestionService, so passing
   // an instance here would be a construction cycle (see QuestionService's
@@ -144,7 +170,6 @@ function makeServices(db: Db): TestServices {
   );
   const annotationService = new AnnotationService(db);
   const courseJoinRequestService = new CourseJoinRequestService(db);
-  const courseService = new CourseService(db);
   const enrollmentService = new EnrollmentService(db);
   const studentService = new StudentService(db);
   const testFeedbackService = new TestFeedbackService(db);
@@ -155,6 +180,7 @@ function makeServices(db: Db): TestServices {
   });
   const userRoleService = new UserRoleService(db);
   const schoolService = new SchoolService(db);
+  const schoolDirectory = new SchoolDirectory(db);
   // Deterministic fake S3 service — no AWS SDK pulled into jsdom (type-only import).
   const s3StorageService = {
     getPresignedUploadUrl: async (key: string, _contentType: string) => ({
@@ -170,7 +196,6 @@ function makeServices(db: Db): TestServices {
     annotationService,
     answerService,
     courseJoinRequestService,
-    courseService,
     enrollmentService,
     gradeService,
     gradeVisibilityService,
@@ -181,6 +206,7 @@ function makeServices(db: Db): TestServices {
     questionService,
     redoRequestService,
     s3StorageService,
+    schoolDirectory,
     schoolService,
     studentService,
     testFeedbackService,
@@ -190,6 +216,15 @@ function makeServices(db: Db): TestServices {
     testSubmissionService,
     userRoleService,
   };
+}
+
+/**
+ * Builds one school's bound services. Construction order follows
+ * `services-singleton.ts`, so a dependent is never built from another
+ * school's instance.
+ */
+function makeSchoolServices(db: Db, schoolId: string): SchoolBoundServices {
+  return { courseService: new CourseService(db, schoolId) };
 }
 
 /**
@@ -207,10 +242,44 @@ export async function setupTestDb(): Promise<{
   await client.connect();
   const db = client.db(dbName);
 
-  currentDb = { client, db };
-  currentServices = makeServices(db);
+  // Inserted raw so the default school keeps its fixed, exported id.
+  await db.collection<SchoolDocument>("school").insertOne({
+    id: TEST_SCHOOL.id,
+    name: TEST_SCHOOL.name,
+    slug: "test-school",
+    createdAt: new Date(),
+    createdBy: "test-harness",
+  });
 
-  return { db, services: currentServices };
+  currentDb = { client, db };
+  currentShared = makeSharedServices(db);
+  currentSchools = new Map([
+    [TEST_SCHOOL_ID, makeSchoolServices(db, TEST_SCHOOL_ID)],
+  ]);
+  currentSession = defaultSchoolAdminSession();
+
+  return { db, services: getTestServices() };
+}
+
+/**
+ * Creates another school in the test database and builds its bound
+ * services, for isolation tests that act as a non-default school's admin.
+ * @param name - The new school's name.
+ * @returns The school as sessions carry it.
+ */
+export async function addTestSchool(
+  name = "Other School",
+): Promise<{ id: string; name: string }> {
+  if (!currentDb || !currentShared || !currentSchools) {
+    throw new Error("addTestSchool called before setupTestDb.");
+  }
+  const school = await currentShared.schoolService.createSchool({
+    name,
+    slug: `school-${randomUUID()}`,
+    createdBy: "test-harness",
+  });
+  currentSchools.set(school.id, makeSchoolServices(currentDb.db, school.id));
+  return { id: school.id, name: school.name };
 }
 
 /**
@@ -222,22 +291,43 @@ export async function teardownTestDb(): Promise<void> {
   await currentDb.client.db(currentDb.db.databaseName).dropDatabase();
   await currentDb.client.close();
   currentDb = null;
-  currentServices = null;
+  currentShared = null;
+  currentSchools = null;
   currentSession = null;
   currentIsAdminEmail = false;
 }
 
 /**
- * Accessor used by the `vi.mock("src/lib/services-singleton", ...)` factory.
- * Throws if called outside of an active setupTestDb/teardownTestDb window.
+ * Returns one school's services merged with the shared ones — the default
+ * test school's when no school is given, so existing seeds stay unchanged.
+ * Throws outside a setupTestDb/teardownTestDb window or for an unknown school.
+ * @param schoolId - The school whose bound services to return.
  */
-export function getTestServices(): TestServices {
-  if (!currentServices) {
+export function getTestServices(schoolId = TEST_SCHOOL_ID): TestServices {
+  if (!currentShared || !currentSchools) {
     throw new Error(
       "getTestServices called before setupTestDb. Add `beforeEach(setupTestDb)` to your test suite.",
     );
   }
-  return currentServices;
+  const bound = currentSchools.get(schoolId);
+  if (!bound) {
+    throw new Error(
+      `No test school "${schoolId}". Create it with addTestSchool().`,
+    );
+  }
+  return { ...currentShared, ...bound };
+}
+
+/**
+ * The mocked getters' lookup: unlike getTestServices it has no default
+ * school, so a call missing its school fails instead of reading the default.
+ * @param schoolId - The school the production caller passed.
+ */
+function servicesForSchool(schoolId: string): TestServices {
+  if (!schoolId) {
+    throw new Error("A school is required — mocked getters have no default.");
+  }
+  return getTestServices(schoolId);
 }
 
 /**
@@ -251,7 +341,8 @@ export function servicesSingletonMockFactory() {
     getAnswerService: async () => getTestServices().answerService,
     getCourseJoinRequestService: async () =>
       getTestServices().courseJoinRequestService,
-    getCourseService: async () => getTestServices().courseService,
+    getCourseService: async (schoolId: string) =>
+      servicesForSchool(schoolId).courseService,
     getEnrollmentService: async () => getTestServices().enrollmentService,
     getGradeService: async () => getTestServices().gradeService,
     getGradeVisibilityService: async () =>
@@ -264,6 +355,7 @@ export function servicesSingletonMockFactory() {
     getQuestionService: async () => getTestServices().questionService,
     getRedoRequestService: async () => getTestServices().redoRequestService,
     getS3StorageService: async () => getTestServices().s3StorageService,
+    getSchoolDirectory: async () => getTestServices().schoolDirectory,
     getSchoolService: async () => getTestServices().schoolService,
     getStudentService: async () => getTestServices().studentService,
     getTestFeedbackService: async () => getTestServices().testFeedbackService,

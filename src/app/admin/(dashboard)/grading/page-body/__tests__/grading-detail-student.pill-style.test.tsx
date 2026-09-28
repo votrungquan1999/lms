@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -13,7 +14,9 @@ vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
-const requireAdminSession = vi.fn().mockResolvedValue({ userId: "admin-1" });
+const requireAdminSession = vi
+  .fn()
+  .mockResolvedValue({ userId: "admin-1", school: TEST_SCHOOL });
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
@@ -52,6 +55,7 @@ describe("Feature: the per-student grading pill reflects the real status, not ju
       username: "blank-student",
       name: "Blank Student",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

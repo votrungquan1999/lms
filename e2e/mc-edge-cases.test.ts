@@ -297,6 +297,12 @@ test.describe("MC Edge Cases — Partial correct multi-select", () => {
     if (!studentDoc) throw new Error("Student not found after UI creation");
     const studentId = studentDoc.id as string;
 
+    // Raw inserts below bypass CourseService/TestService, so the school
+    // isn't stamped automatically — look it up by the e2e setup's slug.
+    const school = await db.collection("school").findOne({ slug: "e2e" });
+    if (!school) throw new Error('No "e2e" school — auth.setup.ts creates it.');
+    const schoolId = school.id as string;
+
     courseId = crypto.randomUUID();
     testId = crypto.randomUUID();
     questionId = crypto.randomUUID();
@@ -313,6 +319,7 @@ test.describe("MC Edge Cases — Partial correct multi-select", () => {
       createdBy: "seed",
       updatedAt: null,
       updatedBy: null,
+      schoolId,
     });
 
     await db.collection("enrollment").insertOne({

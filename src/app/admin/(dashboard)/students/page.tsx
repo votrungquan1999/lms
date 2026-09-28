@@ -8,6 +8,7 @@ import {
 import {
   getCourseService,
   getEnrollmentService,
+  getPageGuard,
   getStudentService,
 } from "src/lib/services-singleton";
 import { BulkImportDialog } from "./bulk-import-dialog";
@@ -19,9 +20,11 @@ export const metadata = {
 };
 
 export default async function StudentsPage() {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const studentService = await getStudentService();
   const enrollmentService = await getEnrollmentService();
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(session.school.id);
 
   const students = await studentService.listStudents();
   const courses = await courseService.listCourses();

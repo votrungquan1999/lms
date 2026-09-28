@@ -2,6 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import type { FreeTextQuestion, Question } from "src/lib/question-service";
 import { StudentSession } from "src/lib/session";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -70,6 +71,7 @@ function mockStudentSession(studentId: string) {
     userId: `auth-${studentId}`,
     username: `u-${studentId}`,
     studentId,
+    schoolId: TEST_SCHOOL_ID,
   });
   signInAs(session);
   mockRequireStudentSession.mockResolvedValue(session);
@@ -102,6 +104,7 @@ async function seedWithheldAndGraded() {
     username: `u-${test.id}`,
     name: "Stu",
     createdBy: "admin-1",
+    schoolId: TEST_SCHOOL_ID,
   });
   await services.enrollmentService.enrollStudent(
     course.id,
@@ -143,7 +146,11 @@ describe("Feature: a student sees the correct answer once the teacher releases i
     vi.clearAllMocks();
     capturedQuestions.length = 0;
     await setupTestDb();
-    requireAdminSession.mockResolvedValue({ userId: "admin-1", role: "admin" });
+    requireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      role: "admin",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {

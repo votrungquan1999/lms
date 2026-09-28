@@ -2,6 +2,7 @@
 import { render, screen, within } from "@testing-library/react";
 import type { AiGradeSuggestionDocument } from "src/lib/ai-grade-types";
 import { AI_GRADER_ID, AI_MODEL_NAME } from "src/lib/ai-grade-types";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -24,7 +25,9 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn().mockResolvedValue({
-    requireAdminSession: vi.fn().mockResolvedValue({ userId: "admin-1" }),
+    requireAdminSession: vi
+      .fn()
+      .mockResolvedValue({ userId: "admin-1", school: TEST_SCHOOL }),
   }),
 }));
 
@@ -70,6 +73,7 @@ describe("Feature: AI suggestion stale-badge", () => {
       username: "u1",
       name: "Stu",
       createdBy: "admin-1",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { StudentSession } from "src/lib/session";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -42,6 +43,7 @@ function mockStudentSession(studentId: string) {
     userId: `auth-${studentId}`,
     username: `u-${studentId}`,
     studentId,
+    schoolId: TEST_SCHOOL_ID,
   });
   signInAs(session);
   mockRequireStudentSession.mockResolvedValue(session);
@@ -83,6 +85,7 @@ async function seedTest(timeLimitMinutes: number | null) {
     username: "stu",
     name: "Stu",
     createdBy: "admin",
+    schoolId: TEST_SCHOOL_ID,
   });
   await s.enrollmentService.enrollStudent(course.id, student.id, "admin");
   return { courseId: course.id, testId: test.id, studentId: student.id, s };

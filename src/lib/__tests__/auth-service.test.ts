@@ -7,7 +7,7 @@ import type { AppConfig } from "src/lib/config";
 import { SchoolService } from "src/lib/school-service";
 import { Role } from "src/lib/session";
 import { StudentService } from "src/lib/student-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -69,6 +69,7 @@ describe("Feature: Auth Service", () => {
       username: "alice",
       password: "student-pass-123",
       createdBy: "admin-test",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     expect(student.username).toBe("alice");
@@ -90,6 +91,7 @@ describe("Feature: Auth Service", () => {
         username: "alice",
         password: "student-pass-123",
         createdBy: "admin-test",
+        schoolId: TEST_SCHOOL_ID,
       });
 
       await expect(
@@ -98,6 +100,7 @@ describe("Feature: Auth Service", () => {
           username: "alice",
           password: "another-pass-456",
           createdBy: "admin-test",
+          schoolId: TEST_SCHOOL_ID,
         }),
       ).rejects.toThrow("Username already exists");
     },
@@ -120,6 +123,7 @@ describe("Feature: Auth Service", () => {
           username: "eve",
           password: "        ",
           createdBy: "admin-test",
+          schoolId: TEST_SCHOOL_ID,
         }),
       ).rejects.toThrow("Password cannot be only spaces");
 
@@ -144,6 +148,7 @@ describe("Feature: Auth Service", () => {
         username: "bob",
         password: "bob-pass-123",
         createdBy: "admin-test",
+        schoolId: TEST_SCHOOL_ID,
       });
 
       const session = await authService.signInStudent({
@@ -168,6 +173,7 @@ describe("Feature: Auth Service", () => {
       username: "carol",
       password: "carol-pass-123",
       createdBy: "admin-test",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     await expect(
@@ -275,6 +281,7 @@ describe("Feature: registerStudent leaves no orphaned account on failure", () =>
           username: "dave",
           password: "dave-pass-123",
           createdBy: "admin-test",
+          schoolId: TEST_SCHOOL_ID,
         }),
       ).rejects.toThrow("simulated student-document write failure");
 
@@ -344,6 +351,7 @@ describe("Feature: resolving what a login page should show for the current calle
         username: "eve",
         password: "eve-pass-123",
         createdBy: "admin-test",
+        schoolId: TEST_SCHOOL_ID,
       });
       const studentState = await authService.resolveLoginEntryState(
         await signedInHeaders(authService, "eve@lms.internal", "eve-pass-123"),
@@ -412,6 +420,7 @@ describe("Feature: an administrator signing in with Google is never turned into 
         username: "fay",
         password: "fay-pass-123",
         createdBy: "admin-test",
+        schoolId: TEST_SCHOOL_ID,
       });
       const studentIdentity = await authService.resolveUnclassifiedIdentity(
         await signedInHeaders(authService, "fay@lms.internal", "fay-pass-123"),

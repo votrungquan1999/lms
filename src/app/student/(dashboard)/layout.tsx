@@ -30,7 +30,7 @@ export default async function StudentDashboardLayout({
     session.studentId,
   );
 
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(session.schoolId);
   const enrolledCourses = await courseService.getCoursesByIds(
     enrollments.map((e) => e.courseId),
   );

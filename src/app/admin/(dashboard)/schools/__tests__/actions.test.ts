@@ -20,6 +20,7 @@ vi.mock("src/lib/auth-singleton", () => ({
   })),
 }));
 
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   addSchoolAdminAction,
   createSchoolAction,
@@ -43,6 +44,12 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
+/** Every school except the harness's default one — the schools these rows create. */
+async function createdSchools() {
+  const schools = await getTestServices().schoolService.listSchools();
+  return schools.filter((school) => school.id !== TEST_SCHOOL_ID);
+}
+
 function schoolForm(name: string, slug: string): FormData {
   const formData = new FormData();
   formData.set("name", name);
@@ -58,12 +65,10 @@ function schoolForm(name: string, slug: string): FormData {
  */
 describe("Feature: the platform owner creates a school", () => {
   it("creates the school and it shows up in listSchools", async () => {
-    const { schoolService } = getTestServices();
-
     const state = await createSchoolAction(null, schoolForm("Acme", "acme"));
 
     expect(state.success).toBe(true);
-    const schools = await schoolService.listSchools();
+    const schools = await createdSchools();
     expect(schools.map((s) => s.slug)).toEqual(["acme"]);
   });
 
@@ -77,12 +82,10 @@ describe("Feature: the platform owner creates a school", () => {
 
   it("refuses when the caller is not the owner, and creates nothing", async () => {
     mockRequireOwnerSession.mockRejectedValue(new Error("not owner"));
-    const { schoolService } = getTestServices();
-
     const state = await createSchoolAction(null, schoolForm("Acme", "acme"));
 
     expect(state.success).toBe(false);
-    expect(await schoolService.listSchools()).toHaveLength(0);
+    expect(await createdSchools()).toHaveLength(0);
   });
 
   it.each([
@@ -91,25 +94,20 @@ describe("Feature: the platform owner creates a school", () => {
     ["diacritics", "trường-a"],
     ["empty", ""],
   ])("refuses a slug with %s, and creates nothing", async (_label, slug) => {
-    const { schoolService } = getTestServices();
-
     const state = await createSchoolAction(null, schoolForm("Acme", slug));
 
     expect(state.success).toBe(false);
-    expect(await schoolService.listSchools()).toHaveLength(0);
+    expect(await createdSchools()).toHaveLength(0);
   });
 
   it("refuses a blank name, and creates nothing", async () => {
-    const { schoolService } = getTestServices();
-
     const state = await createSchoolAction(null, schoolForm("   ", "acme"));
 
     expect(state.success).toBe(false);
-    expect(await schoolService.listSchools()).toHaveLength(0);
+    expect(await createdSchools()).toHaveLength(0);
   });
 
   it("refuses a duplicate slug with a friendly message, and keeps one school", async () => {
-    const { schoolService } = getTestServices();
     await ensureIndexes(db);
     await createSchoolAction(null, schoolForm("Acme", "acme"));
 
@@ -120,12 +118,10 @@ describe("Feature: the platform owner creates a school", () => {
 
     expect(state.success).toBe(false);
     expect(state.message).toBe("A school with that slug already exists");
-    expect(await schoolService.listSchools()).toHaveLength(1);
+    expect(await createdSchools()).toHaveLength(1);
   });
 
   it("allows two schools with the same name and different slugs", async () => {
-    const { schoolService } = getTestServices();
-
     await createSchoolAction(null, schoolForm("Same Name", "same-name-a"));
     const state = await createSchoolAction(
       null,
@@ -133,7 +129,7 @@ describe("Feature: the platform owner creates a school", () => {
     );
 
     expect(state.success).toBe(true);
-    expect(await schoolService.listSchools()).toHaveLength(2);
+    expect(await createdSchools()).toHaveLength(2);
   });
 });
 
@@ -412,6 +408,7 @@ describe("Feature: the platform owner manages a school's admins", () => {
       username: "student-turned-admin",
       name: "Student Turned Admin",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     const state = await addSchoolAdminAction(

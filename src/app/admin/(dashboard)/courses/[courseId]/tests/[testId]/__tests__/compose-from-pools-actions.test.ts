@@ -16,11 +16,16 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import { composeFromPoolsAction } from "../compose-from-pools-actions";
 
 beforeEach(async () => {
   await setupTestDb();
-  requireAdminSession.mockResolvedValue({ userId: "admin-1", role: "admin" });
+  requireAdminSession.mockResolvedValue({
+    userId: "admin-1",
+    role: "admin",
+    school: TEST_SCHOOL,
+  });
 });
 
 afterEach(async () => {

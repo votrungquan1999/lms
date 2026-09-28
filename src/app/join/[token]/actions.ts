@@ -5,8 +5,8 @@ import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import {
   getCourseJoinRequestService,
-  getCourseService,
   getEnrollmentService,
+  getSchoolDirectory,
   getStudentService,
 } from "src/lib/services-singleton";
 import { USERNAME_PATTERN } from "src/lib/username";
@@ -114,15 +114,18 @@ export async function joinSignupAction(
       "action.joinSignupAction",
       { "lms.action.name": "joinSignupAction" }, // never the token itself (D41)
       async () => {
-        const courseService = await getCourseService();
-        const course = await courseService.findByInviteToken(parsed.data.token);
-        if (!course) {
+        const schoolDirectory = await getSchoolDirectory();
+        const invite = await schoolDirectory.findCourseByInviteToken(
+          parsed.data.token,
+        );
+        if (!invite?.schoolId) {
           return {
             success: false,
             message: INVALID_INVITE_MESSAGE,
             invalidInvite: true,
           };
         }
+        const { course, schoolId } = invite;
 
         const authService = await getAuthService();
         let student: Awaited<ReturnType<typeof authService.registerStudent>>;
@@ -132,6 +135,7 @@ export async function joinSignupAction(
             username: parsed.data.username,
             password: parsed.data.password,
             createdBy: "self-signup",
+            schoolId,
           });
         } catch (error) {
           if (
@@ -194,15 +198,18 @@ export async function googleUsernameSignupAction(
       "action.googleUsernameSignupAction",
       { "lms.action.name": "googleUsernameSignupAction" },
       async () => {
-        const courseService = await getCourseService();
-        const course = await courseService.findByInviteToken(parsed.data.token);
-        if (!course) {
+        const schoolDirectory = await getSchoolDirectory();
+        const invite = await schoolDirectory.findCourseByInviteToken(
+          parsed.data.token,
+        );
+        if (!invite?.schoolId) {
           return {
             success: false,
             message: INVALID_INVITE_MESSAGE,
             invalidInvite: true,
           };
         }
+        const { course, schoolId } = invite;
 
         const authService = await getAuthService();
         const googleIdentity = await authService.resolveUnclassifiedIdentity(
@@ -225,6 +232,7 @@ export async function googleUsernameSignupAction(
             username: parsed.data.username,
             name: googleIdentity.name,
             createdBy: "google-signup",
+            schoolId,
           });
         } catch (error) {
           // Unlike D3's identity-collision message, this is a plain naming
@@ -299,11 +307,14 @@ export async function requestToJoinAction(
       "action.requestToJoinAction",
       { "lms.action.name": "requestToJoinAction" }, // never the token itself (D41)
       async () => {
-        const courseService = await getCourseService();
-        const course = await courseService.findByInviteToken(parsed.data.token);
-        if (!course) {
+        const schoolDirectory = await getSchoolDirectory();
+        const invite = await schoolDirectory.findCourseByInviteToken(
+          parsed.data.token,
+        );
+        if (!invite?.schoolId) {
           return { success: false, message: INVALID_INVITE_MESSAGE };
         }
+        const { course } = invite;
 
         // Existence-equals-membership (enrollment-service.ts) — an enrolled
         // student is told so directly, never handed a second pending request.

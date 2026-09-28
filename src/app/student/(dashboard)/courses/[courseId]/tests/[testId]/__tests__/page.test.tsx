@@ -2,6 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import type { McOption } from "src/lib/question-service";
 import { StudentSession } from "src/lib/session";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -46,6 +47,7 @@ function mockStudentSession(studentId: string) {
     userId: `auth-${studentId}`,
     username: `u-${studentId}`,
     studentId,
+    schoolId: TEST_SCHOOL_ID,
   });
   signInAs(session);
   mockRequireStudentSession.mockResolvedValue(session);
@@ -90,6 +92,7 @@ async function seedMcScenario(opts: {
     username: "u1",
     name: "Stu",
     createdBy: "admin",
+    schoolId: TEST_SCHOOL_ID,
   });
   await services.enrollmentService.enrollStudent(
     course.id,
@@ -331,6 +334,7 @@ describe("Feature: Student test page — 3-tier grade visibility gate", () => {
       username: "u1",
       name: "Stu",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -447,6 +451,7 @@ describe("Feature: Student test page — redo cycle preserves submittability aft
       username: "u1",
       name: "Stu",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -542,6 +547,7 @@ describe("Feature: Student test page — Graded reads as Submitted until grades 
       username: "u1",
       name: "Stu",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

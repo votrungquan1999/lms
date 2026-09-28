@@ -15,6 +15,7 @@ import {
 import {
   getCourseService,
   getEnrollmentService,
+  getPageGuard,
   getQuestionService,
   getStudentService,
   getTestService,
@@ -29,8 +30,10 @@ export const metadata = {
 };
 
 export default async function AdminDashboardPage() {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const studentService = await getStudentService();
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(session.school.id);
   const testService = await getTestService();
   const enrollmentService = await getEnrollmentService();
   const questionService = await getQuestionService();

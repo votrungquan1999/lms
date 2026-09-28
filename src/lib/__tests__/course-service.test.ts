@@ -1,5 +1,5 @@
 import { CourseService } from "src/lib/course-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -13,7 +13,7 @@ const dbIt = withTestDb(it);
 describe("Feature: Course materials", () => {
   dbIt("saves an uploaded material against the course", async ({ db }) => {
     // Given a course
-    const courseService = new CourseService(db);
+    const courseService = new CourseService(db, TEST_SCHOOL_ID);
     const course = await courseService.createCourse({
       title: "Algorithms",
       description: "",
@@ -45,7 +45,7 @@ describe("Feature: Course materials", () => {
     "removes a material so it no longer appears on the course",
     async ({ db }) => {
       // Given a course with two materials
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const course = await courseService.createCourse({
         title: "Algorithms",
         description: "",
@@ -89,7 +89,7 @@ describe("Feature: an admin issues a fresh join link, and the previous one stops
     "throws instead of minting an orphaned token for a nonexistent course",
     async ({ db }) => {
       // Given no course exists with this ID
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
 
       // When issuing a fresh join link for it
       // Then it throws rather than silently minting a token nobody can use
@@ -111,60 +111,13 @@ describe("Feature: an admin switches a course's join link off entirely", () => {
     "throws instead of reporting success for a nonexistent course",
     async ({ db }) => {
       // Given no course exists with this ID
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
 
       // When turning off its join link
       // Then it throws rather than silently reporting success
       await expect(
         courseService.disableInviteToken("nonexistent-course-id"),
       ).rejects.toThrow("Course not found");
-    },
-  );
-});
-
-/**
- * Feature: a join-link lookup never matches a course with no active link
- * As the school
- * I want an empty, null, or undefined token to never resolve to a course
- * So that the public join page can never be used to enumerate courses via
- * the Mongo driver's undefined -> null serialization (D41)
- */
-describe("Feature: a join-link lookup never matches a course with no active link", () => {
-  dbIt(
-    "returns null for an empty, null, or undefined token even though a course has a null invite token",
-    async ({ db }) => {
-      // Given a course with no active join link (createCourse defaults
-      // inviteToken to null — D41's exact danger case) and a second course
-      // with a live token, so an operator object like { $ne: null } has a
-      // real course to leak if the query-level guard is missing
-      const courseService = new CourseService(db);
-      await courseService.createCourse({
-        title: "Algorithms",
-        description: "",
-        createdBy: "admin-1",
-      });
-      const liveCourse = await courseService.createCourse({
-        title: "Live-Link Course",
-        description: "",
-        createdBy: "admin-1",
-      });
-      await courseService.getOrCreateInviteToken(liveCourse.id);
-
-      // When looking it up with the values a missing/renamed form field
-      // yields (formData.get returns null; a bare `never` cast models that
-      // for the empty/undefined cases TypeScript would otherwise reject)
-      // Then none of them resolve to the null-token course
-      expect(await courseService.findByInviteToken("")).toBeNull();
-      expect(await courseService.findByInviteToken(null as never)).toBeNull();
-      expect(
-        await courseService.findByInviteToken(undefined as never),
-      ).toBeNull();
-
-      // Truthy, so the falsy short-circuit lets it past — only the $eq/$type
-      // filter stops an operator object from matching the live-token course.
-      expect(
-        await courseService.findByInviteToken({ $ne: null } as never),
-      ).toBeNull();
     },
   );
 });

@@ -10,7 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
-const requireAdminSession = vi.fn().mockResolvedValue({ userId: "admin-1" });
+const requireAdminSession = vi
+  .fn()
+  .mockResolvedValue({ userId: "admin-1", school: TEST_SCHOOL });
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
@@ -29,6 +31,7 @@ vi.mock("src/lib/services-singleton", () => ({
   getAiGradeService: vi.fn(async () => ({ getLatestSuggestion })),
 }));
 
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   gradeQuestionAction,
   releaseGradesAction,

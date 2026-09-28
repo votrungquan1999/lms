@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Student } from "src/lib/student-service";
 import type { Test } from "src/lib/test-service";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import { describe, expect, it, vi } from "vitest";
 import { ResultsReportSelectionProvider } from "../results-report-selection.state";
 import {
@@ -18,8 +19,13 @@ vi.mock("next/navigation", () => ({
 
 function makeStudents(): Student[] {
   return [
-    { id: "stu-alice", username: "alice", name: "Alice" },
-    { id: "stu-bob", username: "bob", name: "Bob" },
+    {
+      id: "stu-alice",
+      username: "alice",
+      name: "Alice",
+      schoolId: TEST_SCHOOL_ID,
+    },
+    { id: "stu-bob", username: "bob", name: "Bob", schoolId: TEST_SCHOOL_ID },
   ];
 }
 

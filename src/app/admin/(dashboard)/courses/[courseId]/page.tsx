@@ -7,6 +7,7 @@ import { attachCourseMaterialUrls } from "src/lib/course-material-urls";
 import {
   getCourseService,
   getEnrollmentService,
+  getPageGuard,
   getQuestionService,
   getStudentService,
   getTestService,
@@ -39,9 +40,11 @@ export default async function CourseDetailPage({
 }: {
   params: Promise<{ courseId: string }>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const { courseId } = await params;
 
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(session.school.id);
   const course = await courseService.getCourse(courseId);
 
   if (!course) {

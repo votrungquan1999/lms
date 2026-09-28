@@ -6,6 +6,7 @@ import {
   type QuestionDocument,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -35,7 +36,11 @@ let db: Db;
 beforeEach(async () => {
   const setup = await setupTestDb();
   db = setup.db;
-  requireAdminSession.mockResolvedValue({ userId: "admin-1", role: "admin" });
+  requireAdminSession.mockResolvedValue({
+    userId: "admin-1",
+    role: "admin",
+    school: TEST_SCHOOL,
+  });
 });
 
 afterEach(async () => {

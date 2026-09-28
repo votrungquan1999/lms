@@ -4,6 +4,7 @@ import { StudentService } from "src/lib/student-service";
 import { TestFeedbackService } from "src/lib/test-feedback-service";
 import { TestStatusService } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 
 /**
  * Wires the assembler against an isolated test DB, constructing the services
@@ -44,5 +45,6 @@ export function createAlice(studentService: StudentService) {
     username: "alice",
     name: "Alice",
     createdBy: "admin-1",
+    schoolId: TEST_SCHOOL_ID,
   });
 }

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -83,6 +84,7 @@ describe("Feature: GradingHubPage default view", () => {
           username: `${course.id}-${u}`,
           name: `${u}-${course.id}`,
           createdBy: "admin",
+          schoolId: TEST_SCHOOL_ID,
         });
         await services.enrollmentService.enrollStudent(
           course.id,
@@ -172,12 +174,14 @@ describe("Feature: GradingHubPage default view", () => {
       username: "fa",
       name: "fa",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     const studentB = await services.studentService.createStudentDocument({
       authUserId: "auth-fb",
       username: "fb",
       name: "fb",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

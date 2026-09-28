@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { StudentSession } from "src/lib/session";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -57,6 +58,7 @@ function mockStudentSession(studentId: string) {
     userId: `auth-${studentId}`,
     username: `u-${studentId}`,
     studentId,
+    schoolId: TEST_SCHOOL_ID,
   });
   signInAs(session);
   mockRequireStudentSession.mockResolvedValue(session);
@@ -101,6 +103,7 @@ describe("Feature: Student test page — practice-mode diff reveal (free_text)",
       username: "u1",
       name: "Stu",
       createdBy: "admin-1",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

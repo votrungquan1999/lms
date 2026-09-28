@@ -27,6 +27,8 @@ export interface CourseDocument {
   materials: CourseMaterialDocument[];
   /** Static join-link token (D2). Absent key and `null` read identically — no migration exists. */
   inviteToken: string | null;
+  /** Owning school. Absent or `null` on records not yet assigned — no school can see those. */
+  schoolId: string | null;
 }
 
 /**
@@ -74,40 +76,49 @@ export interface AddCourseMaterialInput {
 }
 
 /**
- * CourseService — manages the `course` collection.
+ * Maps a stored course document to the client-facing course, surfacing
+ * materials with an empty `url` placeholder (minted at render time). Shared
+ * with the platform-wide school directory.
+ * @param doc - The stored course document.
+ * @returns The client-facing course.
+ */
+export function toCourse(doc: CourseDocument): Course {
+  return {
+    id: doc.id,
+    title: doc.title,
+    description: doc.description,
+    createdAt: doc.createdAt,
+    inviteToken: doc.inviteToken ?? null,
+    materials: (doc.materials ?? [])
+      .map((material) => ({
+        key: material.key,
+        contentType: material.contentType,
+        fileName: material.fileName,
+        size: material.size,
+        order: material.order,
+        uploadedAt: material.uploadedAt,
+        url: "",
+      }))
+      .sort((a, b) => a.order - b.order),
+  };
+}
+
+/**
+ * CourseService — manages one school's courses in the `course` collection.
  */
 export class CourseService {
   private readonly courses: Collection<CourseDocument>;
 
-  constructor(db: Db) {
+  constructor(
+    db: Db,
+    private readonly schoolId: string,
+  ) {
+    // Fail closed: a missing school would query `{ schoolId: null }`, which
+    // matches exactly the courses no school owns yet.
+    if (!schoolId) {
+      throw new Error("A school is required to build a course service");
+    }
     this.courses = db.collection<CourseDocument>("course");
-  }
-
-  /**
-   * Maps a stored course document to the client-facing course, surfacing
-   * materials with an empty `url` placeholder (minted at render time).
-   * @param doc - The stored course document.
-   * @returns The client-facing course.
-   */
-  private toCourse(doc: CourseDocument): Course {
-    return {
-      id: doc.id,
-      title: doc.title,
-      description: doc.description,
-      createdAt: doc.createdAt,
-      inviteToken: doc.inviteToken ?? null,
-      materials: (doc.materials ?? [])
-        .map((material) => ({
-          key: material.key,
-          contentType: material.contentType,
-          fileName: material.fileName,
-          size: material.size,
-          order: material.order,
-          uploadedAt: material.uploadedAt,
-          url: "",
-        }))
-        .sort((a, b) => a.order - b.order),
-    };
   }
 
   async createCourse(input: CreateCourseInput): Promise<Course> {
@@ -121,11 +132,12 @@ export class CourseService {
       updatedBy: null,
       materials: [],
       inviteToken: null,
+      schoolId: this.schoolId,
     };
 
     await this.courses.insertOne(doc);
 
-    return this.toCourse(doc);
+    return toCourse(doc);
   }
 
   async getCourse(courseId: string): Promise<Course | null> {
@@ -133,7 +145,7 @@ export class CourseService {
     if (!doc) {
       return null;
     }
-    return this.toCourse(doc);
+    return toCourse(doc);
   }
 
   async getCoursesByIds(courseIds: string[]): Promise<Course[]> {
@@ -142,17 +154,20 @@ export class CourseService {
     }
 
     const docs = await this.courses
-      .find({ id: { $in: courseIds } })
+      .find({ id: { $in: courseIds }, schoolId: this.schoolId })
       .sort({ createdAt: -1 })
       .toArray();
 
-    return docs.map((doc) => this.toCourse(doc));
+    return docs.map((doc) => toCourse(doc));
   }
 
   async listCourses(): Promise<Course[]> {
-    const docs = await this.courses.find({}).sort({ createdAt: -1 }).toArray();
+    const docs = await this.courses
+      .find({ schoolId: this.schoolId })
+      .sort({ createdAt: -1 })
+      .toArray();
 
-    return docs.map((doc) => this.toCourse(doc));
+    return docs.map((doc) => toCourse(doc));
   }
 
   /**
@@ -199,28 +214,6 @@ export class CourseService {
       { id: courseId },
       { $pull: { materials: { key: materialKey } } },
     );
-  }
-
-  /**
-   * Looks up a course by its invite token. A falsy token returns null before
-   * any query runs, and the query itself requires a string match — the
-   * Mongo driver serializes `undefined` to `null` (no `ignoreUndefined` on
-   * the client), and `{ inviteToken: null }` alone would match every course
-   * with no active link, not just the one document that was actually
-   * revoked (D41).
-   * @param token - The invite token from the join URL.
-   */
-  async findByInviteToken(token: string): Promise<Course | null> {
-    if (!token) {
-      return null;
-    }
-    const doc = await this.courses.findOne({
-      inviteToken: { $eq: token, $type: "string" },
-    });
-    if (!doc) {
-      return null;
-    }
-    return this.toCourse(doc);
   }
 
   /**

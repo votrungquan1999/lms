@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -22,7 +23,9 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn().mockResolvedValue({
-    requireAdminSession: vi.fn().mockResolvedValue({ userId: "admin-1" }),
+    requireAdminSession: vi
+      .fn()
+      .mockResolvedValue({ userId: "admin-1", school: TEST_SCHOOL }),
   }),
 }));
 
@@ -70,6 +73,7 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
       username: "blank-user",
       name: "Blank Bea",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -143,12 +147,14 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
       username: "graded-blank",
       name: "Graded Blank",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     const untouched = await services.studentService.createStudentDocument({
       authUserId: "auth-untouched",
       username: "untouched",
       name: "Untouched",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -203,12 +209,14 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
       username: "submitted-blank",
       name: "Submitted Blank",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     const untouched = await services.studentService.createStudentDocument({
       authUserId: "auth-untouched-2",
       username: "untouched-2",
       name: "Untouched Two",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -226,6 +234,7 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
       username: "awaiting",
       name: "Awaiting Score",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -285,6 +294,7 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
       username: "open-user",
       name: "Open Olga",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -347,6 +357,7 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
       username: "deleted-q",
       name: "Deleted Question Dana",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -415,6 +426,7 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
       username: "deleted-graded",
       name: "Deleted Graded Dev",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -31,7 +32,11 @@ vi.mock("src/lib/auth-singleton", () => ({
 
 beforeEach(async () => {
   await setupTestDb();
-  requireAdminSession.mockResolvedValue({ userId: "admin-1", role: "admin" });
+  requireAdminSession.mockResolvedValue({
+    userId: "admin-1",
+    role: "admin",
+    school: TEST_SCHOOL,
+  });
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue(new Response(null, { status: 200 })),

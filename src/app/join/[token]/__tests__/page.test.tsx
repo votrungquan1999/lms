@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import type { Db } from "mongodb";
 import type { ReactElement } from "react";
 import { StudentSession } from "src/lib/session";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -371,6 +372,7 @@ describe("Feature: a signed-in student opening a valid invite link is offered to
         userId: "auth-user-1",
         username: "returning-student",
         studentId: "student-1",
+        schoolId: TEST_SCHOOL_ID,
       }),
     );
 

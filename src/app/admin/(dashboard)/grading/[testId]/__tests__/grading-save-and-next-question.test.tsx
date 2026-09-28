@@ -10,7 +10,9 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-const requireAdminSession = vi.fn().mockResolvedValue({ userId: "admin-1" });
+const requireAdminSession = vi
+  .fn()
+  .mockResolvedValue({ userId: "admin-1", school: TEST_SCHOOL });
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
@@ -26,6 +28,7 @@ vi.mock("src/lib/services-singleton", () => ({
   })),
 }));
 
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import { saveAndJumpToNextAction } from "../../../courses/[courseId]/tests/[testId]/grading/actions";
 
 describe("Feature: Save & Next in question-mode advances to the next student whose answer to the current question is ungraded", () => {

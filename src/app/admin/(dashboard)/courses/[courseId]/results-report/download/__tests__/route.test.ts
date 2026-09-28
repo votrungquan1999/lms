@@ -39,6 +39,7 @@ vi.mock("src/lib/results-report-assembler", () => ({
 
 vi.mock("src/lib/results-report-pdf", () => ({ renderResultsReportToBuffer }));
 
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import { GET } from "../route";
 
 describe("results-report download route", () => {
@@ -65,7 +66,10 @@ describe("results-report download route", () => {
   it("returns the student's PDF attachment assembled from exactly the selected test IDs", async () => {
     // Given an admin session, an enrolled student, in-course tests, and an
     // assembler/renderer that produce a PDF.
-    requireAdminSession.mockResolvedValueOnce({ userId: "admin-1" });
+    requireAdminSession.mockResolvedValueOnce({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
     isEnrolled.mockResolvedValue(true);
     getTest.mockResolvedValue({ id: "t", courseId: "c1", title: "T" });
     buildReport.mockResolvedValueOnce({
@@ -95,7 +99,10 @@ describe("results-report download route", () => {
   it("rejects an admin request that is missing the studentId with a non-PDF 400", async () => {
     // Given an admin session but a query with no studentId (route is directly
     // reachable despite the UI hard-block).
-    requireAdminSession.mockResolvedValueOnce({ userId: "admin-1" });
+    requireAdminSession.mockResolvedValueOnce({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
     buildReport.mockClear();
 
     // When the admin GETs without a studentId.
@@ -114,7 +121,10 @@ describe("results-report download route", () => {
 
   it("rejects an admin request for a student not enrolled in the course with a non-PDF 403", async () => {
     // Given an admin session but the requested student is not enrolled here.
-    requireAdminSession.mockResolvedValueOnce({ userId: "admin-1" });
+    requireAdminSession.mockResolvedValueOnce({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
     isEnrolled.mockResolvedValueOnce(false);
     buildReport.mockClear();
 
@@ -135,7 +145,10 @@ describe("results-report download route", () => {
 
   it("rejects an admin request when a selected test does not belong to the course with a non-PDF 404", async () => {
     // Given an admin session, an enrolled student, but a test from another course.
-    requireAdminSession.mockResolvedValueOnce({ userId: "admin-1" });
+    requireAdminSession.mockResolvedValueOnce({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
     isEnrolled.mockResolvedValueOnce(true);
     getTest.mockReset();
     getTest.mockResolvedValueOnce({ id: "A", courseId: "other", title: "T" });

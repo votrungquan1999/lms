@@ -5,7 +5,7 @@ import {
   provisionGoogleStudent,
 } from "src/lib/google-student-provisioner";
 import { StudentService } from "src/lib/student-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -43,6 +43,7 @@ describe("Feature: a prospective student can join using their Google account ins
           email: "prospective.student@gmail.com",
           name: "Prospective Student",
           courseId: "course-1",
+          schoolId: TEST_SCHOOL_ID,
         },
       );
 
@@ -93,6 +94,7 @@ describe("Feature: a prospective student can join using their Google account ins
           email: "Prospective.Student+tag@Gmail.com",
           name: "Prospective Student",
           courseId: "course-1",
+          schoolId: TEST_SCHOOL_ID,
         },
       );
 
@@ -135,6 +137,7 @@ describe("Feature: re-entering the invite page after already being provisioned n
         email: "repeat.visitor@gmail.com",
         name: "Repeat Visitor",
         courseId: "course-1",
+        schoolId: TEST_SCHOOL_ID,
       };
       const deps = { studentService, courseJoinRequestService };
 
@@ -191,6 +194,7 @@ describe("Feature: a Google signup whose derived username collides or is invalid
         username: "prospective.student",
         name: "Existing Student",
         createdBy: "admin-1",
+        schoolId: TEST_SCHOOL_ID,
       });
 
       // And a raw Better Auth user/account/session already exist — Google's
@@ -215,6 +219,7 @@ describe("Feature: a Google signup whose derived username collides or is invalid
           email: "prospective.student@gmail.com",
           name: "Someone Else",
           courseId: "course-1",
+          schoolId: TEST_SCHOOL_ID,
         },
       );
 
@@ -262,6 +267,7 @@ describe("Feature: a Google signup whose derived username collides or is invalid
           email: "田中太郎@example.com",
           name: "Taro Tanaka",
           courseId: "course-1",
+          schoolId: TEST_SCHOOL_ID,
         },
       );
 
@@ -291,6 +297,7 @@ describe("Feature: a Google signup whose derived username collides or is invalid
           email: "ab@gmail.com",
           name: "AB Person",
           courseId: "course-1",
+          schoolId: TEST_SCHOOL_ID,
         },
       );
 

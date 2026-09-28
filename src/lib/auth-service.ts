@@ -35,6 +35,8 @@ interface RegisterStudentInput {
   username: string;
   password: string;
   createdBy: string;
+  /** The school the new student belongs to. */
+  schoolId: string;
 }
 
 /**
@@ -229,6 +231,7 @@ export class AuthService {
         username,
         name: input.name,
         createdBy: input.createdBy,
+        schoolId: input.schoolId,
       });
     } catch (error) {
       await this.rollbackAuthUser(authResult.user.id);
@@ -317,11 +320,13 @@ export class AuthService {
     }
 
     const student = await this.studentService.findByAuthUserId(user.id);
-    if (student) {
+    // A student not yet assigned to a school gets no session (fail closed).
+    if (student?.schoolId) {
       return new StudentSession({
         userId: user.id,
         username: student.username,
         studentId: student.id,
+        schoolId: student.schoolId,
       });
     }
 

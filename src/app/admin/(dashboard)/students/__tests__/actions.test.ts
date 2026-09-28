@@ -4,6 +4,7 @@ import type { AppConfig } from "src/lib/config";
 import { SchoolService } from "src/lib/school-service";
 import { StudentService } from "src/lib/student-service";
 import {
+  addTestSchool,
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
@@ -22,6 +23,7 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => authHolder.authService),
 }));
 
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import { createStudentAction } from "../actions";
 import { ImportOutcome, PreviewStatus } from "../bulk-import.types";
 import {
@@ -54,9 +56,11 @@ beforeEach(async () => {
     studentService: new StudentService(db),
     schoolService: new SchoolService(db),
   });
-  requireAdminSession = vi
-    .fn()
-    .mockResolvedValue({ userId: "admin-1", role: "admin" });
+  requireAdminSession = vi.fn().mockResolvedValue({
+    userId: "admin-1",
+    role: "admin",
+    school: TEST_SCHOOL,
+  });
   // Override the gate so each test controls admin pass/fail; keep real registerStudent.
   (
     authService as unknown as { requireAdminSession: unknown }
@@ -78,6 +82,7 @@ describe("Feature: Bulk import — teacher previews a roster", () => {
       username: "taken",
       name: "Already Here",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     // When previewing a roster covering every status
@@ -161,6 +166,7 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
       username: "taken",
       name: "Already Here",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     // When importing a mixed roster into one course
@@ -366,5 +372,40 @@ describe("Feature: Create Student refuses a password made only of spaces", () =>
     expect(result.success).toBe(false);
     expect(result.fieldErrors?.password).toBe("Password cannot be only spaces");
     expect(await studentService.listStudents()).toHaveLength(0);
+  });
+});
+
+/**
+ * Feature: a new student belongs to the admin's current school
+ * As a school admin working in one school
+ * I want a student I create, alone or by bulk import, to belong to that school
+ * So that they sign in to that school and only its admins see them
+ */
+describe("Feature: a new student belongs to the admin's current school", () => {
+  it("records the acting admin's school on a student created one at a time and by bulk import", async () => {
+    const school = await addTestSchool("School B");
+    requireAdminSession.mockResolvedValue({
+      userId: "admin-b",
+      role: "admin",
+      school,
+    });
+    const form = new FormData();
+    form.set("name", "Solo Student");
+    form.set("username", "solo");
+    form.set("password", "secret123");
+
+    await createStudentAction(null, form);
+    await bulkImportStudentsAction(
+      [{ name: "Batch Student", username: "batch", password: "secret123" }],
+      [],
+    );
+
+    const { studentService } = getTestServices();
+    expect((await studentService.findByUsername("solo"))?.schoolId).toBe(
+      school.id,
+    );
+    expect((await studentService.findByUsername("batch"))?.schoolId).toBe(
+      school.id,
+    );
   });
 });

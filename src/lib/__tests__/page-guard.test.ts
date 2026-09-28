@@ -1,7 +1,7 @@
 import { EnrollmentService } from "src/lib/enrollment-service";
 import { PageGuard, type PageGuardSessionLookup } from "src/lib/page-guard";
 import { AdminSession, StudentSession } from "src/lib/session";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -80,6 +80,7 @@ describe("PageGuard.requireStudentLogin", () => {
           userId: "user-1",
           username: "john",
           studentId: "student-1",
+          schoolId: TEST_SCHOOL_ID,
         }),
       );
 
@@ -113,6 +114,7 @@ describe("PageGuard.requireAdminLogin", () => {
           userId: "user-1",
           username: "john",
           studentId: "student-1",
+          schoolId: TEST_SCHOOL_ID,
         }),
       );
 
@@ -161,6 +163,7 @@ describe("PageGuard.requireRoleManagerLogin", () => {
           userId: "user-1",
           username: "john",
           studentId: "student-1",
+          schoolId: TEST_SCHOOL_ID,
         }),
       );
 
@@ -246,6 +249,7 @@ describe("PageGuard.requireSchoolAdmin", () => {
           userId: "user-1",
           username: "john",
           studentId: "student-1",
+          schoolId: TEST_SCHOOL_ID,
         }),
       );
 

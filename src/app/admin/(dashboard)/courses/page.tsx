@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "src/components/ui/card";
-import { getCourseService } from "src/lib/services-singleton";
+import { getCourseService, getPageGuard } from "src/lib/services-singleton";
 import { CreateCourseDialog } from "./create-course-form";
 
 export const metadata = {
@@ -14,7 +14,9 @@ export const metadata = {
 };
 
 export default async function CoursesPage() {
-  const courseService = await getCourseService();
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
+  const courseService = await getCourseService(session.school.id);
   const courses = await courseService.listCourses();
 
   return (

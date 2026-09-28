@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -97,6 +98,7 @@ describe("Feature: GradingPage roster ordering", () => {
         username: key.toLowerCase(),
         name,
         createdBy: "admin",
+        schoolId: TEST_SCHOOL_ID,
       });
       studentIds[key] = s.id;
       await services.enrollmentService.enrollStudent(course.id, s.id, "admin");
@@ -204,6 +206,7 @@ describe("Feature: GradingPage roster ordering", () => {
         username: "subs",
         name: "Subs",
         createdBy: "admin",
+        schoolId: TEST_SCHOOL_ID,
       });
     await services.enrollmentService.enrollStudent(
       course.id,

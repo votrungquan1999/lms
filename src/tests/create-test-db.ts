@@ -3,6 +3,12 @@ import type { Db } from "mongodb";
 import { MongoClient } from "mongodb";
 import type { TestAPI } from "vitest";
 
+/** The default test school: harness services are bound to it unless a test asks for another. */
+export const TEST_SCHOOL_ID = "00000000-0000-4000-8000-000000000001";
+
+/** The default test school as sessions carry it. */
+export const TEST_SCHOOL = { id: TEST_SCHOOL_ID, name: "Test School" };
+
 /**
  * Database context injected into each test by withTestDb.
  */

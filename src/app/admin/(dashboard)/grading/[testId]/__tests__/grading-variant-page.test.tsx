@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -66,6 +67,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "u1",
       name: "Stu",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -121,6 +123,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "alice",
       name: "Alice",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -136,6 +139,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "bob",
       name: "Bob",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(course.id, bob.id, "admin");
     await new Promise((r) => setTimeout(r, 5));
@@ -145,6 +149,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "carol",
       name: "Carol",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -205,6 +210,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "zara",
       name: "Zara",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -262,6 +268,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "alice",
       name: "Alice",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -274,6 +281,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "bob",
       name: "Bob",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(course.id, bob.id, "admin");
 
@@ -326,6 +334,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "finn",
       name: "Finn",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -393,6 +402,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "u1",
       name: "Stu",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -453,6 +463,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "u1",
       name: "Stu",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -505,6 +516,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "ada",
       name: "Ada",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(course.id, ada.id, "admin");
     await new Promise((r) => setTimeout(r, 5));
@@ -513,6 +525,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "ben",
       name: "Ben",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(course.id, ben.id, "admin");
 
@@ -581,6 +594,7 @@ describe("Feature: GradingVariantPage", () => {
         username: u,
         name: u.toUpperCase(),
         createdBy: "admin",
+        schoolId: TEST_SCHOOL_ID,
       });
       await services.enrollmentService.enrollStudent(course.id, s.id, "admin");
       await services.answerService.submitAnswer({
@@ -644,6 +658,7 @@ describe("Feature: GradingVariantPage", () => {
         username: u,
         name: u.toUpperCase(),
         createdBy: "admin",
+        schoolId: TEST_SCHOOL_ID,
       });
       await services.enrollmentService.enrollStudent(course.id, s.id, "admin");
       await services.answerService.submitAnswer({
@@ -703,6 +718,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "carol",
       name: "Carol",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -715,6 +731,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "alice",
       name: "Alice",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -727,6 +744,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "bob",
       name: "Bob",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(course.id, bob.id, "admin");
 
@@ -778,6 +796,7 @@ describe("Feature: GradingVariantPage", () => {
         username: u,
         name: u.toUpperCase(),
         createdBy: "admin",
+        schoolId: TEST_SCHOOL_ID,
       });
       await services.enrollmentService.enrollStudent(course.id, s.id, "admin");
       await services.answerService.submitAnswer({
@@ -849,6 +868,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "redo",
       name: "Redo",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -907,6 +927,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "snn",
       name: "Snn",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -1122,6 +1143,7 @@ describe("Feature: GradingVariantPage", () => {
       username: "u1",
       name: "Stu",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

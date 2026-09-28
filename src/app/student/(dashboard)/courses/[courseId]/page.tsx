@@ -48,7 +48,7 @@ export default async function StudentCourseDetailPage({
   const session = await guard.requireStudentLogin();
   await guard.requireEnrollment(courseId, session.studentId);
 
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(session.schoolId);
   const course = await courseService.getCourse(courseId);
   if (!course) {
     notFound();

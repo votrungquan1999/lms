@@ -2,6 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import { StudentSession } from "src/lib/session";
 import type { AnswerRevealMode } from "src/lib/test-service";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -55,6 +56,7 @@ function mockStudentSession(studentId: string) {
     userId: `auth-${studentId}`,
     username: `u-${studentId}`,
     studentId,
+    schoolId: TEST_SCHOOL_ID,
   });
   signInAs(session);
   mockRequireStudentSession.mockResolvedValue(session);
@@ -99,6 +101,7 @@ async function renderGradedFreeTextScenario(opts: {
     username: `u-${test.id}`,
     name: "Stu",
     createdBy: "admin-1",
+    schoolId: TEST_SCHOOL_ID,
   });
   await services.enrollmentService.enrollStudent(
     course.id,
@@ -167,6 +170,7 @@ describe("Feature: Student test page — free-text answer reveal mode after grad
       username: "u1",
       name: "Stu",
       createdBy: "admin-1",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

@@ -7,6 +7,7 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ getSession })),
 }));
 
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import { GET } from "../route";
 
 /**
@@ -65,6 +66,7 @@ describe("GET /redirect", () => {
         userId: "auth-1",
         username: "alice",
         studentId: "student-1",
+        schoolId: TEST_SCHOOL_ID,
       }),
     );
 

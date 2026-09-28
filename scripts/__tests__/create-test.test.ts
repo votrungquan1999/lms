@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { CourseService } from "src/lib/course-service";
 import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { afterEach, describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
@@ -73,7 +73,7 @@ describe("create-test script", () => {
     "should create a test with free-text questions in the database when run with a data file",
     async ({ db, client }) => {
       // Given: a course exists in the database
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const course = await courseService.createCourse({
         title: "Test Course",
         description: "For script testing",
@@ -147,7 +147,7 @@ export default {
     "should create single-select MC questions with correct options and exactly one correct answer",
     async ({ db, client }) => {
       // Given: a course exists
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const course = await courseService.createCourse({
         title: "MC Course",
         description: "",
@@ -221,7 +221,7 @@ export default {
     "should create multi-select MC questions with the specified grading strategy",
     async ({ db, client }) => {
       // Given: a course exists
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const course = await courseService.createCourse({
         title: "Multi-Select Course",
         description: "",
@@ -297,7 +297,7 @@ export default {
     "should print a summary with test ID, question count, and admin URL after running",
     async ({ db, client }) => {
       // Given: a course exists
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const course = await courseService.createCourse({
         title: "Summary Course",
         description: "",
@@ -348,7 +348,7 @@ export default {
     "should create a test with the time limit specified in the data file",
     async ({ db, client }) => {
       // Given: a course exists
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const course = await courseService.createCourse({
         title: "Timed Course",
         description: "",

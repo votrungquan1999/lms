@@ -28,8 +28,10 @@ export async function createStudentAction(
   const authService = await getAuthService();
 
   // Defense-in-depth: verify admin session
+  let schoolId: string;
   try {
-    await authService.requireAdminSession(requestHeaders);
+    const session = await authService.requireAdminSession(requestHeaders);
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -61,6 +63,7 @@ export async function createStudentAction(
           username,
           password,
           createdBy: "admin",
+          schoolId,
         });
         revalidatePath("/admin/students");
         return {

@@ -9,6 +9,7 @@ import {
   renderResultsReportToBuffer,
 } from "src/lib/results-report-pdf";
 import { TestStatus } from "src/lib/test-status-service";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -34,7 +35,12 @@ function collectText(node: unknown): string[] {
  */
 function makeModel(): StudentResultsReport {
   return {
-    student: { id: "s-1", username: "alice", name: "Alice" },
+    student: {
+      id: "s-1",
+      username: "alice",
+      name: "Alice",
+      schoolId: TEST_SCHOOL_ID,
+    },
     tests: [
       {
         testId: "t-A",
@@ -110,7 +116,12 @@ describe("renderResultsReportToBuffer", () => {
     // Given a submitted, graded test with a blank question (counted 0) next
     // to an answered, scored question.
     const model: StudentResultsReport = {
-      student: { id: "s-1", username: "alice", name: "Alice" },
+      student: {
+        id: "s-1",
+        username: "alice",
+        name: "Alice",
+        schoolId: TEST_SCHOOL_ID,
+      },
       tests: [
         {
           testId: "t-A",

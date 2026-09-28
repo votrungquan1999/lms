@@ -19,6 +19,7 @@ import { QuestionPoolService } from "./question-pool-service";
 import { QuestionService } from "./question-service";
 import { RedoRequestService } from "./redo-request-service";
 import { S3StorageService } from "./s3-storage-service";
+import { SchoolDirectory } from "./school-directory";
 import { SchoolService } from "./school-service";
 import { StudentService } from "./student-service";
 import { TestFeedbackService } from "./test-feedback-service";
@@ -36,7 +37,8 @@ import { UserRoleService } from "./user-role-service";
 let aiGradeService: AiGradeService | null = null;
 let answerService: AnswerService | null = null;
 let courseJoinRequestService: CourseJoinRequestService | null = null;
-let courseService: CourseService | null = null;
+// One instance per school: a school-bound service never serves another school.
+const courseServices = new Map<string, CourseService>();
 let enrollmentService: EnrollmentService | null = null;
 let gradeService: GradeService | null = null;
 let annotationService: AnnotationService | null = null;
@@ -53,6 +55,7 @@ let questionParseClient: QuestionParseClient | null = null;
 let questionPoolService: QuestionPoolService | null = null;
 let poolQuestionService: PoolQuestionService | null = null;
 let s3StorageService: S3StorageService | null = null;
+let schoolDirectory: SchoolDirectory | null = null;
 let schoolService: SchoolService | null = null;
 let studentService: StudentService | null = null;
 let pageGuard: PageGuard | null = null;
@@ -135,10 +138,23 @@ export async function getCourseJoinRequestService(): Promise<CourseJoinRequestSe
   return courseJoinRequestService;
 }
 
-export async function getCourseService(): Promise<CourseService> {
+/**
+ * Returns the course service bound to one school, cached per school.
+ * @param schoolId - The verified session's school.
+ */
+export async function getCourseService(
+  schoolId: string,
+): Promise<CourseService> {
+  // Refused before any cache or database access, so an unset school never
+  // gets a service that could match unassigned records.
+  if (!schoolId) {
+    throw new Error("A school is required to get a course service");
+  }
+  let courseService = courseServices.get(schoolId);
   if (!courseService) {
     const db = await getDatabase();
-    courseService = tracedService(new CourseService(db), "course");
+    courseService = tracedService(new CourseService(db, schoolId), "course");
+    courseServices.set(schoolId, courseService);
   }
   return courseService;
 }
@@ -325,6 +341,18 @@ export async function getS3StorageService(): Promise<S3StorageService> {
     );
   }
   return s3StorageService;
+}
+
+/**
+ * Returns the platform-wide directory, for lookups with no session to take
+ * a school from (an invite link).
+ */
+export async function getSchoolDirectory(): Promise<SchoolDirectory> {
+  if (!schoolDirectory) {
+    const db = await getDatabase();
+    schoolDirectory = tracedService(new SchoolDirectory(db), "schoolDirectory");
+  }
+  return schoolDirectory;
 }
 
 export async function getSchoolService(): Promise<SchoolService> {

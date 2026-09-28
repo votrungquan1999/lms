@@ -27,6 +27,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   googleUsernameSignupAction,
   joinSignupAction,
@@ -180,6 +181,7 @@ describe("Feature: a prospective student is stopped from taking a username someb
       username: "alice",
       name: "Alice Existing",
       createdBy: "admin-1",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     const course = await services.courseService.createCourse({
@@ -225,6 +227,7 @@ describe("Feature: a prospective student is stopped from taking a username someb
       username: "alice",
       name: "Alice Existing",
       createdBy: "admin-1",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     const course = await services.courseService.createCourse({
@@ -462,6 +465,7 @@ describe("Feature: a student who already has an account can open the invite link
       username: "returning-student",
       password: "correct-horse-1",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     // And they are signed in as that student — the guard resolves whoever
@@ -475,6 +479,7 @@ describe("Feature: a student who already has an account can open the invite link
         userId: "auth-user-1",
         username: student.username,
         studentId: student.id,
+        schoolId: TEST_SCHOOL_ID,
       }),
     );
 
@@ -565,6 +570,7 @@ describe("Feature: a student who is already in the course, or already waiting on
       username: "enrolled-student",
       password: "correct-horse-1",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -579,6 +585,7 @@ describe("Feature: a student who is already in the course, or already waiting on
         userId: "auth-user-1",
         username: student.username,
         studentId: student.id,
+        schoolId: TEST_SCHOOL_ID,
       }),
     );
 
@@ -619,6 +626,7 @@ describe("Feature: a student who already has a pending request is told so, and n
       username: "waiting-student",
       password: "correct-horse-1",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
     const firstRequest = await services.courseJoinRequestService.createRequest({
       courseId: course.id,
@@ -632,6 +640,7 @@ describe("Feature: a student who already has a pending request is told so, and n
         userId: "auth-user-1",
         username: student.username,
         studentId: student.id,
+        schoolId: TEST_SCHOOL_ID,
       }),
     );
 

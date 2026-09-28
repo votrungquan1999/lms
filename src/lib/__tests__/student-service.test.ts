@@ -1,5 +1,5 @@
 import { StudentService } from "src/lib/student-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -20,12 +20,14 @@ describe("Feature: StudentService.findExistingUsernames", () => {
         username: "alice",
         name: "Alice",
         createdBy: "admin",
+        schoolId: TEST_SCHOOL_ID,
       });
       await service.createStudentDocument({
         authUserId: "auth-2",
         username: "bob",
         name: "Bob",
         createdBy: "admin",
+        schoolId: TEST_SCHOOL_ID,
       });
 
       // When checking a mix of existing and new usernames
@@ -50,6 +52,7 @@ describe("Feature: StudentService.findExistingUsernames", () => {
         username: "alice",
         name: "Alice",
         createdBy: "admin",
+        schoolId: TEST_SCHOOL_ID,
       });
 
       // When checking a non-empty list of all-new usernames
@@ -68,6 +71,7 @@ describe("Feature: StudentService.findExistingUsernames", () => {
       username: "alice",
       name: "Alice",
       createdBy: "admin",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     // When checking an empty list

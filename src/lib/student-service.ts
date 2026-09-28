@@ -13,15 +13,19 @@ export interface StudentDocument {
   createdBy: string;
   updatedAt: Date | null;
   updatedBy: string | null;
+  /** Owning school. Absent or `null` on records not yet assigned — no school can see those. */
+  schoolId: string | null;
 }
 
 /**
- * Client-facing student interface.
+ * Client-facing student interface. `schoolId` is `null` for a student not
+ * yet assigned to a school, who gets no session at all.
  */
 export interface Student {
   id: string;
   username: string;
   name: string;
+  schoolId: string | null;
 }
 
 /**
@@ -32,6 +36,20 @@ export interface CreateStudentDocumentInput {
   username: string;
   name: string;
   createdBy: string;
+  schoolId: string;
+}
+
+/**
+ * Maps a stored student document to the client-facing student.
+ * @param doc - The stored student document.
+ */
+function toStudent(doc: StudentDocument): Student {
+  return {
+    id: doc.id,
+    username: doc.username,
+    name: doc.name,
+    schoolId: doc.schoolId ?? null,
+  };
 }
 
 /**
@@ -66,15 +84,12 @@ export class StudentService {
       createdBy: input.createdBy,
       updatedAt: null,
       updatedBy: null,
+      schoolId: input.schoolId,
     };
 
     await this.students.insertOne(doc);
 
-    return {
-      id: doc.id,
-      username: doc.username,
-      name: doc.name,
-    };
+    return toStudent(doc);
   }
 
   /**
@@ -85,7 +100,7 @@ export class StudentService {
     if (!doc) {
       return null;
     }
-    return { id: doc.id, username: doc.username, name: doc.name };
+    return toStudent(doc);
   }
 
   /**
@@ -96,7 +111,7 @@ export class StudentService {
     if (!doc) {
       return null;
     }
-    return { id: doc.id, username: doc.username, name: doc.name };
+    return toStudent(doc);
   }
 
   /**
@@ -122,11 +137,7 @@ export class StudentService {
       .find({ id: { $in: ids } })
       .sort({ createdAt: -1 })
       .toArray();
-    return docs.map((doc) => ({
-      id: doc.id,
-      username: doc.username,
-      name: doc.name,
-    }));
+    return docs.map(toStudent);
   }
 
   /**
@@ -135,10 +146,6 @@ export class StudentService {
   async listStudents(): Promise<Student[]> {
     const docs = await this.students.find({}).sort({ createdAt: -1 }).toArray();
 
-    return docs.map((doc) => ({
-      id: doc.id,
-      username: doc.username,
-      name: doc.name,
-    }));
+    return docs.map(toStudent);
   }
 }

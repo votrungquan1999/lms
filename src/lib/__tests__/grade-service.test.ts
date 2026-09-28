@@ -10,7 +10,7 @@ import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
 import { TestStatus } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -850,7 +850,7 @@ describe("GradeService - Visibility Edge Cases", () => {
   dbIt(
     "getStudentGrades returns empty when showGradeAfterSubmit=false until grades are explicitly released",
     async ({ db }) => {
-      const courseService = new CourseService(db);
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
       const { testService, questionService, answerService, gradeService } =
         buildCoreServices(db);
 

@@ -6,6 +6,7 @@ import {
 import {
   getCourseJoinRequestService,
   getCourseService,
+  getPageGuard,
   getStudentService,
 } from "src/lib/services-singleton";
 import { joinRequestsHref } from "./href";
@@ -64,12 +65,13 @@ function resolvePage(raw: string | string[] | undefined): number {
  */
 async function toVisibleRows(
   requests: CourseJoinRequest[],
+  schoolId: string,
 ): Promise<JoinRequestRowModel[]> {
   const studentIds = [...new Set(requests.map((r) => r.studentId))];
   const courseIds = [...new Set(requests.map((r) => r.courseId))];
 
   const studentService = await getStudentService();
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(schoolId);
   const [students, courses] = await Promise.all([
     studentService.findByIds(studentIds),
     courseService.getCoursesByIds(courseIds),
@@ -103,6 +105,8 @@ export default async function JoinRequestsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const params = await searchParams;
   const filter = resolveFilter(params.filter);
   const requestedPage = resolvePage(params.page);
@@ -120,7 +124,7 @@ export default async function JoinRequestsPage({
     skip: 0,
     limit: 0,
   });
-  const visibleRows = await toVisibleRows(allRequests);
+  const visibleRows = await toVisibleRows(allRequests, session.school.id);
 
   const total = visibleRows.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

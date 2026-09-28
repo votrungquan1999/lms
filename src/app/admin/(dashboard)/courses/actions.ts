@@ -29,9 +29,11 @@ export async function createCourseAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -56,7 +58,7 @@ export async function createCourseAction(
       "action.createCourseAction",
       { "lms.action.name": "createCourseAction" },
       async () => {
-        const courseService = await getCourseService();
+        const courseService = await getCourseService(schoolId);
         const course = await courseService.createCourse({
           ...parsed.data,
           createdBy: adminUserId,

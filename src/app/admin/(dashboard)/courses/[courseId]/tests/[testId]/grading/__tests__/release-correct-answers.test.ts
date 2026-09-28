@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -22,7 +23,11 @@ vi.mock("src/lib/auth-singleton", () => ({
 
 beforeEach(async () => {
   await setupTestDb();
-  requireAdminSession.mockResolvedValue({ userId: "admin-1", role: "admin" });
+  requireAdminSession.mockResolvedValue({
+    userId: "admin-1",
+    role: "admin",
+    school: TEST_SCHOOL,
+  });
 });
 
 afterEach(async () => {

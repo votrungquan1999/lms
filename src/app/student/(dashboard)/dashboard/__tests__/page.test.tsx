@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { StudentSession } from "src/lib/session";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -53,12 +54,14 @@ describe("Feature: Student dashboard shows a pending join request", () => {
       username: "student-1",
       name: "Student One",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
     signInAs(
       new StudentSession({
         userId: "auth-1",
         username: "student-1",
         studentId: student.id,
+        schoolId: TEST_SCHOOL_ID,
       }),
     );
 
@@ -114,12 +117,14 @@ describe("Feature: Student dashboard — Graded-but-withheld tests count as awai
       username: "student-1",
       name: "Student One",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
     signInAs(
       new StudentSession({
         userId: "auth-1",
         username: "student-1",
         studentId: student.id,
+        schoolId: TEST_SCHOOL_ID,
       }),
     );
 

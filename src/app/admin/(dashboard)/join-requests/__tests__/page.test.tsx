@@ -2,6 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import type { Db } from "mongodb";
 import { JoinRequestStatus } from "src/lib/course-join-request-service";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -33,6 +34,7 @@ async function seedPendingRequests(
       username: `seed-${suffix}`,
       name: `Seed ${i}`,
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
     const id = crypto.randomUUID();
     testIds.push(`join-request-row-${id}`);
@@ -88,12 +90,14 @@ describe("Feature: Admin Join Request Queue", () => {
       username: "alice",
       name: "Alice Smith",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
     const bob = await services.studentService.createStudentDocument({
       authUserId: "auth-bob",
       username: "bob",
       name: "Bob Jones",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     await services.courseJoinRequestService.createRequest({
@@ -164,6 +168,7 @@ describe("Feature: Admin Join Request Queue", () => {
       username: "alice",
       name: "Alice Smith",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.courseJoinRequestService.createRequest({
       courseId: course.id,
@@ -189,6 +194,7 @@ describe("Feature: Admin Join Request Queue", () => {
       username: "alice",
       name: "Alice Smith",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.courseJoinRequestService.createRequest({
       courseId: course.id,
@@ -214,6 +220,7 @@ describe("Feature: Admin Join Request Queue", () => {
       username: "bob",
       name: "Bob Jones",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
 
     // Only an Approved row exists — no code path to approve one yet
@@ -275,6 +282,7 @@ describe("Feature: Admin Join Request Queue", () => {
         username: `p${i}`,
         name: `Pending ${i}`,
         createdBy: "self-signup",
+        schoolId: TEST_SCHOOL_ID,
       });
       const id = crypto.randomUUID();
       pendingIds.push(id);
@@ -327,6 +335,7 @@ describe("Feature: Admin Join Request Queue", () => {
         username: `a${i}`,
         name: `Approved ${i}`,
         createdBy: "self-signup",
+        schoolId: TEST_SCHOOL_ID,
       });
       const id = crypto.randomUUID();
       approvedIds.push(id);
@@ -373,6 +382,7 @@ describe("Feature: Admin Join Request Queue", () => {
         username: `tie${i}`,
         name: `Tie ${i}`,
         createdBy: "self-signup",
+        schoolId: TEST_SCHOOL_ID,
       });
       const id = crypto.randomUUID();
       pendingTestIds.push(`join-request-row-${id}`);
@@ -428,6 +438,7 @@ describe("Feature: Admin Join Request Queue", () => {
         username: `v${i}`,
         name: `Visible ${i}`,
         createdBy: "self-signup",
+        schoolId: TEST_SCHOOL_ID,
       });
       await services.courseJoinRequestService.createRequest({
         courseId: algebra.id,
@@ -534,6 +545,7 @@ describe("Feature: Admin Join Request Queue", () => {
       username: "alice",
       name: "Alice Smith",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
     await services.courseJoinRequestService.createRequest({
       courseId: algebra.id,
@@ -545,6 +557,7 @@ describe("Feature: Admin Join Request Queue", () => {
       username: "bob",
       name: "Bob Jones",
       createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
     });
     await db.collection("course_join_request").insertOne({
       id: crypto.randomUUID(),

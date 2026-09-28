@@ -175,8 +175,10 @@ export async function bulkImportStudentsAction(
 ): Promise<ImportState> {
   const requestHeaders = await headers();
   const authService = await getAuthService();
+  let schoolId: string;
   try {
-    await authService.requireAdminSession(requestHeaders);
+    const session = await authService.requireAdminSession(requestHeaders);
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -219,6 +221,7 @@ export async function bulkImportStudentsAction(
             username: row.username,
             password: row.password,
             createdBy: "admin",
+            schoolId,
           });
           createdStudentIds.push(student.id);
           report.push({

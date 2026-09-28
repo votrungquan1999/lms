@@ -104,8 +104,10 @@ export async function getInviteLinkAction(
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
+  let schoolId: string;
   try {
-    await authService.requireAdminSession(requestHeaders);
+    const session = await authService.requireAdminSession(requestHeaders);
+    schoolId = session.school.id;
   } catch {
     return {
       success: false,
@@ -132,7 +134,7 @@ export async function getInviteLinkAction(
         "lms.course.id": parsed.data.courseId,
       },
       async () => {
-        const courseService = await getCourseService();
+        const courseService = await getCourseService(schoolId);
         await courseService.getOrCreateInviteToken(parsed.data.courseId);
         revalidatePath(`/admin/courses/${parsed.data.courseId}`);
         return { success: true, message: "Join link ready" };
@@ -158,8 +160,10 @@ export async function regenerateInviteLinkAction(
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
+  let schoolId: string;
   try {
-    await authService.requireAdminSession(requestHeaders);
+    const session = await authService.requireAdminSession(requestHeaders);
+    schoolId = session.school.id;
   } catch {
     return {
       success: false,
@@ -186,7 +190,7 @@ export async function regenerateInviteLinkAction(
         "lms.course.id": parsed.data.courseId,
       },
       async () => {
-        const courseService = await getCourseService();
+        const courseService = await getCourseService(schoolId);
         await courseService.regenerateInviteToken(parsed.data.courseId);
         revalidatePath(`/admin/courses/${parsed.data.courseId}`);
         return { success: true, message: "New join link issued" };
@@ -211,8 +215,10 @@ export async function disableInviteLinkAction(
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
+  let schoolId: string;
   try {
-    await authService.requireAdminSession(requestHeaders);
+    const session = await authService.requireAdminSession(requestHeaders);
+    schoolId = session.school.id;
   } catch {
     return {
       success: false,
@@ -239,7 +245,7 @@ export async function disableInviteLinkAction(
         "lms.course.id": parsed.data.courseId,
       },
       async () => {
-        const courseService = await getCourseService();
+        const courseService = await getCourseService(schoolId);
         await courseService.disableInviteToken(parsed.data.courseId);
         revalidatePath(`/admin/courses/${parsed.data.courseId}`);
         return { success: true, message: "Join link turned off" };

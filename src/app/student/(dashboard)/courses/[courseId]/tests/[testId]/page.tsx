@@ -62,7 +62,7 @@ export default async function StudentTestDetailPage({
     notFound();
   }
 
-  const courseService = await getCourseService();
+  const courseService = await getCourseService(session.schoolId);
   const course = await courseService.getCourse(courseId);
 
   const questionService = await getQuestionService();
