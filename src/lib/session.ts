@@ -72,6 +72,24 @@ export function isAdminSession(session: Session): session is AdminSession {
 }
 
 /**
+ * An AdminSession whose `school` is non-null. Same shape as AdminSession —
+ * just narrowed, so `requireAdminSession` and `requireSchoolAdmin()` can
+ * hand callers `session.school.id` with no non-null assertion.
+ */
+export interface SchoolAdminSession extends AdminSession {
+  readonly school: { id: string; name: string };
+}
+
+/**
+ * Type guard: narrows an AdminSession to SchoolAdminSession.
+ */
+export function isSchoolAdminSession(
+  session: AdminSession,
+): session is SchoolAdminSession {
+  return session.school !== null;
+}
+
+/**
  * Type guard: narrows a Session to StudentSession.
  */
 export function isStudentSession(session: Session): session is StudentSession {

@@ -1,6 +1,10 @@
 import type { Db } from "mongodb";
 import { ACTIVE_SCHOOL_COOKIE_NAME } from "src/lib/active-school-cookie";
-import { type AuthService, createAuthService } from "src/lib/auth-service";
+import {
+  type AuthService,
+  createAuthService,
+  OwnerRequiredError,
+} from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
 import { type School, SchoolService } from "src/lib/school-service";
 import { isAdminSession, type Session } from "src/lib/session";
@@ -154,6 +158,35 @@ describe("Feature: only the platform owner passes the owner check", () => {
       await expect(authService.requireOwnerSession(headers)).rejects.toThrow(
         "owner access required",
       );
+    },
+  );
+
+  dbIt(
+    "names the refused non-owner admin, so owner-only actions can log who tried",
+    async ({ db }) => {
+      const authService = realAuthService(db, ["owner@example.com"]);
+      const { user } = await authService.auth.api.signUpEmail({
+        body: {
+          email: "unlisted-admin@example.com",
+          password: "password-123",
+          name: "Unlisted Admin",
+        },
+      });
+      await db
+        .collection("user")
+        .updateOne({ email: user.email }, { $set: { role: "admin" } });
+      const headers = await signedInHeaders(
+        authService,
+        "unlisted-admin@example.com",
+        "password-123",
+      );
+
+      const error = await authService
+        .requireOwnerSession(headers)
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(OwnerRequiredError);
+      expect((error as OwnerRequiredError).userId).toBe(user.id);
     },
   );
 
@@ -525,6 +558,93 @@ describe("Feature: a teacher in several schools works in the school they chose",
       const session = await authService.getSession(headers);
 
       expect(activeSchoolOf(session)).toEqual(lower);
+    },
+  );
+});
+
+/**
+ * Feature: a teacher who belongs to no school can't reach any school's data
+ * As the LMS system
+ * I want requireAdminSession to fail closed for a staff account with no
+ * school membership
+ * So that no school action can ever run for someone who isn't part of any
+ * school, even one that forgets to check the session's school itself
+ */
+describe("Feature: a teacher who belongs to no school can't reach any school's data", () => {
+  dbIt(
+    "requireAdminSession returns the active school for a recorded admin with a membership",
+    async ({ db }) => {
+      const authService = realAuthService(db, []);
+      const schoolService = new SchoolService(db);
+      const acme = await schoolService.createSchool({
+        name: "Acme School",
+        slug: "acme",
+        createdBy: "owner-1",
+      });
+      const { headers } = await createAdminInSchools(
+        db,
+        authService,
+        schoolService,
+        "teacher@example.com",
+        [acme],
+      );
+
+      const session = await authService.requireAdminSession(headers);
+
+      expect(session.school).toEqual({ id: acme.id, name: acme.name });
+    },
+  );
+
+  dbIt(
+    "requireAdminSession fails closed for a recorded admin with zero memberships",
+    async ({ db }) => {
+      const authService = realAuthService(db, []);
+      const { user } = await authService.auth.api.signUpEmail({
+        body: {
+          email: "lonely-admin@example.com",
+          password: "password-123",
+          name: "Lonely Admin",
+        },
+      });
+      await db
+        .collection("user")
+        .updateOne({ email: user.email }, { $set: { role: "admin" } });
+
+      const headers = await signedInHeaders(
+        authService,
+        "lonely-admin@example.com",
+        "password-123",
+      );
+
+      await expect(authService.requireAdminSession(headers)).rejects.toThrow(
+        "not part of any school",
+      );
+    },
+  );
+
+  dbIt(
+    "requireOwnerSession still succeeds for the owner even with zero school memberships",
+    async ({ db }) => {
+      const authService = realAuthService(db, ["owner@example.com"]);
+      const { user } = await authService.auth.api.signUpEmail({
+        body: {
+          email: "owner@example.com",
+          password: "password-123",
+          name: "Owner",
+        },
+      });
+      await db
+        .collection("user")
+        .updateOne({ email: user.email }, { $set: { role: "admin" } });
+
+      const headers = await signedInHeaders(
+        authService,
+        "owner@example.com",
+        "password-123",
+      );
+
+      const session = await authService.requireOwnerSession(headers);
+      expect(session.email).toBe("owner@example.com");
     },
   );
 });

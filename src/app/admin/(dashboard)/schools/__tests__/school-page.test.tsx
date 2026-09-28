@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
 import type { Db } from "mongodb";
-import { Role } from "src/lib/session";
+import { AdminSession } from "src/lib/session";
 import {
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
+  signInAs,
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -26,14 +27,16 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
-const mockGetSession = vi.fn();
-const mockIsAdminEmail = vi.fn();
-vi.mock("src/lib/auth-singleton", () => ({
-  getAuthService: vi.fn(async () => ({
-    getSession: mockGetSession,
-    isAdminEmail: mockIsAdminEmail,
-  })),
-}));
+function signInAsOwner(isAdminEmail: boolean) {
+  signInAs(
+    new AdminSession({
+      userId: "owner-1",
+      email: "owner@example.com",
+      school: null,
+    }),
+    { isAdminEmail },
+  );
+}
 
 /**
  * Feature: the owner sees one school's admins
@@ -47,12 +50,7 @@ describe("Feature: the owner sees one school's admins", () => {
   beforeEach(async () => {
     const setup = await setupTestDb();
     db = setup.db;
-    mockGetSession.mockResolvedValue({
-      role: Role.Admin,
-      userId: "owner-1",
-      email: "owner@example.com",
-    });
-    mockIsAdminEmail.mockResolvedValue(true);
+    signInAsOwner(true);
   });
 
   afterEach(async () => {
@@ -61,7 +59,7 @@ describe("Feature: the owner sees one school's admins", () => {
   });
 
   it("forbids a recorded admin who is not the owner", async () => {
-    mockIsAdminEmail.mockResolvedValue(false);
+    signInAsOwner(false);
     const { schoolService } = getTestServices();
     const school = await schoolService.createSchool({
       name: "Acme",
@@ -180,7 +178,7 @@ describe("Feature: the owner sees one school's admins", () => {
   });
 
   it("forbids a non-owner admin the breadcrumb too, so the school's name never shows", async () => {
-    mockIsAdminEmail.mockResolvedValue(false);
+    signInAsOwner(false);
     const { schoolService } = getTestServices();
     const school = await schoolService.createSchool({
       name: "Acme",

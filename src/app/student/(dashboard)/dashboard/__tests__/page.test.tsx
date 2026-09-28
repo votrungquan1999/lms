@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import { StudentSession } from "src/lib/session";
 import {
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
+  signInAs,
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StudentDashboardPage from "../page";
-
-const mockGetSession = vi.fn();
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/navigation", () => ({
@@ -22,11 +22,6 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Map()),
-}));
-vi.mock("src/lib/auth-singleton", () => ({
-  getAuthService: vi.fn().mockResolvedValue({
-    getSession: (...args: unknown[]) => mockGetSession(...args),
-  }),
 }));
 
 beforeEach(async () => {
@@ -59,12 +54,13 @@ describe("Feature: Student dashboard shows a pending join request", () => {
       name: "Student One",
       createdBy: "self-signup",
     });
-    mockGetSession.mockResolvedValue({
-      role: "student",
-      userId: "auth-1",
-      username: "student-1",
-      studentId: student.id,
-    });
+    signInAs(
+      new StudentSession({
+        userId: "auth-1",
+        username: "student-1",
+        studentId: student.id,
+      }),
+    );
 
     // Given the student is already enrolled in one course...
     const enrolledCourse = await courseService.createCourse({
@@ -119,12 +115,13 @@ describe("Feature: Student dashboard — Graded-but-withheld tests count as awai
       name: "Student One",
       createdBy: "self-signup",
     });
-    mockGetSession.mockResolvedValue({
-      role: "student",
-      userId: "auth-1",
-      username: "student-1",
-      studentId: student.id,
-    });
+    signInAs(
+      new StudentSession({
+        userId: "auth-1",
+        username: "student-1",
+        studentId: student.id,
+      }),
+    );
 
     const course = await services.courseService.createCourse({
       title: "Algebra I",

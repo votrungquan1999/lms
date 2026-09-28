@@ -18,6 +18,7 @@ import { QuestionService } from "src/lib/question-service";
 import { RedoRequestService } from "src/lib/redo-request-service";
 import type { S3StorageService } from "src/lib/s3-storage-service";
 import { SchoolService } from "src/lib/school-service";
+import type { Session } from "src/lib/session";
 import { StudentService } from "src/lib/student-service";
 import { TestFeedbackService } from "src/lib/test-feedback-service";
 import { TestService } from "src/lib/test-service";
@@ -63,6 +64,22 @@ interface TestDbHandle {
 
 let currentDb: TestDbHandle | null = null;
 let currentServices: TestServices | null = null;
+// PageGuard's harness session. Default: signed out; tests opt in with signInAs().
+let currentSession: Session | null = null;
+let currentIsAdminEmail = false;
+
+/**
+ * Signs the harness's PageGuard in as `session` — the single source every
+ * `requireXLogin`/`requireSchoolAdmin` call reads from for the rest of the
+ * test. `isAdminEmail` defaults to false (most tests aren't the owner).
+ */
+export function signInAs(
+  session: Session,
+  options: { isAdminEmail?: boolean } = {},
+): void {
+  currentSession = session;
+  currentIsAdminEmail = options.isAdminEmail ?? false;
+}
 
 function makeServices(db: Db): TestServices {
   const questionChangeLogService = new QuestionChangeLogService(db);
@@ -132,7 +149,10 @@ function makeServices(db: Db): TestServices {
   const studentService = new StudentService(db);
   const testFeedbackService = new TestFeedbackService(db);
   const redoRequestService = new RedoRequestService(db, testService);
-  const pageGuard = new PageGuard(enrollmentService);
+  const pageGuard = new PageGuard(enrollmentService, {
+    getSession: async () => currentSession,
+    isAdminEmail: async () => currentIsAdminEmail,
+  });
   const userRoleService = new UserRoleService(db);
   const schoolService = new SchoolService(db);
   // Deterministic fake S3 service — no AWS SDK pulled into jsdom (type-only import).
@@ -203,6 +223,8 @@ export async function teardownTestDb(): Promise<void> {
   await currentDb.client.close();
   currentDb = null;
   currentServices = null;
+  currentSession = null;
+  currentIsAdminEmail = false;
 }
 
 /**

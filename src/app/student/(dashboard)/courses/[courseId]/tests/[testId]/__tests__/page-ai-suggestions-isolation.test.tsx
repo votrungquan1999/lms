@@ -2,17 +2,18 @@
 import { render, screen } from "@testing-library/react";
 import type { AiGradeSuggestionDocument } from "src/lib/ai-grade-types";
 import { AI_GRADER_ID, AI_MODEL_NAME } from "src/lib/ai-grade-types";
+import { StudentSession } from "src/lib/session";
 import {
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
+  signInAs,
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StudentTestDetailPage from "../page";
 
 // ── Auth-singleton + Next mocks (mirror page.test.tsx) ──────────────────────
-const mockGetSession = vi.fn();
 const mockRequireStudentSession = vi.fn();
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
@@ -34,7 +35,6 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn().mockResolvedValue({
-    getSession: (...args: unknown[]) => mockGetSession(...args),
     requireStudentSession: (...args: unknown[]) =>
       mockRequireStudentSession(...args),
   }),
@@ -44,13 +44,12 @@ vi.mock("src/lib/auth-singleton", () => ({
  * Configures the auth mock to return a student session for the given id.
  */
 function mockStudentSession(studentId: string) {
-  const session = {
-    role: "student" as const,
+  const session = new StudentSession({
     userId: `auth-${studentId}`,
     username: `u-${studentId}`,
     studentId,
-  };
-  mockGetSession.mockResolvedValue(session);
+  });
+  signInAs(session);
   mockRequireStudentSession.mockResolvedValue(session);
 }
 

@@ -1,7 +1,9 @@
+import { headers } from "next/headers";
 import { GeminiAiClient, type QuestionParseClient } from "./ai/ai-client";
 import { AiGradeService } from "./ai-grade-service";
 import { AnnotationService } from "./annotation-service";
 import { AnswerService } from "./answer-service";
+import { getAuthService } from "./auth-singleton";
 import { loadConfig } from "./config";
 import { CourseJoinRequestService } from "./course-join-request-service";
 import { CourseService } from "./course-service";
@@ -56,10 +58,32 @@ let studentService: StudentService | null = null;
 let pageGuard: PageGuard | null = null;
 let userRoleService: UserRoleService | null = null;
 
+/**
+ * Builds PageGuard's real session lookup: reads `headers()` and the
+ * real `AuthService` itself, so PageGuard's own methods stay framework- and
+ * auth-singleton-free.
+ */
+function realPageGuardSessionLookup() {
+  return {
+    async getSession() {
+      const requestHeaders = await headers();
+      const authService = await getAuthService();
+      return authService.getSession(requestHeaders);
+    },
+    async isAdminEmail(email: string) {
+      const authService = await getAuthService();
+      return authService.isAdminEmail(email);
+    },
+  };
+}
+
 export async function getPageGuard(): Promise<PageGuard> {
   if (!pageGuard) {
     const enrollment = await getEnrollmentService();
-    pageGuard = tracedService(new PageGuard(enrollment), "pageGuard");
+    pageGuard = tracedService(
+      new PageGuard(enrollment, realPageGuardSessionLookup()),
+      "pageGuard",
+    );
   }
   return pageGuard;
 }

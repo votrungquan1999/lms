@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
 import type { Db } from "mongodb";
-import { Role } from "src/lib/session";
+import { AdminSession } from "src/lib/session";
 import {
   servicesSingletonMockFactory,
   setupTestDb,
+  signInAs,
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,15 +17,6 @@ vi.mock("next/navigation", () => ({
   forbidden: vi.fn(),
 }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
-
-const mockGetSession = vi.fn();
-const mockIsAdminEmail = vi.fn();
-vi.mock("src/lib/auth-singleton", () => ({
-  getAuthService: vi.fn(async () => ({
-    getSession: mockGetSession,
-    isAdminEmail: mockIsAdminEmail,
-  })),
-}));
 
 /**
  * Feature: an owner sees everyone who can sign in and their current access
@@ -39,12 +31,14 @@ describe("Feature: an owner sees everyone who can sign in and their current acce
     const setup = await setupTestDb();
     db = setup.db;
 
-    mockGetSession.mockResolvedValue({
-      role: Role.Admin,
-      userId: "owner-1",
-      email: "owner@example.com",
-    });
-    mockIsAdminEmail.mockResolvedValue(true);
+    signInAs(
+      new AdminSession({
+        userId: "owner-1",
+        email: "owner@example.com",
+        school: null,
+      }),
+      { isAdminEmail: true },
+    );
   });
 
   afterEach(async () => {

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
-import { Role } from "src/lib/session";
+import { AdminSession } from "src/lib/session";
 import {
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
+  signInAs,
   teardownTestDb,
 } from "src/tests/render-server-page";
 import {
@@ -32,13 +33,12 @@ vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("src/lib/auth-client", () => ({
   authClient: { signOut: vi.fn() },
 }));
-
-const mockGetSession = vi.fn();
-const mockIsAdminEmail = vi.fn();
+// layout.tsx's OWN direct `isAdminEmail` call (the sidebar's cosmetic
+// "Owner" section) is unrelated to PageGuard's session lookup and still
+// goes through auth-singleton — only that one method needs a stub here.
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({
-    getSession: mockGetSession,
-    isAdminEmail: mockIsAdminEmail,
+    isAdminEmail: vi.fn().mockResolvedValue(false),
   })),
 }));
 
@@ -60,7 +60,6 @@ beforeAll(() => {
 
 beforeEach(async () => {
   await setupTestDb();
-  mockIsAdminEmail.mockResolvedValue(false);
 });
 
 afterEach(async () => {
@@ -92,12 +91,13 @@ describe("Feature: the sidebar shows the teacher's current school and a switcher
     const userId = "507f1f77bcf86cd799439011";
     await schoolService.addMembership(alpha.id, userId, "owner-1");
     await schoolService.addMembership(beta.id, userId, "owner-1");
-    mockGetSession.mockResolvedValue({
-      role: Role.Admin,
-      userId,
-      email: "teacher@example.com",
-      school: { id: beta.id, name: beta.name },
-    });
+    signInAs(
+      new AdminSession({
+        userId,
+        email: "teacher@example.com",
+        school: { id: beta.id, name: beta.name },
+      }),
+    );
 
     const ui = await AdminDashboardLayout({
       children: <div>Page content</div>,

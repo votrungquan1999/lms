@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
-import { Role } from "src/lib/session";
+import { AdminSession } from "src/lib/session";
 import {
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
+  signInAs,
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,15 +21,6 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
-
-const mockGetSession = vi.fn();
-const mockIsAdminEmail = vi.fn();
-vi.mock("src/lib/auth-singleton", () => ({
-  getAuthService: vi.fn(async () => ({
-    getSession: mockGetSession,
-    isAdminEmail: mockIsAdminEmail,
-  })),
-}));
 
 /**
  * Feature: the schools console is owner-only
@@ -49,23 +41,26 @@ describe("Feature: the schools console is owner-only", () => {
   });
 
   it("forbids a recorded admin who is not the owner", async () => {
-    mockGetSession.mockResolvedValue({
-      role: Role.Admin,
-      userId: "admin-1",
-      email: "not-owner@example.com",
-    });
-    mockIsAdminEmail.mockResolvedValue(false);
+    signInAs(
+      new AdminSession({
+        userId: "admin-1",
+        email: "not-owner@example.com",
+        school: null,
+      }),
+    );
 
     await expect(SchoolsPage()).rejects.toThrow("forbidden called");
   });
 
   it("renders the list for the owner, even before any school exists", async () => {
-    mockGetSession.mockResolvedValue({
-      role: Role.Admin,
-      userId: "owner-1",
-      email: "owner@example.com",
-    });
-    mockIsAdminEmail.mockResolvedValue(true);
+    signInAs(
+      new AdminSession({
+        userId: "owner-1",
+        email: "owner@example.com",
+        school: null,
+      }),
+      { isAdminEmail: true },
+    );
 
     const ui = await SchoolsPage();
     render(ui);
@@ -75,12 +70,14 @@ describe("Feature: the schools console is owner-only", () => {
   });
 
   it("links each school row to its detail page", async () => {
-    mockGetSession.mockResolvedValue({
-      role: Role.Admin,
-      userId: "owner-1",
-      email: "owner@example.com",
-    });
-    mockIsAdminEmail.mockResolvedValue(true);
+    signInAs(
+      new AdminSession({
+        userId: "owner-1",
+        email: "owner@example.com",
+        school: null,
+      }),
+      { isAdminEmail: true },
+    );
     const { schoolService } = getTestServices();
     const school = await schoolService.createSchool({
       name: "Acme",

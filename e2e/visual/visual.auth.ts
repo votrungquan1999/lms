@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test as setup } from "@playwright/test";
 import { MongoClient } from "mongodb";
+import { SchoolService } from "../../src/lib/school-service";
 
 /**
  * Auth bootstrap for the visual-QA run. Deliberately separate from
@@ -27,6 +28,10 @@ const STUDENT_USERNAME = "visual-student";
 const STUDENT_PASSWORD = "visual-qa-student-123";
 
 const SEED_COURSE_TITLE = "Sandbox: Fundamentals";
+
+// scripts/seed-test-states.ts's own default `--school` slug — the visual
+// run's seeded sandbox data lands here unless someone reseeds with a flag.
+const VISUAL_SCHOOL_SLUG = "default";
 
 setup.describe.configure({ mode: "serial" });
 
@@ -56,13 +61,36 @@ setup("authenticate as admin", async ({ page }) => {
   const client = new MongoClient(MONGODB_URI);
   try {
     await client.connect();
-    const result = await client
-      .db()
+    const db = client.db();
+    const result = await db
       .collection("user")
       .updateOne({ email: ADMIN_EMAIL }, { $set: { role: "admin" } });
     // A 0-match write leaves this user a student and every admin capture is
     // silently an access-denied page instead.
     expect(result.matchedCount).toBe(1);
+
+    // requireAdminSession fails closed without a school — the admin needs
+    // this membership to reach the sandbox data seed-test-states.ts wrote.
+    const user = await db.collection("user").findOne({ email: ADMIN_EMAIL });
+    if (!user) {
+      throw new Error(`No user document for ${ADMIN_EMAIL} after signup`);
+    }
+    const schoolService = new SchoolService(db);
+    const school = await schoolService.ensureSchoolBySlug({
+      slug: VISUAL_SCHOOL_SLUG,
+      name: "Default school",
+      createdBy: "visual-qa-setup",
+    });
+    const alreadyMember = (
+      await schoolService.listSchoolsForUser(user._id.toHexString())
+    ).some((s) => s.id === school.id);
+    if (!alreadyMember) {
+      await schoolService.addMembership(
+        school.id,
+        user._id.toHexString(),
+        "visual-qa-setup",
+      );
+    }
   } finally {
     await client.close();
   }

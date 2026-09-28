@@ -4,7 +4,14 @@ import { type Db, ObjectId } from "mongodb";
 import { readActiveSchoolCookie } from "./active-school-cookie";
 import type { AppConfig } from "./config";
 import type { SchoolService, UserSchool } from "./school-service";
-import { AdminSession, Role, type Session, StudentSession } from "./session";
+import {
+  AdminSession,
+  isSchoolAdminSession,
+  Role,
+  type SchoolAdminSession,
+  type Session,
+  StudentSession,
+} from "./session";
 import type { StudentService } from "./student-service";
 
 /**
@@ -400,30 +407,43 @@ export class AuthService {
   }
 
   /**
-   * Requires the current session to be an admin.
-   * Throws if not authenticated or not an admin.
+   * Requires the current session to be a school-scoped admin: a recorded
+   * admin AND an active school. Fails closed on a missing school — a
+   * zero-membership admin can never reach a school action, even one that
+   * forgets its own school check. `requireOwnerSession` (below) does NOT
+   * delegate here: the owner has no school membership of their own and must
+   * still be able to create the first school.
    */
-  async requireAdminSession(headers: Headers): Promise<AdminSession> {
+  async requireAdminSession(headers: Headers): Promise<SchoolAdminSession> {
     const session = await this.getSession(headers);
     if (!session || session.role !== Role.Admin) {
       throw new Error("Unauthorized: admin access required");
     }
-    return session as AdminSession;
+    const adminSession = session as AdminSession;
+    if (!isSchoolAdminSession(adminSession)) {
+      throw new Error("Unauthorized: not part of any school yet");
+    }
+    return adminSession;
   }
 
   /**
    * Requires the current session to be the platform OWNER: a
-   * recorded admin AND an ADMIN_EMAILS address. Needs no school — schools
-   * and school admins are created before any school exists to create them
-   * in.
+   * recorded admin AND an ADMIN_EMAILS address. Its own Tier-1 admin check
+   * — schools and school admins are granted before any school exists to
+   * create them in, so this must succeed for a zero-membership owner even
+   * though `requireAdminSession` above now fails closed without one.
    */
   async requireOwnerSession(headers: Headers): Promise<AdminSession> {
-    const session = await this.requireAdminSession(headers);
-    const isOwner = await this.isAdminEmail(session.email);
-    if (!isOwner) {
-      throw new OwnerRequiredError(session.userId);
+    const session = await this.getSession(headers);
+    if (!session || session.role !== Role.Admin) {
+      throw new Error("Unauthorized: admin access required");
     }
-    return session;
+    const adminSession = session as AdminSession;
+    const isOwner = await this.isAdminEmail(adminSession.email);
+    if (!isOwner) {
+      throw new OwnerRequiredError(adminSession.userId);
+    }
+    return adminSession;
   }
 
   /**
