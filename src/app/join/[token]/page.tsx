@@ -93,7 +93,7 @@ export default async function JoinPage({
     if (googleIdentity) {
       const [studentService, courseJoinRequestService] = await Promise.all([
         getStudentService(schoolId),
-        getCourseJoinRequestService(),
+        getCourseJoinRequestService(schoolId),
       ]);
       googleOutcome = await provisionGoogleStudent(
         { studentService, schoolDirectory, courseJoinRequestService },

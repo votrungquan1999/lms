@@ -25,6 +25,8 @@ export interface CourseJoinRequestDocument {
   requestedAt: Date;
   resolvedAt: Date | null;
   resolvedBy: string | null;
+  /** Owning school, the requested course's. Absent or `null` on records not yet assigned. */
+  schoolId: string | null;
 }
 
 /**
@@ -67,13 +69,22 @@ export interface PagedCourseJoinRequests {
 }
 
 /**
- * CourseJoinRequestService — manages the `course_join_request` collection.
- * Modelled on `RedoRequestService`'s active/resolved shape.
+ * CourseJoinRequestService — manages one school's rows in the
+ * `course_join_request` collection. Build it for the requested course's
+ * school. Modelled on `RedoRequestService`'s active/resolved shape.
  */
 export class CourseJoinRequestService {
   private readonly joinRequests: Collection<CourseJoinRequestDocument>;
 
-  constructor(db: Db) {
+  constructor(
+    db: Db,
+    private readonly schoolId: string,
+  ) {
+    // Fail closed: a missing school would query `{ schoolId: null }`, which
+    // matches exactly the requests no school owns yet.
+    if (!schoolId) {
+      throw new Error("A school is required to build a join request service");
+    }
     this.joinRequests = db.collection<CourseJoinRequestDocument>(
       "course_join_request",
     );
@@ -104,6 +115,7 @@ export class CourseJoinRequestService {
       requestedAt: new Date(),
       resolvedAt: null,
       resolvedBy: null,
+      schoolId: this.schoolId,
     };
 
     try {
@@ -209,7 +221,8 @@ export class CourseJoinRequestService {
   }
 
   /**
-   * Lists one page of join requests with the given status — R4 keys strictly
+   * Lists one page of the bound school's join requests with the given
+   * status, and counts them across every page — R4 keys strictly
    * on the status enum, never a nullable "resolved" field (this driver
    * treats `{field: null}` as matching both an explicit null AND an absent
    * key, so a nullable filter would silently pull in the wrong rows).
@@ -224,14 +237,15 @@ export class CourseJoinRequestService {
     options: ListByStatusOptions,
   ): Promise<PagedCourseJoinRequests> {
     const sortDirection = status === JoinRequestStatus.Pending ? 1 : -1;
+    const filter = { schoolId: this.schoolId, status };
     const [docs, total] = await Promise.all([
       this.joinRequests
-        .find({ status })
+        .find(filter)
         .sort({ requestedAt: sortDirection, _id: sortDirection })
         .skip(options.skip)
         .limit(options.limit)
         .toArray(),
-      this.joinRequests.countDocuments({ status }),
+      this.joinRequests.countDocuments(filter),
     ]);
     return {
       items: docs.map((doc) => this.toCourseJoinRequest(doc)),
@@ -240,13 +254,18 @@ export class CourseJoinRequestService {
   }
 
   /**
-   * Lists this student's Pending join requests, across every course — used
-   * to tell a waiting student their request hasn't been forgotten (Step 34),
-   * independent of whether they're already enrolled somewhere else.
+   * Lists this student's Pending join requests across the bound school's
+   * courses — used to tell a waiting student their request hasn't been
+   * forgotten (Step 34), independent of whether they're already enrolled
+   * somewhere else.
    */
   async listByStudent(studentId: string): Promise<CourseJoinRequest[]> {
     const docs = await this.joinRequests
-      .find({ studentId, status: JoinRequestStatus.Pending })
+      .find({
+        schoolId: this.schoolId,
+        studentId,
+        status: JoinRequestStatus.Pending,
+      })
       .toArray();
     return docs.map((doc) => this.toCourseJoinRequest(doc));
   }

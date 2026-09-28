@@ -4,6 +4,7 @@ import type { AppConfig } from "src/lib/config";
 import { JoinRequestStatus } from "src/lib/course-join-request-service";
 import { StudentSession } from "src/lib/session";
 import {
+  addTestSchool,
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
@@ -162,6 +163,48 @@ describe("Feature: registering through an invite link puts a request to join tha
     );
     expect(pending).not.toBeNull();
     expect(pending?.status).toBe(JoinRequestStatus.Pending);
+  });
+
+  it("puts the request in the queue of the invite course's school, not the default school's", async () => {
+    // Given a live invite link for a course in another school
+    const school = await addTestSchool("School B");
+    const schoolServices = getTestServices(school.id);
+    const course = await schoolServices.courseService.createCourse({
+      title: "Geometry",
+      description: "",
+      createdBy: "admin-b",
+    });
+    const token = await schoolServices.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("name", "Katherine Johnson");
+    formData.set("username", "katherine");
+    formData.set("password", "secret1234");
+
+    // When a prospective student registers through the link
+    const result = await joinSignupAction(null, formData);
+    expect(result.success).toBe(true);
+
+    // Then the request waits only in that school's queue
+    // limit 0 is Mongo's "no limit": read the whole queue, not one page
+    const wholeQueue = { skip: 0, limit: 0 };
+    const schoolQueue =
+      await schoolServices.courseJoinRequestService.listByStatus(
+        JoinRequestStatus.Pending,
+        wholeQueue,
+      );
+    expect(schoolQueue.items.map((request) => request.courseId)).toEqual([
+      course.id,
+    ]);
+    const defaultQueue =
+      await getTestServices().courseJoinRequestService.listByStatus(
+        JoinRequestStatus.Pending,
+        wholeQueue,
+      );
+    expect(defaultQueue.total).toBe(0);
   });
 });
 

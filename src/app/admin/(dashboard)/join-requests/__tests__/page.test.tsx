@@ -2,6 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import type { Db } from "mongodb";
 import { JoinRequestStatus } from "src/lib/course-join-request-service";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -37,6 +38,7 @@ async function seedPendingRequests(
     const id = crypto.randomUUID();
     testIds.push(`join-request-row-${id}`);
     await db.collection("course_join_request").insertOne({
+      schoolId: TEST_SCHOOL_ID,
       id,
       courseId,
       studentId: student.id,
@@ -109,6 +111,7 @@ describe("Feature: Admin Join Request Queue", () => {
     // placeholder. No code path in this app produces one, so it's inserted
     // directly.
     await db.collection("course_join_request").insertOne({
+      schoolId: TEST_SCHOOL_ID,
       id: crypto.randomUUID(),
       courseId: algebra.id,
       studentId: "ghost-student",
@@ -121,6 +124,7 @@ describe("Feature: Admin Join Request Queue", () => {
     // D55's other half: a real student, but a course that can't be
     // resolved, must vanish too — not just the student-side case above.
     await db.collection("course_join_request").insertOne({
+      schoolId: TEST_SCHOOL_ID,
       id: crypto.randomUUID(),
       courseId: "ghost-course",
       studentId: alice.id,
@@ -132,6 +136,7 @@ describe("Feature: Admin Join Request Queue", () => {
 
     // Already resolved — must not appear in the waiting queue (R4).
     await db.collection("course_join_request").insertOne({
+      schoolId: TEST_SCHOOL_ID,
       id: crypto.randomUUID(),
       courseId: algebra.id,
       studentId: bob.id,
@@ -220,6 +225,7 @@ describe("Feature: Admin Join Request Queue", () => {
     // (Steps 30-33), so it's inserted directly. Pending and Rejected are
     // both empty by omission.
     await db.collection("course_join_request").insertOne({
+      schoolId: TEST_SCHOOL_ID,
       id: crypto.randomUUID(),
       courseId: algebra.id,
       studentId: bob.id,
@@ -279,6 +285,7 @@ describe("Feature: Admin Join Request Queue", () => {
       const id = crypto.randomUUID();
       pendingIds.push(id);
       await db.collection("course_join_request").insertOne({
+        schoolId: TEST_SCHOOL_ID,
         id,
         courseId: course.id,
         studentId: student.id,
@@ -331,6 +338,7 @@ describe("Feature: Admin Join Request Queue", () => {
       const id = crypto.randomUUID();
       approvedIds.push(id);
       await db.collection("course_join_request").insertOne({
+        schoolId: TEST_SCHOOL_ID,
         id,
         courseId: course.id,
         studentId: student.id,
@@ -377,6 +385,7 @@ describe("Feature: Admin Join Request Queue", () => {
       const id = crypto.randomUUID();
       pendingTestIds.push(`join-request-row-${id}`);
       await db.collection("course_join_request").insertOne({
+        schoolId: TEST_SCHOOL_ID,
         id,
         courseId: course.id,
         studentId: student.id,
@@ -439,6 +448,7 @@ describe("Feature: Admin Join Request Queue", () => {
     // rendered). The pager must count 3, never the raw 5.
     for (let i = 0; i < 2; i++) {
       await db.collection("course_join_request").insertOne({
+        schoolId: TEST_SCHOOL_ID,
         id: crypto.randomUUID(),
         courseId: algebra.id,
         studentId: `ghost-student-${i}`,
@@ -547,6 +557,7 @@ describe("Feature: Admin Join Request Queue", () => {
       createdBy: "self-signup",
     });
     await db.collection("course_join_request").insertOne({
+      schoolId: TEST_SCHOOL_ID,
       id: crypto.randomUUID(),
       courseId: algebra.id,
       studentId: bob.id,

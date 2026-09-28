@@ -125,6 +125,22 @@ describe("Feature: Production database boot wires the safety indexes", () => {
           (index) => index.key.schoolId === 1,
         );
         expect(poolSchoolIndex).toBeDefined();
+
+        // ...and a school-led index serves every school's join-request queue
+        const queueIndex = joinRequestIndexes.find(
+          (index) =>
+            JSON.stringify(index.key) ===
+            JSON.stringify({ schoolId: 1, status: 1, requestedAt: 1, _id: 1 }),
+        );
+        expect(queueIndex).toBeDefined();
+
+        // ...and the old queue index that ignored the school is not created
+        const unscopedQueueIndex = joinRequestIndexes.find(
+          (index) =>
+            JSON.stringify(index.key) ===
+            JSON.stringify({ status: 1, requestedAt: 1, _id: 1 }),
+        );
+        expect(unscopedQueueIndex).toBeUndefined();
       } finally {
         const client = getMongoClient();
         if (client) {

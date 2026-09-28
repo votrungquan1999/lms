@@ -152,7 +152,7 @@ export async function joinSignupAction(
         // re-request from this link today (revisiting collides on their own
         // username and the join page has no signed-in path). Step 25 owns
         // the fix; until then this is a dead-end loop, not a resolvable one.
-        const joinRequestService = await getCourseJoinRequestService();
+        const joinRequestService = await getCourseJoinRequestService(schoolId);
         await joinRequestService.createRequest({
           courseId: course.id,
           studentId: student.id,
@@ -250,7 +250,7 @@ export async function googleUsernameSignupAction(
           throw error;
         }
 
-        const joinRequestService = await getCourseJoinRequestService();
+        const joinRequestService = await getCourseJoinRequestService(schoolId);
         await joinRequestService.createRequest({
           courseId: course.id,
           studentId: student.id,
@@ -313,7 +313,7 @@ export async function requestToJoinAction(
         if (!invite?.schoolId) {
           return { success: false, message: INVALID_INVITE_MESSAGE };
         }
-        const { course } = invite;
+        const { course, schoolId } = invite;
 
         // Existence-equals-membership (enrollment-service.ts) — an enrolled
         // student is told so directly, never handed a second pending request.
@@ -334,7 +334,7 @@ export async function requestToJoinAction(
         // race between this check and createRequest can no longer insert a
         // second Pending row (partial unique index, F10/D57); it just means
         // the caller sees the generic "now waiting" message instead.
-        const joinRequestService = await getCourseJoinRequestService();
+        const joinRequestService = await getCourseJoinRequestService(schoolId);
         const existingPending = await joinRequestService.getPendingRequest(
           course.id,
           studentId,

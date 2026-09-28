@@ -1,10 +1,15 @@
 import type { Db } from "mongodb";
+import {
+  CourseJoinRequestService,
+  JoinRequestStatus,
+} from "src/lib/course-join-request-service";
 import { CourseService } from "src/lib/course-service";
 import { PoolQuestionService } from "src/lib/pool-question-service";
 import { QuestionPoolService } from "src/lib/question-pool-service";
 import {
   getAiGradeService,
   getAnswerService,
+  getCourseJoinRequestService,
   getCourseService,
   getGradeService,
   getGradeVisibilityService,
@@ -378,4 +383,86 @@ describe("Feature: a school's pool services only ever list that school's pools a
       ).rejects.toThrow("A school is required");
     },
   );
+});
+
+/**
+ * Feature: a school's join request service only ever lists that school's requests
+ * As the LMS system
+ * I want every join request service to be built for one school
+ * So that no queue, count or student's own list can reach another school's requests
+ */
+describe("Feature: a school's join request service only ever lists that school's requests", () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    ({ db } = await setupTestDb());
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("neither lists nor counts another school's waiting requests", async () => {
+    const otherSchool = await addTestSchool("School B");
+    await getTestServices().courseJoinRequestService.createRequest({
+      courseId: "foreign-course",
+      studentId: "foreign-student",
+    });
+
+    const queue = await getTestServices(
+      otherSchool.id,
+    ).courseJoinRequestService.listByStatus(JoinRequestStatus.Pending, {
+      skip: 0,
+      limit: 0,
+    });
+
+    expect(queue).toEqual({ items: [], total: 0 });
+  });
+
+  it("lists none of another school's requests among a student's own waiting requests", async () => {
+    const otherSchool = await addTestSchool("School B");
+    await getTestServices().courseJoinRequestService.createRequest({
+      courseId: "foreign-course",
+      studentId: "student-1",
+    });
+
+    const waiting = await getTestServices(
+      otherSchool.id,
+    ).courseJoinRequestService.listByStudent("student-1");
+
+    expect(waiting).toEqual([]);
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["an empty string", ""],
+  ])(
+    "refuses to build a join request service for %s school",
+    (_label, schoolId) => {
+      expect(
+        () => new CourseJoinRequestService(db, schoolId as string),
+      ).toThrow("A school is required");
+    },
+  );
+
+  it.each([
+    ["undefined", undefined],
+    ["an empty string", ""],
+  ])(
+    "the real join request getter refuses %s school",
+    async (_label, schoolId) => {
+      await expect(
+        getCourseJoinRequestService(schoolId as string),
+      ).rejects.toThrow("A school is required");
+    },
+  );
+
+  it("the mocked join request getter refuses an undefined school instead of falling back to the default one", async () => {
+    const { getCourseJoinRequestService: mockedGetter } =
+      servicesSingletonMockFactory();
+
+    await expect(mockedGetter(undefined as unknown as string)).rejects.toThrow(
+      "A school is required",
+    );
+  });
 });

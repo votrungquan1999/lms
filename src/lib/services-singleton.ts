@@ -38,6 +38,7 @@ import { UserRoleService } from "./user-role-service";
 // and a dependent is only ever built from its own school's instances.
 const aiGradeServices = new Map<string, AiGradeService>();
 const answerServices = new Map<string, AnswerService>();
+const courseJoinRequestServices = new Map<string, CourseJoinRequestService>();
 const courseServices = new Map<string, CourseService>();
 const gradeServices = new Map<string, GradeService>();
 const gradeVisibilityServices = new Map<string, GradeVisibilityService>();
@@ -50,7 +51,6 @@ const testServices = new Map<string, TestService>();
 const testStatusServices = new Map<string, TestStatusService>();
 const testSubmissionServices = new Map<string, TestSubmissionService>();
 
-let courseJoinRequestService: CourseJoinRequestService | null = null;
 let enrollmentService: EnrollmentService | null = null;
 let annotationService: AnnotationService | null = null;
 let testStartService: TestStartService | null = null;
@@ -160,15 +160,20 @@ export async function getAnswerService(
   });
 }
 
-export async function getCourseJoinRequestService(): Promise<CourseJoinRequestService> {
-  if (!courseJoinRequestService) {
+/**
+ * Returns the join request service bound to one school, cached per school.
+ * @param schoolId - The verified session's school, or the invite course's.
+ */
+export async function getCourseJoinRequestService(
+  schoolId: string,
+): Promise<CourseJoinRequestService> {
+  return forSchool(courseJoinRequestServices, schoolId, async () => {
     const db = await getDatabase();
-    courseJoinRequestService = tracedService(
-      new CourseJoinRequestService(db),
+    return tracedService(
+      new CourseJoinRequestService(db, schoolId),
       "courseJoinRequest",
     );
-  }
-  return courseJoinRequestService;
+  });
 }
 
 /**

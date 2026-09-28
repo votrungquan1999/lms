@@ -13,6 +13,7 @@ export interface GoogleStudentProvisionDeps {
   /** Bound to the invite course's school, which the new student joins. */
   studentService: StudentService;
   schoolDirectory: SchoolDirectory;
+  /** Bound to the same school as `studentService`. */
   courseJoinRequestService: CourseJoinRequestService;
 }
 

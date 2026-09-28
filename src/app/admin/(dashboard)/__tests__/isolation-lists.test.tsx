@@ -23,6 +23,7 @@ import TestDetailPage from "../courses/[courseId]/tests/[testId]/page";
 import CoursesPage from "../courses/page";
 import AdminDashboardPage from "../dashboard/page";
 import GradingHubPage from "../grading/page";
+import JoinRequestsPage from "../join-requests/page";
 import PoolsPage from "../pools/page";
 import { BulkImportDialog } from "../students/bulk-import-dialog";
 import StudentsPage from "../students/page";
@@ -441,5 +442,59 @@ describe("Feature: a school admin's question pools show only their current schoo
       ComposeFromPoolsForm,
     );
     expect(picker?.pools.map((pool) => pool.name)).toEqual(["Own Pool"]);
+  });
+});
+
+/** Seeds a waiting join request in `schoolId` from a new student for a new course. */
+async function seedWaitingJoinRequest(schoolId: string, label: string) {
+  const services = getTestServices(schoolId);
+  const course = await services.courseService.createCourse({
+    title: `${label} Course`,
+    description: "",
+    createdBy: "seed",
+  });
+  const student = await services.studentService.createStudentDocument({
+    authUserId: `auth-${label}`,
+    username: `${label.toLowerCase()}.student`,
+    name: `${label} Student`,
+    createdBy: "self-signup",
+  });
+  await services.courseJoinRequestService.createRequest({
+    courseId: course.id,
+    studentId: student.id,
+  });
+}
+
+/**
+ * Feature: a school admin's join-request queue shows only their current school's requests
+ * As a school admin working in one school
+ * I want the waiting join requests, and their count, to cover only that school
+ * So that I never review or count another school's applicants
+ */
+describe("Feature: a school admin's join-request queue shows only their current school's requests", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+    const school = await signInAsOtherSchoolAdmin();
+    await seedWaitingJoinRequest(TEST_SCHOOL_ID, "Foreign");
+    await seedWaitingJoinRequest(school.id, "Own");
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("the join-requests page lists only the current school's waiting requests", async () => {
+    render(await JoinRequestsPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByText("Own Student")).toBeInTheDocument();
+    expect(screen.queryByText("Foreign Student")).not.toBeInTheDocument();
+  });
+
+  it("the join-requests page counts only the current school's waiting requests", async () => {
+    render(await JoinRequestsPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByTestId("pagination-info").textContent).toBe(
+      "Page 1 of 1 (1 total)",
+    );
   });
 });

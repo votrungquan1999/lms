@@ -55,13 +55,6 @@ export async function ensureIndexes(db: Db): Promise<void> {
     },
   );
 
-  // Backs the admin queue's `find({status}).sort({requestedAt, _id}).skip().limit()`
-  // and its `countDocuments({status})` — without this, both scan the whole
-  // collection instead of a single status range.
-  await db
-    .collection("course_join_request")
-    .createIndex({ status: 1, requestedAt: 1, _id: 1 });
-
   // Not partial — an enrollment has no status dimension to filter on, unlike
   // the join-request index above. Without this, two concurrent enrollments
   // for the same pair (e.g. a raced approve, or an approve racing the
@@ -85,4 +78,12 @@ export async function ensureIndexes(db: Db): Promise<void> {
   await db.collection("test").createIndex({ schoolId: 1 });
   await db.collection("student").createIndex({ schoolId: 1 });
   await db.collection("question_pool").createIndex({ schoolId: 1 });
+
+  // Backs each school's admin queue: `find({schoolId, status})` sorted by
+  // `{requestedAt, _id}` with skip/limit, and its `countDocuments`. Replaces
+  // the old unscoped `{status, requestedAt, _id}` index, which is never
+  // dropped here: a failed drop would fail every boot (the backfill drops it).
+  await db
+    .collection("course_join_request")
+    .createIndex({ schoolId: 1, status: 1, requestedAt: 1, _id: 1 });
 }

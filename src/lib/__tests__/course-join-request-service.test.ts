@@ -3,7 +3,7 @@ import {
   JoinRequestStatus,
 } from "src/lib/course-join-request-service";
 import { ensureIndexes } from "src/lib/database";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it, vi } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -18,7 +18,7 @@ const dbIt = withTestDb(it);
 describe("Feature: Course Join Request Service", () => {
   describe("Scenario: createRequest is called twice for the same course and student", () => {
     dbIt("should not create a second pending request", async ({ db }) => {
-      const service = new CourseJoinRequestService(db);
+      const service = new CourseJoinRequestService(db, TEST_SCHOOL_ID);
 
       // Given a pending request already exists
       const first = await service.createRequest({
@@ -50,7 +50,7 @@ describe("Feature: Course Join Request Service", () => {
       "should return the existing pending request instead of creating a duplicate when a lost race hits the unique index",
       async ({ db }) => {
         await ensureIndexes(db);
-        const service = new CourseJoinRequestService(db);
+        const service = new CourseJoinRequestService(db, TEST_SCHOOL_ID);
 
         // First submission wins normally.
         const winner = await service.createRequest({
@@ -86,7 +86,7 @@ describe("Feature: Course Join Request Service", () => {
       "should create a new pending request even though a rejected row for the same pair already exists",
       async ({ db }) => {
         await ensureIndexes(db);
-        const service = new CourseJoinRequestService(db);
+        const service = new CourseJoinRequestService(db, TEST_SCHOOL_ID);
 
         // Given a resolved (rejected) request already exists for this pair —
         // the index is partial precisely so this row never blocks a re-request.
@@ -121,7 +121,7 @@ describe("Feature: Course Join Request Service", () => {
   // but Approved is a safe retry (D90) — the two scenarios below pin both.
   describe("Scenario: approving a request that has already been rejected", () => {
     dbIt("should refuse and leave the request Rejected", async ({ db }) => {
-      const service = new CourseJoinRequestService(db);
+      const service = new CourseJoinRequestService(db, TEST_SCHOOL_ID);
 
       // Given a request that has already been rejected
       const request = await service.createRequest({
@@ -145,7 +145,7 @@ describe("Feature: Course Join Request Service", () => {
     dbIt(
       "should succeed again instead of throwing (a safe, inert retry)",
       async ({ db }) => {
-        const service = new CourseJoinRequestService(db);
+        const service = new CourseJoinRequestService(db, TEST_SCHOOL_ID);
 
         // Given a request that is already Approved
         const request = await service.createRequest({

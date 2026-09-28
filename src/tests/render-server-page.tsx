@@ -64,6 +64,7 @@ export interface TestServices {
 interface SchoolBoundServices {
   aiGradeService: AiGradeService;
   answerService: AnswerService;
+  courseJoinRequestService: CourseJoinRequestService;
   courseService: CourseService;
   gradeService: GradeService;
   gradeVisibilityService: GradeVisibilityService;
@@ -123,7 +124,6 @@ function makeSharedServices(db: Db): SharedServices {
   const questionChangeLogService = new QuestionChangeLogService(db);
   const testStartService = new TestStartService(db);
   const annotationService = new AnnotationService(db);
-  const courseJoinRequestService = new CourseJoinRequestService(db);
   const enrollmentService = new EnrollmentService(db);
   const testFeedbackService = new TestFeedbackService(db);
   const pageGuard = new PageGuard(enrollmentService, {
@@ -145,7 +145,6 @@ function makeSharedServices(db: Db): SharedServices {
 
   return {
     annotationService,
-    courseJoinRequestService,
     enrollmentService,
     pageGuard,
     questionChangeLogService,
@@ -170,6 +169,7 @@ function makeSchoolServices(
 ): SchoolBoundServices {
   const { questionChangeLogService, testStartService } = shared;
   const courseService = new CourseService(db, schoolId);
+  const courseJoinRequestService = new CourseJoinRequestService(db, schoolId);
   const studentService = new StudentService(db, schoolId);
   const questionPoolService = new QuestionPoolService(db, schoolId);
   const poolQuestionService = new PoolQuestionService(
@@ -235,6 +235,7 @@ function makeSchoolServices(
   return {
     aiGradeService,
     answerService,
+    courseJoinRequestService,
     courseService,
     gradeService,
     gradeVisibilityService,
@@ -366,8 +367,8 @@ export function servicesSingletonMockFactory() {
     getAnnotationService: async () => getTestServices().annotationService,
     getAnswerService: async (schoolId: string) =>
       servicesForSchool(schoolId).answerService,
-    getCourseJoinRequestService: async () =>
-      getTestServices().courseJoinRequestService,
+    getCourseJoinRequestService: async (schoolId: string) =>
+      servicesForSchool(schoolId).courseJoinRequestService,
     getCourseService: async (schoolId: string) =>
       servicesForSchool(schoolId).courseService,
     getEnrollmentService: async () => getTestServices().enrollmentService,

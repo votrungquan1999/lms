@@ -38,9 +38,11 @@ export async function approveJoinRequestAction(
   // Re-checks admin access itself — a server action is a separate POST
   // endpoint the (dashboard) layout guard never runs in front of (R5).
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -61,7 +63,7 @@ export async function approveJoinRequestAction(
         "lms.admin.id": adminUserId,
       },
       async () => {
-        const joinRequestService = await getCourseJoinRequestService();
+        const joinRequestService = await getCourseJoinRequestService(schoolId);
         const request = await joinRequestService.getRequest(
           parsed.data.requestId,
         );
@@ -108,9 +110,11 @@ export async function rejectJoinRequestAction(
   // Re-checks admin access itself — a server action is a separate POST
   // endpoint the (dashboard) layout guard never runs in front of (R5).
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -131,7 +135,7 @@ export async function rejectJoinRequestAction(
         "lms.admin.id": adminUserId,
       },
       async () => {
-        const joinRequestService = await getCourseJoinRequestService();
+        const joinRequestService = await getCourseJoinRequestService(schoolId);
         const request = await joinRequestService.getRequest(
           parsed.data.requestId,
         );

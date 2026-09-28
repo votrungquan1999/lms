@@ -23,7 +23,10 @@ describe("Feature: a prospective student can join using their Google account ins
     "provisions a student account from the Google identity and requests to join the invited course",
     async ({ db }) => {
       const studentService = new StudentService(db, TEST_SCHOOL_ID);
-      const courseJoinRequestService = new CourseJoinRequestService(db);
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        TEST_SCHOOL_ID,
+      );
       const schoolDirectory = new SchoolDirectory(db);
 
       // Given a raw Better Auth user already exists — standing in for what a
@@ -78,7 +81,10 @@ describe("Feature: a prospective student can join using their Google account ins
     "lowercases, strips, but does not otherwise mangle a mixed-case email with an in-charset symbol",
     async ({ db }) => {
       const studentService = new StudentService(db, TEST_SCHOOL_ID);
-      const courseJoinRequestService = new CourseJoinRequestService(db);
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        TEST_SCHOOL_ID,
+      );
       const schoolDirectory = new SchoolDirectory(db);
 
       const rawUserId = new ObjectId();
@@ -123,7 +129,10 @@ describe("Feature: re-entering the invite page after already being provisioned n
     "provisioning the same Google identity a second time is a no-op, not a self-collision refusal",
     async ({ db }) => {
       const studentService = new StudentService(db, TEST_SCHOOL_ID);
-      const courseJoinRequestService = new CourseJoinRequestService(db);
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        TEST_SCHOOL_ID,
+      );
       const schoolDirectory = new SchoolDirectory(db);
 
       const rawUserId = new ObjectId();
@@ -190,7 +199,10 @@ describe("Feature: a Google signup whose derived username collides or is invalid
     "reports NeedsUsername instead of refusing, and does not roll back the Google identity that already exists",
     async ({ db }) => {
       const studentService = new StudentService(db, TEST_SCHOOL_ID);
-      const courseJoinRequestService = new CourseJoinRequestService(db);
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        TEST_SCHOOL_ID,
+      );
       const schoolDirectory = new SchoolDirectory(db);
 
       // Given a student already exists with the username this Google
@@ -254,7 +266,10 @@ describe("Feature: a Google signup whose derived username collides or is invalid
     "reports NeedsUsername for a non-ASCII local part that derives the empty string, without crashing",
     async ({ db }) => {
       const studentService = new StudentService(db, TEST_SCHOOL_ID);
-      const courseJoinRequestService = new CourseJoinRequestService(db);
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        TEST_SCHOOL_ID,
+      );
       const schoolDirectory = new SchoolDirectory(db);
 
       const rawUserId = new ObjectId();
@@ -284,7 +299,10 @@ describe("Feature: a Google signup whose derived username collides or is invalid
     "reports NeedsUsername for a two-character local part, which fails the self-signup minimum length",
     async ({ db }) => {
       const studentService = new StudentService(db, TEST_SCHOOL_ID);
-      const courseJoinRequestService = new CourseJoinRequestService(db);
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        TEST_SCHOOL_ID,
+      );
       const schoolDirectory = new SchoolDirectory(db);
 
       const rawUserId = new ObjectId();

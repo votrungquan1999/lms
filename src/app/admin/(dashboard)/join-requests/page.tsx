@@ -111,7 +111,9 @@ export default async function JoinRequestsPage({
   const filter = resolveFilter(params.filter);
   const requestedPage = resolvePage(params.page);
 
-  const joinRequestService = await getCourseJoinRequestService();
+  const joinRequestService = await getCourseJoinRequestService(
+    session.school.id,
+  );
   const status = STATUS_BY_FILTER[filter];
 
   // D69: the total must count only rows the admin can actually SEE, and

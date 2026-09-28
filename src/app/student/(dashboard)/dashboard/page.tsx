@@ -47,7 +47,9 @@ export default async function StudentDashboardPage() {
     enrollments.map((e) => e.courseId),
   );
 
-  const courseJoinRequestService = await getCourseJoinRequestService();
+  const courseJoinRequestService = await getCourseJoinRequestService(
+    session.schoolId,
+  );
   const pendingRequests =
     await courseJoinRequestService.listByStudent(studentId);
 
