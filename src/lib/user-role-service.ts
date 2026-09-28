@@ -7,6 +7,9 @@ interface UserDocument {
   email: string;
   name: string;
   role?: string;
+  /** Set once school access has ever been managed for this account — the
+   * backfill never grants anything to an account that carries it. */
+  schoolAccessManagedAt?: Date;
 }
 
 /** One person who can sign in, and the access they currently hold. */
@@ -68,16 +71,45 @@ export class UserRoleService {
   }
 
   /**
+   * Looks up specific accounts by id, with no cap — a school's admin
+   * roster must render every member even beyond `USER_LIST_LIMIT`, unlike
+   * the picker in `listUsers()`.
+   * @param userIds - The hex user ids to look up.
+   */
+  async findUsersByIds(userIds: string[]): Promise<ManagedUser[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+    const docs = await this.db
+      .collection<UserDocument>("user")
+      .find({ _id: { $in: userIds.map((id) => new ObjectId(id)) } })
+      .sort({ email: 1 })
+      .toArray();
+
+    return docs.map((doc) => ({
+      id: doc._id.toString(),
+      email: doc.email,
+      name: doc.name,
+      role: doc.role === Role.Admin ? Role.Admin : Role.Student,
+    }));
+  }
+
+  /**
    * Records a new role for one person. The server action re-checks Tier 2
    * and the self-demotion rule before calling this — this method trusts its
    * caller and just writes. Throws if `userId` no longer matches an
    * existing account, so a stale form submission cannot report a grant that
-   * never wrote anything.
+   * never wrote anything. Also stamps `schoolAccessManagedAt`, as
+   * `SchoolService.addMembership`/`removeMembership` do, so a backfill rerun
+   * never touches an account whose access was managed by hand.
    */
   async setRole(userId: string, role: Role): Promise<void> {
     const result = await this.db
       .collection<UserDocument>("user")
-      .updateOne({ _id: new ObjectId(userId) }, { $set: { role } });
+      .updateOne(
+        { _id: new ObjectId(userId) },
+        { $set: { role, schoolAccessManagedAt: new Date() } },
+      );
 
     if (result.matchedCount === 0) {
       throw new Error("That account no longer exists.");

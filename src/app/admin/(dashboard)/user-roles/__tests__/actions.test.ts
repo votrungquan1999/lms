@@ -1,5 +1,7 @@
 import type { Db } from "mongodb";
 import { revalidatePath } from "next/cache";
+import { OwnerRequiredError } from "src/lib/auth-service";
+import { SchoolService } from "src/lib/school-service";
 import {
   servicesSingletonMockFactory,
   setupTestDb,
@@ -11,12 +13,10 @@ vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
-const mockRequireAdminSession = vi.fn();
-const mockIsAdminEmail = vi.fn();
+const mockRequireOwnerSession = vi.fn();
 vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({
-    requireAdminSession: mockRequireAdminSession,
-    isAdminEmail: mockIsAdminEmail,
+    requireOwnerSession: mockRequireOwnerSession,
   })),
 }));
 
@@ -36,12 +36,11 @@ describe("Feature: an owner grants administrator access", () => {
     const setup = await setupTestDb();
     db = setup.db;
 
-    mockRequireAdminSession.mockResolvedValue({
+    mockRequireOwnerSession.mockResolvedValue({
       userId: "owner-1",
       email: "owner@example.com",
       role: "admin",
     });
-    mockIsAdminEmail.mockResolvedValue(true);
   });
 
   afterEach(async () => {
@@ -69,8 +68,25 @@ describe("Feature: an owner grants administrator access", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/admin/user-roles");
   });
 
+  it("marks the account as access-managed when granting admin", async () => {
+    const insertResult = await db.collection("user").insertOne({
+      email: "future-admin@example.com",
+      name: "Future Admin",
+    });
+    const userId = insertResult.insertedId.toString();
+
+    const formData = new FormData();
+    formData.set("userId", userId);
+    await grantAdminAction(null, formData);
+
+    const updated = await db
+      .collection("user")
+      .findOne({ _id: insertResult.insertedId });
+    expect(updated?.schoolAccessManagedAt).toBeInstanceOf(Date);
+  });
+
   it("refuses to grant when the caller is not an owner, and writes nothing", async () => {
-    mockIsAdminEmail.mockResolvedValue(false);
+    mockRequireOwnerSession.mockRejectedValue(new Error("not owner"));
 
     const insertResult = await db.collection("user").insertOne({
       email: "future-admin@example.com",
@@ -104,7 +120,6 @@ describe("Feature: an owner cannot take away their own administrator access", ()
   beforeEach(async () => {
     const setup = await setupTestDb();
     db = setup.db;
-    mockIsAdminEmail.mockResolvedValue(true);
   });
 
   afterEach(async () => {
@@ -119,7 +134,7 @@ describe("Feature: an owner cannot take away their own administrator access", ()
       role: "admin",
     });
     const ownerId = ownerInsert.insertedId.toString();
-    mockRequireAdminSession.mockResolvedValue({
+    mockRequireOwnerSession.mockResolvedValue({
       userId: ownerId,
       email: "owner@example.com",
       role: "admin",
@@ -160,7 +175,7 @@ describe("Feature: an owner cannot take away their own administrator access", ()
       role: "admin",
     });
     const ownerId = ownerInsert.insertedId.toString();
-    mockRequireAdminSession.mockResolvedValue({
+    mockRequireOwnerSession.mockResolvedValue({
       userId: ownerId,
       email: "owner@example.com",
       role: "admin",
@@ -178,12 +193,7 @@ describe("Feature: an owner cannot take away their own administrator access", ()
   });
 
   it("refuses to revoke when the caller is not an owner, and writes nothing", async () => {
-    mockRequireAdminSession.mockResolvedValue({
-      userId: "owner-1",
-      email: "owner@example.com",
-      role: "admin",
-    });
-    mockIsAdminEmail.mockResolvedValue(false);
+    mockRequireOwnerSession.mockRejectedValue(new Error("not owner"));
 
     const targetInsert = await db.collection("user").insertOne({
       email: "some-admin@example.com",
@@ -202,4 +212,101 @@ describe("Feature: an owner cannot take away their own administrator access", ()
       .findOne({ _id: targetInsert.insertedId });
     expect(stored?.role).toBe("admin");
   });
+
+  it("deletes every membership on revoke, and a later re-add restores only that school", async () => {
+    const ownerInsert = await db.collection("user").insertOne({
+      email: "owner@example.com",
+      name: "Owner",
+      role: "admin",
+    });
+    const ownerId = ownerInsert.insertedId.toString();
+    mockRequireOwnerSession.mockResolvedValue({
+      userId: ownerId,
+      email: "owner@example.com",
+      role: "admin",
+    });
+
+    const targetInsert = await db.collection("user").insertOne({
+      email: "teacher@example.com",
+      name: "Teacher",
+      role: "admin",
+    });
+    const targetId = targetInsert.insertedId.toString();
+
+    const schoolService = new SchoolService(db);
+    const schoolA = await schoolService.createSchool({
+      name: "School A",
+      slug: "school-a",
+      createdBy: ownerId,
+    });
+    const schoolB = await schoolService.createSchool({
+      name: "School B",
+      slug: "school-b",
+      createdBy: ownerId,
+    });
+    await schoolService.addMembership(schoolA.id, targetId, ownerId);
+    await schoolService.addMembership(schoolB.id, targetId, ownerId);
+
+    const formData = new FormData();
+    formData.set("userId", targetId);
+    const state = await revokeAdminAction(null, formData);
+
+    expect(state.success).toBe(true);
+    expect(await schoolService.listSchoolsForUser(targetId)).toEqual([]);
+
+    await schoolService.addMembership(schoolA.id, targetId, ownerId);
+    const schools = await schoolService.listSchoolsForUser(targetId);
+    expect(schools).toEqual([{ id: schoolA.id, name: schoolA.name }]);
+  });
+});
+
+/**
+ * Feature: a refused role change records which admin tried
+ * As the platform owner reviewing logs
+ * I want a signed-in non-owner admin's refused grant or revoke logged as
+ * "not-owner" with their user id
+ * So that an attempted privilege change is traceable to a person, not
+ * lumped in with signed-out callers
+ */
+describe("Feature: a refused role change records which admin tried", () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    const setup = await setupTestDb();
+    db = setup.db;
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    ["grantAdminAction", grantAdminAction],
+    ["revokeAdminAction", revokeAdminAction],
+  ])(
+    "%s logs a non-owner admin as not-owner with their user id",
+    async (name, action) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockRequireOwnerSession.mockRejectedValue(
+        new OwnerRequiredError("non-owner-admin-1"),
+      );
+      const target = await db.collection("user").insertOne({
+        email: "target@example.com",
+        name: "Target",
+        role: "admin",
+      });
+      const formData = new FormData();
+      formData.set("userId", target.insertedId.toString());
+
+      const state = await action(null, formData);
+
+      expect(state.success).toBe(false);
+      expect(warn).toHaveBeenCalledWith(`action.${name}.refused`, {
+        "lms.reason": "not-owner",
+        "lms.owner.id": "non-owner-admin-1",
+      });
+    },
+  );
 });

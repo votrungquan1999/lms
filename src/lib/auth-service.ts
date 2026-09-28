@@ -40,6 +40,17 @@ export interface UnclassifiedIdentity {
 }
 
 /**
+ * A signed-in admin who is not the platform owner. Typed so owner-only
+ * actions can log who tried, unlike a caller with no admin session at all.
+ */
+export class OwnerRequiredError extends Error {
+  constructor(readonly userId: string) {
+    super("Unauthorized: owner access required");
+    this.name = "OwnerRequiredError";
+  }
+}
+
+/**
  * Creates the Better Auth instance with our standard config.
  * Extracted so TypeScript can infer the specific return type.
  */
@@ -353,7 +364,7 @@ export class AuthService {
     const session = await this.requireAdminSession(headers);
     const isOwner = await this.isAdminEmail(session.email);
     if (!isOwner) {
-      throw new Error("Unauthorized: owner access required");
+      throw new OwnerRequiredError(session.userId);
     }
     return session;
   }

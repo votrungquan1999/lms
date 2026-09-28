@@ -1,4 +1,5 @@
 import type { Db } from "mongodb";
+import { OwnerRequiredError } from "src/lib/auth-service";
 import { ensureIndexes } from "src/lib/database";
 import {
   getTestServices,
@@ -19,7 +20,11 @@ vi.mock("src/lib/auth-singleton", () => ({
   })),
 }));
 
-import { createSchoolAction } from "../actions";
+import {
+  addSchoolAdminAction,
+  createSchoolAction,
+  removeSchoolAdminAction,
+} from "../actions";
 
 let db: Db;
 
@@ -130,4 +135,350 @@ describe("Feature: the platform owner creates a school", () => {
     expect(state.success).toBe(true);
     expect(await schoolService.listSchools()).toHaveLength(2);
   });
+});
+
+function adminForm(schoolId: string, userId: string): FormData {
+  const formData = new FormData();
+  formData.set("schoolId", schoolId);
+  formData.set("userId", userId);
+  return formData;
+}
+
+/**
+ * Feature: the platform owner manages a school's admins
+ * As the platform owner
+ * I want to add an existing account as a school's admin, and remove one
+ * So that access to a school's data comes only from a recorded membership
+ */
+describe("Feature: the platform owner manages a school's admins", () => {
+  it("adds the admin role and the membership, and stamps the marker", async () => {
+    const { schoolService } = getTestServices();
+    const school = await schoolService.createSchool({
+      name: "Acme",
+      slug: "acme",
+      createdBy: "owner-1",
+    });
+    const insert = await db
+      .collection("user")
+      .insertOne({ email: "teacher@example.com" });
+    const userId = insert.insertedId.toString();
+
+    const state = await addSchoolAdminAction(
+      null,
+      adminForm(school.id, userId),
+    );
+
+    expect(state.success).toBe(true);
+    const user = await db
+      .collection("user")
+      .findOne({ _id: insert.insertedId });
+    expect(user?.role).toBe("admin");
+    expect(user?.schoolAccessManagedAt).toBeInstanceOf(Date);
+    expect(await schoolService.listMembershipsForSchool(school.id)).toEqual([
+      userId,
+    ]);
+  });
+
+  it("removes the membership but keeps the admin role, and stamps the marker", async () => {
+    const { schoolService } = getTestServices();
+    const school = await schoolService.createSchool({
+      name: "Acme",
+      slug: "acme",
+      createdBy: "owner-1",
+    });
+    const insert = await db
+      .collection("user")
+      .insertOne({ email: "teacher@example.com" });
+    const userId = insert.insertedId.toString();
+    await addSchoolAdminAction(null, adminForm(school.id, userId));
+    // Clear the add's stamp so only the remove can set it again.
+    await db
+      .collection("user")
+      .updateOne(
+        { _id: insert.insertedId },
+        { $unset: { schoolAccessManagedAt: "" } },
+      );
+
+    const state = await removeSchoolAdminAction(
+      null,
+      adminForm(school.id, userId),
+    );
+
+    expect(state.success).toBe(true);
+    const user = await db
+      .collection("user")
+      .findOne({ _id: insert.insertedId });
+    expect(user?.role).toBe("admin");
+    expect(user?.schoolAccessManagedAt).toBeInstanceOf(Date);
+    expect(await schoolService.listMembershipsForSchool(school.id)).toEqual([]);
+  });
+
+  it("refuses when the caller is not the owner, and changes nothing", async () => {
+    mockRequireOwnerSession.mockRejectedValue(new Error("not owner"));
+    const { schoolService } = getTestServices();
+    const school = await schoolService.createSchool({
+      name: "Acme",
+      slug: "acme",
+      createdBy: "owner-1",
+    });
+    const insert = await db
+      .collection("user")
+      .insertOne({ email: "teacher@example.com" });
+    const userId = insert.insertedId.toString();
+
+    const state = await addSchoolAdminAction(
+      null,
+      adminForm(school.id, userId),
+    );
+
+    expect(state.success).toBe(false);
+    const user = await db
+      .collection("user")
+      .findOne({ _id: insert.insertedId });
+    expect(user?.role).toBeUndefined();
+    expect(await schoolService.listMembershipsForSchool(school.id)).toEqual([]);
+  });
+
+  it("refuses a non-owner's remove, and the membership stays", async () => {
+    const { schoolService } = getTestServices();
+    const school = await schoolService.createSchool({
+      name: "Acme",
+      slug: "acme",
+      createdBy: "owner-1",
+    });
+    const insert = await db
+      .collection("user")
+      .insertOne({ email: "teacher@example.com" });
+    const userId = insert.insertedId.toString();
+    await addSchoolAdminAction(null, adminForm(school.id, userId));
+    mockRequireOwnerSession.mockRejectedValue(new Error("not owner"));
+
+    const state = await removeSchoolAdminAction(
+      null,
+      adminForm(school.id, userId),
+    );
+
+    expect(state.success).toBe(false);
+    expect(await schoolService.listMembershipsForSchool(school.id)).toEqual([
+      userId,
+    ]);
+  });
+
+  it("refuses a stale form naming a deleted account, and writes nothing", async () => {
+    const { schoolService } = getTestServices();
+    const school = await schoolService.createSchool({
+      name: "Acme",
+      slug: "acme",
+      createdBy: "owner-1",
+    });
+    const insert = await db
+      .collection("user")
+      .insertOne({ email: "teacher@example.com" });
+    const userId = insert.insertedId.toString();
+    await db.collection("user").deleteOne({ _id: insert.insertedId });
+
+    const state = await addSchoolAdminAction(
+      null,
+      adminForm(school.id, userId),
+    );
+
+    expect(state.success).toBe(false);
+    expect(state.message).toBe("That account no longer exists.");
+    expect(await schoolService.listMembershipsForSchool(school.id)).toEqual([]);
+  });
+
+  it("refuses a form naming a school that does not exist, and writes nothing", async () => {
+    const insert = await db
+      .collection("user")
+      .insertOne({ email: "teacher@example.com" });
+    const userId = insert.insertedId.toString();
+
+    const state = await addSchoolAdminAction(
+      null,
+      adminForm("no-such-school", userId),
+    );
+
+    expect(state.success).toBe(false);
+    expect(state.message).toBe("School not found");
+    const user = await db
+      .collection("user")
+      .findOne({ _id: insert.insertedId });
+    expect(user?.role).toBeUndefined();
+    expect(user?.schoolAccessManagedAt).toBeUndefined();
+    expect(
+      await db.collection("school_membership").countDocuments({ userId }),
+    ).toBe(0);
+  });
+
+  it.each([
+    { case: "a school they are not an admin of", schoolExists: true },
+    { case: "a school that does not exist", schoolExists: false },
+  ])(
+    "refuses removing an account from $case, and writes nothing",
+    async ({ schoolExists }) => {
+      const { schoolService } = getTestServices();
+      const school = await schoolService.createSchool({
+        name: "Acme",
+        slug: "acme",
+        createdBy: "owner-1",
+      });
+      const insert = await db
+        .collection("user")
+        .insertOne({ email: "teacher@example.com", role: "admin" });
+      const userId = insert.insertedId.toString();
+
+      const state = await removeSchoolAdminAction(
+        null,
+        adminForm(schoolExists ? school.id : "no-such-school", userId),
+      );
+
+      expect(state.success).toBe(false);
+      expect(state.message).toBe(
+        "This account is not an admin of this school.",
+      );
+      const user = await db
+        .collection("user")
+        .findOne({ _id: insert.insertedId });
+      expect(user?.schoolAccessManagedAt).toBeUndefined();
+    },
+  );
+
+  it("returns a readable error instead of throwing when removal fails", async () => {
+    const { schoolService } = getTestServices();
+    const school = await schoolService.createSchool({
+      name: "Acme",
+      slug: "acme",
+      createdBy: "owner-1",
+    });
+    const insert = await db
+      .collection("user")
+      .insertOne({ email: "teacher@example.com" });
+    const userId = insert.insertedId.toString();
+    await addSchoolAdminAction(null, adminForm(school.id, userId));
+    vi.spyOn(schoolService, "removeMembership").mockRejectedValueOnce(
+      new Error("connection reset"),
+    );
+
+    const state = await removeSchoolAdminAction(
+      null,
+      adminForm(school.id, userId),
+    );
+
+    expect(state.success).toBe(false);
+    expect(state.message).toBe("connection reset");
+  });
+
+  it("refuses a second add of the same admin, and keeps exactly one membership", async () => {
+    await ensureIndexes(db);
+    const { schoolService } = getTestServices();
+    const school = await schoolService.createSchool({
+      name: "Acme",
+      slug: "acme",
+      createdBy: "owner-1",
+    });
+    const insert = await db
+      .collection("user")
+      .insertOne({ email: "teacher@example.com" });
+    const userId = insert.insertedId.toString();
+    await addSchoolAdminAction(null, adminForm(school.id, userId));
+
+    const state = await addSchoolAdminAction(
+      null,
+      adminForm(school.id, userId),
+    );
+
+    expect(state.success).toBe(false);
+    expect(state.message).toBe(
+      "This account is already an admin of this school.",
+    );
+    expect(await schoolService.listMembershipsForSchool(school.id)).toEqual([
+      userId,
+    ]);
+  });
+
+  it("adds an account that already has a student profile, leaving the student document unchanged", async () => {
+    const { schoolService, studentService } = getTestServices();
+    const school = await schoolService.createSchool({
+      name: "Acme",
+      slug: "acme",
+      createdBy: "owner-1",
+    });
+    const insert = await db
+      .collection("user")
+      .insertOne({ email: "student-turned-admin@example.com" });
+    const userId = insert.insertedId.toString();
+    const student = await studentService.createStudentDocument({
+      authUserId: userId,
+      username: "student-turned-admin",
+      name: "Student Turned Admin",
+      createdBy: "self-signup",
+    });
+
+    const state = await addSchoolAdminAction(
+      null,
+      adminForm(school.id, userId),
+    );
+
+    expect(state.success).toBe(true);
+    const user = await db
+      .collection("user")
+      .findOne({ _id: insert.insertedId });
+    expect(user?.role).toBe("admin");
+    const unchangedStudent = await studentService.findByUsername(
+      "student-turned-admin",
+    );
+    expect(unchangedStudent).toEqual(student);
+  });
+});
+
+/**
+ * Feature: a refused owner-only school change records which admin tried
+ * As the platform owner reviewing logs
+ * I want a signed-in non-owner admin's refused school change logged as
+ * "not-owner" with their user id
+ * So that an attempted privilege change is traceable to a person
+ */
+describe("Feature: a refused owner-only school change records which admin tried", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    [
+      "createSchoolAction",
+      () => createSchoolAction(null, schoolForm("Acme", "acme")),
+    ],
+    [
+      "addSchoolAdminAction",
+      () =>
+        addSchoolAdminAction(
+          null,
+          adminForm("school-1", "0123456789abcdef01234567"),
+        ),
+    ],
+    [
+      "removeSchoolAdminAction",
+      () =>
+        removeSchoolAdminAction(
+          null,
+          adminForm("school-1", "0123456789abcdef01234567"),
+        ),
+    ],
+  ])(
+    "%s logs a non-owner admin as not-owner with their user id",
+    async (name, act) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockRequireOwnerSession.mockRejectedValue(
+        new OwnerRequiredError("non-owner-admin-1"),
+      );
+
+      const state = await act();
+
+      expect(state.success).toBe(false);
+      expect(warn).toHaveBeenCalledWith(`action.${name}.refused`, {
+        "lms.reason": "not-owner",
+        "lms.owner.id": "non-owner-admin-1",
+      });
+    },
+  );
 });

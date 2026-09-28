@@ -2,9 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { OwnerRequiredError } from "src/lib/auth-service";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
-import { getUserRoleService } from "src/lib/services-singleton";
+import {
+  getSchoolService,
+  getUserRoleService,
+} from "src/lib/services-singleton";
 import { Role } from "src/lib/session";
 import { z } from "zod";
 
@@ -33,6 +37,14 @@ function logRefusal(action: string, attributes: Record<string, string>): void {
   console.warn(`${action}.refused`, attributes);
 }
 
+/** A signed-in non-owner admin is logged by id; anyone else as unauthenticated. */
+function ownerRefusalAttributes(error: unknown): Record<string, string> {
+  if (error instanceof OwnerRequiredError) {
+    return { "lms.reason": "not-owner", "lms.owner.id": error.userId };
+  }
+  return { "lms.reason": "unauthenticated" };
+}
+
 /**
  * Server action: grants administrator access to the given user (D22).
  * Re-checks Tier 2 itself — never trusts the page guard alone (D26).
@@ -46,21 +58,10 @@ export async function grantAdminAction(
 
   let ownerUserId: string;
   try {
-    const session = await authService.requireAdminSession(requestHeaders);
-    const isOwner = await authService.isAdminEmail(session.email);
-    if (!isOwner) {
-      logRefusal("action.grantAdminAction", {
-        "lms.reason": "not-owner",
-        "lms.owner.id": session.userId,
-      });
-      return {
-        success: false,
-        message: "Unauthorized: owner access required",
-      };
-    }
+    const session = await authService.requireOwnerSession(requestHeaders);
     ownerUserId = session.userId;
-  } catch {
-    logRefusal("action.grantAdminAction", { "lms.reason": "unauthenticated" });
+  } catch (error) {
+    logRefusal("action.grantAdminAction", ownerRefusalAttributes(error));
     return { success: false, message: "Unauthorized: owner access required" };
   }
 
@@ -98,8 +99,9 @@ export async function grantAdminAction(
 
 /**
  * Server action: revokes administrator access from the given user (D22).
- * Re-checks Tier 2 itself — never trusts the page guard alone (D26). Does
- * NOT share its owner check with grantAdminAction (defence in depth).
+ * Re-checks Tier 2 itself — never trusts the page guard alone (D26). Shares
+ * `requireOwnerSession` with grantAdminAction, one check exercised by every
+ * owner-only action.
  */
 export async function revokeAdminAction(
   _prevState: SetRoleState | null,
@@ -110,23 +112,10 @@ export async function revokeAdminAction(
 
   let ownerUserId: string;
   try {
-    const session = await authService.requireAdminSession(requestHeaders);
-    const isOwner = await authService.isAdminEmail(session.email);
-    if (!isOwner) {
-      logRefusal("action.revokeAdminAction", {
-        "lms.reason": "not-owner",
-        "lms.owner.id": session.userId,
-      });
-      return {
-        success: false,
-        message: "Unauthorized: owner access required",
-      };
-    }
+    const session = await authService.requireOwnerSession(requestHeaders);
     ownerUserId = session.userId;
-  } catch {
-    logRefusal("action.revokeAdminAction", {
-      "lms.reason": "unauthenticated",
-    });
+  } catch (error) {
+    logRefusal("action.revokeAdminAction", ownerRefusalAttributes(error));
     return { success: false, message: "Unauthorized: owner access required" };
   }
 
@@ -163,6 +152,9 @@ export async function revokeAdminAction(
       async () => {
         const userRoleService = await getUserRoleService();
         await userRoleService.setRole(parsed.data.userId, Role.Student);
+        // Revoke drops every school; a re-grant restores only the one it names.
+        const schoolService = await getSchoolService();
+        await schoolService.deleteMembershipsForUser(parsed.data.userId);
         revalidatePath("/admin/user-roles");
         return { success: true, message: "Administrator access revoked." };
       },

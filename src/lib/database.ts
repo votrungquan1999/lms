@@ -73,4 +73,10 @@ export async function ensureIndexes(db: Db): Promise<void> {
 
   // The owner-typed slug is a school's only unique key; names may repeat.
   await db.collection("school").createIndex({ slug: 1 }, { unique: true });
+
+  // One membership per (school, user) pair — a second "add admin" for the
+  // same school must be refused, not silently duplicated.
+  await db
+    .collection("school_membership")
+    .createIndex({ schoolId: 1, userId: 1 }, { unique: true });
 }

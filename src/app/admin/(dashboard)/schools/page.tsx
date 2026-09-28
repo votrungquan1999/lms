@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card, CardDescription, CardTitle } from "src/components/ui/card";
 import { getPageGuard, getSchoolService } from "src/lib/services-singleton";
 import { CreateSchoolForm } from "./create-school-form";
@@ -32,12 +33,14 @@ export default async function SchoolsPage() {
 
       <div className="flex flex-col gap-3">
         {schools.map((school) => (
-          <Card key={school.id} data-testid={`school-row-${school.id}`}>
-            <CardTitle className="px-6 text-base">{school.name}</CardTitle>
-            <CardDescription className="px-6 pb-6">
-              {school.slug}
-            </CardDescription>
-          </Card>
+          <Link key={school.id} href={`/admin/schools/${school.id}`}>
+            <Card data-testid={`school-row-${school.id}`}>
+              <CardTitle className="px-6 text-base">{school.name}</CardTitle>
+              <CardDescription className="px-6 pb-6">
+                {school.slug}
+              </CardDescription>
+            </Card>
+          </Link>
         ))}
       </div>
     </div>

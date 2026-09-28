@@ -2,6 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import { Role } from "src/lib/session";
 import {
+  getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
   teardownTestDb,
@@ -71,5 +72,26 @@ describe("Feature: the schools console is owner-only", () => {
 
     expect(screen.getByText("Schools")).toBeInTheDocument();
     expect(screen.queryAllByTestId(/^school-row-/)).toHaveLength(0);
+  });
+
+  it("links each school row to its detail page", async () => {
+    mockGetSession.mockResolvedValue({
+      role: Role.Admin,
+      userId: "owner-1",
+      email: "owner@example.com",
+    });
+    mockIsAdminEmail.mockResolvedValue(true);
+    const { schoolService } = getTestServices();
+    const school = await schoolService.createSchool({
+      name: "Acme",
+      slug: "acme",
+      createdBy: "owner-1",
+    });
+
+    const ui = await SchoolsPage();
+    render(ui);
+
+    const link = screen.getByRole("link", { name: /Acme/ });
+    expect(link.getAttribute("href")).toBe(`/admin/schools/${school.id}`);
   });
 });
