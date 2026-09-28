@@ -1,0 +1,1 @@
+- The dark round "N" badge at the bottom-left, sometimes with an "Issue" count, is the Next.js dev-tools indicator. It is not part of the app.

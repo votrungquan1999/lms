@@ -36,6 +36,7 @@ import { RedoRequestService } from "../src/lib/redo-request-service";
 import { StudentService } from "../src/lib/student-service";
 import type { TestDocument } from "../src/lib/test-service";
 import { TestService } from "../src/lib/test-service";
+import { TestStartService } from "../src/lib/test-start-service";
 import { TestSubmissionService } from "../src/lib/test-submission-service";
 
 const SEED_AUTHOR = "seed-script";
@@ -160,7 +161,13 @@ async function main() {
     const questionService = new QuestionService(db);
     const studentService = new StudentService(db);
     const enrollmentService = new EnrollmentService(db);
-    const answerService = new AnswerService(db, questionService);
+    const testStartService = new TestStartService(db);
+    const answerService = new AnswerService(
+      db,
+      questionService,
+      testService,
+      testStartService,
+    );
 
     // Lazy wiring mirrors services-singleton.ts to break the cycle:
     // GradeService → GradeVisibilityService → TestSubmissionService → GradeService.
@@ -174,7 +181,12 @@ async function main() {
       answerService,
       gradeVisibilityService,
     );
-    testSubmissionService = new TestSubmissionService(db, gradeService);
+    testSubmissionService = new TestSubmissionService(
+      db,
+      gradeService,
+      testService,
+      testStartService,
+    );
     const redoRequestService = new RedoRequestService(db, testService);
 
     // Course.

@@ -67,3 +67,10 @@ IMPLEMENTATION_PROGRESS.md
 INVESTIGATION_STEP_*.md
 VALIDATION_STEP_*.md
 RESEARCH_FOLLOWUP_*.md
+
+# Visual QA working archive — screenshots differ between machines, never shared.
+.visual-qa/
+
+# Local-only files that must never reach this public repo.
+e2e/fixtures/private/
+.claude/skills/monthly-dca-research/

@@ -1,0 +1,28 @@
+{
+  "archiveRoot": ".visual-qa",
+  "reportDir": "qa-visual-defects",
+  "viewportPreset": "desktop",
+  "sharedPaths": [
+    "src/app/layout.tsx",
+    "src/app/globals.css",
+    "src/app/admin/(dashboard)/layout.tsx",
+    "src/app/student/(dashboard)/layout.tsx",
+    "src/components/ui/*",
+    "src/components/theme-provider.tsx",
+    "package.json",
+    "pnpm-lock.yaml",
+    "postcss.config.mjs",
+    "next.config.ts",
+    "scripts/seed-test-states.ts",
+    "visual-qa.json",
+    "playwright.visual.config.ts",
+    "e2e/visual/snap.ts",
+    "e2e/visual/visual.auth.ts"
+  ],
+  "stabilize": {
+    "freezeClockAt": "2026-09-23T10:00:00Z",
+    "maskSelectors": [],
+    "flakinessRetries": 2,
+    "settleMs": 150
+  }
+}
