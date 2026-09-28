@@ -141,7 +141,10 @@ export class CourseService {
   }
 
   async getCourse(courseId: string): Promise<Course | null> {
-    const doc = await this.courses.findOne({ id: courseId });
+    const doc = await this.courses.findOne({
+      id: courseId,
+      schoolId: this.schoolId,
+    });
     if (!doc) {
       return null;
     }

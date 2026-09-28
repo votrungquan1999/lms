@@ -69,8 +69,16 @@ export async function GET(
     getTestFeedbackService(),
   ]);
 
+  // Enrolments are not school-scoped, so a stray one can name another school's student.
+  const [student] = await studentService.findByIds([studentId]);
+  if (!student) {
+    return new Response("Student not found", { status: 404 });
+  }
+
   // Every selected test must belong to this course (the route is directly
-  // reachable, so a cross-course testId could otherwise be exported).
+  // reachable, so a cross-course testId could otherwise be exported). A
+  // foreign school's testId is caught the same way: the school-bound
+  // getTest above already can't see it, so it never passes this check.
   for (const testId of testIds) {
     const test = await testService.getTest(testId);
     if (!test || test.courseId !== courseId) {

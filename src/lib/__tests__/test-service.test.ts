@@ -471,3 +471,36 @@ describe("TestService", () => {
     },
   );
 });
+
+/**
+ * Feature: a school admin can never open another school's test by id
+ * As a school admin
+ * I want a test id that belongs to another school to resolve to nothing
+ * So that another school's test is never readable through mine
+ */
+describe("Feature: a school admin can never open another school's test by id", () => {
+  dbIt(
+    "getTest returns null for a test that belongs to another school",
+    async ({ db }) => {
+      // Given a test created in another school
+      const foreignCourse = await new CourseService(
+        db,
+        "school-b",
+      ).createCourse({
+        title: "Foreign Course",
+        description: "",
+        createdBy: "admin",
+      });
+      const foreignTest = await new TestService(db, "school-b").createTest(
+        foreignCourse.id,
+        { title: "Foreign Test", description: "", createdBy: "admin" },
+      );
+
+      // When the current school's bound service looks it up by id
+      const testService = new TestService(db, TEST_SCHOOL_ID);
+
+      // Then it isn't found
+      expect(await testService.getTest(foreignTest.id)).toBeNull();
+    },
+  );
+});

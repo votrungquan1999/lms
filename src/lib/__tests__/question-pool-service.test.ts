@@ -85,3 +85,32 @@ describe("QuestionPoolService", () => {
     },
   );
 });
+
+/**
+ * Feature: a school admin can never open another school's pool by id
+ * As a school admin
+ * I want a pool id that belongs to another school to resolve to nothing
+ * So that another school's pool is never readable through mine
+ */
+describe("Feature: a school admin can never open another school's pool by id", () => {
+  dbIt(
+    "getPool returns null for a pool that belongs to another school",
+    async ({ db }) => {
+      // Given a pool created in another school
+      const foreignPool = await new QuestionPoolService(
+        db,
+        "school-b",
+      ).createPool({
+        name: "Foreign Pool",
+        description: "",
+        createdBy: "admin",
+      });
+
+      // When the current school's bound service looks it up by id
+      const service = new QuestionPoolService(db, TEST_SCHOOL_ID);
+
+      // Then it isn't found
+      expect(await service.getPool(foreignPool.id)).toBeNull();
+    },
+  );
+});

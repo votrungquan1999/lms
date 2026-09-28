@@ -121,3 +121,32 @@ describe("Feature: an admin switches a course's join link off entirely", () => {
     },
   );
 });
+
+/**
+ * Feature: a school admin can never open another school's course by id
+ * As a school admin
+ * I want a course id that belongs to another school to resolve to nothing
+ * So that another school's course is never readable through mine
+ */
+describe("Feature: a school admin can never open another school's course by id", () => {
+  dbIt(
+    "getCourse returns null for a course that belongs to another school",
+    async ({ db }) => {
+      // Given a course created in another school
+      const foreignCourse = await new CourseService(
+        db,
+        "school-b",
+      ).createCourse({
+        title: "Foreign Course",
+        description: "",
+        createdBy: "admin",
+      });
+
+      // When the current school's bound service looks it up by id
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
+
+      // Then it isn't found
+      expect(await courseService.getCourse(foreignCourse.id)).toBeNull();
+    },
+  );
+});

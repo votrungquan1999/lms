@@ -84,7 +84,11 @@ export class QuestionPoolService {
    * Returns a single non-deleted pool by id, or null when missing/deleted.
    */
   async getPool(poolId: string): Promise<QuestionPool | null> {
-    const doc = await this.pools.findOne({ id: poolId, deletedAt: null });
+    const doc = await this.pools.findOne({
+      id: poolId,
+      deletedAt: null,
+      schoolId: this.schoolId,
+    });
     return doc ? this.toPool(doc) : null;
   }
 

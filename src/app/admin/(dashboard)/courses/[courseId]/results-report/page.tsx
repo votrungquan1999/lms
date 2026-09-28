@@ -1,4 +1,6 @@
+import { notFound } from "next/navigation";
 import {
+  getCourseService,
   getEnrollmentService,
   getPageGuard,
   getStudentService,
@@ -29,6 +31,12 @@ export default async function ResultsReportPage({
   const guard = await getPageGuard();
   const session = await guard.requireSchoolAdmin();
   const { courseId } = await params;
+
+  const courseService = await getCourseService(session.school.id);
+  const course = await courseService.getCourse(courseId);
+  if (!course) {
+    notFound();
+  }
 
   const enrollmentService = await getEnrollmentService();
   const enrolledStudentIds =

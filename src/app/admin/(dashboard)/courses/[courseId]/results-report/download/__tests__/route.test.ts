@@ -6,12 +6,15 @@ const {
   renderResultsReportToBuffer,
   isEnrolled,
   getTest,
+  findByIds,
 } = vi.hoisted(() => ({
   requireAdminSession: vi.fn(),
   buildReport: vi.fn(),
   renderResultsReportToBuffer: vi.fn(),
   isEnrolled: vi.fn(),
   getTest: vi.fn(),
+  // Every requested student is one of this school's.
+  findByIds: vi.fn(async (ids: string[]) => ids.map((id) => ({ id }))),
 }));
 
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
@@ -22,7 +25,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 
 vi.mock("src/lib/services-singleton", () => ({
   getEnrollmentService: vi.fn(async () => ({ isEnrolled })),
-  getStudentService: vi.fn(async () => ({})),
+  getStudentService: vi.fn(async () => ({ findByIds })),
   getTestService: vi.fn(async () => ({ getTest })),
   getQuestionService: vi.fn(async () => ({})),
   getAnswerService: vi.fn(async () => ({})),

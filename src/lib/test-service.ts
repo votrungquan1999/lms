@@ -135,7 +135,11 @@ export class TestService {
   }
 
   async getTest(testId: string): Promise<Test | null> {
-    const doc = await this.tests.findOne({ id: testId, deletedAt: null });
+    const doc = await this.tests.findOne({
+      id: testId,
+      deletedAt: null,
+      schoolId: this.schoolId,
+    });
     return doc ? this.toTest(doc) : null;
   }
 
