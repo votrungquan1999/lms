@@ -100,7 +100,6 @@ describe("Feature: a student's progress ignores an answer to a question that was
       username: "stu",
       name: "Stu Dent",
       createdBy: "admin-1",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

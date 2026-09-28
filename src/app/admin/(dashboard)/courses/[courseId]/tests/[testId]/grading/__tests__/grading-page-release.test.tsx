@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { revalidatePath } from "next/cache";
-import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -79,7 +79,6 @@ describe("Feature: Admin per-student grade release", () => {
       username: "u1",
       name: "Stu",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -173,7 +172,6 @@ describe("Feature: Admin per-student grade release", () => {
         username: "submitted-user",
         name: "Submitted Sam",
         createdBy: "admin",
-        schoolId: TEST_SCHOOL_ID,
       });
     await services.enrollmentService.enrollStudent(
       courseA.id,
@@ -198,7 +196,6 @@ describe("Feature: Admin per-student grade release", () => {
         username: "notstarted-user",
         name: "NotStarted Nina",
         createdBy: "admin",
-        schoolId: TEST_SCHOOL_ID,
       });
     await services.enrollmentService.enrollStudent(
       courseA.id,
@@ -214,7 +211,6 @@ describe("Feature: Admin per-student grade release", () => {
         username: "released-user",
         name: "Released Rachel",
         createdBy: "admin",
-        schoolId: TEST_SCHOOL_ID,
       },
     );
     await services.enrollmentService.enrollStudent(
@@ -327,7 +323,6 @@ describe("Feature: Admin per-student grade release", () => {
         username: "globalflag-user",
         name: "GlobalFlag Greg",
         createdBy: "admin",
-        schoolId: TEST_SCHOOL_ID,
       });
     await services.enrollmentService.enrollStudent(
       courseB.id,

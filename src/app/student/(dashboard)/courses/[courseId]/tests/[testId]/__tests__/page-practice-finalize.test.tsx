@@ -80,7 +80,6 @@ async function seedPracticeFreeTextFinalizeScenario() {
     username: "u1",
     name: "Stu",
     createdBy: "admin",
-    schoolId: TEST_SCHOOL_ID,
   });
   await services.enrollmentService.enrollStudent(
     course.id,
@@ -124,7 +123,6 @@ async function seedPracticeMcFinalizeScenario() {
     username: "u1",
     name: "Stu",
     createdBy: "admin",
-    schoolId: TEST_SCHOOL_ID,
   });
   await services.enrollmentService.enrollStudent(
     course.id,

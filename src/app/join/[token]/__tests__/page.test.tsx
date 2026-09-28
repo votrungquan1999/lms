@@ -325,7 +325,7 @@ describe("Feature: the invite page is the sole trigger that provisions a Google 
 
     // Then a student is created from the identity
     const student =
-      await services.studentService.findByUsername("fresh.google");
+      await services.schoolDirectory.findByUsername("fresh.google");
     expect(student).not.toBeNull();
     expect(student?.name).toBe("Fresh Google Signup");
 

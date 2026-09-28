@@ -32,7 +32,7 @@ export const metadata = {
 export default async function AdminDashboardPage() {
   const guard = await getPageGuard();
   const session = await guard.requireSchoolAdmin();
-  const studentService = await getStudentService();
+  const studentService = await getStudentService(session.school.id);
   const courseService = await getCourseService(session.school.id);
   const testService = await getTestService(session.school.id);
   const enrollmentService = await getEnrollmentService();

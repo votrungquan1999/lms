@@ -36,14 +36,13 @@ export interface CreateStudentDocumentInput {
   username: string;
   name: string;
   createdBy: string;
-  schoolId: string;
 }
 
 /**
  * Maps a stored student document to the client-facing student.
  * @param doc - The stored student document.
  */
-function toStudent(doc: StudentDocument): Student {
+export function toStudent(doc: StudentDocument): Student {
   return {
     id: doc.id,
     username: doc.username,
@@ -53,23 +52,33 @@ function toStudent(doc: StudentDocument): Student {
 }
 
 /**
- * StudentService — manages the `student` collection.
+ * StudentService — manages one school's students in the `student` collection.
  * Handles student domain data (username, name, role).
- * Auth concerns (credentials, sessions) stay in AuthService.
+ * Auth concerns (credentials, sessions) stay in AuthService; lookups that
+ * must see every school live in SchoolDirectory.
  */
 export class StudentService {
   private readonly students: Collection<StudentDocument>;
 
-  constructor(db: Db) {
+  constructor(
+    db: Db,
+    private readonly schoolId: string,
+  ) {
+    // Fail closed: a missing school would query `{ schoolId: null }`, which
+    // matches exactly the students no school owns yet.
+    if (!schoolId) {
+      throw new Error("A school is required to build a student service");
+    }
     this.students = db.collection<StudentDocument>("student");
   }
 
   /**
-   * Creates a student document.
+   * Creates a student document in this service's school.
    */
   async createStudentDocument(
     input: CreateStudentDocumentInput,
   ): Promise<Student> {
+    // Not scoped to this school: usernames are unique across all schools.
     const existing = await this.students.findOne({ username: input.username });
     if (existing) {
       throw new Error("Username already exists");
@@ -84,7 +93,7 @@ export class StudentService {
       createdBy: input.createdBy,
       updatedAt: null,
       updatedBy: null,
-      schoolId: input.schoolId,
+      schoolId: this.schoolId,
     };
 
     await this.students.insertOne(doc);
@@ -93,58 +102,26 @@ export class StudentService {
   }
 
   /**
-   * Finds a student by username.
-   */
-  async findByUsername(username: string): Promise<Student | null> {
-    const doc = await this.students.findOne({ username });
-    if (!doc) {
-      return null;
-    }
-    return toStudent(doc);
-  }
-
-  /**
-   * Finds a student by their Better Auth user ID.
-   */
-  async findByAuthUserId(authUserId: string): Promise<Student | null> {
-    const doc = await this.students.findOne({ authUserId });
-    if (!doc) {
-      return null;
-    }
-    return toStudent(doc);
-  }
-
-  /**
-   * Returns the subset of the given usernames that already exist in the
-   * `student` collection, using a single `$in` query.
-   * @param usernames - Candidate usernames to check.
-   * @returns The usernames that are already taken (empty if none / no input).
-   */
-  async findExistingUsernames(usernames: string[]): Promise<string[]> {
-    if (usernames.length === 0) return [];
-    const docs = await this.students
-      .find({ username: { $in: usernames } })
-      .toArray();
-    return docs.map((doc) => doc.username);
-  }
-
-  /**
-   * Finds multiple students by their domain IDs.
+   * Finds this school's students among the given domain IDs; another
+   * school's id is skipped like a missing one.
    */
   async findByIds(ids: string[]): Promise<Student[]> {
     if (ids.length === 0) return [];
     const docs = await this.students
-      .find({ id: { $in: ids } })
+      .find({ id: { $in: ids }, schoolId: this.schoolId })
       .sort({ createdAt: -1 })
       .toArray();
     return docs.map(toStudent);
   }
 
   /**
-   * Lists all students.
+   * Lists this school's students.
    */
   async listStudents(): Promise<Student[]> {
-    const docs = await this.students.find({}).sort({ createdAt: -1 }).toArray();
+    const docs = await this.students
+      .find({ schoolId: this.schoolId })
+      .sort({ createdAt: -1 })
+      .toArray();
 
     return docs.map(toStudent);
   }

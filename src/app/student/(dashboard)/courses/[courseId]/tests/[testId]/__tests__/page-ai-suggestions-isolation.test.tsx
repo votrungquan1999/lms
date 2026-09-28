@@ -104,7 +104,6 @@ describe("Feature: Student test page — AI suggestions are isolated (Step 10)",
       username: "u1",
       name: "Stu",
       createdBy: "admin-1",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

@@ -1,4 +1,5 @@
 import type { CourseJoinRequestService } from "./course-join-request-service";
+import type { SchoolDirectory } from "./school-directory";
 import type { StudentService } from "./student-service";
 import { USERNAME_PATTERN } from "./username";
 
@@ -9,7 +10,9 @@ import { USERNAME_PATTERN } from "./username";
  * exactly like every other service here.
  */
 export interface GoogleStudentProvisionDeps {
+  /** Bound to the invite course's school, which the new student joins. */
   studentService: StudentService;
+  schoolDirectory: SchoolDirectory;
   courseJoinRequestService: CourseJoinRequestService;
 }
 
@@ -19,8 +22,6 @@ export interface GoogleStudentProvisionInput {
   email: string;
   name: string;
   courseId: string;
-  /** The invite course's school, which the new student joins. */
-  schoolId: string;
 }
 
 /**
@@ -36,7 +37,7 @@ export enum GoogleProvisionOutcome {
 /**
  * Derives a username from a Google email's local-part: lowercased and
  * stripped to the self-signup charset (D3/D45) so both paths' usernames
- * always agree with what StudentService.findByUsername can find. Exported so
+ * always agree with what SchoolDirectory.findByUsername can find. Exported so
  * the invite page can compute the same value as a pre-filled suggestion when
  * the outcome is NeedsUsername (D49) — this can yield a too-short or even
  * empty string (e.g. a non-ASCII local part), which is exactly why the
@@ -65,7 +66,7 @@ export async function provisionGoogleStudent(
   // does not close that race, but it does collapse the common case (the
   // SAME identity re-entering sequentially) to a no-op instead of the
   // identity finding its own just-created username "taken".
-  const already = await deps.studentService.findByAuthUserId(input.authUserId);
+  const already = await deps.schoolDirectory.findByAuthUserId(input.authUserId);
   if (already) {
     return GoogleProvisionOutcome.Provisioned;
   }
@@ -81,7 +82,7 @@ export async function provisionGoogleStudent(
   if (!USERNAME_PATTERN.test(username)) {
     return GoogleProvisionOutcome.NeedsUsername;
   }
-  const existing = await deps.studentService.findByUsername(username);
+  const existing = await deps.schoolDirectory.findByUsername(username);
   if (existing) {
     return GoogleProvisionOutcome.NeedsUsername;
   }
@@ -91,7 +92,6 @@ export async function provisionGoogleStudent(
     username,
     name: input.name,
     createdBy: "google-signup",
-    schoolId: input.schoolId,
   });
 
   await deps.courseJoinRequestService.createRequest({

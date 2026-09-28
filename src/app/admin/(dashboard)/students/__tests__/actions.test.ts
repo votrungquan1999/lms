@@ -1,8 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
-import { SchoolService } from "src/lib/school-service";
-import { StudentService } from "src/lib/student-service";
 import {
   addTestSchool,
   getTestServices,
@@ -23,7 +21,8 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => authHolder.authService),
 }));
 
-import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { realAuthServiceDeps } from "src/tests/auth-service-deps";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import { createStudentAction } from "../actions";
 import { ImportOutcome, PreviewStatus } from "../bulk-import.types";
 import {
@@ -52,10 +51,11 @@ let requireAdminSession: ReturnType<typeof vi.fn>;
 
 beforeEach(async () => {
   const { db } = await setupTestDb();
-  const authService = createAuthService(db, testConfig, {
-    studentService: new StudentService(db),
-    schoolService: new SchoolService(db),
-  });
+  const authService = createAuthService(
+    db,
+    testConfig,
+    realAuthServiceDeps(db),
+  );
   requireAdminSession = vi.fn().mockResolvedValue({
     userId: "admin-1",
     role: "admin",
@@ -82,7 +82,6 @@ describe("Feature: Bulk import — teacher previews a roster", () => {
       username: "taken",
       name: "Already Here",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
 
     // When previewing a roster covering every status
@@ -166,7 +165,6 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
       username: "taken",
       name: "Already Here",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
 
     // When importing a mixed roster into one course
@@ -400,11 +398,11 @@ describe("Feature: a new student belongs to the admin's current school", () => {
       [],
     );
 
-    const { studentService } = getTestServices();
-    expect((await studentService.findByUsername("solo"))?.schoolId).toBe(
+    const { schoolDirectory } = getTestServices();
+    expect((await schoolDirectory.findByUsername("solo"))?.schoolId).toBe(
       school.id,
     );
-    expect((await studentService.findByUsername("batch"))?.schoolId).toBe(
+    expect((await schoolDirectory.findByUsername("batch"))?.schoolId).toBe(
       school.id,
     );
   });

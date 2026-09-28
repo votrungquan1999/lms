@@ -103,7 +103,6 @@ describe("Feature: Student test page — practice-mode diff reveal (free_text)",
       username: "u1",
       name: "Stu",
       createdBy: "admin-1",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

@@ -1,9 +1,8 @@
 import type { Db } from "mongodb";
 import { ACTIVE_SCHOOL_COOKIE_NAME } from "src/lib/active-school-cookie";
-import { type AuthService, createAuthService } from "src/lib/auth-service";
-import type { AppConfig } from "src/lib/config";
+import { createAuthService } from "src/lib/auth-service";
 import { isAdminSession } from "src/lib/session";
-import { StudentService } from "src/lib/student-service";
+import { signedInHeaders, testConfig } from "src/tests/auth-test-helpers";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -33,6 +32,7 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
+import { realAuthServiceDeps } from "src/tests/auth-service-deps";
 import { switchSchoolAction } from "../switch-school-actions";
 
 let db: Db;
@@ -59,44 +59,6 @@ async function insertRawAdminUserId(rawDb: Db): Promise<string> {
     .collection("user")
     .insertOne({ email: "raw-admin@example.com", role: "admin" });
   return insert.insertedId.toString();
-}
-
-function testConfig(): AppConfig {
-  return {
-    mongodbUri: "unused-in-test",
-    authSecret: "test-secret",
-    authAllowedHosts: ["localhost:3000"],
-    google: { clientId: "test-client-id", clientSecret: "test-client-secret" },
-    s3: {
-      bucket: "test-bucket",
-      region: "ap-southeast-1",
-      accessKeyId: "test-key",
-      secretAccessKey: "test-secret",
-    },
-    adminEmails: [],
-    trustedOrigins: [],
-    allowPublicSignUp: false,
-  };
-}
-
-/**
- * Signs in through the real Better Auth instance and turns the response's
- * Set-Cookie header into a Cookie header usable by AuthService.getSession.
- */
-async function signedInHeaders(
-  authService: AuthService,
-  email: string,
-  password: string,
-): Promise<Headers> {
-  const { headers: signInHeaders } = await authService.auth.api.signInEmail({
-    body: { email, password },
-    returnHeaders: true,
-  });
-  const cookie = signInHeaders
-    .getSetCookie()
-    .map((entry) => entry.split(";")[0])
-    .join("; ");
-  return new Headers({ cookie });
 }
 
 /**
@@ -164,10 +126,11 @@ describe("Feature: a teacher switches their active school", () => {
 
   it("the cookie the action sets is the same value a real AuthService reads back to select the new school", async () => {
     const { schoolService } = getTestServices();
-    const authService = createAuthService(db, testConfig(), {
-      studentService: new StudentService(db),
-      schoolService,
-    });
+    const authService = createAuthService(
+      db,
+      testConfig(),
+      realAuthServiceDeps(db),
+    );
     const alpha = await schoolService.createSchool({
       name: "Alpha School",
       slug: "alpha",

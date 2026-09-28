@@ -13,7 +13,7 @@ import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
  */
 export function makeAssembler(db: Db) {
   const core = buildCoreServices(db);
-  const studentService = new StudentService(db);
+  const studentService = new StudentService(db, TEST_SCHOOL_ID);
   const testFeedbackService = new TestFeedbackService(db);
   const testStatusService = new TestStatusService(
     core.answerService,
@@ -45,6 +45,5 @@ export function createAlice(studentService: StudentService) {
     username: "alice",
     name: "Alice",
     createdBy: "admin-1",
-    schoolId: TEST_SCHOOL_ID,
   });
 }

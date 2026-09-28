@@ -222,7 +222,7 @@ export async function googleUsernameSignupAction(
           };
         }
 
-        const studentService = await getStudentService();
+        const studentService = await getStudentService(schoolId);
         let student: Awaited<
           ReturnType<typeof studentService.createStudentDocument>
         >;
@@ -232,7 +232,6 @@ export async function googleUsernameSignupAction(
             username: parsed.data.username,
             name: googleIdentity.name,
             createdBy: "google-signup",
-            schoolId,
           });
         } catch (error) {
           // Unlike D3's identity-collision message, this is a plain naming

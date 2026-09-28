@@ -50,7 +50,6 @@ async function renderGradingDetail(isPractice: boolean) {
     username: "stu",
     name: "Stu",
     createdBy: "admin",
-    schoolId: TEST_SCHOOL_ID,
   });
   await services.enrollmentService.enrollStudent(
     course.id,

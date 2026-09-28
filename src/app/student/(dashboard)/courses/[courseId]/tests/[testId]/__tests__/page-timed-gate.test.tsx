@@ -85,7 +85,6 @@ async function seedTest(timeLimitMinutes: number | null) {
     username: "stu",
     name: "Stu",
     createdBy: "admin",
-    schoolId: TEST_SCHOOL_ID,
   });
   await s.enrollmentService.enrollStudent(course.id, student.id, "admin");
   return { courseId: course.id, testId: test.id, studentId: student.id, s };

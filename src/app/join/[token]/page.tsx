@@ -92,12 +92,12 @@ export default async function JoinPage({
 
     if (googleIdentity) {
       const [studentService, courseJoinRequestService] = await Promise.all([
-        getStudentService(),
+        getStudentService(schoolId),
         getCourseJoinRequestService(),
       ]);
       googleOutcome = await provisionGoogleStudent(
-        { studentService, courseJoinRequestService },
-        { ...googleIdentity, courseId: course.id, schoolId },
+        { studentService, schoolDirectory, courseJoinRequestService },
+        { ...googleIdentity, courseId: course.id },
       );
       if (googleOutcome === GoogleProvisionOutcome.NeedsUsername) {
         // D49: pre-fill with the sanitised candidate where one exists — this

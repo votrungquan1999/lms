@@ -57,7 +57,7 @@ export async function GradingPageShell({
   const enrollmentService = await getEnrollmentService();
   const studentIds = await enrollmentService.listEnrollmentsByCourse(courseId);
 
-  const studentService = await getStudentService();
+  const studentService = await getStudentService(schoolId);
   const students = await studentService.findByIds(studentIds);
 
   const studentById = new Map(students.map((s) => [s.id, s]));

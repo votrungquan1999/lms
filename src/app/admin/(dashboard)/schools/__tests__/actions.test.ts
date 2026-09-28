@@ -393,7 +393,8 @@ describe("Feature: the platform owner manages a school's admins", () => {
   });
 
   it("adds an account that already has a student profile, leaving the student document unchanged", async () => {
-    const { schoolService, studentService } = getTestServices();
+    const { schoolDirectory, schoolService, studentService } =
+      getTestServices();
     const school = await schoolService.createSchool({
       name: "Acme",
       slug: "acme",
@@ -408,7 +409,6 @@ describe("Feature: the platform owner manages a school's admins", () => {
       username: "student-turned-admin",
       name: "Student Turned Admin",
       createdBy: "self-signup",
-      schoolId: TEST_SCHOOL_ID,
     });
 
     const state = await addSchoolAdminAction(
@@ -421,7 +421,7 @@ describe("Feature: the platform owner manages a school's admins", () => {
       .collection("user")
       .findOne({ _id: insert.insertedId });
     expect(user?.role).toBe("admin");
-    const unchangedStudent = await studentService.findByUsername(
+    const unchangedStudent = await schoolDirectory.findByUsername(
       "student-turned-admin",
     );
     expect(unchangedStudent).toEqual(student);

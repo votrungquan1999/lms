@@ -3,6 +3,7 @@ import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { type Db, ObjectId } from "mongodb";
 import { readActiveSchoolCookie } from "./active-school-cookie";
 import type { AppConfig } from "./config";
+import type { SchoolDirectory } from "./school-directory";
 import type { SchoolService, UserSchool } from "./school-service";
 import {
   AdminSession,
@@ -159,7 +160,9 @@ function resolveActiveSchool(
 
 /** AuthService's collaborators, named so adding one never shifts every call site. */
 export interface AuthServiceDeps {
-  studentService: StudentService;
+  /** A factory, not an instance: one AuthService serves every school. */
+  getStudentService: (schoolId: string) => Promise<StudentService>;
+  schoolDirectory: SchoolDirectory;
   schoolService: SchoolService;
 }
 
@@ -175,7 +178,10 @@ export class AuthService {
   /** Better Auth instance, exposed for API route handler. */
   readonly auth: ReturnType<typeof createBetterAuth>;
 
-  private readonly studentService: StudentService;
+  private readonly getStudentService: (
+    schoolId: string,
+  ) => Promise<StudentService>;
+  private readonly schoolDirectory: SchoolDirectory;
   private readonly schoolService: SchoolService;
   private readonly adminEmails: string[];
 
@@ -185,7 +191,8 @@ export class AuthService {
     deps: AuthServiceDeps,
   ) {
     this.auth = createBetterAuth(db, config);
-    this.studentService = deps.studentService;
+    this.getStudentService = deps.getStudentService;
+    this.schoolDirectory = deps.schoolDirectory;
     this.schoolService = deps.schoolService;
     this.adminEmails = config.adminEmails;
   }
@@ -193,7 +200,7 @@ export class AuthService {
   /**
    * Registers a student account.
    * 1. Creates a Better Auth user (email/password for auth only)
-   * 2. Delegates student document creation to StudentService
+   * 2. Delegates student document creation to the target school's StudentService
    */
   async registerStudent(input: RegisterStudentInput) {
     // Rejected before any write: a password of only spaces would pass
@@ -211,10 +218,13 @@ export class AuthService {
     // "User already exists" error on a form with no email field.
     const username = input.username.toLowerCase();
 
-    const existing = await this.studentService.findByUsername(username);
+    // Usernames are unique across schools, so the check reads every school.
+    const existing = await this.schoolDirectory.findByUsername(username);
     if (existing) {
       throw new Error("Username already exists");
     }
+    // Resolved before sign-up, so a missing school leaves no auth user behind.
+    const studentService = await this.getStudentService(input.schoolId);
 
     const authResult = await this.auth.api.signUpEmail({
       body: {
@@ -226,12 +236,11 @@ export class AuthService {
 
     let student: Awaited<ReturnType<StudentService["createStudentDocument"]>>;
     try {
-      student = await this.studentService.createStudentDocument({
+      student = await studentService.createStudentDocument({
         authUserId: authResult.user.id,
         username,
         name: input.name,
         createdBy: input.createdBy,
-        schoolId: input.schoolId,
       });
     } catch (error) {
       await this.rollbackAuthUser(authResult.user.id);
@@ -269,7 +278,7 @@ export class AuthService {
    * 3. Signs in via Better Auth
    */
   async signInStudent(input: { username: string; password: string }) {
-    const student = await this.studentService.findByUsername(input.username);
+    const student = await this.schoolDirectory.findByUsername(input.username);
     if (!student) {
       throw new Error("Invalid username or password");
     }
@@ -319,7 +328,7 @@ export class AuthService {
       return new AdminSession({ userId: user.id, email: user.email, school });
     }
 
-    const student = await this.studentService.findByAuthUserId(user.id);
+    const student = await this.schoolDirectory.findByAuthUserId(user.id);
     // A student not yet assigned to a school gets no session (fail closed).
     if (student?.schoolId) {
       return new StudentSession({

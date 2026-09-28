@@ -98,7 +98,6 @@ describe("Feature: Student sees grades and average for a submitted test with one
       username: "stu",
       name: "Stu Dent",
       createdBy: "admin-1",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -179,7 +178,6 @@ describe("Feature: Student sees grades and average for a submitted test with one
       username: "stu",
       name: "Stu Dent",
       createdBy: "admin-1",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -248,7 +246,6 @@ describe("Feature: Student sees grades and average for a submitted test with one
       username: "stu",
       name: "Stu Dent",
       createdBy: "admin-1",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

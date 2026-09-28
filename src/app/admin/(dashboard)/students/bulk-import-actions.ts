@@ -6,7 +6,7 @@ import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import {
   getEnrollmentService,
-  getStudentService,
+  getSchoolDirectory,
 } from "src/lib/services-singleton";
 import { z } from "zod";
 import {
@@ -90,13 +90,14 @@ async function classifyImportRows(
     }
   }
 
-  // Single batched existence query over rows that have a username.
+  // Single batched existence query over rows that have a username; usernames
+  // are unique across schools, so it reads every school.
   const candidateUsernames = normalized
     .filter((row) => row.name && row.username && row.password)
     .map((row) => row.username);
-  const studentService = await getStudentService();
+  const schoolDirectory = await getSchoolDirectory();
   const existingUsernames = new Set(
-    await studentService.findExistingUsernames(candidateUsernames),
+    await schoolDirectory.findExistingUsernames(candidateUsernames),
   );
 
   const statuses = normalized.map((row) =>

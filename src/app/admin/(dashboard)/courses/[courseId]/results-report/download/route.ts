@@ -60,7 +60,7 @@ export async function GET(
     testStatusService,
     testFeedbackService,
   ] = await Promise.all([
-    getStudentService(),
+    getStudentService(schoolId),
     getTestService(schoolId),
     getQuestionService(schoolId),
     getAnswerService(schoolId),

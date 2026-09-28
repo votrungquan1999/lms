@@ -2,6 +2,7 @@ import { AuthService } from "./auth-service";
 import { loadConfig } from "./config";
 import { getDatabase } from "./database";
 import { tracedService } from "./observability/traced-service";
+import { SchoolDirectory } from "./school-directory";
 import { SchoolService } from "./school-service";
 import { StudentService } from "./student-service";
 
@@ -19,10 +20,16 @@ export async function getAuthService(): Promise<AuthService> {
 
   const config = loadConfig();
   const db = await getDatabase();
-  const studentService = new StudentService(db);
   const schoolService = new SchoolService(db);
+  const schoolDirectory = new SchoolDirectory(db);
   authService = tracedService(
-    new AuthService(db, config, { studentService, schoolService }),
+    new AuthService(db, config, {
+      // Built per registration here rather than taken from
+      // services-singleton, which already imports this module.
+      getStudentService: async (schoolId) => new StudentService(db, schoolId),
+      schoolDirectory,
+      schoolService,
+    }),
     "auth",
   );
 

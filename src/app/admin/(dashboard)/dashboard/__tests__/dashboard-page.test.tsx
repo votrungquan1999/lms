@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { TooltipProvider } from "src/components/ui/tooltip";
-import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -70,7 +69,6 @@ describe("Feature: Dashboard Grading card", () => {
         username: u,
         name: n,
         createdBy: "admin",
-        schoolId: TEST_SCHOOL_ID,
       });
       await services.enrollmentService.enrollStudent(course.id, s.id, "admin");
       await services.answerService.submitAnswer({

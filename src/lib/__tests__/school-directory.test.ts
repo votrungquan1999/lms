@@ -1,5 +1,6 @@
 import { CourseService } from "src/lib/course-service";
 import { SchoolDirectory } from "src/lib/school-directory";
+import { StudentService } from "src/lib/student-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -100,4 +101,113 @@ describe("Feature: an invite link names its course's school, whichever school it
       });
     },
   );
+});
+
+/**
+ * Feature: a username resolves to its student, whichever school they are in
+ * As a student signing in with no school named
+ * I want my username to find my profile in my own school
+ * So that sign-in and registration checks see every school's usernames
+ */
+describe("Feature: a username resolves to its student, whichever school they are in", () => {
+  dbIt("finds a student of either school by username", async ({ db }) => {
+    await new StudentService(db, TEST_SCHOOL_ID).createStudentDocument({
+      authUserId: "auth-a",
+      username: "ada",
+      name: "Ada",
+      createdBy: "admin-a",
+    });
+    await new StudentService(db, "school-b").createStudentDocument({
+      authUserId: "auth-b",
+      username: "bea",
+      name: "Bea",
+      createdBy: "admin-b",
+    });
+    const schoolDirectory = new SchoolDirectory(db);
+
+    expect(await schoolDirectory.findByUsername("ada")).toMatchObject({
+      name: "Ada",
+      schoolId: TEST_SCHOOL_ID,
+    });
+    expect(await schoolDirectory.findByUsername("bea")).toMatchObject({
+      name: "Bea",
+      schoolId: "school-b",
+    });
+  });
+});
+
+/**
+ * Feature: the batch username check sees every school's usernames
+ * Supports the bulk-import preview ("already-exists") and confirm re-validation.
+ */
+describe("Feature: SchoolDirectory.findExistingUsernames", () => {
+  dbIt(
+    "returns only the usernames already taken, in any school",
+    async ({ db }) => {
+      // Given two existing students, one in another school
+      const students = new StudentService(db, TEST_SCHOOL_ID);
+      await students.createStudentDocument({
+        authUserId: "auth-1",
+        username: "alice",
+        name: "Alice",
+        createdBy: "admin",
+      });
+      await new StudentService(db, "school-b").createStudentDocument({
+        authUserId: "auth-2",
+        username: "bob",
+        name: "Bob",
+        createdBy: "admin",
+      });
+
+      // When checking a mix of existing and new usernames
+      const existing = await new SchoolDirectory(db).findExistingUsernames([
+        "alice",
+        "charlie",
+        "bob",
+      ]);
+
+      // Then only the existing ones come back (order-independent)
+      expect(existing.sort()).toEqual(["alice", "bob"]);
+    },
+  );
+
+  dbIt(
+    "returns an empty array when none of the usernames exist",
+    async ({ db }) => {
+      // Given an existing student
+      const students = new StudentService(db, TEST_SCHOOL_ID);
+      await students.createStudentDocument({
+        authUserId: "auth-1",
+        username: "alice",
+        name: "Alice",
+        createdBy: "admin",
+      });
+
+      // When checking a non-empty list of all-new usernames
+      const existing = await new SchoolDirectory(db).findExistingUsernames([
+        "charlie",
+        "dave",
+      ]);
+
+      // Then nothing comes back
+      expect(existing).toEqual([]);
+    },
+  );
+
+  dbIt("returns an empty array for empty input", async ({ db }) => {
+    // Given a student exists
+    const students = new StudentService(db, TEST_SCHOOL_ID);
+    await students.createStudentDocument({
+      authUserId: "auth-1",
+      username: "alice",
+      name: "Alice",
+      createdBy: "admin",
+    });
+
+    // When checking an empty list
+    const existing = await new SchoolDirectory(db).findExistingUsernames([]);
+
+    // Then nothing comes back
+    expect(existing).toEqual([]);
+  });
 });

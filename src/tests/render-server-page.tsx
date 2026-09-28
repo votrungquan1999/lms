@@ -69,6 +69,7 @@ interface SchoolBoundServices {
   gradeVisibilityService: GradeVisibilityService;
   questionService: QuestionService;
   redoRequestService: RedoRequestService;
+  studentService: StudentService;
   testService: TestService;
   testStatusService: TestStatusService;
   testSubmissionService: TestSubmissionService;
@@ -127,7 +128,6 @@ function makeSharedServices(db: Db): SharedServices {
   const annotationService = new AnnotationService(db);
   const courseJoinRequestService = new CourseJoinRequestService(db);
   const enrollmentService = new EnrollmentService(db);
-  const studentService = new StudentService(db);
   const testFeedbackService = new TestFeedbackService(db);
   const pageGuard = new PageGuard(enrollmentService, {
     getSession: async () => currentSession,
@@ -157,7 +157,6 @@ function makeSharedServices(db: Db): SharedServices {
     s3StorageService,
     schoolDirectory,
     schoolService,
-    studentService,
     testFeedbackService,
     testStartService,
     userRoleService,
@@ -176,6 +175,7 @@ function makeSchoolServices(
 ): SchoolBoundServices {
   const { questionChangeLogService, testStartService } = shared;
   const courseService = new CourseService(db, schoolId);
+  const studentService = new StudentService(db, schoolId);
   const testService = new TestService(db, schoolId);
   // Lazy thunk — AnswerService itself depends on QuestionService, so passing
   // an instance here would be a construction cycle (see QuestionService's
@@ -239,6 +239,7 @@ function makeSchoolServices(
     gradeVisibilityService,
     questionService,
     redoRequestService,
+    studentService,
     testService,
     testStatusService,
     testSubmissionService,
@@ -383,7 +384,8 @@ export function servicesSingletonMockFactory() {
     getS3StorageService: async () => getTestServices().s3StorageService,
     getSchoolDirectory: async () => getTestServices().schoolDirectory,
     getSchoolService: async () => getTestServices().schoolService,
-    getStudentService: async () => getTestServices().studentService,
+    getStudentService: async (schoolId: string) =>
+      servicesForSchool(schoolId).studentService,
     getTestFeedbackService: async () => getTestServices().testFeedbackService,
     getTestService: async (schoolId: string) =>
       servicesForSchool(schoolId).testService,

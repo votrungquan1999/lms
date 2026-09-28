@@ -64,21 +64,18 @@ describe("Feature: Save & Next in the By-question view never lands on a student 
       username: "graded",
       name: "Graded Student",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     const blank = await services.studentService.createStudentDocument({
       authUserId: "auth-blank",
       username: "blank",
       name: "Blank Student",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     const ungraded = await services.studentService.createStudentDocument({
       authUserId: "auth-ungraded",
       username: "ungraded",
       name: "Ungraded Student",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     for (const student of [graded, blank, ungraded]) {
       await services.enrollmentService.enrollStudent(

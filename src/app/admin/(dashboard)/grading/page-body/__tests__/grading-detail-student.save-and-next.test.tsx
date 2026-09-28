@@ -80,7 +80,6 @@ describe("Feature: Save & Next skips a read-only MC question and lands on the ne
       username: "stu",
       name: "Stu",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -219,7 +218,6 @@ describe("Feature: Save & Next skips a read-only MC question and lands on the ne
       username: "stu",
       name: "Stu",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

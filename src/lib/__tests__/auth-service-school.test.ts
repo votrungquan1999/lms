@@ -8,7 +8,7 @@ import {
 import type { AppConfig } from "src/lib/config";
 import { type School, SchoolService } from "src/lib/school-service";
 import { isAdminSession, type Session } from "src/lib/session";
-import { StudentService } from "src/lib/student-service";
+import { realAuthServiceDeps } from "src/tests/auth-service-deps";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -81,10 +81,11 @@ function testConfig(adminEmails: string[]): AppConfig {
 
 /** Builds a real AuthService against the test db, with real dependencies. */
 function realAuthService(db: Db, adminEmails: string[]): AuthService {
-  return createAuthService(db, testConfig(adminEmails), {
-    studentService: new StudentService(db),
-    schoolService: new SchoolService(db),
-  });
+  return createAuthService(
+    db,
+    testConfig(adminEmails),
+    realAuthServiceDeps(db),
+  );
 }
 
 /** Signs up a teacher, records the admin role, and joins each given school. */

@@ -43,6 +43,7 @@ const gradeServices = new Map<string, GradeService>();
 const gradeVisibilityServices = new Map<string, GradeVisibilityService>();
 const questionServices = new Map<string, QuestionService>();
 const redoRequestServices = new Map<string, RedoRequestService>();
+const studentServices = new Map<string, StudentService>();
 const testServices = new Map<string, TestService>();
 const testStatusServices = new Map<string, TestStatusService>();
 const testSubmissionServices = new Map<string, TestSubmissionService>();
@@ -59,7 +60,6 @@ let poolQuestionService: PoolQuestionService | null = null;
 let s3StorageService: S3StorageService | null = null;
 let schoolDirectory: SchoolDirectory | null = null;
 let schoolService: SchoolService | null = null;
-let studentService: StudentService | null = null;
 let pageGuard: PageGuard | null = null;
 let userRoleService: UserRoleService | null = null;
 
@@ -394,8 +394,8 @@ export async function getS3StorageService(): Promise<S3StorageService> {
 }
 
 /**
- * Returns the platform-wide directory, for lookups with no session to take
- * a school from (an invite link).
+ * Returns the platform-wide directory, for lookups that must see every
+ * school (invite links, student usernames and sign-in accounts).
  */
 export async function getSchoolDirectory(): Promise<SchoolDirectory> {
   if (!schoolDirectory) {
@@ -413,12 +413,17 @@ export async function getSchoolService(): Promise<SchoolService> {
   return schoolService;
 }
 
-export async function getStudentService(): Promise<StudentService> {
-  if (!studentService) {
+/**
+ * Returns the student service bound to one school, cached per school.
+ * @param schoolId - The verified session's school.
+ */
+export async function getStudentService(
+  schoolId: string,
+): Promise<StudentService> {
+  return forSchool(studentServices, schoolId, async () => {
     const db = await getDatabase();
-    studentService = tracedService(new StudentService(db), "student");
-  }
-  return studentService;
+    return tracedService(new StudentService(db, schoolId), "student");
+  });
 }
 
 /**

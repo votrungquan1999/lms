@@ -9,6 +9,7 @@ import {
   getEnrollmentService,
   getPageGuard,
   getQuestionService,
+  getStudentService,
   getTestService,
 } from "src/lib/services-singleton";
 import {
@@ -56,6 +57,9 @@ export default async function GradingPage({
 
   const enrollmentService = await getEnrollmentService();
   const studentIds = await enrollmentService.listEnrollmentsByCourse(courseId);
+  // Enrolments are not school-scoped, so count only this school's students.
+  const studentService = await getStudentService(session.school.id);
+  const enrolledCount = (await studentService.findByIds(studentIds)).length;
 
   const questionService = await getQuestionService(session.school.id);
   const questions = await questionService.listQuestions(testId);
@@ -67,8 +71,8 @@ export default async function GradingPage({
           Grade: {test.title}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {studentIds.length} {pluralize(studentIds.length, "student")} enrolled
-          · {questions.length} {pluralize(questions.length, "question")}
+          {enrolledCount} {pluralize(enrolledCount, "student")} enrolled ·{" "}
+          {questions.length} {pluralize(questions.length, "question")}
         </p>
         {!test.showGradeAfterSubmit && (
           <div className="mt-4">

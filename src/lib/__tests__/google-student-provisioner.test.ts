@@ -4,6 +4,7 @@ import {
   GoogleProvisionOutcome,
   provisionGoogleStudent,
 } from "src/lib/google-student-provisioner";
+import { SchoolDirectory } from "src/lib/school-directory";
 import { StudentService } from "src/lib/student-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
@@ -21,8 +22,9 @@ describe("Feature: a prospective student can join using their Google account ins
   dbIt(
     "provisions a student account from the Google identity and requests to join the invited course",
     async ({ db }) => {
-      const studentService = new StudentService(db);
+      const studentService = new StudentService(db, TEST_SCHOOL_ID);
       const courseJoinRequestService = new CourseJoinRequestService(db);
+      const schoolDirectory = new SchoolDirectory(db);
 
       // Given a raw Better Auth user already exists — standing in for what a
       // real Google OAuth round trip would have produced before this
@@ -37,19 +39,18 @@ describe("Feature: a prospective student can join using their Google account ins
 
       // When the invite page provisions them for a specific course
       const outcome = await provisionGoogleStudent(
-        { studentService, courseJoinRequestService },
+        { studentService, schoolDirectory, courseJoinRequestService },
         {
           authUserId: rawUserId.toHexString(),
           email: "prospective.student@gmail.com",
           name: "Prospective Student",
           courseId: "course-1",
-          schoolId: TEST_SCHOOL_ID,
         },
       );
 
       // Then a student account is created, derived from the email's local part
       expect(outcome).toBe(GoogleProvisionOutcome.Provisioned);
-      const student = await studentService.findByUsername(
+      const student = await schoolDirectory.findByUsername(
         "prospective.student",
       );
       expect(student).not.toBeNull();
@@ -76,8 +77,9 @@ describe("Feature: a prospective student can join using their Google account ins
   dbIt(
     "lowercases, strips, but does not otherwise mangle a mixed-case email with an in-charset symbol",
     async ({ db }) => {
-      const studentService = new StudentService(db);
+      const studentService = new StudentService(db, TEST_SCHOOL_ID);
       const courseJoinRequestService = new CourseJoinRequestService(db);
+      const schoolDirectory = new SchoolDirectory(db);
 
       const rawUserId = new ObjectId();
       await db.collection("user").insertOne({
@@ -88,20 +90,19 @@ describe("Feature: a prospective student can join using their Google account ins
       });
 
       const outcome = await provisionGoogleStudent(
-        { studentService, courseJoinRequestService },
+        { studentService, schoolDirectory, courseJoinRequestService },
         {
           authUserId: rawUserId.toHexString(),
           email: "Prospective.Student+tag@Gmail.com",
           name: "Prospective Student",
           courseId: "course-1",
-          schoolId: TEST_SCHOOL_ID,
         },
       );
 
       // Lowercased and left otherwise intact — "+tag" is in-charset, so
       // stripping and truncation must not touch it.
       expect(outcome).toBe(GoogleProvisionOutcome.Provisioned);
-      const student = await studentService.findByUsername(
+      const student = await schoolDirectory.findByUsername(
         "prospective.student+tag",
       );
       expect(student).not.toBeNull();
@@ -121,8 +122,9 @@ describe("Feature: re-entering the invite page after already being provisioned n
   dbIt(
     "provisioning the same Google identity a second time is a no-op, not a self-collision refusal",
     async ({ db }) => {
-      const studentService = new StudentService(db);
+      const studentService = new StudentService(db, TEST_SCHOOL_ID);
       const courseJoinRequestService = new CourseJoinRequestService(db);
+      const schoolDirectory = new SchoolDirectory(db);
 
       const rawUserId = new ObjectId();
       await db.collection("user").insertOne({
@@ -137,9 +139,12 @@ describe("Feature: re-entering the invite page after already being provisioned n
         email: "repeat.visitor@gmail.com",
         name: "Repeat Visitor",
         courseId: "course-1",
-        schoolId: TEST_SCHOOL_ID,
       };
-      const deps = { studentService, courseJoinRequestService };
+      const deps = {
+        studentService,
+        schoolDirectory,
+        courseJoinRequestService,
+      };
 
       // Given the identity was already provisioned once
       const firstOutcome = await provisionGoogleStudent(deps, input);
@@ -160,7 +165,7 @@ describe("Feature: re-entering the invite page after already being provisioned n
 
       // And exactly one student and one pending request exist, not two
       expect(await studentService.listStudents()).toHaveLength(1);
-      const student = await studentService.findByUsername("repeat.visitor");
+      const student = await schoolDirectory.findByUsername("repeat.visitor");
       expect(
         await db
           .collection("course_join_request")
@@ -184,8 +189,9 @@ describe("Feature: a Google signup whose derived username collides or is invalid
   dbIt(
     "reports NeedsUsername instead of refusing, and does not roll back the Google identity that already exists",
     async ({ db }) => {
-      const studentService = new StudentService(db);
+      const studentService = new StudentService(db, TEST_SCHOOL_ID);
       const courseJoinRequestService = new CourseJoinRequestService(db);
+      const schoolDirectory = new SchoolDirectory(db);
 
       // Given a student already exists with the username this Google
       // signup's email local-part would derive
@@ -194,7 +200,6 @@ describe("Feature: a Google signup whose derived username collides or is invalid
         username: "prospective.student",
         name: "Existing Student",
         createdBy: "admin-1",
-        schoolId: TEST_SCHOOL_ID,
       });
 
       // And a raw Better Auth user/account/session already exist — Google's
@@ -213,13 +218,12 @@ describe("Feature: a Google signup whose derived username collides or is invalid
 
       // When the invite page tries to provision them for a course
       const outcome = await provisionGoogleStudent(
-        { studentService, courseJoinRequestService },
+        { studentService, schoolDirectory, courseJoinRequestService },
         {
           authUserId: rawUserId.toHexString(),
           email: "prospective.student@gmail.com",
           name: "Someone Else",
           courseId: "course-1",
-          schoolId: TEST_SCHOOL_ID,
         },
       );
 
@@ -249,8 +253,9 @@ describe("Feature: a Google signup whose derived username collides or is invalid
   dbIt(
     "reports NeedsUsername for a non-ASCII local part that derives the empty string, without crashing",
     async ({ db }) => {
-      const studentService = new StudentService(db);
+      const studentService = new StudentService(db, TEST_SCHOOL_ID);
       const courseJoinRequestService = new CourseJoinRequestService(db);
+      const schoolDirectory = new SchoolDirectory(db);
 
       const rawUserId = new ObjectId();
       await db.collection("user").insertOne({
@@ -261,13 +266,12 @@ describe("Feature: a Google signup whose derived username collides or is invalid
       });
 
       const outcome = await provisionGoogleStudent(
-        { studentService, courseJoinRequestService },
+        { studentService, schoolDirectory, courseJoinRequestService },
         {
           authUserId: rawUserId.toHexString(),
           email: "田中太郎@example.com",
           name: "Taro Tanaka",
           courseId: "course-1",
-          schoolId: TEST_SCHOOL_ID,
         },
       );
 
@@ -279,8 +283,9 @@ describe("Feature: a Google signup whose derived username collides or is invalid
   dbIt(
     "reports NeedsUsername for a two-character local part, which fails the self-signup minimum length",
     async ({ db }) => {
-      const studentService = new StudentService(db);
+      const studentService = new StudentService(db, TEST_SCHOOL_ID);
       const courseJoinRequestService = new CourseJoinRequestService(db);
+      const schoolDirectory = new SchoolDirectory(db);
 
       const rawUserId = new ObjectId();
       await db.collection("user").insertOne({
@@ -291,13 +296,12 @@ describe("Feature: a Google signup whose derived username collides or is invalid
       });
 
       const outcome = await provisionGoogleStudent(
-        { studentService, courseJoinRequestService },
+        { studentService, schoolDirectory, courseJoinRequestService },
         {
           authUserId: rawUserId.toHexString(),
           email: "ab@gmail.com",
           name: "AB Person",
           courseId: "course-1",
-          schoolId: TEST_SCHOOL_ID,
         },
       );
 

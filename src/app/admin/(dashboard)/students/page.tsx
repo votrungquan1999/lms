@@ -22,7 +22,7 @@ export const metadata = {
 export default async function StudentsPage() {
   const guard = await getPageGuard();
   const session = await guard.requireSchoolAdmin();
-  const studentService = await getStudentService();
+  const studentService = await getStudentService(session.school.id);
   const enrollmentService = await getEnrollmentService();
   const courseService = await getCourseService(session.school.id);
 

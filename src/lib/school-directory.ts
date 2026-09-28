@@ -1,5 +1,10 @@
 import type { Collection, Db } from "mongodb";
 import { type Course, type CourseDocument, toCourse } from "./course-service";
+import {
+  type Student,
+  type StudentDocument,
+  toStudent,
+} from "./student-service";
 
 /**
  * A course found by its invite token, with the school it belongs to. `null`
@@ -12,15 +17,18 @@ export interface InviteCourse {
 }
 
 /**
- * SchoolDirectory — the lookups that must see every school, for callers
- * that have no session to take a school from (an anonymous invite visitor).
+ * SchoolDirectory — the lookups that must see every school: invite links
+ * (no session to take a school from), and student usernames and sign-in
+ * accounts, which are unique across all schools.
  * Never used to list or change a school's records.
  */
 export class SchoolDirectory {
   private readonly courses: Collection<CourseDocument>;
+  private readonly students: Collection<StudentDocument>;
 
   constructor(db: Db) {
     this.courses = db.collection<CourseDocument>("course");
+    this.students = db.collection<StudentDocument>("student");
   }
 
   /**
@@ -43,5 +51,45 @@ export class SchoolDirectory {
       return null;
     }
     return { course: toCourse(doc), schoolId: doc.schoolId ?? null };
+  }
+
+  /**
+   * Finds a student by username, in any school.
+   * @param username - The exact (case-sensitive) username.
+   * @returns The student, or null when no school has that username.
+   */
+  async findByUsername(username: string): Promise<Student | null> {
+    const doc = await this.students.findOne({ username });
+    if (!doc) {
+      return null;
+    }
+    return toStudent(doc);
+  }
+
+  /**
+   * Finds a student by their Better Auth user ID, in any school.
+   * @param authUserId - The Better Auth user id.
+   * @returns The student, or null when the account has no student profile.
+   */
+  async findByAuthUserId(authUserId: string): Promise<Student | null> {
+    const doc = await this.students.findOne({ authUserId });
+    if (!doc) {
+      return null;
+    }
+    return toStudent(doc);
+  }
+
+  /**
+   * Returns the subset of the given usernames already taken in any school,
+   * using a single `$in` query.
+   * @param usernames - Candidate usernames to check.
+   * @returns The usernames that are already taken (empty if none / no input).
+   */
+  async findExistingUsernames(usernames: string[]): Promise<string[]> {
+    if (usernames.length === 0) return [];
+    const docs = await this.students
+      .find({ username: { $in: usernames } })
+      .toArray();
+    return docs.map((doc) => doc.username);
   }
 }

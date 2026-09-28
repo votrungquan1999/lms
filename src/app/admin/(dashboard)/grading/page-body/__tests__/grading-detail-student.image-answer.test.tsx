@@ -55,7 +55,6 @@ describe("Feature: per-student grading view renders image_answer submissions", (
       username: "stu",
       name: "Stu",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -123,7 +122,6 @@ describe("Feature: per-student grading view renders image_answer submissions", (
       username: "stu2",
       name: "Stu2",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

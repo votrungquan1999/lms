@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -76,7 +76,6 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
         username: "notstarted-user",
         name: "NotStarted Nina",
         createdBy: "admin",
-        schoolId: TEST_SCHOOL_ID,
       });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -91,7 +90,6 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
         username: "inprogress-user",
         name: "InProgress Iggy",
         createdBy: "admin",
-        schoolId: TEST_SCHOOL_ID,
       });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -112,7 +110,6 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
         username: "submitted-user",
         name: "Submitted Sam",
         createdBy: "admin",
-        schoolId: TEST_SCHOOL_ID,
       });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -142,7 +139,6 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
       username: "graded-user",
       name: "Graded Greg",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

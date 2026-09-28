@@ -101,7 +101,6 @@ async function renderGradedFreeTextScenario(opts: {
     username: `u-${test.id}`,
     name: "Stu",
     createdBy: "admin-1",
-    schoolId: TEST_SCHOOL_ID,
   });
   await services.enrollmentService.enrollStudent(
     course.id,
@@ -170,7 +169,6 @@ describe("Feature: Student test page — free-text answer reveal mode after grad
       username: "u1",
       name: "Stu",
       createdBy: "admin-1",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

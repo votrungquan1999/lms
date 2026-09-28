@@ -104,7 +104,6 @@ async function seedWithheldAndGraded() {
     username: `u-${test.id}`,
     name: "Stu",
     createdBy: "admin-1",
-    schoolId: TEST_SCHOOL_ID,
   });
   await services.enrollmentService.enrollStudent(
     course.id,

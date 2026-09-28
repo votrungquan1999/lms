@@ -17,7 +17,7 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
-import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import { approveJoinRequestAction, rejectJoinRequestAction } from "../actions";
 
 beforeEach(async () => {
@@ -61,7 +61,6 @@ describe("Feature: Approve a course join request", () => {
       username: "student-1",
       name: "Student One",
       createdBy: "self-signup",
-      schoolId: TEST_SCHOOL_ID,
     });
     const request = await courseJoinRequestService.createRequest({
       courseId: course.id,
@@ -106,7 +105,6 @@ describe("Feature: Approve a course join request", () => {
       username: "student-2",
       name: "Student Two",
       createdBy: "self-signup",
-      schoolId: TEST_SCHOOL_ID,
     });
     const request = await courseJoinRequestService.createRequest({
       courseId: course.id,
@@ -149,7 +147,6 @@ describe("Feature: Approve a course join request", () => {
       username: "student-6",
       name: "Student Six",
       createdBy: "self-signup",
-      schoolId: TEST_SCHOOL_ID,
     });
     const request = await courseJoinRequestService.createRequest({
       courseId: course.id,
@@ -195,7 +192,6 @@ describe("Feature: Approve a course join request", () => {
       username: "student-7",
       name: "Student Seven",
       createdBy: "self-signup",
-      schoolId: TEST_SCHOOL_ID,
     });
     const request = await courseJoinRequestService.createRequest({
       courseId: course.id,
@@ -262,7 +258,6 @@ describe("Feature: Reject a course join request", () => {
       username: "student-3",
       name: "Student Three",
       createdBy: "self-signup",
-      schoolId: TEST_SCHOOL_ID,
     });
     const request = await courseJoinRequestService.createRequest({
       courseId: course.id,
@@ -310,7 +305,6 @@ describe("Feature: Reject a course join request", () => {
       username: "student-4",
       name: "Student Four",
       createdBy: "self-signup",
-      schoolId: TEST_SCHOOL_ID,
     });
     await enrollmentService.enrollStudent(course.id, student.id, "admin-1");
     const request = await courseJoinRequestService.createRequest({
@@ -349,7 +343,6 @@ describe("Feature: Reject a course join request", () => {
       username: "student-5",
       name: "Student Five",
       createdBy: "self-signup",
-      schoolId: TEST_SCHOOL_ID,
     });
     const request = await courseJoinRequestService.createRequest({
       courseId: course.id,

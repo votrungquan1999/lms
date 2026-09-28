@@ -1,29 +1,8 @@
-import { type AuthService, createAuthService } from "src/lib/auth-service";
-import type { AppConfig } from "src/lib/config";
-import { SchoolService } from "src/lib/school-service";
-import { StudentService } from "src/lib/student-service";
+import { createAuthService } from "src/lib/auth-service";
+import { realAuthServiceDeps } from "src/tests/auth-service-deps";
+import { signedInHeaders, testConfig } from "src/tests/auth-test-helpers";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
-
-/**
- * Signs in through the real Better Auth instance and turns the response's
- * Set-Cookie header into a Cookie header usable against the auth handler.
- */
-async function signedInHeaders(
-  authService: AuthService,
-  email: string,
-  password: string,
-): Promise<Headers> {
-  const { headers: signInHeaders } = await authService.auth.api.signInEmail({
-    body: { email, password },
-    returnHeaders: true,
-  });
-  const cookie = signInHeaders
-    .getSetCookie()
-    .map((entry) => entry.split(";")[0])
-    .join("; ");
-  return new Headers({ cookie });
-}
 
 /**
  * Feature: a signup request cannot grant itself the admin role
@@ -35,31 +14,15 @@ async function signedInHeaders(
 
 const dbIt = withTestDb(it);
 
-const testConfig: AppConfig = {
-  mongodbUri: "unused-in-test",
-  authSecret: "test-secret",
-  authAllowedHosts: ["localhost:3000"],
-  google: { clientId: "test-client-id", clientSecret: "test-client-secret" },
-  s3: {
-    bucket: "test-bucket",
-    region: "ap-southeast-1",
-    accessKeyId: "test-key",
-    secretAccessKey: "test-secret",
-  },
-  adminEmails: [],
-  trustedOrigins: [],
-  allowPublicSignUp: false,
-};
-
 describe("Feature: a signup request cannot grant itself the admin role", () => {
   dbIt(
     "posting role: admin in the sign-up body does not make the created user an admin",
     async ({ db }) => {
-      const studentService = new StudentService(db);
-      const authService = createAuthService(db, testConfig, {
-        studentService,
-        schoolService: new SchoolService(db),
-      });
+      const authService = createAuthService(
+        db,
+        testConfig(),
+        realAuthServiceDeps(db),
+      );
 
       // A real HTTP-shaped request — not the typed api.signUpEmail() wrapper —
       // so TypeScript's excess-property check can't be the thing blocking `role`.
@@ -92,11 +55,11 @@ describe("Feature: a signup request cannot grant itself the admin role", () => {
   dbIt(
     "a signed-in student posting role: admin to /api/auth/update-user does not change their stored role",
     async ({ db }) => {
-      const studentService = new StudentService(db);
-      const authService = createAuthService(db, testConfig, {
-        studentService,
-        schoolService: new SchoolService(db),
-      });
+      const authService = createAuthService(
+        db,
+        testConfig(),
+        realAuthServiceDeps(db),
+      );
 
       await authService.auth.api.signUpEmail({
         body: {

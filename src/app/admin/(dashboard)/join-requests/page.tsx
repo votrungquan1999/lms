@@ -70,7 +70,7 @@ async function toVisibleRows(
   const studentIds = [...new Set(requests.map((r) => r.studentId))];
   const courseIds = [...new Set(requests.map((r) => r.courseId))];
 
-  const studentService = await getStudentService();
+  const studentService = await getStudentService(schoolId);
   const courseService = await getCourseService(schoolId);
   const [students, courses] = await Promise.all([
     studentService.findByIds(studentIds),

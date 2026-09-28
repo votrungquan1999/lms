@@ -54,7 +54,6 @@ describe("Feature: Student dashboard shows a pending join request", () => {
       username: "student-1",
       name: "Student One",
       createdBy: "self-signup",
-      schoolId: TEST_SCHOOL_ID,
     });
     signInAs(
       new StudentSession({
@@ -117,7 +116,6 @@ describe("Feature: Student dashboard — Graded-but-withheld tests count as awai
       username: "student-1",
       name: "Student One",
       createdBy: "self-signup",
-      schoolId: TEST_SCHOOL_ID,
     });
     signInAs(
       new StudentSession({

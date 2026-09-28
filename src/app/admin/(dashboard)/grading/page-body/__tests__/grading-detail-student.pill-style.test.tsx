@@ -55,7 +55,6 @@ describe("Feature: the per-student grading pill reflects the real status, not ju
       username: "blank-student",
       name: "Blank Student",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

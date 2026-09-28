@@ -8,10 +8,12 @@ import {
   getGradeVisibilityService,
   getQuestionService,
   getRedoRequestService,
+  getStudentService,
   getTestService,
   getTestStatusService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
+import { StudentService } from "src/lib/student-service";
 import { TestService } from "src/lib/test-service";
 import {
   addTestSchool,
@@ -154,6 +156,51 @@ describe("Feature: a school's test service only ever lists that school's tests",
     await expect(getter(schoolId as string)).rejects.toThrow(
       "A school is required",
     );
+  });
+});
+
+/**
+ * Feature: a student service is only ever built for one school
+ * As the LMS system
+ * I want a student service with no school to be refused
+ * So that it can never list or create students with no school
+ */
+describe("Feature: a student service is only ever built for one school", () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    ({ db } = await setupTestDb());
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["an empty string", ""],
+  ])("refuses to build a student service for %s school", (_label, schoolId) => {
+    expect(() => new StudentService(db, schoolId as string)).toThrow(
+      "A school is required",
+    );
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["an empty string", ""],
+  ])("the real student getter refuses %s school", async (_label, schoolId) => {
+    await expect(getStudentService(schoolId as string)).rejects.toThrow(
+      "A school is required",
+    );
+  });
+
+  it("the mocked student getter refuses an undefined school instead of falling back to the default one", async () => {
+    const { getStudentService: mockedGetStudentService } =
+      servicesSingletonMockFactory();
+
+    await expect(
+      mockedGetStudentService(undefined as unknown as string),
+    ).rejects.toThrow("A school is required");
   });
 });
 

@@ -92,7 +92,6 @@ async function seedMcScenario(opts: {
     username: "u1",
     name: "Stu",
     createdBy: "admin",
-    schoolId: TEST_SCHOOL_ID,
   });
   await services.enrollmentService.enrollStudent(
     course.id,
@@ -334,7 +333,6 @@ describe("Feature: Student test page — 3-tier grade visibility gate", () => {
       username: "u1",
       name: "Stu",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -451,7 +449,6 @@ describe("Feature: Student test page — redo cycle preserves submittability aft
       username: "u1",
       name: "Stu",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,
@@ -547,7 +544,6 @@ describe("Feature: Student test page — Graded reads as Submitted until grades 
       username: "u1",
       name: "Stu",
       createdBy: "admin",
-      schoolId: TEST_SCHOOL_ID,
     });
     await services.enrollmentService.enrollStudent(
       course.id,

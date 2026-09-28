@@ -87,7 +87,6 @@ async function seedPracticeMcAttemptScenario() {
     username: "u1",
     name: "Stu",
     createdBy: "admin",
-    schoolId: TEST_SCHOOL_ID,
   });
   await services.enrollmentService.enrollStudent(
     course.id,

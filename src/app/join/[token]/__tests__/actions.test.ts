@@ -2,9 +2,7 @@ import type { Db } from "mongodb";
 import { type AuthService, createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
 import { JoinRequestStatus } from "src/lib/course-join-request-service";
-import { SchoolService } from "src/lib/school-service";
 import { StudentSession } from "src/lib/session";
-import { StudentService } from "src/lib/student-service";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -27,6 +25,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
+import { realAuthServiceDeps } from "src/tests/auth-service-deps";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   googleUsernameSignupAction,
@@ -59,10 +58,11 @@ let db: Db;
 beforeEach(async () => {
   const setup = await setupTestDb();
   db = setup.db;
-  authHolder.authService = createAuthService(db, testConfig, {
-    studentService: new StudentService(db),
-    schoolService: new SchoolService(db),
-  });
+  authHolder.authService = createAuthService(
+    db,
+    testConfig,
+    realAuthServiceDeps(db),
+  );
 });
 
 afterEach(async () => {
@@ -155,7 +155,7 @@ describe("Feature: registering through an invite link puts a request to join tha
     expect(result.success).toBe(true);
 
     // Then a pending request to join that course is waiting for admins
-    const student = await services.studentService.findByUsername("grace");
+    const student = await services.schoolDirectory.findByUsername("grace");
     const pending = await services.courseJoinRequestService.getPendingRequest(
       course.id,
       student?.id ?? "",
@@ -181,7 +181,6 @@ describe("Feature: a prospective student is stopped from taking a username someb
       username: "alice",
       name: "Alice Existing",
       createdBy: "admin-1",
-      schoolId: TEST_SCHOOL_ID,
     });
 
     const course = await services.courseService.createCourse({
@@ -227,7 +226,6 @@ describe("Feature: a prospective student is stopped from taking a username someb
       username: "alice",
       name: "Alice Existing",
       createdBy: "admin-1",
-      schoolId: TEST_SCHOOL_ID,
     });
 
     const course = await services.courseService.createCourse({
