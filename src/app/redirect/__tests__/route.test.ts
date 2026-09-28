@@ -43,7 +43,11 @@ describe("GET /redirect", () => {
 
   it("sends an admin to the admin dashboard", async () => {
     getSession.mockResolvedValueOnce(
-      new AdminSession({ userId: "admin-1", email: "admin@lms.internal" }),
+      new AdminSession({
+        userId: "admin-1",
+        email: "admin@lms.internal",
+        school: null,
+      }),
     );
 
     const res = await GET(new Request("http://test/redirect"));

@@ -4,6 +4,7 @@ import {
   LoginEntryState,
 } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
+import { SchoolService } from "src/lib/school-service";
 import { Role } from "src/lib/session";
 import { StudentService } from "src/lib/student-service";
 import { withTestDb } from "src/tests/create-test-db";
@@ -58,7 +59,10 @@ const testConfig: AppConfig = {
 describe("Feature: Auth Service", () => {
   dbIt("admin can create a student account", async ({ db }) => {
     const studentService = new StudentService(db);
-    const authService = createAuthService(db, testConfig, studentService);
+    const authService = createAuthService(db, testConfig, {
+      studentService,
+      schoolService: new SchoolService(db),
+    });
 
     const student = await authService.registerStudent({
       name: "Alice",
@@ -76,7 +80,10 @@ describe("Feature: Auth Service", () => {
     "creating a student with a duplicate username throws an error",
     async ({ db }) => {
       const studentService = new StudentService(db);
-      const authService = createAuthService(db, testConfig, studentService);
+      const authService = createAuthService(db, testConfig, {
+        studentService,
+        schoolService: new SchoolService(db),
+      });
 
       await authService.registerStudent({
         name: "Alice",
@@ -100,7 +107,10 @@ describe("Feature: Auth Service", () => {
     "registerStudent refuses a password made only of spaces, creating no auth user",
     async ({ db }) => {
       const studentService = new StudentService(db);
-      const authService = createAuthService(db, testConfig, studentService);
+      const authService = createAuthService(db, testConfig, {
+        studentService,
+        schoolService: new SchoolService(db),
+      });
 
       // 8 spaces — long enough to pass a bare length check, but blank once
       // trimmed, so it could never be typed back in to sign in again.
@@ -124,7 +134,10 @@ describe("Feature: Auth Service", () => {
     "student can sign in with username and password created by admin",
     async ({ db }) => {
       const studentService = new StudentService(db);
-      const authService = createAuthService(db, testConfig, studentService);
+      const authService = createAuthService(db, testConfig, {
+        studentService,
+        schoolService: new SchoolService(db),
+      });
 
       await authService.registerStudent({
         name: "Bob",
@@ -145,7 +158,10 @@ describe("Feature: Auth Service", () => {
 
   dbIt("sign-in with wrong password throws an error", async ({ db }) => {
     const studentService = new StudentService(db);
-    const authService = createAuthService(db, testConfig, studentService);
+    const authService = createAuthService(db, testConfig, {
+      studentService,
+      schoolService: new SchoolService(db),
+    });
 
     await authService.registerStudent({
       name: "Carol",
@@ -164,7 +180,10 @@ describe("Feature: Auth Service", () => {
 
   dbIt("sign-in with non-existent username throws an error", async ({ db }) => {
     const studentService = new StudentService(db);
-    const authService = createAuthService(db, testConfig, studentService);
+    const authService = createAuthService(db, testConfig, {
+      studentService,
+      schoolService: new SchoolService(db),
+    });
 
     await expect(
       authService.signInStudent({
@@ -184,7 +203,10 @@ describe("Feature: admin access is decided by recorded role, not email", () => {
         ...testConfig,
         adminEmails: ["listed@example.com"],
       };
-      const authService = createAuthService(db, config, studentService);
+      const authService = createAuthService(db, config, {
+        studentService,
+        schoolService: new SchoolService(db),
+      });
 
       // Ann's email is on the admin list, but nobody recorded her as an admin
       await authService.auth.api.signUpEmail({
@@ -242,7 +264,10 @@ describe("Feature: registerStudent leaves no orphaned account on failure", () =>
         }
       }
       const studentService = new FailingStudentService(db);
-      const authService = createAuthService(db, testConfig, studentService);
+      const authService = createAuthService(db, testConfig, {
+        studentService,
+        schoolService: new SchoolService(db),
+      });
 
       await expect(
         authService.registerStudent({
@@ -279,7 +304,10 @@ describe("Feature: resolving what a login page should show for the current calle
     "classifies a signed-out visitor, a recorded admin, a recorded student, and an authenticated-but-unclassified caller",
     async ({ db }) => {
       const studentService = new StudentService(db);
-      const authService = createAuthService(db, testConfig, studentService);
+      const authService = createAuthService(db, testConfig, {
+        studentService,
+        schoolService: new SchoolService(db),
+      });
 
       // Genuinely signed out — no cookie at all
       const signedOutState = await authService.resolveLoginEntryState(
@@ -343,7 +371,10 @@ describe("Feature: an administrator signing in with Google is never turned into 
     "resolves a Google identity to provision only for an authenticated-but-unclassified caller, never for a signed-out visitor, a recorded admin, or a recorded student",
     async ({ db }) => {
       const studentService = new StudentService(db);
-      const authService = createAuthService(db, testConfig, studentService);
+      const authService = createAuthService(db, testConfig, {
+        studentService,
+        schoolService: new SchoolService(db),
+      });
 
       // A genuinely signed-out visitor has no session to read an identity from
       const signedOutIdentity = await authService.resolveUnclassifiedIdentity(

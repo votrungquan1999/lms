@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
+import { SchoolService } from "src/lib/school-service";
 import { StudentService } from "src/lib/student-service";
 import {
   getTestServices,
@@ -49,7 +50,10 @@ let requireAdminSession: ReturnType<typeof vi.fn>;
 
 beforeEach(async () => {
   const { db } = await setupTestDb();
-  const authService = createAuthService(db, testConfig, new StudentService(db));
+  const authService = createAuthService(db, testConfig, {
+    studentService: new StudentService(db),
+    schoolService: new SchoolService(db),
+  });
   requireAdminSession = vi
     .fn()
     .mockResolvedValue({ userId: "admin-1", role: "admin" });

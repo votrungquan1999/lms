@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { type Db, ObjectId } from "mongodb";
 import type { AppConfig } from "./config";
+import type { SchoolService } from "./school-service";
 import { AdminSession, Role, type Session, StudentSession } from "./session";
 import type { StudentService } from "./student-service";
 
@@ -109,6 +110,12 @@ type BetterAuthSessionUser = NonNullable<
   Awaited<ReturnType<ReturnType<typeof createBetterAuth>["api"]["getSession"]>>
 >["user"];
 
+/** AuthService's collaborators, named so adding one never shifts every call site. */
+export interface AuthServiceDeps {
+  studentService: StudentService;
+  schoolService: SchoolService;
+}
+
 /**
  * AuthService — our app's abstraction layer over Better Auth.
  *
@@ -122,15 +129,17 @@ export class AuthService {
   readonly auth: ReturnType<typeof createBetterAuth>;
 
   private readonly studentService: StudentService;
+  private readonly schoolService: SchoolService;
   private readonly adminEmails: string[];
 
   constructor(
     readonly db: Db,
     readonly config: AppConfig,
-    studentService: StudentService,
+    deps: AuthServiceDeps,
   ) {
     this.auth = createBetterAuth(db, config);
-    this.studentService = studentService;
+    this.studentService = deps.studentService;
+    this.schoolService = deps.schoolService;
     this.adminEmails = config.adminEmails;
   }
 
@@ -249,7 +258,10 @@ export class AuthService {
   private async classify(user: BetterAuthSessionUser): Promise<Session | null> {
     // Admin-ness is a recorded fact on the user, never an email-string match.
     if (isRecordedAdmin(user.role)) {
-      return new AdminSession({ userId: user.id, email: user.email });
+      // A single membership is the active school; any other count resolves none.
+      const schools = await this.schoolService.listSchoolsForUser(user.id);
+      const school = schools.length === 1 ? schools[0] : null;
+      return new AdminSession({ userId: user.id, email: user.email, school });
     }
 
     const student = await this.studentService.findByAuthUserId(user.id);
@@ -383,12 +395,12 @@ export class AuthService {
 }
 
 /**
- * Creates an AuthService instance from config and student service.
+ * Creates an AuthService instance from config and its dependencies.
  */
 export function createAuthService(
   db: Db,
   config: AppConfig,
-  studentService: StudentService,
+  deps: AuthServiceDeps,
 ): AuthService {
-  return new AuthService(db, config, studentService);
+  return new AuthService(db, config, deps);
 }

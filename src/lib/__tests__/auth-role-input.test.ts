@@ -1,5 +1,6 @@
 import { type AuthService, createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
+import { SchoolService } from "src/lib/school-service";
 import { StudentService } from "src/lib/student-service";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
@@ -55,7 +56,10 @@ describe("Feature: a signup request cannot grant itself the admin role", () => {
     "posting role: admin in the sign-up body does not make the created user an admin",
     async ({ db }) => {
       const studentService = new StudentService(db);
-      const authService = createAuthService(db, testConfig, studentService);
+      const authService = createAuthService(db, testConfig, {
+        studentService,
+        schoolService: new SchoolService(db),
+      });
 
       // A real HTTP-shaped request — not the typed api.signUpEmail() wrapper —
       // so TypeScript's excess-property check can't be the thing blocking `role`.
@@ -89,7 +93,10 @@ describe("Feature: a signup request cannot grant itself the admin role", () => {
     "a signed-in student posting role: admin to /api/auth/update-user does not change their stored role",
     async ({ db }) => {
       const studentService = new StudentService(db);
-      const authService = createAuthService(db, testConfig, studentService);
+      const authService = createAuthService(db, testConfig, {
+        studentService,
+        schoolService: new SchoolService(db),
+      });
 
       await authService.auth.api.signUpEmail({
         body: {

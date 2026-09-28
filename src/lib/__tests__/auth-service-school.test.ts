@@ -1,5 +1,7 @@
+import type { Db } from "mongodb";
 import { type AuthService, createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
+import { SchoolService } from "src/lib/school-service";
 import { StudentService } from "src/lib/student-service";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
@@ -53,16 +55,19 @@ function testConfig(adminEmails: string[]): AppConfig {
   };
 }
 
+/** Builds a real AuthService against the test db, with real dependencies. */
+function realAuthService(db: Db, adminEmails: string[]): AuthService {
+  return createAuthService(db, testConfig(adminEmails), {
+    studentService: new StudentService(db),
+    schoolService: new SchoolService(db),
+  });
+}
+
 describe("Feature: only the platform owner passes the owner check", () => {
   dbIt(
     "grants a session to a recorded admin whose email is in ADMIN_EMAILS",
     async ({ db }) => {
-      const studentService = new StudentService(db);
-      const authService = createAuthService(
-        db,
-        testConfig(["owner@example.com"]),
-        studentService,
-      );
+      const authService = realAuthService(db, ["owner@example.com"]);
       const { user } = await authService.auth.api.signUpEmail({
         body: {
           email: "owner@example.com",
@@ -88,12 +93,7 @@ describe("Feature: only the platform owner passes the owner check", () => {
   dbIt(
     "refuses a recorded admin whose email is not in ADMIN_EMAILS",
     async ({ db }) => {
-      const studentService = new StudentService(db);
-      const authService = createAuthService(
-        db,
-        testConfig(["owner@example.com"]),
-        studentService,
-      );
+      const authService = realAuthService(db, ["owner@example.com"]);
       const { user } = await authService.auth.api.signUpEmail({
         body: {
           email: "unlisted-admin@example.com",
@@ -121,12 +121,7 @@ describe("Feature: only the platform owner passes the owner check", () => {
   dbIt(
     "refuses an ADMIN_EMAILS address whose recorded role is student",
     async ({ db }) => {
-      const studentService = new StudentService(db);
-      const authService = createAuthService(
-        db,
-        testConfig(["owner@example.com"]),
-        studentService,
-      );
+      const authService = realAuthService(db, ["owner@example.com"]);
       await authService.auth.api.signUpEmail({
         body: {
           email: "owner@example.com",
@@ -144,6 +139,53 @@ describe("Feature: only the platform owner passes the owner check", () => {
       );
 
       await expect(authService.requireOwnerSession(headers)).rejects.toThrow();
+    },
+  );
+});
+
+/**
+ * Feature: a teacher who is an admin of one school works in that school
+ * As a school admin (teacher) who belongs to exactly one school
+ * I want my session to already carry my school as soon as I sign in
+ * So that every page and action I reach has a school to act in
+ */
+describe("Feature: a teacher who is an admin of one school works in that school", () => {
+  dbIt(
+    "resolves session.school to the admin's one school, by the session's own user id",
+    async ({ db }) => {
+      const authService = realAuthService(db, []);
+      const schoolService = new SchoolService(db);
+      const school = await schoolService.createSchool({
+        name: "Acme School",
+        slug: "acme",
+        createdBy: "owner-1",
+      });
+
+      const { user } = await authService.auth.api.signUpEmail({
+        body: {
+          email: "teacher@example.com",
+          password: "password-123",
+          name: "Teacher",
+        },
+      });
+      await db
+        .collection("user")
+        .updateOne({ email: user.email }, { $set: { role: "admin" } });
+      // Proves the stored id format resolves: the membership is written
+      // with the session's OWN user id, the same value classify() sees.
+      await schoolService.addMembership(school.id, user.id, "owner-1");
+
+      const headers = await signedInHeaders(
+        authService,
+        "teacher@example.com",
+        "password-123",
+      );
+      const session = await authService.getSession(headers);
+
+      expect(session?.role).toBe("admin");
+      expect(
+        session && "school" in session ? session.school : undefined,
+      ).toEqual({ id: school.id, name: school.name });
     },
   );
 });

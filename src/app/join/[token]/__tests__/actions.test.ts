@@ -2,6 +2,7 @@ import type { Db } from "mongodb";
 import { type AuthService, createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
 import { JoinRequestStatus } from "src/lib/course-join-request-service";
+import { SchoolService } from "src/lib/school-service";
 import { StudentSession } from "src/lib/session";
 import { StudentService } from "src/lib/student-service";
 import {
@@ -57,11 +58,10 @@ let db: Db;
 beforeEach(async () => {
   const setup = await setupTestDb();
   db = setup.db;
-  authHolder.authService = createAuthService(
-    db,
-    testConfig,
-    new StudentService(db),
-  );
+  authHolder.authService = createAuthService(db, testConfig, {
+    studentService: new StudentService(db),
+    schoolService: new SchoolService(db),
+  });
 });
 
 afterEach(async () => {

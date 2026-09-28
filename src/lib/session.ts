@@ -29,14 +29,22 @@ abstract class Session {
 
 /**
  * Admin session — created for a user whose recorded `role` is Admin.
+ * `school` is the admin's active school, or `null` when none resolves; it is
+ * a required constructor field so no caller can forget to consider it.
  */
 export class AdminSession extends Session {
   readonly role = Role.Admin;
   readonly email: string;
+  readonly school: { id: string; name: string } | null;
 
-  constructor(input: { userId: string; email: string }) {
+  constructor(input: {
+    userId: string;
+    email: string;
+    school: { id: string; name: string } | null;
+  }) {
     super(input.userId);
     this.email = input.email;
+    this.school = input.school;
   }
 }
 
