@@ -47,11 +47,17 @@ async function main() {
   try {
     const db = client.db();
     // Raw read: a school-bound CourseService can't be built before the school
-    // is known. An empty school (no course, or none assigned) is refused.
+    // is known. A missing course or one with no school yet is refused.
     const course = await db
       .collection<CourseDocument>("course")
       .findOne({ id: definition.courseId });
-    const testService = new TestService(db, course?.schoolId ?? "");
+    if (!course) {
+      throw new Error("course not found");
+    }
+    if (!course.schoolId) {
+      throw new Error("course has no school; run backfill-schools first");
+    }
+    const testService = new TestService(db, course.schoolId);
     const questionService = new QuestionService(db);
 
     // Create the test

@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { unlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
+import type { CourseDocument } from "src/lib/course-service";
 import { CourseService } from "src/lib/course-service";
 import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
@@ -398,6 +399,109 @@ export default {
 
       // And: the reveal mode createTest resolved survives the settings update
       expect(tests[0].answerRevealMode).toBe("plain");
+    },
+  );
+
+  dbIt(
+    "should refuse a course with no school and write no test",
+    async ({ db, client }) => {
+      // Given: a course inserted raw with no school — a school-bound
+      // CourseService can't create one
+      const course: CourseDocument = {
+        id: crypto.randomUUID(),
+        title: "Schoolless Course",
+        description: "",
+        createdAt: new Date(),
+        createdBy: "admin",
+        updatedAt: null,
+        updatedBy: null,
+        materials: [],
+        inviteToken: null,
+        schoolId: null,
+      };
+      await db.collection<CourseDocument>("course").insertOne(course);
+
+      // And: a data file targeting that course
+      const dataFileContent = `
+import type { TestDefinition } from "../types";
+
+export default {
+  courseId: "${course.id}",
+  test: {
+    title: "Schoolless Test",
+    description: "Should never be created",
+  },
+  questions: [
+    { type: "free_text" as const, title: "Q1", content: "Content 1" },
+  ],
+} satisfies TestDefinition;
+`;
+      const dataFilePath = writeTempDataFile(
+        `temp-no-school-${Date.now()}.ts`,
+        dataFileContent,
+      );
+      tempFiles.push(dataFilePath);
+
+      // When: the script is run
+      const mongoUri = `${client.options.hosts
+        .map((h) => `mongodb://${h.host}:${h.port}`)
+        .join(",")}/${db.databaseName}`;
+
+      const result = await runCreateTestScript(dataFilePath, mongoUri);
+
+      // Then: the script refuses with the backfill-first message
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain(
+        "course has no school; run backfill-schools first",
+      );
+
+      // And: no test was written for the schoolless course
+      const test = await db.collection("test").findOne({
+        courseId: course.id,
+      });
+      expect(test).toBeNull();
+    },
+  );
+
+  dbIt(
+    "should refuse an unknown course id with its own message, separate from the no-school refusal",
+    async ({ db, client }) => {
+      // Given: a data file naming a course id nothing ever inserted
+      const dataFileContent = `
+import type { TestDefinition } from "../types";
+
+export default {
+  courseId: "${crypto.randomUUID()}",
+  test: {
+    title: "Ghost Course Test",
+    description: "Should never be created",
+  },
+  questions: [
+    { type: "free_text" as const, title: "Q1", content: "Content 1" },
+  ],
+} satisfies TestDefinition;
+`;
+      const dataFilePath = writeTempDataFile(
+        `temp-unknown-course-${Date.now()}.ts`,
+        dataFileContent,
+      );
+      tempFiles.push(dataFilePath);
+
+      // When: the script is run
+      const mongoUri = `${client.options.hosts
+        .map((h) => `mongodb://${h.host}:${h.port}`)
+        .join(",")}/${db.databaseName}`;
+
+      const result = await runCreateTestScript(dataFilePath, mongoUri);
+
+      // Then: refused with its own message, not the no-school one
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("course not found");
+      expect(result.stderr).not.toContain("course has no school");
+
+      // And: no test was written
+      const test = await db.collection("test").findOne({});
+      expect(test).toBeNull();
     },
   );
 
