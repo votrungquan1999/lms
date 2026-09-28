@@ -64,6 +64,7 @@ export async function GradingPageShell({
 
   const questionService = await getQuestionService();
   const questions = await questionService.listQuestions(test.id);
+  const liveQuestionIds = new Set(questions.map((q) => q.id));
 
   const answerService = await getAnswerService();
   const gradeService = await getGradeService();
@@ -71,8 +72,14 @@ export async function GradingPageShell({
 
   const cellsInEnrollmentOrder: RosterStudentCellModel[] = await Promise.all(
     orderedStudents.map(async (s) => {
-      const latestAnswers = await answerService.getLatestAnswers(test.id, s.id);
-      const grades = await gradeService.getGrades(test.id, s.id);
+      // A question can be deleted after a student answers it — that answer
+      // must not keep counting toward the roster's counts once it's gone.
+      const latestAnswers = (
+        await answerService.getLatestAnswers(test.id, s.id)
+      ).filter((a) => liveQuestionIds.has(a.questionId));
+      const grades = (await gradeService.getGrades(test.id, s.id)).filter((g) =>
+        liveQuestionIds.has(g.questionId),
+      );
       const status = await testStatusService.getStatus(
         test.id,
         s.id,

@@ -77,10 +77,12 @@ export default async function StudentTestDetailPage({
     test.showCorrectAnswerAfterSubmit || test.correctAnswersReleasedAt != null;
 
   const answerService = await getAnswerService();
-  const latestAnswers = await answerService.getLatestAnswers(
-    testId,
-    session.studentId,
-  );
+  // A question can be deleted after the student answers it — that answer
+  // must not keep counting toward their progress once the question is gone.
+  const liveQuestionIds = new Set(questions.map((q) => q.id));
+  const latestAnswers = (
+    await answerService.getLatestAnswers(testId, session.studentId)
+  ).filter((a) => liveQuestionIds.has(a.questionId));
   // Map questionId → StudentAnswer object
   const answerMap = new Map(latestAnswers.map((a) => [a.questionId, a.answer]));
 

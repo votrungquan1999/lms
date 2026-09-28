@@ -206,8 +206,16 @@ export async function getTestStatusService(): Promise<TestStatusService> {
     const grades = await getGradeService();
     const starts = await getTestStartService();
     const tests = await getTestService();
+    const questions = await getQuestionService();
     testStatusService = tracedService(
-      new TestStatusService(answers, submissions, grades, starts, tests),
+      new TestStatusService(
+        answers,
+        submissions,
+        grades,
+        starts,
+        tests,
+        questions,
+      ),
       "testStatus",
     );
   }

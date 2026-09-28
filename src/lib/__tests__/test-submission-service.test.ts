@@ -243,6 +243,7 @@ describe("TestSubmissionService - Integration Tests", () => {
         gradeService,
         testStartService,
         testService,
+        questionService,
       );
 
       const questionMC = (await questionService.addQuestion("test-mix", {
@@ -676,6 +677,7 @@ describe("TestSubmissionService - Edge Cases", () => {
         gradeService,
         testStartService,
         testService,
+        questionService,
       );
 
       const test = await testService.createTest("course-1", {

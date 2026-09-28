@@ -65,12 +65,14 @@ export async function GradingDetailStudent({
 
   const questionService = await getQuestionService();
   const questions = await questionService.listQuestions(testId);
+  const liveQuestionIds = new Set(questions.map((q) => q.id));
 
   const answerService = await getAnswerService();
-  const latestAnswers = await answerService.getLatestAnswers(
-    testId,
-    student.id,
-  );
+  // A question can be deleted after a student answers it — that answer must
+  // not keep counting toward progress/status once the question is gone.
+  const latestAnswers = (
+    await answerService.getLatestAnswers(testId, student.id)
+  ).filter((a) => liveQuestionIds.has(a.questionId));
   const rawAnswerMap = new Map(
     latestAnswers.map((a) => [a.questionId, a.answer]),
   );
@@ -79,7 +81,9 @@ export async function GradingDetailStudent({
   );
 
   const gradeService = await getGradeService();
-  const grades = await gradeService.getGrades(testId, student.id);
+  const grades = (await gradeService.getGrades(testId, student.id)).filter(
+    (g) => liveQuestionIds.has(g.questionId),
+  );
   const gradeMap = new Map(grades.map((g) => [g.questionId, g]));
 
   // Pre-load photo URLs + annotations for image answers (the map callback

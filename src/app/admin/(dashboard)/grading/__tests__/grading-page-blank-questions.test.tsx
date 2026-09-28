@@ -313,4 +313,155 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     expect(within(card).getByText("0/1 graded")).toBeInTheDocument();
     expect(screen.queryByText(/blank/)).toBeNull();
   });
+
+  it("stops counting an answer once its question is deleted, so the badge never shows an impossible fraction and the student reaches Graded", async () => {
+    // Given: a 2-question test. The student answered both, the teacher
+    // graded Q1, then deletes Q2 before ever grading it — its answer is
+    // now dangling and can never be graded.
+    const services = getTestServices();
+
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const q1 = await services.questionService.addQuestion(test.id, {
+      title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
+      type: "free_text",
+    });
+    const q2 = await services.questionService.addQuestion(test.id, {
+      title: "Q2 (will be deleted)",
+      content: "Q2",
+      createdBy: "admin",
+      type: "free_text",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-deleted-q",
+      username: "deleted-q",
+      name: "Deleted Question Dana",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin",
+    );
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: q1.id,
+      studentId: student.id,
+      answer: { type: "free_text", text: "answer 1" },
+    });
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: q2.id,
+      studentId: student.id,
+      answer: { type: "free_text", text: "answer 2" },
+    });
+    await services.testSubmissionService.submitTest(test.id, student.id);
+    await services.gradeService.gradeQuestion({
+      testId: test.id,
+      questionId: q1.id,
+      studentId: student.id,
+      score: 90,
+      feedback: "Nice",
+      gradedBy: "admin",
+    });
+    await services.questionService.deleteQuestion(q2.id, "admin");
+
+    // When: the admin grading page renders focused on that student.
+    const ui = await GradingPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+      searchParams: Promise.resolve({ studentId: student.id }),
+    });
+    render(ui);
+
+    // Then: both the roster cell and the student's own pill read "1/1
+    // graded" — the deleted question's dangling answer no longer inflates
+    // the denominator or leaves a stray blank count — and the status
+    // badge reads Graded, not stuck at Submitted.
+    const cell = screen.getByTestId(`roster-cell-${student.id}`);
+    expect(within(cell).getByText("1/1 graded")).toBeInTheDocument();
+    const card = screen.getByTestId(`student-card-${student.id}`);
+    expect(within(card).getByText("1/1 graded")).toBeInTheDocument();
+    expect(within(card).getByText("Graded")).toBeInTheDocument();
+    expect(screen.queryByText(/blank/)).toBeNull();
+  });
+
+  it("stops counting a grade once its question is deleted, so graded never exceeds answered", async () => {
+    // Given: a 2-question test. The student answered both, submitted, and
+    // the teacher graded both — then deleted Q2, leaving its grade behind.
+    const services = getTestServices();
+
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-deleted-graded",
+      username: "deleted-graded",
+      name: "Deleted Graded Dev",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin",
+    );
+    const questionIds: string[] = [];
+    for (const title of ["Q1", "Q2 (will be deleted)"]) {
+      const question = await services.questionService.addQuestion(test.id, {
+        title,
+        content: title,
+        createdBy: "admin",
+        type: "free_text",
+      });
+      questionIds.push(question.id);
+      await services.answerService.submitAnswer({
+        testId: test.id,
+        questionId: question.id,
+        studentId: student.id,
+        answer: { type: "free_text", text: `answer to ${title}` },
+      });
+    }
+    await services.testSubmissionService.submitTest(test.id, student.id);
+    for (const questionId of questionIds) {
+      await services.gradeService.gradeQuestion({
+        testId: test.id,
+        questionId,
+        studentId: student.id,
+        score: 90,
+        feedback: "",
+        gradedBy: "admin",
+      });
+    }
+    await services.questionService.deleteQuestion(questionIds[1], "admin");
+
+    // When: the admin grading page renders focused on that student.
+    const ui = await GradingPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+      searchParams: Promise.resolve({ studentId: student.id }),
+    });
+    render(ui);
+
+    // Then: the deleted question's leftover grade is not counted — both
+    // the roster cell and the pill read "1/1 graded", never "2/1".
+    const cell = screen.getByTestId(`roster-cell-${student.id}`);
+    expect(within(cell).getByText("1/1 graded")).toBeInTheDocument();
+    const card = screen.getByTestId(`student-card-${student.id}`);
+    expect(within(card).getByText("1/1 graded")).toBeInTheDocument();
+  });
 });

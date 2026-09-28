@@ -1,5 +1,6 @@
 import type { AnswerService } from "./answer-service";
 import type { GradeService } from "./grade-service";
+import type { QuestionService } from "./question-service";
 import type { TestService } from "./test-service";
 import type { TestStartService } from "./test-start-service";
 import type { TestSubmissionService } from "./test-submission-service";
@@ -35,23 +36,29 @@ export class TestStatusService {
     private readonly gradeService: GradeService,
     private readonly testStartService: TestStartService,
     private readonly testService: TestService,
+    private readonly questionService: QuestionService,
   ) {}
 
   /**
    * Derives the test status for a student.
    *
-   * - not_started: no answers, not explicitly submitted, and (for a timed
-   *   test) no active start record
-   * - in_progress: not explicitly submitted, and either some questions are
-   *   answered or a timed test's clock has started — only pressing Submit
-   *   moves past this
+   * An answer to a since-deleted question is dropped before any of the
+   * branches below see it — it counts as never given, whether the test was
+   * submitted or not, so the badge always agrees with the live-question
+   * answered count a progress bar or grading view derives separately.
+   *
+   * - not_started: no live answers, not explicitly submitted, and (for a
+   *   timed test) no active start record
+   * - in_progress: not explicitly submitted, and either some live questions
+   *   are answered or a timed test's clock has started — only pressing
+   *   Submit moves past this
    * - submitted: student explicitly submitted the test and answered at
-   *   least one question that still needs a grade row
-   * - graded: test was explicitly submitted AND every question the student
-   *   *answered* has a grade row. Blanks need no grade row — they score 0
-   *   by convention — so an entirely blank submission is Graded too,
-   *   unless the test is practice (practice tests never grade, so a blank
-   *   practice submission stays Submitted).
+   *   least one live question that still needs a grade row
+   * - graded: test was explicitly submitted AND every live question the
+   *   student answered has a grade row. Blanks need no grade row — they
+   *   score 0 by convention — so an entirely blank submission is Graded
+   *   too, unless the test is practice (practice tests never grade, so a
+   *   blank practice submission stays Submitted).
    */
   async getStatus(
     testId: string,
@@ -66,14 +73,23 @@ export class TestStatusService {
       testId,
       studentId,
     );
+    // An answer to a since-deleted question is gone for everyone — it must
+    // not count toward either the Graded transition or the In Progress
+    // check below, or a student's progress bar and status badge disagree.
+    const liveQuestionIds = new Set(
+      (await this.questionService.listQuestions(testId)).map((q) => q.id),
+    );
+    const liveAnswers = answers.filter((a) =>
+      liveQuestionIds.has(a.questionId),
+    );
 
     const isSubmitted = await this.testSubmissionService.isTestSubmitted(
       testId,
       studentId,
     );
 
-    if (answers.length === 0) {
-      if (isSubmitted) {
+    if (isSubmitted) {
+      if (liveAnswers.length === 0) {
         // Practice tests never create grades, so a blank practice submission
         // is exempt from the all-blank-is-Graded rule — it reads Submitted
         // forever, same as an answered practice submission.
@@ -85,23 +101,20 @@ export class TestStatusService {
         // Submitted forever — every question counts as 0 by convention.
         return TestStatus.Graded;
       }
+      const grades = await this.gradeService.getGrades(testId, studentId);
+      const gradedQuestionIds = new Set(grades.map((g) => g.questionId));
+      const everyAnsweredHasGrade = liveAnswers.every((a) =>
+        gradedQuestionIds.has(a.questionId),
+      );
+      return everyAnsweredHasGrade ? TestStatus.Graded : TestStatus.Submitted;
+    }
+
+    if (liveAnswers.length === 0) {
       const activeStart = await this.testStartService.getActiveStart(
         testId,
         studentId,
       );
       return activeStart ? TestStatus.InProgress : TestStatus.NotStarted;
-    }
-
-    if (isSubmitted) {
-      const grades = await this.gradeService.getGrades(testId, studentId);
-      const gradedQuestionIds = new Set(grades.map((g) => g.questionId));
-      const everyAnsweredHasGrade = answers.every((a) =>
-        gradedQuestionIds.has(a.questionId),
-      );
-      if (everyAnsweredHasGrade) {
-        return TestStatus.Graded;
-      }
-      return TestStatus.Submitted;
     }
 
     return TestStatus.InProgress;
