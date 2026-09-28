@@ -67,6 +67,8 @@ interface SchoolBoundServices {
   courseService: CourseService;
   gradeService: GradeService;
   gradeVisibilityService: GradeVisibilityService;
+  poolQuestionService: PoolQuestionService;
+  questionPoolService: QuestionPoolService;
   questionService: QuestionService;
   redoRequestService: RedoRequestService;
   studentService: StudentService;
@@ -119,11 +121,6 @@ export function signInAs(
  */
 function makeSharedServices(db: Db): SharedServices {
   const questionChangeLogService = new QuestionChangeLogService(db);
-  const questionPoolService = new QuestionPoolService(db);
-  const poolQuestionService = new PoolQuestionService(
-    db,
-    questionChangeLogService,
-  );
   const testStartService = new TestStartService(db);
   const annotationService = new AnnotationService(db);
   const courseJoinRequestService = new CourseJoinRequestService(db);
@@ -151,9 +148,7 @@ function makeSharedServices(db: Db): SharedServices {
     courseJoinRequestService,
     enrollmentService,
     pageGuard,
-    poolQuestionService,
     questionChangeLogService,
-    questionPoolService,
     s3StorageService,
     schoolDirectory,
     schoolService,
@@ -176,6 +171,12 @@ function makeSchoolServices(
   const { questionChangeLogService, testStartService } = shared;
   const courseService = new CourseService(db, schoolId);
   const studentService = new StudentService(db, schoolId);
+  const questionPoolService = new QuestionPoolService(db, schoolId);
+  const poolQuestionService = new PoolQuestionService(
+    db,
+    schoolId,
+    questionChangeLogService,
+  );
   const testService = new TestService(db, schoolId);
   // Lazy thunk — AnswerService itself depends on QuestionService, so passing
   // an instance here would be a construction cycle (see QuestionService's
@@ -237,6 +238,8 @@ function makeSchoolServices(
     courseService,
     gradeService,
     gradeVisibilityService,
+    poolQuestionService,
+    questionPoolService,
     questionService,
     redoRequestService,
     studentService,
@@ -373,10 +376,12 @@ export function servicesSingletonMockFactory() {
     getGradeVisibilityService: async (schoolId: string) =>
       servicesForSchool(schoolId).gradeVisibilityService,
     getPageGuard: async () => getTestServices().pageGuard,
-    getPoolQuestionService: async () => getTestServices().poolQuestionService,
+    getPoolQuestionService: async (schoolId: string) =>
+      servicesForSchool(schoolId).poolQuestionService,
     getQuestionChangeLogService: async () =>
       getTestServices().questionChangeLogService,
-    getQuestionPoolService: async () => getTestServices().questionPoolService,
+    getQuestionPoolService: async (schoolId: string) =>
+      servicesForSchool(schoolId).questionPoolService,
     getQuestionService: async (schoolId: string) =>
       servicesForSchool(schoolId).questionService,
     getRedoRequestService: async (schoolId: string) =>

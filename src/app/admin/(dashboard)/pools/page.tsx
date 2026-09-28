@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "src/components/ui/card";
 import {
+  getPageGuard,
   getPoolQuestionService,
   getQuestionPoolService,
 } from "src/lib/services-singleton";
@@ -13,12 +14,14 @@ import { CreatePoolDialog } from "./create-pool-form";
 
 export const metadata = {
   title: "Question Bank — LMS Admin",
-  description: "Manage global question pools",
+  description: "Manage question pools",
 };
 
 export default async function PoolsPage() {
-  const poolService = await getQuestionPoolService();
-  const poolQuestionService = await getPoolQuestionService();
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
+  const poolService = await getQuestionPoolService(session.school.id);
+  const poolQuestionService = await getPoolQuestionService(session.school.id);
   const pools = await poolService.listPools();
 
   // Question count per pool (N+1 — acceptable, mirrors the students page).

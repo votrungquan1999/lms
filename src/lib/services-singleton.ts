@@ -41,6 +41,8 @@ const answerServices = new Map<string, AnswerService>();
 const courseServices = new Map<string, CourseService>();
 const gradeServices = new Map<string, GradeService>();
 const gradeVisibilityServices = new Map<string, GradeVisibilityService>();
+const poolQuestionServices = new Map<string, PoolQuestionService>();
+const questionPoolServices = new Map<string, QuestionPoolService>();
 const questionServices = new Map<string, QuestionService>();
 const redoRequestServices = new Map<string, RedoRequestService>();
 const studentServices = new Map<string, StudentService>();
@@ -55,8 +57,6 @@ let testStartService: TestStartService | null = null;
 let testFeedbackService: TestFeedbackService | null = null;
 let questionChangeLogService: QuestionChangeLogService | null = null;
 let questionParseClient: QuestionParseClient | null = null;
-let questionPoolService: QuestionPoolService | null = null;
-let poolQuestionService: PoolQuestionService | null = null;
 let s3StorageService: S3StorageService | null = null;
 let schoolDirectory: SchoolDirectory | null = null;
 let schoolService: SchoolService | null = null;
@@ -355,27 +355,34 @@ export async function getQuestionParseClient(): Promise<QuestionParseClient> {
   return questionParseClient;
 }
 
-export async function getPoolQuestionService(): Promise<PoolQuestionService> {
-  if (!poolQuestionService) {
+/**
+ * Returns the pool question service bound to one school, cached per school.
+ * @param schoolId - The verified session's school.
+ */
+export async function getPoolQuestionService(
+  schoolId: string,
+): Promise<PoolQuestionService> {
+  return forSchool(poolQuestionServices, schoolId, async () => {
     const db = await getDatabase();
     const changeLogService = await getQuestionChangeLogService();
-    poolQuestionService = tracedService(
-      new PoolQuestionService(db, changeLogService),
+    return tracedService(
+      new PoolQuestionService(db, schoolId, changeLogService),
       "poolQuestion",
     );
-  }
-  return poolQuestionService;
+  });
 }
 
-export async function getQuestionPoolService(): Promise<QuestionPoolService> {
-  if (!questionPoolService) {
+/**
+ * Returns the question pool service bound to one school, cached per school.
+ * @param schoolId - The verified session's school.
+ */
+export async function getQuestionPoolService(
+  schoolId: string,
+): Promise<QuestionPoolService> {
+  return forSchool(questionPoolServices, schoolId, async () => {
     const db = await getDatabase();
-    questionPoolService = tracedService(
-      new QuestionPoolService(db),
-      "questionPool",
-    );
-  }
-  return questionPoolService;
+    return tracedService(new QuestionPoolService(db, schoolId), "questionPool");
+  });
 }
 
 /**

@@ -205,6 +205,7 @@ export async function insertPool(
     updatedBy: null,
     deletedAt: null,
     deletedBy: null,
+    schoolId: await e2eSchoolId(db),
     ...overrides,
   };
   await db.collection<QuestionPoolDocument>("question_pool").insertOne(doc);
@@ -237,6 +238,7 @@ export async function insertPoolQuestion(
     media: [],
     deletedAt: null,
     deletedBy: null,
+    schoolId: await e2eSchoolId(db),
     ...overrides,
   };
   await db.collection<PoolQuestionDocument>("pool_question").insertOne(doc);

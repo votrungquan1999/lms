@@ -65,8 +65,8 @@ export default async function TestDetailPage({
   );
 
   // Pools (with their current sizes) available to compose questions from.
-  const poolService = await getQuestionPoolService();
-  const poolQuestionService = await getPoolQuestionService();
+  const poolService = await getQuestionPoolService(session.school.id);
+  const poolQuestionService = await getPoolQuestionService(session.school.id);
   const allPools = await poolService.listPools();
   const composablePools = await Promise.all(
     allPools.map(async (pool) => ({

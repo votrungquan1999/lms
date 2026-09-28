@@ -1,5 +1,5 @@
 import { QuestionPoolService } from "src/lib/question-pool-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -8,7 +8,7 @@ describe("QuestionPoolService", () => {
   dbIt(
     "creates a global pool and retrieves it by id with its name and description",
     async ({ db }) => {
-      const service = new QuestionPoolService(db);
+      const service = new QuestionPoolService(db, TEST_SCHOOL_ID);
 
       const created = await service.createPool({
         name: "Algebra basics",
@@ -31,7 +31,7 @@ describe("QuestionPoolService", () => {
   dbIt(
     "lists every pool globally, newest-first, regardless of creator",
     async ({ db }) => {
-      const service = new QuestionPoolService(db);
+      const service = new QuestionPoolService(db, TEST_SCHOOL_ID);
 
       const first = await service.createPool({
         name: "Pool A",
@@ -52,7 +52,7 @@ describe("QuestionPoolService", () => {
   );
 
   dbIt("renames a pool, leaving its description intact", async ({ db }) => {
-    const service = new QuestionPoolService(db);
+    const service = new QuestionPoolService(db, TEST_SCHOOL_ID);
 
     const created = await service.createPool({
       name: "Old name",
@@ -70,7 +70,7 @@ describe("QuestionPoolService", () => {
   dbIt(
     "soft-deletes a pool so it no longer appears in the list nor by id",
     async ({ db }) => {
-      const service = new QuestionPoolService(db);
+      const service = new QuestionPoolService(db, TEST_SCHOOL_ID);
 
       const created = await service.createPool({
         name: "Doomed",

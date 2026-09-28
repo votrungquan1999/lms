@@ -2,8 +2,8 @@ import type { Collection, Db } from "mongodb";
 
 /**
  * Question pool document stored in the `question_pool` collection.
- * Pools are global — they carry no `courseId`. Soft-deleted via
- * `deletedAt`/`deletedBy` (mirrors `TestDocument`).
+ * Pools belong to a school, not a course — they carry no `courseId`.
+ * Soft-deleted via `deletedAt`/`deletedBy` (mirrors `TestDocument`).
  */
 export interface QuestionPoolDocument {
   id: string;
@@ -15,6 +15,8 @@ export interface QuestionPoolDocument {
   updatedBy: string | null;
   deletedAt: Date | null;
   deletedBy: string | null;
+  /** Owning school. Absent or `null` on records not yet assigned — no school can see those. */
+  schoolId: string | null;
 }
 
 /**
@@ -37,18 +39,27 @@ export interface CreatePoolInput {
 }
 
 /**
- * QuestionPoolService — manages the global `question_pool` collection.
- * Mirrors `TestService`: Document↔client split, soft-delete, audit fields.
+ * QuestionPoolService — manages one school's pools in the `question_pool`
+ * collection. Mirrors `TestService`: Document↔client split, soft-delete,
+ * audit fields.
  */
 export class QuestionPoolService {
   private readonly pools: Collection<QuestionPoolDocument>;
 
-  constructor(db: Db) {
+  constructor(
+    db: Db,
+    private readonly schoolId: string,
+  ) {
+    // Fail closed: a missing school would query `{ schoolId: null }`, which
+    // matches exactly the pools no school owns yet.
+    if (!schoolId) {
+      throw new Error("A school is required to build a question pool service");
+    }
     this.pools = db.collection<QuestionPoolDocument>("question_pool");
   }
 
   /**
-   * Creates a new global question pool and returns the client view.
+   * Creates a new question pool in the bound school and returns the client view.
    */
   async createPool(input: CreatePoolInput): Promise<QuestionPool> {
     const doc: QuestionPoolDocument = {
@@ -61,6 +72,7 @@ export class QuestionPoolService {
       updatedBy: null,
       deletedAt: null,
       deletedBy: null,
+      schoolId: this.schoolId,
     };
 
     await this.pools.insertOne(doc);
@@ -77,11 +89,11 @@ export class QuestionPoolService {
   }
 
   /**
-   * Returns every non-deleted pool, newest-first. Pools are global.
+   * Returns every non-deleted pool of the bound school, newest-first.
    */
   async listPools(): Promise<QuestionPool[]> {
     const docs = await this.pools
-      .find({ deletedAt: null })
+      .find({ deletedAt: null, schoolId: this.schoolId })
       .sort({ createdAt: -1 })
       .toArray();
 

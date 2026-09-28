@@ -9,6 +9,7 @@ import {
 } from "src/components/ui/card";
 import { QUESTION_TYPE_LABELS } from "src/lib/question-labels";
 import {
+  getPageGuard,
   getPoolQuestionService,
   getQuestionPoolService,
 } from "src/lib/services-singleton";
@@ -23,15 +24,17 @@ export default async function PoolDetailPage({
 }: {
   params: Promise<{ poolId: string }>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const { poolId } = await params;
-  const poolService = await getQuestionPoolService();
+  const poolService = await getQuestionPoolService(session.school.id);
   const pool = await poolService.getPool(poolId);
 
   if (!pool) {
     notFound();
   }
 
-  const poolQuestionService = await getPoolQuestionService();
+  const poolQuestionService = await getPoolQuestionService(session.school.id);
   const questions = await poolQuestionService.listPoolQuestions(poolId);
 
   return (

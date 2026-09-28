@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import {
+  addTestSchool,
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
@@ -117,5 +118,34 @@ describe("Pool actions", () => {
     expect(
       await getTestServices().questionPoolService.listPools(),
     ).toHaveLength(0);
+  });
+});
+
+/**
+ * Feature: a new pool lands in the admin's current school
+ * As a school admin working in one school
+ * I want a pool I create to belong to that school
+ * So that only that school's admins ever see it
+ */
+describe("Feature: a new pool lands in the admin's current school", () => {
+  it("creates the pool in the acting admin's school, not the default one", async () => {
+    const school = await addTestSchool("School B");
+    requireAdminSession.mockResolvedValue({
+      userId: "admin-b",
+      role: "admin",
+      school,
+    });
+    const form = new FormData();
+    form.set("name", "Geometry");
+    form.set("description", "");
+
+    const result = await createPoolAction(null, form);
+
+    expect(result.success).toBe(true);
+    const ownPools = await getTestServices(
+      school.id,
+    ).questionPoolService.listPools();
+    expect(ownPools.map((pool) => pool.name)).toEqual(["Geometry"]);
+    expect(await getTestServices().questionPoolService.listPools()).toEqual([]);
   });
 });

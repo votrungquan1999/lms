@@ -17,10 +17,13 @@ import { ManageEnrollmentsDialog } from "../courses/[courseId]/enroll-student-fo
 import CourseDetailPage from "../courses/[courseId]/page";
 import ResultsReportPage from "../courses/[courseId]/results-report/page";
 import { ResultsReportSelectionProvider } from "../courses/[courseId]/results-report/results-report-selection.state";
+import { ComposeFromPoolsForm } from "../courses/[courseId]/tests/[testId]/compose-from-pools-form";
 import TestGradingPage from "../courses/[courseId]/tests/[testId]/grading/page";
+import TestDetailPage from "../courses/[courseId]/tests/[testId]/page";
 import CoursesPage from "../courses/page";
 import AdminDashboardPage from "../dashboard/page";
 import GradingHubPage from "../grading/page";
+import PoolsPage from "../pools/page";
 import { BulkImportDialog } from "../students/bulk-import-dialog";
 import StudentsPage from "../students/page";
 
@@ -377,5 +380,66 @@ describe("Feature: a school admin's lists show only their current school's stude
     expect(
       screen.queryByTestId(`roster-cell-${foreignStudentId}`),
     ).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Feature: a school admin's question pools show only their current school's pools
+ * As a school admin working in one school
+ * I want the question bank and the test page's pool picker to show only that school's pools
+ * So that another school's pools never appear in my work
+ */
+describe("Feature: a school admin's question pools show only their current school's pools", () => {
+  let schoolId: string;
+
+  beforeEach(async () => {
+    await setupTestDb();
+    const school = await signInAsOtherSchoolAdmin();
+    schoolId = school.id;
+    await getTestServices().questionPoolService.createPool({
+      name: "Foreign Pool",
+      description: "",
+      createdBy: "default-school-admin",
+    });
+    await getTestServices(school.id).questionPoolService.createPool({
+      name: "Own Pool",
+      description: "",
+      createdBy: "school-b-admin",
+    });
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("the question bank lists only the current school's pools", async () => {
+    render(await PoolsPage());
+
+    expect(screen.getByText("Own Pool")).toBeInTheDocument();
+    expect(screen.queryByText("Foreign Pool")).not.toBeInTheDocument();
+  });
+
+  it("the test page's pool picker offers only the current school's pools", async () => {
+    const own = getTestServices(schoolId);
+    const course = await own.courseService.createCourse({
+      title: "Own Course",
+      description: "",
+      createdBy: "school-b-admin",
+    });
+    const test = await own.testService.createTest(course.id, {
+      title: "Own Test",
+      description: "",
+      createdBy: "school-b-admin",
+    });
+
+    const page = await TestDetailPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    });
+
+    const picker = propsPassedTo<{ pools: { name: string }[] }>(
+      page,
+      ComposeFromPoolsForm,
+    );
+    expect(picker?.pools.map((pool) => pool.name)).toEqual(["Own Pool"]);
   });
 });

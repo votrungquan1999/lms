@@ -83,7 +83,7 @@ export async function composeFromPoolsAction(
         "lms.test.id": parsed.data.testId,
       },
       async () => {
-        const poolQuestionService = await getPoolQuestionService();
+        const poolQuestionService = await getPoolQuestionService(schoolId);
         const questionService = await getQuestionService(schoolId);
 
         // Keep poolId alongside each resolved selection so an empty draw can
@@ -112,7 +112,7 @@ export async function composeFromPoolsAction(
           const emptyPoolIds = resolvedSelections
             .filter((selection) => selection.questions.length === 0)
             .map((selection) => selection.poolId);
-          const questionPoolService = await getQuestionPoolService();
+          const questionPoolService = await getQuestionPoolService(schoolId);
           const emptyPoolNames = await Promise.all(
             emptyPoolIds.map(async (poolId) => {
               const pool = await questionPoolService.getPool(poolId);

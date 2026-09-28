@@ -28,7 +28,7 @@ export interface PoolActionState {
 }
 
 /**
- * Server action: creates a new global question pool.
+ * Server action: creates a question pool in the admin's current school.
  */
 export async function createPoolAction(
   _prevState: PoolActionState | null,
@@ -38,9 +38,11 @@ export async function createPoolAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -65,7 +67,7 @@ export async function createPoolAction(
       "action.createPoolAction",
       { "lms.action.name": "createPoolAction" },
       async () => {
-        const poolService = await getQuestionPoolService();
+        const poolService = await getQuestionPoolService(schoolId);
         const pool = await poolService.createPool({
           ...parsed.data,
           createdBy: adminUserId,
@@ -96,9 +98,11 @@ export async function renamePoolAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -117,7 +121,7 @@ export async function renamePoolAction(
       "action.renamePoolAction",
       { "lms.action.name": "renamePoolAction" },
       async () => {
-        const poolService = await getQuestionPoolService();
+        const poolService = await getQuestionPoolService(schoolId);
         await poolService.renamePool(
           parsed.data.poolId,
           parsed.data.name,
@@ -147,9 +151,11 @@ export async function deletePoolAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -167,7 +173,7 @@ export async function deletePoolAction(
       "action.deletePoolAction",
       { "lms.action.name": "deletePoolAction" },
       async () => {
-        const poolService = await getQuestionPoolService();
+        const poolService = await getQuestionPoolService(schoolId);
         await poolService.deletePool(parsed.data.poolId, adminUserId);
         revalidatePath("/admin/pools");
         return { success: true, message: "Pool removed successfully" };

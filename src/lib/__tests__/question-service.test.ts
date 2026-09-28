@@ -548,7 +548,7 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "traces an answerRevealMode override end-to-end: authored on a pool question, composed into a test, readable on the composed question — while a pool question with no override composes as undefined",
     async ({ db }) => {
-      const poolQuestionService = new PoolQuestionService(db);
+      const poolQuestionService = new PoolQuestionService(db, TEST_SCHOOL_ID);
       const questionService = new QuestionService(db);
 
       await poolQuestionService.addPoolQuestion("pool-1", {
@@ -1462,7 +1462,7 @@ describe("composeFromPools isolation (Step 22 — regression pin, no production 
     "editing a composed question does not change the pool question it was drawn from",
     async ({ db }) => {
       const questionService = new QuestionService(db);
-      const poolQuestionService = new PoolQuestionService(db);
+      const poolQuestionService = new PoolQuestionService(db, TEST_SCHOOL_ID);
 
       const poolQuestion = await poolQuestionService.addPoolQuestion("pool-1", {
         title: "Explain gravity",

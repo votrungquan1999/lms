@@ -7,7 +7,10 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "src/components/ui/breadcrumb";
-import { getQuestionPoolService } from "src/lib/services-singleton";
+import {
+  getPageGuard,
+  getQuestionPoolService,
+} from "src/lib/services-singleton";
 
 /**
  * Breadcrumb for a pool detail page — links back to the question bank and
@@ -18,8 +21,10 @@ export default async function PoolDetailBreadcrumb({
 }: {
   params: Promise<{ poolId: string }>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const { poolId } = await params;
-  const poolService = await getQuestionPoolService();
+  const poolService = await getQuestionPoolService(session.school.id);
   const pool = await poolService.getPool(poolId);
 
   return (

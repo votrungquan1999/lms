@@ -118,6 +118,13 @@ describe("Feature: Production database boot wires the safety indexes", () => {
           (index) => index.key.schoolId === 1,
         );
         expect(studentSchoolIndex).toBeDefined();
+
+        // ...and a school-led index serves every school's pool list
+        const poolIndexes = await listIndexesOrEmpty(db, "question_pool");
+        const poolSchoolIndex = poolIndexes.find(
+          (index) => index.key.schoolId === 1,
+        );
+        expect(poolSchoolIndex).toBeDefined();
       } finally {
         const client = getMongoClient();
         if (client) {

@@ -159,6 +159,8 @@ export interface PoolQuestionDocument {
   /** Soft-delete marker (D51) — non-null means this pool question is a tombstone. */
   deletedAt: Date | null;
   deletedBy: string | null;
+  /** Owning school. Absent or `null` on records not yet assigned — no school can see those. */
+  schoolId: string | null;
 }
 
 /**
@@ -194,16 +196,22 @@ export class PoolQuestionService {
   private readonly questions: Collection<PoolQuestionDocument>;
 
   /**
-   * `changeLogService` is optional so every existing direct
-   * `new PoolQuestionService(db)` call site keeps compiling and logs nothing
-   * (mirrors `QuestionService`'s own optional constructor param). No
+   * `changeLogService` is optional so a direct
+   * `new PoolQuestionService(db, schoolId)` logs nothing (mirrors
+   * `QuestionService`'s own optional constructor param). No
    * `getAnswerService` thunk exists here — pool questions carry no student
    * answers (D51), so there is no answered-student count to fetch.
    */
   constructor(
     db: Db,
+    private readonly schoolId: string,
     private readonly changeLogService?: QuestionChangeLogService,
   ) {
+    // Fail closed: a missing school would query `{ schoolId: null }`, which
+    // matches exactly the pool questions no school owns yet.
+    if (!schoolId) {
+      throw new Error("A school is required to build a pool question service");
+    }
     this.questions = db.collection<PoolQuestionDocument>("pool_question");
   }
 
@@ -256,6 +264,7 @@ export class PoolQuestionService {
       media: input.media ?? [],
       deletedAt: null,
       deletedBy: null,
+      schoolId: this.schoolId,
     };
 
     await this.questions.insertOne(doc);
@@ -264,12 +273,12 @@ export class PoolQuestionService {
   }
 
   /**
-   * Returns every question in a pool, ordered by `order` ascending.
-   * Excludes tombstones (D51/D47).
+   * Returns every question in a pool of the bound school, ordered by `order`
+   * ascending. Excludes tombstones (D51/D47).
    */
   async listPoolQuestions(poolId: string): Promise<PoolQuestion[]> {
     const docs = await this.questions
-      .find({ poolId, deletedAt: null })
+      .find({ poolId, deletedAt: null, schoolId: this.schoolId })
       .sort({ order: 1 })
       .toArray();
 
@@ -282,13 +291,13 @@ export class PoolQuestionService {
    * type omits) that `QuestionService.composeFromPools` consumes to snapshot
    * copies into a test. Excludes tombstones (D51) — the second read funnel a
    * missed filter here would let a deleted pool question keep being composed
-   * into new tests.
+   * into new tests. Only the bound school's pool questions are drawn.
    */
   async listSnapshotInputs(
     poolId: string,
   ): Promise<PoolQuestionSnapshotInput[]> {
     const docs = await this.questions
-      .find({ poolId, deletedAt: null })
+      .find({ poolId, deletedAt: null, schoolId: this.schoolId })
       .sort({ order: 1 })
       .toArray();
 

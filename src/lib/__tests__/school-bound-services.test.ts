@@ -1,11 +1,15 @@
 import type { Db } from "mongodb";
 import { CourseService } from "src/lib/course-service";
+import { PoolQuestionService } from "src/lib/pool-question-service";
+import { QuestionPoolService } from "src/lib/question-pool-service";
 import {
   getAiGradeService,
   getAnswerService,
   getCourseService,
   getGradeService,
   getGradeVisibilityService,
+  getPoolQuestionService,
+  getQuestionPoolService,
   getQuestionService,
   getRedoRequestService,
   getStudentService,
@@ -40,6 +44,13 @@ const TEST_BOUND_GETTERS = {
 const TEST_BOUND_GETTER_NAMES = Object.keys(
   TEST_BOUND_GETTERS,
 ) as (keyof typeof TEST_BOUND_GETTERS)[];
+
+/** Every real getter for a school's pools or pool questions. */
+const POOL_GETTERS = { getQuestionPoolService, getPoolQuestionService };
+
+const POOL_GETTER_NAMES = Object.keys(
+  POOL_GETTERS,
+) as (keyof typeof POOL_GETTERS)[];
 
 /**
  * Feature: a school's course service only ever sees that school's courses
@@ -263,4 +274,108 @@ describe("Feature: the test harness routes school-bound services strictly by sch
 
     expect(await courseService.listCourses()).toEqual([]);
   });
+});
+
+/**
+ * Feature: a school's pool services only ever list that school's pools and pool questions
+ * As the LMS system
+ * I want every pool service to be built for one school
+ * So that no list of pools or pool questions can reach another school's
+ */
+describe("Feature: a school's pool services only ever list that school's pools and pool questions", () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    ({ db } = await setupTestDb());
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("lists none of another school's questions for that school's pool", async () => {
+    const otherSchool = await addTestSchool("School B");
+    const foreignPool = await getTestServices().questionPoolService.createPool({
+      name: "Foreign Pool",
+      description: "",
+      createdBy: "default-admin",
+    });
+    await getTestServices().poolQuestionService.addPoolQuestion(
+      foreignPool.id,
+      { title: "Foreign Question", content: "", createdBy: "default-admin" },
+    );
+
+    const questions = await getTestServices(
+      otherSchool.id,
+    ).poolQuestionService.listPoolQuestions(foreignPool.id);
+
+    expect(questions).toEqual([]);
+  });
+
+  it("offers none of another school's pool questions to draw into a test", async () => {
+    const otherSchool = await addTestSchool("School B");
+    const foreignPool = await getTestServices().questionPoolService.createPool({
+      name: "Foreign Pool",
+      description: "",
+      createdBy: "default-admin",
+    });
+    await getTestServices().poolQuestionService.addPoolQuestion(
+      foreignPool.id,
+      { title: "Foreign Question", content: "", createdBy: "default-admin" },
+    );
+
+    const drawable = await getTestServices(
+      otherSchool.id,
+    ).poolQuestionService.listSnapshotInputs(foreignPool.id);
+
+    expect(drawable).toEqual([]);
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["an empty string", ""],
+  ])(
+    "refuses to build a question pool service for %s school",
+    (_label, schoolId) => {
+      expect(() => new QuestionPoolService(db, schoolId as string)).toThrow(
+        "A school is required",
+      );
+    },
+  );
+
+  it.each([
+    ["undefined", undefined],
+    ["an empty string", ""],
+  ])(
+    "refuses to build a pool question service for %s school",
+    (_label, schoolId) => {
+      expect(() => new PoolQuestionService(db, schoolId as string)).toThrow(
+        "A school is required",
+      );
+    },
+  );
+
+  it.each(
+    POOL_GETTER_NAMES.flatMap((name) => [
+      [name, "undefined", undefined],
+      [name, "an empty string", ""],
+    ]),
+  )("the real %s refuses %s school", async (name, _label, schoolId) => {
+    const getter = POOL_GETTERS[name as keyof typeof POOL_GETTERS];
+
+    await expect(getter(schoolId as string)).rejects.toThrow(
+      "A school is required",
+    );
+  });
+
+  it.each(POOL_GETTER_NAMES)(
+    "the mocked %s refuses an undefined school instead of falling back to the default one",
+    async (name) => {
+      const mockedGetter = servicesSingletonMockFactory()[name];
+
+      await expect(
+        mockedGetter(undefined as unknown as string),
+      ).rejects.toThrow("A school is required");
+    },
+  );
 });
