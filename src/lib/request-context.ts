@@ -27,10 +27,13 @@ export class RequestContext {
 }
 
 /**
- * Returns a request-scoped `RequestContext`.
- * `React.cache()` guarantees one instance per server render.
+ * Returns a request-scoped `RequestContext` for one school.
+ * `React.cache()` guarantees one instance per school per server render.
+ * @param schoolId - The verified session's school.
  */
-export const getRequestContext = cache(async (): Promise<RequestContext> => {
-  const questionService = await getQuestionService();
-  return new RequestContext(questionService);
-});
+export const getRequestContext = cache(
+  async (schoolId: string): Promise<RequestContext> => {
+    const questionService = await getQuestionService(schoolId);
+    return new RequestContext(questionService);
+  },
+);

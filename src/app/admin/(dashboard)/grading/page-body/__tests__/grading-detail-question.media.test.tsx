@@ -2,6 +2,7 @@
 import { render } from "@testing-library/react";
 import { MediaContentType } from "src/lib/question-service";
 import type { Test } from "src/lib/test-service";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -56,6 +57,7 @@ describe("Feature: media renders in the admin grading view", () => {
     const ui = await GradingDetailQuestion({
       test,
       courseId: "course-1",
+      schoolId: TEST_SCHOOL_ID,
       questionId: created.id,
       students: [],
       basePath: "/admin/grading/test-1",

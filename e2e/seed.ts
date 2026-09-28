@@ -96,6 +96,7 @@ export async function insertTest(
     updatedBy: null,
     deletedAt: null,
     deletedBy: null,
+    schoolId: await e2eSchoolId(db),
     ...overrides,
   };
   await db.collection<TestDocument>("test").insertOne(doc);

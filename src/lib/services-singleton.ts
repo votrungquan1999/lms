@@ -34,22 +34,24 @@ import { UserRoleService } from "./user-role-service";
  * Uses the shared database connection from database.ts.
  */
 
-let aiGradeService: AiGradeService | null = null;
-let answerService: AnswerService | null = null;
-let courseJoinRequestService: CourseJoinRequestService | null = null;
-// One instance per school: a school-bound service never serves another school.
+// One instance per school: a school-bound service never serves another school,
+// and a dependent is only ever built from its own school's instances.
+const aiGradeServices = new Map<string, AiGradeService>();
+const answerServices = new Map<string, AnswerService>();
 const courseServices = new Map<string, CourseService>();
+const gradeServices = new Map<string, GradeService>();
+const gradeVisibilityServices = new Map<string, GradeVisibilityService>();
+const questionServices = new Map<string, QuestionService>();
+const redoRequestServices = new Map<string, RedoRequestService>();
+const testServices = new Map<string, TestService>();
+const testStatusServices = new Map<string, TestStatusService>();
+const testSubmissionServices = new Map<string, TestSubmissionService>();
+
+let courseJoinRequestService: CourseJoinRequestService | null = null;
 let enrollmentService: EnrollmentService | null = null;
-let gradeService: GradeService | null = null;
 let annotationService: AnnotationService | null = null;
-let gradeVisibilityService: GradeVisibilityService | null = null;
-let redoRequestService: RedoRequestService | null = null;
 let testStartService: TestStartService | null = null;
-let testService: TestService | null = null;
 let testFeedbackService: TestFeedbackService | null = null;
-let testStatusService: TestStatusService | null = null;
-let testSubmissionService: TestSubmissionService | null = null;
-let questionService: QuestionService | null = null;
 let questionChangeLogService: QuestionChangeLogService | null = null;
 let questionParseClient: QuestionParseClient | null = null;
 let questionPoolService: QuestionPoolService | null = null;
@@ -60,6 +62,30 @@ let schoolService: SchoolService | null = null;
 let studentService: StudentService | null = null;
 let pageGuard: PageGuard | null = null;
 let userRoleService: UserRoleService | null = null;
+
+/**
+ * Returns the school's instance from `cache`, building it on first use.
+ * @param cache - One service's per-school instances.
+ * @param schoolId - The verified session's school.
+ * @param build - Builds the instance from that school's own dependencies.
+ */
+async function forSchool<T>(
+  cache: Map<string, T>,
+  schoolId: string,
+  build: () => Promise<T>,
+): Promise<T> {
+  // Refused before any cache or database access, so an unset school never
+  // gets a service that could match unassigned records.
+  if (!schoolId) {
+    throw new Error("A school is required to get a school-bound service");
+  }
+  let service = cache.get(schoolId);
+  if (!service) {
+    service = await build();
+    cache.set(schoolId, service);
+  }
+  return service;
+}
 
 /**
  * Builds PageGuard's real session lookup: reads `headers()` and the
@@ -92,17 +118,20 @@ export async function getPageGuard(): Promise<PageGuard> {
 }
 
 /**
- * Returns the singleton `AiGradeService` wired against the live Gemini client.
+ * Returns the school's `AiGradeService` wired against the live Gemini client.
  * Tests inject a stub via `buildCoreServices(db, { aiClient })` — they never
  * call this getter.
+ * @param schoolId - The verified session's school.
  */
-export async function getAiGradeService(): Promise<AiGradeService> {
-  if (!aiGradeService) {
+export async function getAiGradeService(
+  schoolId: string,
+): Promise<AiGradeService> {
+  return forSchool(aiGradeServices, schoolId, async () => {
     const db = await getDatabase();
-    const questionService = await getQuestionService();
-    const answerService = await getAnswerService();
-    const gradeService = await getGradeService();
-    aiGradeService = tracedService(
+    const questionService = await getQuestionService(schoolId);
+    const answerService = await getAnswerService(schoolId);
+    const gradeService = await getGradeService(schoolId);
+    return tracedService(
       new AiGradeService(
         db,
         new GeminiAiClient(),
@@ -112,19 +141,23 @@ export async function getAiGradeService(): Promise<AiGradeService> {
       ),
       "aiGrade",
     );
-  }
-  return aiGradeService;
+  });
 }
 
-export async function getAnswerService(): Promise<AnswerService> {
-  if (!answerService) {
+/**
+ * Returns the school's `AnswerService`, built on that school's tests.
+ * @param schoolId - The verified session's school.
+ */
+export async function getAnswerService(
+  schoolId: string,
+): Promise<AnswerService> {
+  return forSchool(answerServices, schoolId, async () => {
     const db = await getDatabase();
-    const qs = await getQuestionService();
-    const ts = await getTestService();
+    const qs = await getQuestionService(schoolId);
+    const ts = await getTestService(schoolId);
     const tss = await getTestStartService();
-    answerService = tracedService(new AnswerService(db, qs, ts, tss), "answer");
-  }
-  return answerService;
+    return tracedService(new AnswerService(db, qs, ts, tss), "answer");
+  });
 }
 
 export async function getCourseJoinRequestService(): Promise<CourseJoinRequestService> {
@@ -145,18 +178,10 @@ export async function getCourseJoinRequestService(): Promise<CourseJoinRequestSe
 export async function getCourseService(
   schoolId: string,
 ): Promise<CourseService> {
-  // Refused before any cache or database access, so an unset school never
-  // gets a service that could match unassigned records.
-  if (!schoolId) {
-    throw new Error("A school is required to get a course service");
-  }
-  let courseService = courseServices.get(schoolId);
-  if (!courseService) {
+  return forSchool(courseServices, schoolId, async () => {
     const db = await getDatabase();
-    courseService = tracedService(new CourseService(db, schoolId), "course");
-    courseServices.set(schoolId, courseService);
-  }
-  return courseService;
+    return tracedService(new CourseService(db, schoolId), "course");
+  });
 }
 
 export async function getEnrollmentService(): Promise<EnrollmentService> {
@@ -167,18 +192,21 @@ export async function getEnrollmentService(): Promise<EnrollmentService> {
   return enrollmentService;
 }
 
-export async function getGradeService(): Promise<GradeService> {
-  if (!gradeService) {
+/**
+ * Returns the school's `GradeService`.
+ * @param schoolId - The verified session's school.
+ */
+export async function getGradeService(schoolId: string): Promise<GradeService> {
+  return forSchool(gradeServices, schoolId, async () => {
     const db = await getDatabase();
-    const questionService = await getQuestionService();
-    const answerService = await getAnswerService();
-    const visibility = await getGradeVisibilityService();
-    gradeService = tracedService(
+    const questionService = await getQuestionService(schoolId);
+    const answerService = await getAnswerService(schoolId);
+    const visibility = await getGradeVisibilityService(schoolId);
+    return tracedService(
       new GradeService(db, questionService, answerService, visibility),
       "grade",
     );
-  }
-  return gradeService;
+  });
 }
 
 export async function getAnnotationService(): Promise<AnnotationService> {
@@ -190,28 +218,35 @@ export async function getAnnotationService(): Promise<AnnotationService> {
 }
 
 /**
- * Returns the singleton `GradeVisibilityService`. Constructed AFTER
+ * Returns the school's `GradeVisibilityService`. Constructed AFTER
  * `TestService` and `TestSubmissionService`, BEFORE `GradeService` —
  * keeps the dependency graph acyclic (see the service's class JSDoc).
+ * @param schoolId - The verified session's school.
  */
-export async function getGradeVisibilityService(): Promise<GradeVisibilityService> {
-  if (!gradeVisibilityService) {
-    const testService = await getTestService();
+export async function getGradeVisibilityService(
+  schoolId: string,
+): Promise<GradeVisibilityService> {
+  return forSchool(gradeVisibilityServices, schoolId, async () => {
+    const testService = await getTestService(schoolId);
     // Lazy thunk — see `GradeVisibilityService` JSDoc for the cycle reasoning.
-    gradeVisibilityService = tracedService(
-      new GradeVisibilityService(testService, getTestSubmissionService),
+    return tracedService(
+      new GradeVisibilityService(testService, () =>
+        getTestSubmissionService(schoolId),
+      ),
       "gradeVisibility",
     );
-  }
-  return gradeVisibilityService;
+  });
 }
 
-export async function getTestService(): Promise<TestService> {
-  if (!testService) {
+/**
+ * Returns the test service bound to one school, cached per school.
+ * @param schoolId - The verified session's school.
+ */
+export async function getTestService(schoolId: string): Promise<TestService> {
+  return forSchool(testServices, schoolId, async () => {
     const db = await getDatabase();
-    testService = tracedService(new TestService(db), "test");
-  }
-  return testService;
+    return tracedService(new TestService(db, schoolId), "test");
+  });
 }
 
 export async function getTestFeedbackService(): Promise<TestFeedbackService> {
@@ -225,31 +260,42 @@ export async function getTestFeedbackService(): Promise<TestFeedbackService> {
   return testFeedbackService;
 }
 
-export async function getTestSubmissionService(): Promise<TestSubmissionService> {
-  if (!testSubmissionService) {
+/**
+ * Returns the school's `TestSubmissionService`.
+ * @param schoolId - The verified session's school.
+ */
+export async function getTestSubmissionService(
+  schoolId: string,
+): Promise<TestSubmissionService> {
+  return forSchool(testSubmissionServices, schoolId, async () => {
     const db = await getDatabase();
-    testSubmissionService = tracedService(
+    return tracedService(
       new TestSubmissionService(
         db,
-        await getGradeService(),
-        await getTestService(),
+        await getGradeService(schoolId),
+        await getTestService(schoolId),
         await getTestStartService(),
       ),
       "testSubmission",
     );
-  }
-  return testSubmissionService;
+  });
 }
 
-export async function getTestStatusService(): Promise<TestStatusService> {
-  if (!testStatusService) {
-    const answers = await getAnswerService();
-    const submissions = await getTestSubmissionService();
-    const grades = await getGradeService();
+/**
+ * Returns the school's `TestStatusService`.
+ * @param schoolId - The verified session's school.
+ */
+export async function getTestStatusService(
+  schoolId: string,
+): Promise<TestStatusService> {
+  return forSchool(testStatusServices, schoolId, async () => {
+    const answers = await getAnswerService(schoolId);
+    const submissions = await getTestSubmissionService(schoolId);
+    const grades = await getGradeService(schoolId);
     const starts = await getTestStartService();
-    const tests = await getTestService();
-    const questions = await getQuestionService();
-    testStatusService = tracedService(
+    const tests = await getTestService(schoolId);
+    const questions = await getQuestionService(schoolId);
+    return tracedService(
       new TestStatusService(
         answers,
         submissions,
@@ -260,26 +306,30 @@ export async function getTestStatusService(): Promise<TestStatusService> {
       ),
       "testStatus",
     );
-  }
-  return testStatusService;
+  });
 }
 
 /**
- * Constructed WITH `getAnswerService` as a lazy thunk, not an instance —
- * `AnswerService` itself depends on `QuestionService`, so passing an
- * instance here would be a construction cycle. Same shape as
- * `getGradeVisibilityService`'s `getTestSubmissionService` thunk below.
+ * Returns the school's `QuestionService`. Constructed WITH a lazy
+ * `getAnswerService` thunk, not an instance — `AnswerService` itself depends
+ * on `QuestionService`, so passing an instance here would be a construction
+ * cycle. Same shape as `getGradeVisibilityService`'s `getTestSubmissionService`
+ * thunk above.
+ * @param schoolId - The verified session's school.
  */
-export async function getQuestionService(): Promise<QuestionService> {
-  if (!questionService) {
+export async function getQuestionService(
+  schoolId: string,
+): Promise<QuestionService> {
+  return forSchool(questionServices, schoolId, async () => {
     const db = await getDatabase();
     const changeLogService = await getQuestionChangeLogService();
-    questionService = tracedService(
-      new QuestionService(db, changeLogService, getAnswerService),
+    return tracedService(
+      new QuestionService(db, changeLogService, () =>
+        getAnswerService(schoolId),
+      ),
       "question",
     );
-  }
-  return questionService;
+  });
 }
 
 export async function getQuestionChangeLogService(): Promise<QuestionChangeLogService> {
@@ -371,15 +421,20 @@ export async function getStudentService(): Promise<StudentService> {
   return studentService;
 }
 
-export async function getRedoRequestService(): Promise<RedoRequestService> {
-  if (!redoRequestService) {
+/**
+ * Returns the school's `RedoRequestService`.
+ * @param schoolId - The verified session's school.
+ */
+export async function getRedoRequestService(
+  schoolId: string,
+): Promise<RedoRequestService> {
+  return forSchool(redoRequestServices, schoolId, async () => {
     const db = await getDatabase();
-    redoRequestService = tracedService(
-      new RedoRequestService(db, await getTestService()),
+    return tracedService(
+      new RedoRequestService(db, await getTestService(schoolId)),
       "redoRequest",
     );
-  }
-  return redoRequestService;
+  });
 }
 
 export async function getTestStartService(): Promise<TestStartService> {

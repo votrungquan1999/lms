@@ -88,11 +88,11 @@ export default async function GradingHubPage({
   const params = await searchParams;
   const filter = resolveFilter(params.filter);
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.school.id);
   const courseService = await getCourseService(session.school.id);
   const enrollmentService = await getEnrollmentService();
-  const questionService = await getQuestionService();
-  const testStatusService = await getTestStatusService();
+  const questionService = await getQuestionService(session.school.id);
+  const testStatusService = await getTestStatusService(session.school.id);
 
   const allTests = await testService.listAllTests();
   const courseIds = [...new Set(allTests.map((t) => t.courseId))];

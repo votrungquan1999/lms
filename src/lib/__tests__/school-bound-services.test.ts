@@ -1,6 +1,18 @@
 import type { Db } from "mongodb";
 import { CourseService } from "src/lib/course-service";
-import { getCourseService } from "src/lib/services-singleton";
+import {
+  getAiGradeService,
+  getAnswerService,
+  getCourseService,
+  getGradeService,
+  getGradeVisibilityService,
+  getQuestionService,
+  getRedoRequestService,
+  getTestService,
+  getTestStatusService,
+  getTestSubmissionService,
+} from "src/lib/services-singleton";
+import { TestService } from "src/lib/test-service";
 import {
   addTestSchool,
   getTestServices,
@@ -9,6 +21,23 @@ import {
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+/** Every real getter whose service is built on one school's tests. */
+const TEST_BOUND_GETTERS = {
+  getTestService,
+  getAiGradeService,
+  getAnswerService,
+  getGradeService,
+  getGradeVisibilityService,
+  getQuestionService,
+  getRedoRequestService,
+  getTestStatusService,
+  getTestSubmissionService,
+};
+
+const TEST_BOUND_GETTER_NAMES = Object.keys(
+  TEST_BOUND_GETTERS,
+) as (keyof typeof TEST_BOUND_GETTERS)[];
 
 /**
  * Feature: a school's course service only ever sees that school's courses
@@ -69,6 +98,66 @@ describe("Feature: a school's course service only ever sees that school's course
 });
 
 /**
+ * Feature: a school's test service only ever lists that school's tests
+ * As the LMS system
+ * I want every test service to be built for one school
+ * So that no list of tests can reach another school's tests
+ */
+describe("Feature: a school's test service only ever lists that school's tests", () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    ({ db } = await setupTestDb());
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("lists none of another school's tests for that school's course", async () => {
+    const otherSchool = await addTestSchool("School B");
+    const foreignCourse = await getTestServices().courseService.createCourse({
+      title: "Foreign Course",
+      description: "",
+      createdBy: "default-school-admin",
+    });
+    await getTestServices().testService.createTest(foreignCourse.id, {
+      title: "Foreign Test",
+      description: "",
+      createdBy: "default-school-admin",
+    });
+
+    const tests = await getTestServices(otherSchool.id).testService.listTests(
+      foreignCourse.id,
+    );
+
+    expect(tests).toEqual([]);
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["an empty string", ""],
+  ])("refuses to build a test service for %s school", (_label, schoolId) => {
+    expect(() => new TestService(db, schoolId as string)).toThrow(
+      "A school is required",
+    );
+  });
+
+  it.each(
+    TEST_BOUND_GETTER_NAMES.flatMap((name) => [
+      [name, "undefined", undefined],
+      [name, "an empty string", ""],
+    ]),
+  )("the real %s refuses %s school", async (name, _label, schoolId) => {
+    const getter = TEST_BOUND_GETTERS[name as keyof typeof TEST_BOUND_GETTERS];
+
+    await expect(getter(schoolId as string)).rejects.toThrow(
+      "A school is required",
+    );
+  });
+});
+
+/**
  * Feature: the test harness routes school-bound services strictly by school
  * As a developer writing isolation tests
  * I want the mocked getters to hand out only the named school's services
@@ -92,6 +181,17 @@ describe("Feature: the test harness routes school-bound services strictly by sch
       mockedGetCourseService(undefined as unknown as string),
     ).rejects.toThrow("A school is required");
   });
+
+  it.each(TEST_BOUND_GETTER_NAMES)(
+    "the mocked %s refuses an undefined school instead of falling back to the default one",
+    async (name) => {
+      const mockedGetter = servicesSingletonMockFactory()[name];
+
+      await expect(
+        mockedGetter(undefined as unknown as string),
+      ).rejects.toThrow("A school is required");
+    },
+  );
 
   it("the mocked course getter refuses a school the test never created", async () => {
     const { getCourseService: mockedGetCourseService } =

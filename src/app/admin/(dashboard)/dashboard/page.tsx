@@ -34,10 +34,10 @@ export default async function AdminDashboardPage() {
   const session = await guard.requireSchoolAdmin();
   const studentService = await getStudentService();
   const courseService = await getCourseService(session.school.id);
-  const testService = await getTestService();
+  const testService = await getTestService(session.school.id);
   const enrollmentService = await getEnrollmentService();
-  const questionService = await getQuestionService();
-  const testStatusService = await getTestStatusService();
+  const questionService = await getQuestionService(session.school.id);
+  const testStatusService = await getTestStatusService(session.school.id);
 
   const [students, courses, allTests] = await Promise.all([
     studentService.listStudents(),

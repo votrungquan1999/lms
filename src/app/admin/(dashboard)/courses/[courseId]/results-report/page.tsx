@@ -1,5 +1,6 @@
 import {
   getEnrollmentService,
+  getPageGuard,
   getStudentService,
   getTestService,
 } from "src/lib/services-singleton";
@@ -25,6 +26,8 @@ export default async function ResultsReportPage({
 }: {
   params: Promise<{ courseId: string }>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const { courseId } = await params;
 
   const enrollmentService = await getEnrollmentService();
@@ -34,7 +37,7 @@ export default async function ResultsReportPage({
   const studentService = await getStudentService();
   const students = await studentService.findByIds(enrolledStudentIds);
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.school.id);
   const tests = await testService.listTests(courseId);
 
   return (

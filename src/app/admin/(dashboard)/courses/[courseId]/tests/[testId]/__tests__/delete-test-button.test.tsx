@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DeleteTestButton } from "../delete-test-button";
 
@@ -69,7 +70,10 @@ describe("Feature: Delete Test Button", () => {
     it("should not show an error message after successful deletion", async () => {
       const user = userEvent.setup();
 
-      mockRequireAdminSession.mockResolvedValue({ userId: "admin1" });
+      mockRequireAdminSession.mockResolvedValue({
+        userId: "admin1",
+        school: TEST_SCHOOL,
+      });
       mockDeleteTest.mockResolvedValue(undefined);
 
       render(<DeleteTestButton testId="test-1" courseId="course-1" />);

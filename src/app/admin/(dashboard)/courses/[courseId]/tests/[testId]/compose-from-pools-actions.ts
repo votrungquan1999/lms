@@ -48,9 +48,11 @@ export async function composeFromPoolsAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -82,7 +84,7 @@ export async function composeFromPoolsAction(
       },
       async () => {
         const poolQuestionService = await getPoolQuestionService();
-        const questionService = await getQuestionService();
+        const questionService = await getQuestionService(schoolId);
 
         // Keep poolId alongside each resolved selection so an empty draw can
         // name its pool instead of a generic "the selected pools" message.

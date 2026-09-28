@@ -4,7 +4,7 @@ import { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -53,7 +53,7 @@ describe("QuestionChangeLogService", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
       const changeLogService = new QuestionChangeLogService(db);

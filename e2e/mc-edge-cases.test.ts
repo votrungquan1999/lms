@@ -343,6 +343,7 @@ test.describe("MC Edge Cases — Partial correct multi-select", () => {
       createdBy: "seed",
       updatedAt: null,
       updatedBy: null,
+      schoolId,
     });
 
     // Multi-select question: optionA + optionB correct, optionC wrong

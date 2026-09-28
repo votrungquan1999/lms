@@ -22,7 +22,7 @@ export default async function GradingTestBreadcrumb({
   const session = await guard.requireSchoolAdmin();
   const { testId } = await params;
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.school.id);
   const test = await testService.getTest(testId);
 
   const courseService = await getCourseService(session.school.id);

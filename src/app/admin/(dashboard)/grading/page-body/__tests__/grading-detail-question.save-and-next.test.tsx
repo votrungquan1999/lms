@@ -115,6 +115,7 @@ describe("Feature: Save & Next in the By-question view never lands on a student 
     const ui = await GradingDetailQuestion({
       test: testDoc,
       courseId: course.id,
+      schoolId: TEST_SCHOOL_ID,
       questionId: question.id,
       students: [
         { id: graded.id, name: graded.name, username: graded.username },

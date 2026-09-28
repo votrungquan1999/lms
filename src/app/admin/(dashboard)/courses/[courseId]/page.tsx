@@ -53,7 +53,7 @@ export default async function CourseDetailPage({
 
   const materials = await attachCourseMaterialUrls(course.materials);
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.school.id);
   const tests = await testService.listTests(courseId);
 
   const studentService = await getStudentService();
@@ -63,8 +63,8 @@ export default async function CourseDetailPage({
   const enrolledStudentIds =
     await enrollmentService.listEnrollmentsByCourse(courseId);
 
-  const questionService = await getQuestionService();
-  const testStatusService = await getTestStatusService();
+  const questionService = await getQuestionService(session.school.id);
+  const testStatusService = await getTestStatusService(session.school.id);
 
   // Compute per-test status summary for enrolled students
   const testsWithSummary = await Promise.all(

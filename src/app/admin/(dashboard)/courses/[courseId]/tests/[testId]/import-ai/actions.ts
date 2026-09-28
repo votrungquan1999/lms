@@ -321,9 +321,11 @@ export async function importAiQuestionsAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -347,7 +349,7 @@ export async function importAiQuestionsAction(
         "lms.import.question_count": questions.length,
       },
       async () => {
-        const questionService = await getQuestionService();
+        const questionService = await getQuestionService(schoolId);
 
         // REPLACE deletes every existing question BEFORE the write loop
         // below — delete-then-insert, never interleaved. Validation (above)

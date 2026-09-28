@@ -10,6 +10,7 @@
 
 import { resolve } from "node:path";
 import { MongoClient } from "mongodb";
+import type { CourseDocument } from "../src/lib/course-service";
 import { QuestionService } from "../src/lib/question-service";
 import { TestService } from "../src/lib/test-service";
 import type { TestDefinition } from "./types";
@@ -45,7 +46,12 @@ async function main() {
 
   try {
     const db = client.db();
-    const testService = new TestService(db);
+    // Raw read: a school-bound CourseService can't be built before the school
+    // is known. An empty school (no course, or none assigned) is refused.
+    const course = await db
+      .collection<CourseDocument>("course")
+      .findOne({ id: definition.courseId });
+    const testService = new TestService(db, course?.schoolId ?? "");
     const questionService = new QuestionService(db);
 
     // Create the test

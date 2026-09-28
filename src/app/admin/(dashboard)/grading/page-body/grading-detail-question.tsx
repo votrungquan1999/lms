@@ -28,6 +28,8 @@ interface RosterStudent {
 interface GradingDetailQuestionProps {
   test: Test;
   courseId: string;
+  /** The page's school — never resolved here. */
+  schoolId: string;
   /** Question selected via URL (or first-in-order fallback). */
   questionId: string;
   /** Students in roster sort order — used as the candidate list. */
@@ -47,12 +49,13 @@ interface GradingDetailQuestionProps {
 export async function GradingDetailQuestion({
   test,
   courseId,
+  schoolId,
   questionId,
   students,
   basePath,
   sort,
 }: GradingDetailQuestionProps) {
-  const questionService = await getQuestionService();
+  const questionService = await getQuestionService(schoolId);
   const questions = await questionService.listQuestions(test.id);
   const focused = questions.find((q) => q.id === questionId) ?? questions[0];
 
@@ -70,10 +73,10 @@ export async function GradingDetailQuestion({
   // MC questions are auto-graded — read-only display, no editable form.
   const isMc = isMcQuestion(question);
 
-  const answerService = await getAnswerService();
-  const gradeService = await getGradeService();
+  const answerService = await getAnswerService(schoolId);
+  const gradeService = await getGradeService(schoolId);
   const annotationService = await getAnnotationService();
-  const testStatusService = await getTestStatusService();
+  const testStatusService = await getTestStatusService(schoolId);
 
   const rows = await Promise.all(
     students.map(async (s) => {

@@ -124,7 +124,7 @@ export default {
       ).toBe(0);
 
       // And: the test was created in the database
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const tests = await testService.listTests(course.id);
       expect(tests).toHaveLength(1);
       expect(tests[0].title).toBe("Script Created Test");
@@ -198,7 +198,7 @@ export default {
       ).toBe(0);
 
       // And: the single-select question was created with correct options
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const tests = await testService.listTests(course.id);
       const questionService = new QuestionService(db);
       const questions = await questionService.listQuestions(tests[0].id);
@@ -274,7 +274,7 @@ export default {
       ).toBe(0);
 
       // And: the multi-select question has the correct grading strategy
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const tests = await testService.listTests(course.id);
       const questionService = new QuestionService(db);
       const questions = await questionService.listQuestions(tests[0].id);
@@ -391,7 +391,7 @@ export default {
       ).toBe(0);
 
       // And: the created test carries the 90-minute limit
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const tests = await testService.listTests(course.id);
       expect(tests).toHaveLength(1);
       expect(tests[0].timeLimitMinutes).toBe(90);

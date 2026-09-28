@@ -76,6 +76,7 @@ describe("Feature: per-student grading view renders image_answer submissions", (
     const ui = await GradingDetailStudent({
       test: testDoc,
       courseId: course.id,
+      schoolId: TEST_SCHOOL_ID,
       student: {
         id: student.id,
         name: student.name,
@@ -136,6 +137,7 @@ describe("Feature: per-student grading view renders image_answer submissions", (
     const ui = await GradingDetailStudent({
       test: testDoc,
       courseId: course.id,
+      schoolId: TEST_SCHOOL_ID,
       student: {
         id: student.id,
         name: student.name,

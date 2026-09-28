@@ -33,6 +33,8 @@ interface GradingSelection {
 interface GradingPageShellProps {
   test: Test;
   courseId: string;
+  /** The page's school — never resolved here. */
+  schoolId: string;
   /** Base URL (no query string) used to build roster cell + pivot toggle hrefs. */
   basePath: string;
   /** URL-driven selection. Unknown ids soft-fall-back to the first student/question. */
@@ -48,6 +50,7 @@ interface GradingPageShellProps {
 export async function GradingPageShell({
   test,
   courseId,
+  schoolId,
   basePath,
   selection,
 }: GradingPageShellProps) {
@@ -62,13 +65,13 @@ export async function GradingPageShell({
     .map((id) => studentById.get(id))
     .filter((s): s is NonNullable<typeof s> => s !== undefined);
 
-  const questionService = await getQuestionService();
+  const questionService = await getQuestionService(schoolId);
   const questions = await questionService.listQuestions(test.id);
   const liveQuestionIds = new Set(questions.map((q) => q.id));
 
-  const answerService = await getAnswerService();
-  const gradeService = await getGradeService();
-  const testStatusService = await getTestStatusService();
+  const answerService = await getAnswerService(schoolId);
+  const gradeService = await getGradeService(schoolId);
+  const testStatusService = await getTestStatusService(schoolId);
 
   const cellsInEnrollmentOrder: RosterStudentCellModel[] = await Promise.all(
     orderedStudents.map(async (s) => {
@@ -126,6 +129,7 @@ export async function GradingPageShell({
         await GradingDetailQuestion({
           test,
           courseId,
+          schoolId,
           questionId: focusedQuestion.id,
           students: sortedStudentIds
             .map((id) => studentByIdLookup.get(id))
@@ -147,6 +151,7 @@ export async function GradingPageShell({
       await GradingDetailStudent({
         test,
         courseId,
+        schoolId,
         student: focused,
         basePath,
         sort: selection.sort,

@@ -110,6 +110,7 @@ describe("Feature: Save & Next skips a read-only MC question and lands on the ne
     const ui = await GradingDetailStudent({
       test: testDoc,
       courseId: course.id,
+      schoolId: TEST_SCHOOL_ID,
       student: {
         id: student.id,
         name: student.name,
@@ -249,6 +250,7 @@ describe("Feature: Save & Next skips a read-only MC question and lands on the ne
     const ui = await GradingDetailStudent({
       test: testDoc,
       courseId: course.id,
+      schoolId: TEST_SCHOOL_ID,
       student: {
         id: student.id,
         name: student.name,

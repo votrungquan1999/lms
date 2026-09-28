@@ -39,9 +39,11 @@ export async function updateQuestionAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -85,7 +87,7 @@ export async function updateQuestionAction(
         "lms.test.id": parsed.data.testId,
       },
       async () => {
-        const questionService = await getQuestionService();
+        const questionService = await getQuestionService(schoolId);
         const data = parsed.data;
 
         // Each field is only touched when its control actually rendered
@@ -163,9 +165,11 @@ export async function addQuestionAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -230,7 +234,7 @@ export async function addQuestionAction(
         "lms.course.id": parsed.data.courseId,
       },
       async () => {
-        const questionService = await getQuestionService();
+        const questionService = await getQuestionService(schoolId);
         const data = parsed.data;
         if (data.type === "free_text") {
           await questionService.addQuestion(data.testId, {
@@ -308,9 +312,11 @@ export async function importQuestionsAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -347,7 +353,7 @@ export async function importQuestionsAction(
           };
         }
 
-        const questionService = await getQuestionService();
+        const questionService = await getQuestionService(schoolId);
         const imported = await questionService.importQuestions(
           testId,
           validated.data,
@@ -390,9 +396,11 @@ export async function deleteTestAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -413,7 +421,7 @@ export async function deleteTestAction(
         "lms.course.id": courseId,
       },
       async () => {
-        const testService = await getTestService();
+        const testService = await getTestService(schoolId);
         await testService.deleteTest(testId, adminUserId);
 
         revalidatePath(`/admin/courses/${courseId}`);
@@ -448,9 +456,11 @@ export async function deleteQuestionAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -475,7 +485,7 @@ export async function deleteQuestionAction(
         "lms.test.id": testId,
       },
       async () => {
-        const questionService = await getQuestionService();
+        const questionService = await getQuestionService(schoolId);
         await questionService.deleteQuestion(questionId, adminUserId);
 
         revalidatePath(`/admin/courses/${courseId}/tests/${testId}`);

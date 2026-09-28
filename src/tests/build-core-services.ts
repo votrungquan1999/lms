@@ -15,6 +15,7 @@ import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
 import { TestSubmissionService } from "src/lib/test-submission-service";
+import { TEST_SCHOOL_ID } from "./create-test-db";
 
 /**
  * Core services constructed against an isolated test DB. Mirrors the wiring in
@@ -84,7 +85,7 @@ export function buildCoreServices(
     questionChangeLogService,
     () => Promise.resolve(answerService),
   );
-  const testService = new TestService(db);
+  const testService = new TestService(db, TEST_SCHOOL_ID);
   const testStartService = new TestStartService(db);
   answerService = new AnswerService(
     db,

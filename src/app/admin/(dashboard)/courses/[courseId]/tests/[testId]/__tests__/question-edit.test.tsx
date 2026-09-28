@@ -6,6 +6,7 @@ import type {
   MultiSelectQuestion,
   SingleSelectQuestion,
 } from "src/lib/question-service";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -46,7 +47,10 @@ describe("Feature: Question edit panel — answer-reveal override", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {
@@ -220,7 +224,10 @@ describe("Feature: Question edit panel — model answer and explanation", () => 
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {
@@ -380,7 +387,10 @@ describe("Feature: Question edit panel warns before saving an answered question"
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {
@@ -606,7 +616,10 @@ describe("Feature: Question edit panel — title and content", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {
@@ -675,7 +688,10 @@ describe("Feature: Question edit panel — answer options", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {
@@ -1102,7 +1118,10 @@ describe("Feature: Question edit panel — question type", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {
@@ -1225,7 +1244,10 @@ describe("Feature: Question edit panel — multi-select grading strategy", () =>
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {
@@ -1399,7 +1421,10 @@ describe("Feature: Question edit panel — a refused save keeps what's on screen
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {

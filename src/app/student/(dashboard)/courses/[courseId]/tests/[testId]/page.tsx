@@ -56,7 +56,7 @@ export default async function StudentTestDetailPage({
   const session = await guard.requireStudentLogin();
   await guard.requireEnrollment(courseId, session.studentId);
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.schoolId);
   const test = await testService.getTest(testId);
   if (!test || test.courseId !== courseId) {
     notFound();
@@ -65,7 +65,7 @@ export default async function StudentTestDetailPage({
   const courseService = await getCourseService(session.schoolId);
   const course = await courseService.getCourse(courseId);
 
-  const questionService = await getQuestionService();
+  const questionService = await getQuestionService(session.schoolId);
   const questions = await attachQuestionMediaUrls(
     await questionService.listQuestions(testId),
   );
@@ -76,7 +76,7 @@ export default async function StudentTestDetailPage({
   const correctAnswersVisible =
     test.showCorrectAnswerAfterSubmit || test.correctAnswersReleasedAt != null;
 
-  const answerService = await getAnswerService();
+  const answerService = await getAnswerService(session.schoolId);
   // A question can be deleted after the student answers it — that answer
   // must not keep counting toward their progress once the question is gone.
   const liveQuestionIds = new Set(questions.map((q) => q.id));
@@ -114,14 +114,16 @@ export default async function StudentTestDetailPage({
   // Hoisted above the scrub below so its graded-view disjunct can consult
   // submission/grading state — each of these depends only on
   // testId/studentId/questions.length, never on the scrub's own output.
-  const testSubmissionService = await getTestSubmissionService();
+  const testSubmissionService = await getTestSubmissionService(
+    session.schoolId,
+  );
   const isSubmitted = await testSubmissionService.isTestSubmitted(
     testId,
     session.studentId,
   );
 
   // ── Compute test status for atomic-reveal visibility checks ──────────────
-  const testStatusService = await getTestStatusService();
+  const testStatusService = await getTestStatusService(session.schoolId);
   const testStatus = await testStatusService.getStatus(
     testId,
     session.studentId,
@@ -130,7 +132,9 @@ export default async function StudentTestDetailPage({
 
   // Same reveal rule the grade lookups below apply; the blank-question
   // marker has no grade row of its own to be gated through them.
-  const gradeVisibilityService = await getGradeVisibilityService();
+  const gradeVisibilityService = await getGradeVisibilityService(
+    session.schoolId,
+  );
   const gradesVisible = await gradeVisibilityService.canRevealGrades(
     testId,
     session.studentId,
@@ -146,7 +150,7 @@ export default async function StudentTestDetailPage({
   );
 
   // ── Fetch grades via visibility-aware methods ─────────────────────────────
-  const gradeService = await getGradeService();
+  const gradeService = await getGradeService(session.schoolId);
   const grades = await gradeService.getStudentGrades(
     testId,
     session.studentId,
@@ -154,7 +158,7 @@ export default async function StudentTestDetailPage({
   );
   const gradeMap = new Map(grades.map((g) => [g.questionId, g]));
 
-  const redoRequestService = await getRedoRequestService();
+  const redoRequestService = await getRedoRequestService(session.schoolId);
   const activeRedoRequest = await redoRequestService.getActiveRedoRequest(
     testId,
     session.studentId,

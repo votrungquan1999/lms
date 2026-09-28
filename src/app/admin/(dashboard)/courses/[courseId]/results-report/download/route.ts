@@ -27,8 +27,10 @@ export async function GET(
 ): Promise<Response> {
   const requestHeaders = await headers();
   const authService = await getAuthService();
+  let schoolId: string;
   try {
-    await authService.requireAdminSession(requestHeaders);
+    const session = await authService.requireAdminSession(requestHeaders);
+    schoolId = session.school.id;
   } catch {
     return new Response("Unauthorized", { status: 401 });
   }
@@ -59,11 +61,11 @@ export async function GET(
     testFeedbackService,
   ] = await Promise.all([
     getStudentService(),
-    getTestService(),
-    getQuestionService(),
-    getAnswerService(),
-    getGradeService(),
-    getTestStatusService(),
+    getTestService(schoolId),
+    getQuestionService(schoolId),
+    getAnswerService(schoolId),
+    getGradeService(schoolId),
+    getTestStatusService(schoolId),
     getTestFeedbackService(),
   ]);
 

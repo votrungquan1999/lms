@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -33,7 +34,10 @@ describe("Feature: Test Settings Panel — answer-reveal display choice", () => 
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {

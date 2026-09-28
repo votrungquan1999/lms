@@ -82,9 +82,11 @@ export async function gradeQuestionAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -114,14 +116,14 @@ export async function gradeQuestionAction(
       },
       async (span) => {
         // Read before saving, so a failed lookup never reports a saved grade as failed.
-        const aiGradeService = await getAiGradeService();
+        const aiGradeService = await getAiGradeService(schoolId);
         const suggestion = await aiGradeService.getLatestSuggestion(
           parsed.data.testId,
           parsed.data.questionId,
           parsed.data.studentId,
         );
 
-        const gradeService = await getGradeService();
+        const gradeService = await getGradeService(schoolId);
         await gradeService.gradeQuestion({
           testId: parsed.data.testId,
           questionId: parsed.data.questionId,
@@ -326,9 +328,11 @@ export async function releaseGradesAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return {
       success: false,
@@ -359,7 +363,7 @@ export async function releaseGradesAction(
         "lms.course.id": parsed.data.courseId,
       },
       async () => {
-        const testService = await getTestService();
+        const testService = await getTestService(schoolId);
         await testService.releaseGrades(parsed.data.testId, adminUserId);
 
         revalidatePath(
@@ -416,9 +420,11 @@ export async function requestRedoAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -443,7 +449,7 @@ export async function requestRedoAction(
         "lms.student.id": parsed.data.studentId,
       },
       async () => {
-        const redoRequestService = await getRedoRequestService();
+        const redoRequestService = await getRedoRequestService(schoolId);
         await redoRequestService.requestRedo(
           parsed.data.testId,
           parsed.data.studentId,
@@ -499,9 +505,11 @@ export async function releaseGradeForStudentAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return {
       success: false,
@@ -533,7 +541,7 @@ export async function releaseGradeForStudentAction(
         "lms.student.id": parsed.data.studentId,
       },
       async () => {
-        const testSubmissionService = await getTestSubmissionService();
+        const testSubmissionService = await getTestSubmissionService(schoolId);
         await testSubmissionService.releaseGradeToStudent(
           parsed.data.testId,
           parsed.data.studentId,
@@ -613,6 +621,7 @@ export async function saveAndJumpToNextAction(formData: FormData) {
   const authService = await getAuthService();
   const session = await authService.requireAdminSession(requestHeaders);
   const adminUserId = session.userId;
+  const schoolId = session.school.id;
 
   const parsed = saveAndJumpToNextSchema.safeParse({
     testId: formData.get("testId"),
@@ -633,7 +642,7 @@ export async function saveAndJumpToNextAction(formData: FormData) {
     throw new Error(parsed.error.issues[0]?.message ?? "Invalid form data");
   }
 
-  const gradeService = await getGradeService();
+  const gradeService = await getGradeService(schoolId);
   // Wrap ONLY the persist block — the next-student lookup loop and the trailing
   // redirect() stay outside the span (redirect throws NEXT_REDIRECT, which must
   // not be recorded as a span error).
@@ -736,9 +745,11 @@ export async function releaseCorrectAnswersAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return {
       success: false,
@@ -769,7 +780,7 @@ export async function releaseCorrectAnswersAction(
         "lms.course.id": parsed.data.courseId,
       },
       async () => {
-        const testService = await getTestService();
+        const testService = await getTestService(schoolId);
         await testService.releaseCorrectAnswers(
           parsed.data.testId,
           adminUserId,

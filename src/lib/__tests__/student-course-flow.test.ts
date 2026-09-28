@@ -129,7 +129,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
   describe("Scenario: Get test by ID", () => {
     dbIt("should return a test by its ID", async ({ db }) => {
       // Setup
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const created = await testService.createTest("course-1", {
         title: "Midterm",
         description: "Covers chapters 1-5",
@@ -147,7 +147,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
 
     dbIt("should return null for non-existent test ID", async ({ db }) => {
       // Setup
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
 
       // Action
       const found = await testService.getTest("non-existent");
@@ -164,12 +164,12 @@ describe("Feature: Student Course & Test Taking Flow", () => {
         // Setup services
         const courseService = new CourseService(db, TEST_SCHOOL_ID);
         const enrollmentService = new EnrollmentService(db);
-        const testService = new TestService(db);
+        const testService = new TestService(db, TEST_SCHOOL_ID);
         const questionService = new QuestionService(db);
         const answerService = new AnswerService(
           db,
           questionService,
-          new TestService(db),
+          new TestService(db, TEST_SCHOOL_ID),
           new TestStartService(db),
         );
 

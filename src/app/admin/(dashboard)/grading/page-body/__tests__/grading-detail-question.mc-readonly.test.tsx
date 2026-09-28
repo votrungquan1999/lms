@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import type { Test } from "src/lib/test-service";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -44,6 +45,7 @@ describe("Feature: grader sees MC answers as read-only in the per-question view"
     const ui = await GradingDetailQuestion({
       test,
       courseId: "course-1",
+      schoolId: TEST_SCHOOL_ID,
       questionId: question.id,
       students: [{ id: "student-1", name: "Stu", username: "stu" }],
       basePath: "/admin/grading/test-1",
@@ -81,6 +83,7 @@ describe("Feature: grader sees MC answers as read-only in the per-question view"
     const ui = await GradingDetailQuestion({
       test,
       courseId: "course-1",
+      schoolId: TEST_SCHOOL_ID,
       questionId: question.id,
       students: [{ id: "student-1", name: "Stu", username: "stu" }],
       basePath: "/admin/grading/test-1",
@@ -121,6 +124,7 @@ describe("Feature: grader sees MC answers as read-only in the per-question view"
     const ui = await GradingDetailQuestion({
       test,
       courseId: "course-1",
+      schoolId: TEST_SCHOOL_ID,
       questionId: question.id,
       students: [{ id: "student-1", name: "Stu", username: "stu" }],
       basePath: "/admin/grading/test-1",

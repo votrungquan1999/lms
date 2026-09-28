@@ -7,6 +7,7 @@ import { GradingPageShell } from "src/app/admin/(dashboard)/grading/page-body/gr
 import { pluralize } from "src/lib/pluralize";
 import {
   getEnrollmentService,
+  getPageGuard,
   getQuestionService,
   getTestService,
 } from "src/lib/services-singleton";
@@ -27,6 +28,8 @@ export default async function GradingPage({
   params: Promise<{ courseId: string; testId: string }>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const { courseId, testId } = await params;
   const sp = (await searchParams) ?? {};
   const rawStudentId = sp.studentId;
@@ -45,7 +48,7 @@ export default async function GradingPage({
         ? GradingSort.Status
         : GradingSort.Enrollment;
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.school.id);
   const test = await testService.getTest(testId);
   if (!test || test.courseId !== courseId) {
     notFound();
@@ -54,7 +57,7 @@ export default async function GradingPage({
   const enrollmentService = await getEnrollmentService();
   const studentIds = await enrollmentService.listEnrollmentsByCourse(courseId);
 
-  const questionService = await getQuestionService();
+  const questionService = await getQuestionService(session.school.id);
   const questions = await questionService.listQuestions(testId);
 
   return (
@@ -91,6 +94,7 @@ export default async function GradingPage({
         await GradingPageShell({
           test,
           courseId,
+          schoolId: session.school.id,
           basePath: `/admin/courses/${courseId}/tests/${testId}/grading`,
           selection: { mode, studentId, questionId, sort },
         })

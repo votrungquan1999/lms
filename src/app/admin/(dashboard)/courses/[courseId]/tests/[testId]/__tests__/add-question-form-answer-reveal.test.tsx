@@ -2,6 +2,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FreeTextQuestion } from "src/lib/question-service";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -29,7 +30,10 @@ describe("Feature: Add Question Form — per-question answer-reveal override", (
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {

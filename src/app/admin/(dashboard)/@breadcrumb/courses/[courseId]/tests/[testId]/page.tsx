@@ -25,7 +25,7 @@ export default async function TestDetailBreadcrumb({
   const courseService = await getCourseService(session.school.id);
   const course = await courseService.getCourse(courseId);
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.school.id);
   const test = await testService.getTest(testId);
   const currentPageText = test?.title ?? "Test";
 

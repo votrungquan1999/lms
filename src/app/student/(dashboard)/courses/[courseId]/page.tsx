@@ -56,13 +56,15 @@ export default async function StudentCourseDetailPage({
 
   const materials = await attachCourseMaterialUrls(course.materials);
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.schoolId);
   const tests = await testService.listTests(courseId);
 
-  const questionService = await getQuestionService();
-  const testStatusService = await getTestStatusService();
-  const gradeService = await getGradeService();
-  const gradeVisibilityService = await getGradeVisibilityService();
+  const questionService = await getQuestionService(session.schoolId);
+  const testStatusService = await getTestStatusService(session.schoolId);
+  const gradeService = await getGradeService(session.schoolId);
+  const gradeVisibilityService = await getGradeVisibilityService(
+    session.schoolId,
+  );
 
   // Compute status and score for each test
   const testsWithStatus = await Promise.all(

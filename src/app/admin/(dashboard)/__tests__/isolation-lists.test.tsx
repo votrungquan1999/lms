@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import { isValidElement, type ReactNode } from "react";
 import { TooltipProvider } from "src/components/ui/tooltip";
 import { AdminSession } from "src/lib/session";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   addTestSchool,
   getTestServices,
@@ -14,6 +15,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CoursesPage from "../courses/page";
 import AdminDashboardPage from "../dashboard/page";
+import GradingHubPage from "../grading/page";
 import { BulkImportDialog } from "../students/bulk-import-dialog";
 import StudentsPage from "../students/page";
 
@@ -109,5 +111,87 @@ describe("Feature: a school admin's lists show only their current school's cours
     expect(picker?.courses.map((course) => course.title)).toEqual([
       "Own Course",
     ]);
+  });
+});
+
+/** Seeds a test in `schoolId` with one enrolled student waiting for a grade. */
+async function seedTestWaitingForGrade(schoolId: string, title: string) {
+  const services = getTestServices(schoolId);
+  const course = await services.courseService.createCourse({
+    title: `${title} Course`,
+    description: "",
+    createdBy: "seed",
+  });
+  const test = await services.testService.createTest(course.id, {
+    title,
+    description: "",
+    createdBy: "seed",
+  });
+  const question = await services.questionService.addQuestion(test.id, {
+    type: "free_text",
+    title: "Q",
+    content: "Q",
+    createdBy: "seed",
+  });
+  const student = await services.studentService.createStudentDocument({
+    authUserId: `auth-${schoolId}`,
+    username: `student-${schoolId}`,
+    name: "Student",
+    createdBy: "seed",
+    schoolId,
+  });
+  await services.enrollmentService.enrollStudent(course.id, student.id, "seed");
+  await services.answerService.submitAnswer({
+    testId: test.id,
+    questionId: question.id,
+    studentId: student.id,
+    answer: { type: "free_text", text: "x" },
+  });
+  await services.testSubmissionService.submitTest(test.id, student.id);
+}
+
+/**
+ * Feature: a school admin's grading views show only their current school's tests
+ * As a school admin working in one school
+ * I want the grading hub and dashboard to count only that school's tests
+ * So that another school's tests never appear in my grading work
+ */
+describe("Feature: a school admin's grading views show only their current school's tests", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+    const school = await addTestSchool("School B");
+    signInAs(
+      new AdminSession({
+        userId: "0000000000000000000000b1",
+        email: "school-b-admin@example.com",
+        school,
+      }),
+    );
+    // Seeded through the default school's services, so a getter that falls
+    // back to the default school shows the foreign test and fails the row.
+    await seedTestWaitingForGrade(TEST_SCHOOL_ID, "Foreign Test");
+    await seedTestWaitingForGrade(school.id, "Own Test");
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("the grading hub lists only the current school's tests", async () => {
+    render(await GradingHubPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByText("Own Test")).toBeInTheDocument();
+    expect(screen.queryByText("Foreign Test")).not.toBeInTheDocument();
+  });
+
+  it("the dashboard counts only the current school's tests needing grading", async () => {
+    const { container } = render(
+      <TooltipProvider>{await AdminDashboardPage()}</TooltipProvider>,
+    );
+
+    const count = container.querySelector(
+      '[data-stat="tests-needing-grading"]',
+    );
+    expect(count?.textContent).toBe("1");
   });
 });

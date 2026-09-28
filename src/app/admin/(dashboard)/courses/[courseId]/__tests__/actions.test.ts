@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import {
+  addTestSchool,
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
@@ -287,5 +288,40 @@ describe("Feature: Create Test names a blank title as a field error", () => {
     // Then the error names the title field, not only the banner
     expect(result.success).toBe(false);
     expect(result.fieldErrors?.title).toBe("Test title is required");
+  });
+});
+
+/**
+ * Feature: a new test lands in its course's school
+ * As a school admin working in one school
+ * I want a test I create in my course to belong to my school
+ * So that only my school's admins ever see it
+ */
+describe("Feature: a new test lands in its course's school", () => {
+  it("creates the test in the acting admin's school, not the default one", async () => {
+    const school = await addTestSchool("School B");
+    requireAdminSession.mockResolvedValue({
+      userId: "admin-b",
+      role: "admin",
+      school,
+    });
+    const course = await getTestServices(school.id).courseService.createCourse({
+      title: "Algebra",
+      description: "",
+      createdBy: "admin-b",
+    });
+    const formData = new FormData();
+    formData.set("courseId", course.id);
+    formData.set("title", "Quiz 1");
+    formData.set("description", "");
+
+    const result = await createTestAction(null, formData);
+
+    expect(result.success).toBe(true);
+    const ownTests = await getTestServices(school.id).testService.listTests(
+      course.id,
+    );
+    expect(ownTests.map((test) => test.title)).toEqual(["Quiz 1"]);
+    expect(await getTestServices().testService.listAllTests()).toEqual([]);
   });
 });

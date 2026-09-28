@@ -3,7 +3,7 @@ import { AnswerService } from "src/lib/answer-service";
 import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -18,7 +18,7 @@ describe("AnswerService - Integration Tests", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -68,7 +68,7 @@ describe("AnswerService - Integration Tests", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -129,7 +129,7 @@ describe("AnswerService - Integration Tests", () => {
     const answerService = new AnswerService(
       db,
       questionService,
-      new TestService(db),
+      new TestService(db, TEST_SCHOOL_ID),
       new TestStartService(db),
     );
 
@@ -156,7 +156,7 @@ describe("AnswerService - Integration Tests", () => {
     const answerService = new AnswerService(
       db,
       questionService,
-      new TestService(db),
+      new TestService(db, TEST_SCHOOL_ID),
       new TestStartService(db),
     );
 
@@ -188,7 +188,7 @@ describe("AnswerService - Integration Tests", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -216,7 +216,7 @@ describe("AnswerService - Integration Tests", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -245,7 +245,7 @@ describe("AnswerService - Integration Tests", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -289,7 +289,7 @@ describe("AnswerService - Integration Tests", () => {
     const answerService = new AnswerService(
       db,
       questionService,
-      new TestService(db),
+      new TestService(db, TEST_SCHOOL_ID),
       new TestStartService(db),
     );
 
@@ -308,7 +308,7 @@ describe("AnswerService - MC Answer Validation", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -341,7 +341,7 @@ describe("AnswerService - MC Answer Validation", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -374,7 +374,7 @@ describe("AnswerService - MC Answer Validation", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -412,7 +412,7 @@ describe("AnswerService - Attempt Counts", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -465,7 +465,7 @@ describe("AnswerService - Answered Student Counts", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -498,7 +498,7 @@ describe("AnswerService - Answered Student Counts", () => {
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 
@@ -546,7 +546,7 @@ describe("AnswerService - Answered Student Counts", () => {
     const answerService = new AnswerService(
       db,
       questionService,
-      new TestService(db),
+      new TestService(db, TEST_SCHOOL_ID),
       new TestStartService(db),
     );
 

@@ -43,9 +43,11 @@ export async function submitAnswerAction(
   const authService = await getAuthService();
 
   let studentId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireStudentSession(requestHeaders);
     studentId = (session as StudentSession).studentId;
+    schoolId = session.schoolId;
   } catch {
     return { success: false, message: "Unauthorized: student access required" };
   }
@@ -98,7 +100,7 @@ export async function submitAnswerAction(
             : "free_text",
       },
       async () => {
-        const answerService = await getAnswerService();
+        const answerService = await getAnswerService(schoolId);
 
         if (mediaKeys) {
           // Image answer (photos of handwritten work)
@@ -258,9 +260,11 @@ export async function submitTestAction(
   const authService = await getAuthService();
 
   let studentId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireStudentSession(requestHeaders);
     studentId = (session as StudentSession).studentId;
+    schoolId = session.schoolId;
   } catch {
     return { success: false, message: "Unauthorized: student access required" };
   }
@@ -288,8 +292,8 @@ export async function submitTestAction(
         "lms.student.id": studentId,
       },
       async () => {
-        const testSubmissionService = await getTestSubmissionService();
-        const redoRequestService = await getRedoRequestService();
+        const testSubmissionService = await getTestSubmissionService(schoolId);
+        const redoRequestService = await getRedoRequestService(schoolId);
 
         // Check for an active redo request — if one exists, remove the old submission
         // so submitTest() can create a fresh one (which re-triggers auto-grading on new answers)

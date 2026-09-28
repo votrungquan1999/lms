@@ -57,7 +57,7 @@ export default async function GradingVariantPage({
         ? GradingSort.Status
         : GradingSort.Enrollment;
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.school.id);
   const test = await testService.getTest(testId);
   if (!test) {
     notFound();
@@ -70,7 +70,7 @@ export default async function GradingVariantPage({
   const enrollmentService = await getEnrollmentService();
   const studentIds = await enrollmentService.listEnrollmentsByCourse(courseId);
 
-  const questionService = await getQuestionService();
+  const questionService = await getQuestionService(session.school.id);
   const questions = await questionService.listQuestions(testId);
 
   return (
@@ -108,6 +108,7 @@ export default async function GradingVariantPage({
         await GradingPageShell({
           test,
           courseId,
+          schoolId: session.school.id,
           basePath: `/admin/grading/${testId}`,
           selection: { mode, studentId, questionId, sort },
         })

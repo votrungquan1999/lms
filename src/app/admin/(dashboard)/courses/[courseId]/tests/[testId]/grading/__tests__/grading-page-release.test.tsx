@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { revalidatePath } from "next/cache";
-import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -42,7 +42,10 @@ describe("Feature: Admin per-student grade release", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     await setupTestDb();
-    mockRequireAdminSession.mockResolvedValue({ userId: "admin-1" });
+    mockRequireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
   });
 
   afterEach(async () => {

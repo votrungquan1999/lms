@@ -51,10 +51,12 @@ export default async function StudentDashboardPage() {
   const pendingRequests =
     await courseJoinRequestService.listByStudent(studentId);
 
-  const testService = await getTestService();
-  const testStatusService = await getTestStatusService();
-  const gradeVisibilityService = await getGradeVisibilityService();
-  const ctx = await getRequestContext();
+  const testService = await getTestService(session.schoolId);
+  const testStatusService = await getTestStatusService(session.schoolId);
+  const gradeVisibilityService = await getGradeVisibilityService(
+    session.schoolId,
+  );
+  const ctx = await getRequestContext(session.schoolId);
 
   // Collect per-course test statuses; flatten for the overall summary.
   // Each raw status is converted to its student-facing value before

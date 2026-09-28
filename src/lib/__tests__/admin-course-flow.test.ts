@@ -142,7 +142,7 @@ describe("Feature: Admin Course Management Flow", () => {
   describe("Scenario: Admin manages tests", () => {
     dbIt("should create a test associated with a course", async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const course = await courseService.createCourse({
         title: "Algorithms",
         description: "",
@@ -162,7 +162,7 @@ describe("Feature: Admin Course Management Flow", () => {
 
     dbIt("should list only tests for the specified course", async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const courseA = await courseService.createCourse({
         title: "A",
         description: "",

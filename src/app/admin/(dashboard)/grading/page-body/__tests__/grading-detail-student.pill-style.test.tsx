@@ -69,6 +69,7 @@ describe("Feature: the per-student grading pill reflects the real status, not ju
     const ui = await GradingDetailStudent({
       test: testDoc,
       courseId: course.id,
+      schoolId: TEST_SCHOOL_ID,
       student: {
         id: student.id,
         name: student.name,

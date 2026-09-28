@@ -1,7 +1,7 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: this is for test */
 import { RedoRequestService } from "src/lib/redo-request-service";
 import { TestService } from "src/lib/test-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -18,7 +18,10 @@ describe("RedoRequestService", () => {
     dbIt(
       "should create an active redo request that getActiveRedoRequest returns",
       async ({ db }) => {
-        const service = new RedoRequestService(db, new TestService(db));
+        const service = new RedoRequestService(
+          db,
+          new TestService(db, TEST_SCHOOL_ID),
+        );
 
         // Given no active request exists
         const before = await service.getActiveRedoRequest(
@@ -46,7 +49,10 @@ describe("RedoRequestService", () => {
     dbIt(
       "should not return a request for a different student or test",
       async ({ db }) => {
-        const service = new RedoRequestService(db, new TestService(db));
+        const service = new RedoRequestService(
+          db,
+          new TestService(db, TEST_SCHOOL_ID),
+        );
 
         await service.requestRedo("test-1", "student-1", "admin-1");
 
@@ -67,7 +73,10 @@ describe("RedoRequestService", () => {
     dbIt(
       "should set resolvedAt so getActiveRedoRequest returns null afterwards",
       async ({ db }) => {
-        const service = new RedoRequestService(db, new TestService(db));
+        const service = new RedoRequestService(
+          db,
+          new TestService(db, TEST_SCHOOL_ID),
+        );
 
         // Setup: create an active request
         await service.requestRedo("test-1", "student-1", "admin-1");
@@ -87,7 +96,10 @@ describe("RedoRequestService", () => {
     dbIt(
       "resolveRedoRequest should be a no-op when there is no active request",
       async ({ db }) => {
-        const service = new RedoRequestService(db, new TestService(db));
+        const service = new RedoRequestService(
+          db,
+          new TestService(db, TEST_SCHOOL_ID),
+        );
 
         // Should not throw even when no request exists
         await expect(
@@ -101,7 +113,7 @@ describe("RedoRequestService", () => {
     dbIt(
       "should reject requestRedo for a practice test, creating no redo_request doc, while still allowing it for a non-practice test",
       async ({ db }) => {
-        const testService = new TestService(db);
+        const testService = new TestService(db, TEST_SCHOOL_ID);
         const service = new RedoRequestService(db, testService);
 
         const practiceTest = await testService.createTest("course-1", {

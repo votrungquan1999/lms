@@ -62,7 +62,16 @@ export interface TestServices {
 
 /** Services built for one school — one set per school in the harness. */
 interface SchoolBoundServices {
+  aiGradeService: AiGradeService;
+  answerService: AnswerService;
   courseService: CourseService;
+  gradeService: GradeService;
+  gradeVisibilityService: GradeVisibilityService;
+  questionService: QuestionService;
+  redoRequestService: RedoRequestService;
+  testService: TestService;
+  testStatusService: TestStatusService;
+  testSubmissionService: TestSubmissionService;
 }
 
 /** Services shared by every school — one instance per test database. */
@@ -109,6 +118,65 @@ export function signInAs(
  */
 function makeSharedServices(db: Db): SharedServices {
   const questionChangeLogService = new QuestionChangeLogService(db);
+  const questionPoolService = new QuestionPoolService(db);
+  const poolQuestionService = new PoolQuestionService(
+    db,
+    questionChangeLogService,
+  );
+  const testStartService = new TestStartService(db);
+  const annotationService = new AnnotationService(db);
+  const courseJoinRequestService = new CourseJoinRequestService(db);
+  const enrollmentService = new EnrollmentService(db);
+  const studentService = new StudentService(db);
+  const testFeedbackService = new TestFeedbackService(db);
+  const pageGuard = new PageGuard(enrollmentService, {
+    getSession: async () => currentSession,
+    isAdminEmail: async () => currentIsAdminEmail,
+  });
+  const userRoleService = new UserRoleService(db);
+  const schoolService = new SchoolService(db);
+  const schoolDirectory = new SchoolDirectory(db);
+  // Deterministic fake S3 service — no AWS SDK pulled into jsdom (type-only import).
+  const s3StorageService = {
+    getPresignedUploadUrl: async (key: string, _contentType: string) => ({
+      key,
+      url: `https://fake-s3.local/put/${key}`,
+    }),
+    getPresignedDownloadUrl: async (key: string, _ttlSeconds?: number) =>
+      `https://fake-s3.local/get/${key}`,
+  } as unknown as S3StorageService;
+
+  return {
+    annotationService,
+    courseJoinRequestService,
+    enrollmentService,
+    pageGuard,
+    poolQuestionService,
+    questionChangeLogService,
+    questionPoolService,
+    s3StorageService,
+    schoolDirectory,
+    schoolService,
+    studentService,
+    testFeedbackService,
+    testStartService,
+    userRoleService,
+  };
+}
+
+/**
+ * Builds one school's bound services. Construction order follows
+ * `services-singleton.ts`, so a dependent is never built from another
+ * school's instance.
+ */
+function makeSchoolServices(
+  db: Db,
+  schoolId: string,
+  shared: SharedServices,
+): SchoolBoundServices {
+  const { questionChangeLogService, testStartService } = shared;
+  const courseService = new CourseService(db, schoolId);
+  const testService = new TestService(db, schoolId);
   // Lazy thunk — AnswerService itself depends on QuestionService, so passing
   // an instance here would be a construction cycle (see QuestionService's
   // constructor JSDoc, and the TestSubmissionService thunk just below).
@@ -118,13 +186,6 @@ function makeSharedServices(db: Db): SharedServices {
     questionChangeLogService,
     () => Promise.resolve(answerService),
   );
-  const questionPoolService = new QuestionPoolService(db);
-  const poolQuestionService = new PoolQuestionService(
-    db,
-    questionChangeLogService,
-  );
-  const testService = new TestService(db);
-  const testStartService = new TestStartService(db);
   answerService = new AnswerService(
     db,
     questionService,
@@ -168,63 +229,20 @@ function makeSharedServices(db: Db): SharedServices {
     answerService,
     gradeService,
   );
-  const annotationService = new AnnotationService(db);
-  const courseJoinRequestService = new CourseJoinRequestService(db);
-  const enrollmentService = new EnrollmentService(db);
-  const studentService = new StudentService(db);
-  const testFeedbackService = new TestFeedbackService(db);
   const redoRequestService = new RedoRequestService(db, testService);
-  const pageGuard = new PageGuard(enrollmentService, {
-    getSession: async () => currentSession,
-    isAdminEmail: async () => currentIsAdminEmail,
-  });
-  const userRoleService = new UserRoleService(db);
-  const schoolService = new SchoolService(db);
-  const schoolDirectory = new SchoolDirectory(db);
-  // Deterministic fake S3 service — no AWS SDK pulled into jsdom (type-only import).
-  const s3StorageService = {
-    getPresignedUploadUrl: async (key: string, _contentType: string) => ({
-      key,
-      url: `https://fake-s3.local/put/${key}`,
-    }),
-    getPresignedDownloadUrl: async (key: string, _ttlSeconds?: number) =>
-      `https://fake-s3.local/get/${key}`,
-  } as unknown as S3StorageService;
 
   return {
     aiGradeService,
-    annotationService,
     answerService,
-    courseJoinRequestService,
-    enrollmentService,
+    courseService,
     gradeService,
     gradeVisibilityService,
-    pageGuard,
-    poolQuestionService,
-    questionChangeLogService,
-    questionPoolService,
     questionService,
     redoRequestService,
-    s3StorageService,
-    schoolDirectory,
-    schoolService,
-    studentService,
-    testFeedbackService,
     testService,
-    testStartService,
     testStatusService,
     testSubmissionService,
-    userRoleService,
   };
-}
-
-/**
- * Builds one school's bound services. Construction order follows
- * `services-singleton.ts`, so a dependent is never built from another
- * school's instance.
- */
-function makeSchoolServices(db: Db, schoolId: string): SchoolBoundServices {
-  return { courseService: new CourseService(db, schoolId) };
 }
 
 /**
@@ -254,7 +272,7 @@ export async function setupTestDb(): Promise<{
   currentDb = { client, db };
   currentShared = makeSharedServices(db);
   currentSchools = new Map([
-    [TEST_SCHOOL_ID, makeSchoolServices(db, TEST_SCHOOL_ID)],
+    [TEST_SCHOOL_ID, makeSchoolServices(db, TEST_SCHOOL_ID, currentShared)],
   ]);
   currentSession = defaultSchoolAdminSession();
 
@@ -278,7 +296,10 @@ export async function addTestSchool(
     slug: `school-${randomUUID()}`,
     createdBy: "test-harness",
   });
-  currentSchools.set(school.id, makeSchoolServices(currentDb.db, school.id));
+  currentSchools.set(
+    school.id,
+    makeSchoolServices(currentDb.db, school.id, currentShared),
+  );
   return { id: school.id, name: school.name };
 }
 
@@ -336,34 +357,41 @@ function servicesForSchool(schoolId: string): TestServices {
  */
 export function servicesSingletonMockFactory() {
   return {
-    getAiGradeService: async () => getTestServices().aiGradeService,
+    getAiGradeService: async (schoolId: string) =>
+      servicesForSchool(schoolId).aiGradeService,
     getAnnotationService: async () => getTestServices().annotationService,
-    getAnswerService: async () => getTestServices().answerService,
+    getAnswerService: async (schoolId: string) =>
+      servicesForSchool(schoolId).answerService,
     getCourseJoinRequestService: async () =>
       getTestServices().courseJoinRequestService,
     getCourseService: async (schoolId: string) =>
       servicesForSchool(schoolId).courseService,
     getEnrollmentService: async () => getTestServices().enrollmentService,
-    getGradeService: async () => getTestServices().gradeService,
-    getGradeVisibilityService: async () =>
-      getTestServices().gradeVisibilityService,
+    getGradeService: async (schoolId: string) =>
+      servicesForSchool(schoolId).gradeService,
+    getGradeVisibilityService: async (schoolId: string) =>
+      servicesForSchool(schoolId).gradeVisibilityService,
     getPageGuard: async () => getTestServices().pageGuard,
     getPoolQuestionService: async () => getTestServices().poolQuestionService,
     getQuestionChangeLogService: async () =>
       getTestServices().questionChangeLogService,
     getQuestionPoolService: async () => getTestServices().questionPoolService,
-    getQuestionService: async () => getTestServices().questionService,
-    getRedoRequestService: async () => getTestServices().redoRequestService,
+    getQuestionService: async (schoolId: string) =>
+      servicesForSchool(schoolId).questionService,
+    getRedoRequestService: async (schoolId: string) =>
+      servicesForSchool(schoolId).redoRequestService,
     getS3StorageService: async () => getTestServices().s3StorageService,
     getSchoolDirectory: async () => getTestServices().schoolDirectory,
     getSchoolService: async () => getTestServices().schoolService,
     getStudentService: async () => getTestServices().studentService,
     getTestFeedbackService: async () => getTestServices().testFeedbackService,
-    getTestService: async () => getTestServices().testService,
+    getTestService: async (schoolId: string) =>
+      servicesForSchool(schoolId).testService,
     getTestStartService: async () => getTestServices().testStartService,
-    getTestStatusService: async () => getTestServices().testStatusService,
-    getTestSubmissionService: async () =>
-      getTestServices().testSubmissionService,
+    getTestStatusService: async (schoolId: string) =>
+      servicesForSchool(schoolId).testStatusService,
+    getTestSubmissionService: async (schoolId: string) =>
+      servicesForSchool(schoolId).testSubmissionService,
     getUserRoleService: async () => getTestServices().userRoleService,
   };
 }

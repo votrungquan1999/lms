@@ -5,6 +5,7 @@ import { Separator } from "src/components/ui/separator";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import {
   getAnswerService,
+  getPageGuard,
   getPoolQuestionService,
   getQuestionPoolService,
   getQuestionService,
@@ -35,15 +36,17 @@ export default async function TestDetailPage({
 }: {
   params: Promise<{ courseId: string; testId: string }>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const { courseId, testId } = await params;
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.school.id);
   const test = await testService.getTest(testId);
   if (!test || test.courseId !== courseId) {
     notFound();
   }
 
-  const questionService = await getQuestionService();
+  const questionService = await getQuestionService(session.school.id);
   const questions = await attachQuestionMediaUrls(
     await questionService.listQuestions(testId),
   );
@@ -56,7 +59,7 @@ export default async function TestDetailPage({
 
   // D49: one batch call for every question on the test, shared by the edit
   // modal (Step 25) and the import/REPLACE warnings (Steps 33-34).
-  const answerService = await getAnswerService();
+  const answerService = await getAnswerService(session.school.id);
   const answeredCounts = await answerService.countAnsweredStudentsByQuestionIds(
     questions.map((q) => q.id),
   );

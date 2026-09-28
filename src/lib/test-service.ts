@@ -30,6 +30,8 @@ export interface TestDocument {
   updatedBy: string | null;
   deletedAt: Date | null;
   deletedBy: string | null;
+  /** Owning school. Absent or `null` on records not yet assigned — no school can see those. */
+  schoolId: string | null;
 }
 
 /**
@@ -82,12 +84,20 @@ export interface UpdateTestSettingsInput {
 }
 
 /**
- * TestService — manages the `test` collection.
+ * TestService — manages one school's tests in the `test` collection.
  */
 export class TestService {
   private readonly tests: Collection<TestDocument>;
 
-  constructor(db: Db) {
+  constructor(
+    db: Db,
+    private readonly schoolId: string,
+  ) {
+    // Fail closed: a missing school would query `{ schoolId: null }`, which
+    // matches exactly the tests no school owns yet.
+    if (!schoolId) {
+      throw new Error("A school is required to build a test service");
+    }
     this.tests = db.collection<TestDocument>("test");
   }
 
@@ -116,6 +126,7 @@ export class TestService {
       updatedBy: null,
       deletedAt: null,
       deletedBy: null,
+      schoolId: this.schoolId,
     };
 
     await this.tests.insertOne(doc);
@@ -130,7 +141,7 @@ export class TestService {
 
   async listTests(courseId: string): Promise<Test[]> {
     const docs = await this.tests
-      .find({ courseId, deletedAt: null })
+      .find({ courseId, deletedAt: null, schoolId: this.schoolId })
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -138,12 +149,13 @@ export class TestService {
   }
 
   /**
-   * Returns every non-deleted test across all courses, sorted by `createdAt` desc.
-   * Used by the grading hub and admin dashboard for cross-course aggregation.
+   * Returns every non-deleted test across the school's courses, sorted by
+   * `createdAt` desc. Used by the grading hub and admin dashboard for
+   * cross-course aggregation.
    */
   async listAllTests(): Promise<Test[]> {
     const docs = await this.tests
-      .find({ deletedAt: null })
+      .find({ deletedAt: null, schoolId: this.schoolId })
       .sort({ createdAt: -1 })
       .toArray();
 

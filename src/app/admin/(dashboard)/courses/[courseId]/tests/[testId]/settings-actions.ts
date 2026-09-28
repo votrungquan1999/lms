@@ -44,9 +44,11 @@ export async function setTestSettingsAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -75,7 +77,7 @@ export async function setTestSettingsAction(
         "lms.course.id": parsed.data.courseId,
       },
       async () => {
-        const testService = await getTestService();
+        const testService = await getTestService(schoolId);
         await testService.updateTestSettings(parsed.data.testId, {
           showGradeAfterSubmit: parsed.data.showGradeAfterSubmit,
           showCorrectAnswerAfterSubmit:

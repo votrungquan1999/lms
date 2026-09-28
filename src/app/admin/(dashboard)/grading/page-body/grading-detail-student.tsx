@@ -41,6 +41,8 @@ import { StudentStatusBadge } from "../student-status-badge";
 interface GradingDetailStudentProps {
   test: Test;
   courseId: string;
+  /** The page's school — never resolved here. */
+  schoolId: string;
   student: { id: string; name: string; username: string };
   /** Base path the page is rendered at (no query string). */
   basePath: string;
@@ -57,17 +59,18 @@ interface GradingDetailStudentProps {
 export async function GradingDetailStudent({
   test,
   courseId,
+  schoolId,
   student,
   basePath,
   sort,
 }: GradingDetailStudentProps) {
   const testId = test.id;
 
-  const questionService = await getQuestionService();
+  const questionService = await getQuestionService(schoolId);
   const questions = await questionService.listQuestions(testId);
   const liveQuestionIds = new Set(questions.map((q) => q.id));
 
-  const answerService = await getAnswerService();
+  const answerService = await getAnswerService(schoolId);
   // A question can be deleted after a student answers it — that answer must
   // not keep counting toward progress/status once the question is gone.
   const latestAnswers = (
@@ -80,7 +83,7 @@ export async function GradingDetailStudent({
     latestAnswers.map((a) => [a.questionId, a.id]),
   );
 
-  const gradeService = await getGradeService();
+  const gradeService = await getGradeService(schoolId);
   const grades = (await gradeService.getGrades(testId, student.id)).filter(
     (g) => liveQuestionIds.has(g.questionId),
   );
@@ -111,26 +114,26 @@ export async function GradingDetailStudent({
     student.id,
   );
 
-  const redoRequestService = await getRedoRequestService();
+  const redoRequestService = await getRedoRequestService(schoolId);
   const activeRedoRequest = await redoRequestService.getActiveRedoRequest(
     testId,
     student.id,
   );
 
-  const testStatusService = await getTestStatusService();
+  const testStatusService = await getTestStatusService(schoolId);
   const status = await testStatusService.getStatus(
     testId,
     student.id,
     questions.length,
   );
 
-  const testSubmissionService = await getTestSubmissionService();
+  const testSubmissionService = await getTestSubmissionService(schoolId);
   const activeSubmission = await testSubmissionService.getActiveSubmission(
     testId,
     student.id,
   );
 
-  const aiGradeService = await getAiGradeService();
+  const aiGradeService = await getAiGradeService(schoolId);
   const aiSuggestionsByQuestion = await aiGradeService.getSuggestionsForStudent(
     testId,
     student.id,

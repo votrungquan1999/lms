@@ -759,12 +759,12 @@ describe("GradeService - Auto-Grade Edge Cases", () => {
   dbIt(
     "multi_select rejects an MC answer with no selected options",
     async ({ db }) => {
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db),
+        new TestService(db, TEST_SCHOOL_ID),
         new TestStartService(db),
       );
 

@@ -16,7 +16,7 @@ import {
 } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -1215,7 +1215,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
     "logs the changed fields, their before/after values and the current answered-student count",
     async ({ db }) => {
       const changeLogService = new QuestionChangeLogService(db);
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const testStartService = new TestStartService(db);
       const questionService = new QuestionService(db, changeLogService);
       const answerService = new AnswerService(
@@ -1387,7 +1387,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
     "reconstructs a stranded student's original option text from the change-log row after a real options edit through updateQuestion (Step 27 — D29/D48's core guarantee, proven end-to-end)",
     async ({ db }) => {
       const changeLogService = new QuestionChangeLogService(db);
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const testStartService = new TestStartService(db);
       const questionService = new QuestionService(db, changeLogService);
       const answerService = new AnswerService(
@@ -1628,7 +1628,7 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
     "records the real answered-student count on delete, not a false zero (Step 29 — wires the getAnswerService thunk)",
     async ({ db }) => {
       const changeLogService = new QuestionChangeLogService(db);
-      const testService = new TestService(db);
+      const testService = new TestService(db, TEST_SCHOOL_ID);
       const testStartService = new TestStartService(db);
       const questionService = new QuestionService(db, changeLogService);
       const answerService = new AnswerService(

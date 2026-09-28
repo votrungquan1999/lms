@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import {
   getAnswerService,
+  getPageGuard,
   getQuestionService,
   getTestService,
 } from "src/lib/services-singleton";
@@ -17,9 +18,11 @@ export default async function ImportAiPage({
 }: {
   params: Promise<{ courseId: string; testId: string }>;
 }) {
+  const guard = await getPageGuard();
+  const session = await guard.requireSchoolAdmin();
   const { courseId, testId } = await params;
 
-  const testService = await getTestService();
+  const testService = await getTestService(session.school.id);
   const test = await testService.getTest(testId);
   if (!test || test.courseId !== courseId) {
     notFound();
@@ -27,9 +30,9 @@ export default async function ImportAiPage({
 
   // D49: what REPLACE (Step 34) would remove and its worst-case blast
   // radius — the same shared batch call as Step 25's edit modal.
-  const questionService = await getQuestionService();
+  const questionService = await getQuestionService(session.school.id);
   const existingQuestions = await questionService.listQuestions(testId);
-  const answerService = await getAnswerService();
+  const answerService = await getAnswerService(session.school.id);
   const answeredCounts = await answerService.countAnsweredStudentsByQuestionIds(
     existingQuestions.map((q) => q.id),
   );

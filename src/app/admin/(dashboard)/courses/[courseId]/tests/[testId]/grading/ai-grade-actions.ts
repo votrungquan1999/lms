@@ -41,9 +41,11 @@ export async function autoGradeSubmissionAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -68,7 +70,7 @@ export async function autoGradeSubmissionAction(
         "lms.student.id": parsed.data.studentId,
       },
       async () => {
-        const aiGradeService = await getAiGradeService();
+        const aiGradeService = await getAiGradeService(schoolId);
 
         const alreadyExists = await aiGradeService.hasAnySuggestionsForStudent(
           parsed.data.testId,
@@ -138,9 +140,11 @@ export async function regenerateSubmissionAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -166,7 +170,7 @@ export async function regenerateSubmissionAction(
         "lms.student.id": parsed.data.studentId,
       },
       async () => {
-        const aiGradeService = await getAiGradeService();
+        const aiGradeService = await getAiGradeService(schoolId);
         await aiGradeService.regenerateForStudent(
           parsed.data.testId,
           parsed.data.studentId,
@@ -223,9 +227,11 @@ export async function regenerateQuestionAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -253,7 +259,7 @@ export async function regenerateQuestionAction(
         "lms.question.id": parsed.data.questionId,
       },
       async () => {
-        const aiGradeService = await getAiGradeService();
+        const aiGradeService = await getAiGradeService(schoolId);
         await aiGradeService.regenerateForQuestion(
           parsed.data.testId,
           parsed.data.studentId,
@@ -315,9 +321,11 @@ export async function applyAiSuggestionAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -355,7 +363,7 @@ export async function applyAiSuggestionAction(
         "lms.student.id": parsed.data.studentId,
       },
       async (span) => {
-        const aiGradeService = await getAiGradeService();
+        const aiGradeService = await getAiGradeService(schoolId);
         const suggestion = await aiGradeService.applySuggestion(
           parsed.data.suggestionId,
           adminUserId,

@@ -80,6 +80,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
     .collection("school_membership")
     .createIndex({ schoolId: 1, userId: 1 }, { unique: true });
 
-  // Every course list filters by school first.
+  // Every course and test list filters by school first.
   await db.collection("course").createIndex({ schoolId: 1 });
+  await db.collection("test").createIndex({ schoolId: 1 });
 }
