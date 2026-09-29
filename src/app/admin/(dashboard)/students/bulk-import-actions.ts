@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import {
+  getCourseService,
   getEnrollmentService,
   getSchoolDirectory,
 } from "src/lib/services-singleton";
@@ -30,6 +31,12 @@ const importRowsSchema = z
     }),
   )
   .max(MAX_IMPORT_ROWS, `A maximum of ${MAX_IMPORT_ROWS} rows is allowed`);
+
+// `bulkImportStudentsAction` is called directly (no FormData), so TS's
+// `string[]` gives no runtime guarantee — validate before any id reaches a
+// Mongo filter, or an operator object (`{ $ne: null }`) would match unrelated
+// documents instead of failing the existence check below.
+const courseIdsSchema = z.array(z.string().min(1));
 
 /**
  * Classifies a single normalized row against in-file duplicates and existing usernames.
@@ -164,8 +171,9 @@ export async function previewImportAction(
 /**
  * Confirms a bulk import: re-validates rows server-side, sequentially creates
  * valid students, enrolls created students into each selected course, and
- * returns a per-row report. Partial success is expected (one failure does not
- * abort the rest).
+ * returns a per-row report. Partial success among ROWS is expected (one
+ * failed row does not abort the rest) — a course id outside this school is
+ * different: it refuses the whole call before creating anyone.
  * @param rows - Parsed roster rows from the uploaded file.
  * @param courseIds - Course ids to enroll the created students into (may be empty).
  * @returns Per-row outcomes and summary counts, or a failure state.
@@ -189,12 +197,38 @@ export async function bulkImportStudentsAction(
     return { success: false, message: parsed.error.issues[0].message };
   }
 
+  const parsedCourseIds = courseIdsSchema.safeParse(courseIds);
+  if (!parsedCourseIds.success) {
+    return {
+      success: false,
+      message:
+        "One or more selected courses were not found. Nothing was imported.",
+    };
+  }
+
+  const validCourseIds = parsedCourseIds.data;
+
+  // Refuse the whole import up front: a half-applied roster is harder to repair.
+  if (validCourseIds.length > 0) {
+    const courseService = await getCourseService(schoolId);
+    const courses = await Promise.all(
+      validCourseIds.map((courseId) => courseService.getCourse(courseId)),
+    );
+    if (courses.some((course) => course === null)) {
+      return {
+        success: false,
+        message:
+          "One or more selected courses were not found. Nothing was imported.",
+      };
+    }
+  }
+
   return await withSpan(
     "action.bulkImportStudentsAction",
     {
       "lms.action.name": "bulkImportStudentsAction",
       "lms.import.row_count": parsed.data.length,
-      "lms.import.course_count": courseIds.length,
+      "lms.import.course_count": validCourseIds.length,
     },
     async () => {
       // Re-validate server-side (never trust the client preview).
@@ -240,7 +274,7 @@ export async function bulkImportStudentsAction(
 
       // Enroll all created students into each selected course (one call per course).
       const enrollmentService = await getEnrollmentService();
-      for (const courseId of courseIds) {
+      for (const courseId of validCourseIds) {
         await enrollmentService.enrollStudents(
           courseId,
           createdStudentIds,

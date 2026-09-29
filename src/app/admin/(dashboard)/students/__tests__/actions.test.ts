@@ -159,11 +159,17 @@ describe("Feature: Bulk import — teacher previews a roster", () => {
 describe("Feature: Bulk import — teacher confirms the import", () => {
   it("creates valid students, enrolls them in selected courses, and reports per row", async () => {
     // Given an existing student "taken"
-    const { studentService, enrollmentService } = getTestServices();
+    const { studentService, courseService, enrollmentService } =
+      getTestServices();
     await studentService.createStudentDocument({
       authUserId: "auth-taken",
       username: "taken",
       name: "Already Here",
+      createdBy: "admin",
+    });
+    const course = await courseService.createCourse({
+      title: "Course 1",
+      description: "",
       createdBy: "admin",
     });
 
@@ -176,7 +182,7 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
         { name: "Faye", username: "faye", password: "        " }, // skipped: password-blank
         { name: "Taker", username: "taken", password: "secret123" }, // skipped: already-exists
       ],
-      ["course-1"],
+      [course.id],
     );
 
     // Then the per-row report and summary reflect each outcome
@@ -211,8 +217,9 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
       .filter((s) => s.username === "alice" || s.username === "bob")
       .map((s) => s.id)
       .sort();
-    const enrolledIds =
-      await enrollmentService.listEnrollmentsByCourse("course-1");
+    const enrolledIds = await enrollmentService.listEnrollmentsByCourse(
+      course.id,
+    );
     expect(enrolledIds.sort()).toEqual(createdIds);
 
     // The students list is revalidated
@@ -221,7 +228,18 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
 
   it("enrolls created students into every selected course", async () => {
     // Given an empty system and two target courses
-    const { studentService, enrollmentService } = getTestServices();
+    const { studentService, courseService, enrollmentService } =
+      getTestServices();
+    const courseA = await courseService.createCourse({
+      title: "Course A",
+      description: "",
+      createdBy: "admin",
+    });
+    const courseB = await courseService.createCourse({
+      title: "Course B",
+      description: "",
+      createdBy: "admin",
+    });
 
     // When importing two valid students into two courses
     const result = await bulkImportStudentsAction(
@@ -229,7 +247,7 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
         { name: "Alice", username: "alice", password: "secret123" },
         { name: "Bob", username: "bob", password: "secret123" },
       ],
-      ["course-1", "course-2"],
+      [courseA.id, courseB.id],
     );
 
     // Then both students are created
@@ -239,17 +257,25 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
     // And both are enrolled in each selected course
     const all = await studentService.listStudents();
     const createdIds = all.map((s) => s.id).sort();
-    const courseOne =
-      await enrollmentService.listEnrollmentsByCourse("course-1");
-    const courseTwo =
-      await enrollmentService.listEnrollmentsByCourse("course-2");
-    expect(courseOne.sort()).toEqual(createdIds);
-    expect(courseTwo.sort()).toEqual(createdIds);
+    const enrolledInA = await enrollmentService.listEnrollmentsByCourse(
+      courseA.id,
+    );
+    const enrolledInB = await enrollmentService.listEnrollmentsByCourse(
+      courseB.id,
+    );
+    expect(enrolledInA.sort()).toEqual(createdIds);
+    expect(enrolledInB.sort()).toEqual(createdIds);
   });
 
   it("reports a Failed outcome when registerStudent throws for a valid row", async () => {
     // Given registerStudent fails for the second valid row only
-    const { studentService, enrollmentService } = getTestServices();
+    const { studentService, courseService, enrollmentService } =
+      getTestServices();
+    const course = await courseService.createCourse({
+      title: "Course 1",
+      description: "",
+      createdBy: "admin",
+    });
     const authService = authHolder.authService as {
       registerStudent: (input: {
         name: string;
@@ -274,7 +300,7 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
         { name: "Alice", username: "alice", password: "secret123" }, // created
         { name: "Bob", username: "bob", password: "secret123" }, // fails
       ],
-      ["course-1"],
+      [course.id],
     );
 
     // Then the failing row is reported as Failed with the thrown reason
@@ -293,8 +319,7 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
     const all = await studentService.listStudents();
     expect(all).toHaveLength(1);
     expect(all[0].username).toBe("alice");
-    const enrolled =
-      await enrollmentService.listEnrollmentsByCourse("course-1");
+    const enrolled = await enrollmentService.listEnrollmentsByCourse(course.id);
     expect(enrolled).toEqual([all[0].id]);
   });
 
