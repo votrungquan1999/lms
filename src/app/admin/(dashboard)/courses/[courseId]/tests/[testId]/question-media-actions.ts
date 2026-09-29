@@ -24,8 +24,10 @@ export async function requestUploadSlotsAction(
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
+  let schoolId: string;
   try {
-    await authService.requireAdminSession(requestHeaders);
+    const session = await authService.requireAdminSession(requestHeaders);
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -44,7 +46,7 @@ export async function requestUploadSlotsAction(
       const slots = await Promise.all(
         parsed.data.map(async (file, index) => {
           const extension = EXTENSION_BY_CONTENT_TYPE[file.contentType];
-          const key = `media/questions/${randomUUID()}.${extension}`;
+          const key = `media/schools/${schoolId}/questions/${randomUUID()}.${extension}`;
           const { url } = await s3.getPresignedUploadUrl(key, file.contentType);
           return { key, url, contentType: file.contentType, order: index };
         }),

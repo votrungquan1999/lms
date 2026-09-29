@@ -51,6 +51,24 @@ export const submittedMediaSchema = z
 /** Validated, ordered media entries persisted alongside a created question. */
 export type SubmittedMedia = z.infer<typeof submittedMediaSchema>;
 
+/**
+ * True only for a key shaped like one this school's admin could have minted
+ * through `requestUploadSlotsAction` — an exact anchored match, not a
+ * prefix, so `..`, an extra path segment, and a trailing `?`/`#` all fail
+ * (CloudFront URLs are built from the raw key).
+ */
+export function isValidQuestionMediaKey(
+  key: string,
+  schoolId: string,
+): boolean {
+  const escapedSchoolId = schoolId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const extensions = Object.values(EXTENSION_BY_CONTENT_TYPE).join("|");
+  const pattern = new RegExp(
+    `^media/schools/${escapedSchoolId}/questions/[0-9a-f-]+\\.(${extensions})$`,
+  );
+  return pattern.test(key);
+}
+
 export interface RequestUploadSlotsInput {
   fileName: string;
   contentType: string;

@@ -149,7 +149,9 @@ describe("Feature: Add Question Form — media upload on submit", () => {
       ]);
       expect(question.media.map((m) => m.order)).toEqual([0, 1]);
       expect(
-        question.media.every((m) => m.key.startsWith("media/questions/")),
+        question.media.every((m) =>
+          m.key.startsWith(`media/schools/${TEST_SCHOOL_ID}/questions/`),
+        ),
       ).toBe(true);
     });
   });

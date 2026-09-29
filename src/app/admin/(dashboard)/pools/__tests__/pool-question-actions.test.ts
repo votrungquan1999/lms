@@ -101,6 +101,62 @@ describe("addPoolQuestionAction", () => {
     ).toHaveLength(0);
   });
 
+  it("accepts a media key minted for the admin's own school", async () => {
+    const form = new FormData();
+    form.set("type", "free_text");
+    form.set("poolId", "pool-1");
+    form.set("title", "With media");
+    form.set("content", "See attached");
+    form.set(
+      "media",
+      JSON.stringify([
+        {
+          key: `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000cccc.png`,
+          contentType: "image/png",
+          order: 0,
+          size: 1000,
+          fileName: "diagram.png",
+        },
+      ]),
+    );
+
+    const result = await addPoolQuestionAction(null, form);
+
+    expect(result.success).toBe(true);
+    const [question] =
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1");
+    expect(question.media.map((m) => m.key)).toEqual([
+      `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000cccc.png`,
+    ]);
+  });
+
+  it("refuses a media key minted for another school, and adds no question", async () => {
+    const form = new FormData();
+    form.set("type", "free_text");
+    form.set("poolId", "pool-1");
+    form.set("title", "With foreign media");
+    form.set("content", "See attached");
+    form.set(
+      "media",
+      JSON.stringify([
+        {
+          key: "media/schools/school-b/questions/00000000-0000-4000-8000-00000000dddd.png",
+          contentType: "image/png",
+          order: 0,
+          size: 1000,
+          fileName: "diagram.png",
+        },
+      ]),
+    );
+
+    const result = await addPoolQuestionAction(null, form);
+
+    expect(result).toEqual({ success: false, message: "Invalid media key" });
+    expect(
+      await getTestServices().poolQuestionService.listPoolQuestions("pool-1"),
+    ).toHaveLength(0);
+  });
+
   it("normalizes a whitespace-only explanation to absent rather than persisting the whitespace", async () => {
     const form = new FormData();
     form.set("type", "single_select");

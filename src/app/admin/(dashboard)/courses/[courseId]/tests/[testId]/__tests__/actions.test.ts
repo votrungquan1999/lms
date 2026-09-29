@@ -120,6 +120,10 @@ describe("Feature: teacher attaches media to a question", () => {
         order: 1,
       });
       expect(result.slots?.[0].key).not.toBe(result.slots?.[1].key);
+      // Minted under the caller's own school — never the unscoped legacy path.
+      expect(result.slots?.[0].key).toMatch(
+        `media/schools/${TEST_SCHOOL_ID}/questions/`,
+      );
     });
   });
 
@@ -130,14 +134,14 @@ describe("Feature: teacher attaches media to a question", () => {
         null,
         buildFreeTextFormData("test-1", [
           {
-            key: "media/questions/first.png",
+            key: `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000aaaa.png`,
             contentType: MediaContentType.PNG,
             order: 0,
             size: 1000,
             fileName: "first.png",
           },
           {
-            key: "media/questions/second.mp4",
+            key: `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000bbbb.mp4`,
             contentType: MediaContentType.MP4,
             order: 1,
             size: 2000,
@@ -151,8 +155,8 @@ describe("Feature: teacher attaches media to a question", () => {
       const [question] =
         await getTestServices().questionService.listQuestions("test-1");
       expect(question.media.map((m) => m.key)).toEqual([
-        "media/questions/first.png",
-        "media/questions/second.mp4",
+        `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000aaaa.png`,
+        `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000bbbb.mp4`,
       ]);
       expect(question.media.map((m) => m.order)).toEqual([0, 1]);
     });
@@ -193,6 +197,26 @@ describe("Feature: teacher attaches media to a question", () => {
       for (const result of results) {
         expect(result.success).toBe(false);
       }
+      const questions =
+        await getTestServices().questionService.listQuestions("test-1");
+      expect(questions).toHaveLength(0);
+    });
+
+    it("refuses a media key minted for the legacy unscoped path, and persists nothing", async () => {
+      const result = await addQuestionAction(
+        null,
+        buildFreeTextFormData("test-1", [
+          {
+            key: "media/questions/legacy.png",
+            contentType: MediaContentType.PNG,
+            order: 0,
+            size: 1000,
+            fileName: "legacy.png",
+          },
+        ]),
+      );
+
+      expect(result).toEqual({ success: false, message: "Invalid media key" });
       const questions =
         await getTestServices().questionService.listQuestions("test-1");
       expect(questions).toHaveLength(0);
