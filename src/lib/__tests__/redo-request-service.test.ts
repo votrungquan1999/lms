@@ -18,28 +18,25 @@ describe("RedoRequestService", () => {
     dbIt(
       "should create an active redo request that getActiveRedoRequest returns",
       async ({ db }) => {
-        const service = new RedoRequestService(
-          db,
-          new TestService(db, TEST_SCHOOL_ID),
-        );
+        const testService = new TestService(db, TEST_SCHOOL_ID);
+        const service = new RedoRequestService(db, testService);
+        const test = await testService.createTest("course-1", {
+          title: "Test",
+          description: "d",
+          createdBy: "admin-1",
+        });
 
         // Given no active request exists
-        const before = await service.getActiveRedoRequest(
-          "test-1",
-          "student-1",
-        );
+        const before = await service.getActiveRedoRequest(test.id, "student-1");
         expect(before).toBeNull();
 
         // When the admin requests a redo
-        await service.requestRedo("test-1", "student-1", "admin-1");
+        await service.requestRedo(test.id, "student-1", "admin-1");
 
         // Then getActiveRedoRequest returns the active request
-        const active = await service.getActiveRedoRequest(
-          "test-1",
-          "student-1",
-        );
+        const active = await service.getActiveRedoRequest(test.id, "student-1");
         expect(active).not.toBeNull();
-        expect(active!.testId).toBe("test-1");
+        expect(active!.testId).toBe(test.id);
         expect(active!.studentId).toBe("student-1");
         expect(active!.requestedBy).toBe("admin-1");
         expect(active!.resolvedAt).toBeNull();
@@ -49,21 +46,44 @@ describe("RedoRequestService", () => {
     dbIt(
       "should not return a request for a different student or test",
       async ({ db }) => {
-        const service = new RedoRequestService(
-          db,
-          new TestService(db, TEST_SCHOOL_ID),
-        );
+        const testService = new TestService(db, TEST_SCHOOL_ID);
+        const service = new RedoRequestService(db, testService);
+        const testA = await testService.createTest("course-1", {
+          title: "Test A",
+          description: "d",
+          createdBy: "admin-1",
+        });
+        const testB = await testService.createTest("course-1", {
+          title: "Test B",
+          description: "d",
+          createdBy: "admin-1",
+        });
 
-        await service.requestRedo("test-1", "student-1", "admin-1");
+        await service.requestRedo(testA.id, "student-1", "admin-1");
 
         // Different student: no active request
         expect(
-          await service.getActiveRedoRequest("test-1", "student-2"),
+          await service.getActiveRedoRequest(testA.id, "student-2"),
         ).toBeNull();
 
         // Different test: no active request
         expect(
-          await service.getActiveRedoRequest("test-2", "student-1"),
+          await service.getActiveRedoRequest(testB.id, "student-1"),
+        ).toBeNull();
+      },
+    );
+
+    dbIt(
+      "should reject requestRedo for a missing test, creating no redo_request doc",
+      async ({ db }) => {
+        const testService = new TestService(db, TEST_SCHOOL_ID);
+        const service = new RedoRequestService(db, testService);
+
+        await expect(
+          service.requestRedo("no-such-test", "student-1", "admin-1"),
+        ).rejects.toThrow("Test not found");
+        expect(
+          await service.getActiveRedoRequest("no-such-test", "student-1"),
         ).toBeNull();
       },
     );
@@ -73,22 +93,25 @@ describe("RedoRequestService", () => {
     dbIt(
       "should set resolvedAt so getActiveRedoRequest returns null afterwards",
       async ({ db }) => {
-        const service = new RedoRequestService(
-          db,
-          new TestService(db, TEST_SCHOOL_ID),
-        );
+        const testService = new TestService(db, TEST_SCHOOL_ID);
+        const service = new RedoRequestService(db, testService);
+        const test = await testService.createTest("course-1", {
+          title: "Test",
+          description: "d",
+          createdBy: "admin-1",
+        });
 
         // Setup: create an active request
-        await service.requestRedo("test-1", "student-1", "admin-1");
+        await service.requestRedo(test.id, "student-1", "admin-1");
         expect(
-          await service.getActiveRedoRequest("test-1", "student-1"),
+          await service.getActiveRedoRequest(test.id, "student-1"),
         ).not.toBeNull();
 
         // When the redo is resolved (student resubmits)
-        await service.resolveRedoRequest("test-1", "student-1");
+        await service.resolveRedoRequest(test.id, "student-1");
 
         // Then the request is no longer active
-        const after = await service.getActiveRedoRequest("test-1", "student-1");
+        const after = await service.getActiveRedoRequest(test.id, "student-1");
         expect(after).toBeNull();
       },
     );

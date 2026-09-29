@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Db, MongoClient } from "mongodb";
 import { MongoClient as MongoClientCtor } from "mongodb";
+import type { AiClient } from "src/lib/ai/ai-client";
 import { GeminiAiClient } from "src/lib/ai/ai-client";
 import { AiGradeService } from "src/lib/ai-grade-service";
 import { AnnotationService } from "src/lib/annotation-service";
@@ -93,6 +94,10 @@ let currentSchools: Map<string, SchoolBoundServices> | null = null;
 // setupTestDb); tests opt into anyone else with signInAs().
 let currentSession: Session | null = null;
 let currentIsAdminEmail = false;
+// The AI client every school's AiGradeService is built with for this test.
+// Defaults to the real Gemini wrapper (unchanged pre-existing behavior);
+// tests that exercise the AI path inject a stub via setupTestDb({ aiClient }).
+let currentAiClient: AiClient = new GeminiAiClient();
 
 /** The admin every test is signed in as unless it calls signInAs(). */
 function defaultSchoolAdminSession(): AdminSession {
@@ -221,11 +226,9 @@ function makeSchoolServices(
     testService,
     questionService,
   );
-  // Real Gemini wrapper — service-page tests that exercise the AI path must
-  // override `getAiGradeService` directly in their own `vi.mock(...)` factory.
   const aiGradeService = new AiGradeService(
     db,
-    new GeminiAiClient(),
+    currentAiClient,
     questionService,
     answerService,
     gradeService,
@@ -250,14 +253,24 @@ function makeSchoolServices(
   };
 }
 
+/** Options accepted by `setupTestDb`. */
+export interface SetupTestDbOptions {
+  /** Overrides the AI client every school's AiGradeService is built with. */
+  aiClient?: AiClient;
+}
+
 /**
  * Spins up a fresh isolated MongoDB and constructs real services against it.
  * Call inside `beforeEach` of a server-component test suite.
+ * @param options - `aiClient` injects a deterministic stub for tests that
+ * exercise the AI grading path; omitted, the real Gemini wrapper is built
+ * (unchanged pre-existing default — no test relies on it being called).
  */
-export async function setupTestDb(): Promise<{
+export async function setupTestDb(options: SetupTestDbOptions = {}): Promise<{
   db: Db;
   services: TestServices;
 }> {
+  currentAiClient = options.aiClient ?? new GeminiAiClient();
   const mongoUri = process.env.MONGODB_URI ?? "mongodb://localhost:27017";
   const dbName = `lms-test-${randomUUID()}`;
 

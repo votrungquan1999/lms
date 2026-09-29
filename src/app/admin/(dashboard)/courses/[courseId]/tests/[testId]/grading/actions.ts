@@ -19,6 +19,7 @@ import {
   getTestSubmissionService,
 } from "src/lib/services-singleton";
 import { z } from "zod";
+import { assertGradingTarget, resolveOwnedTest } from "../test-parent-check";
 
 const gradeQuestionSchema = z.object({
   testId: z.string().min(1),
@@ -115,6 +116,8 @@ export async function gradeQuestionAction(
         "lms.student.id": parsed.data.studentId,
       },
       async (span) => {
+        await assertGradingTarget(schoolId, parsed.data);
+
         // Read before saving, so a failed lookup never reports a saved grade as failed.
         const aiGradeService = await getAiGradeService(schoolId);
         const suggestion = await aiGradeService.getLatestSuggestion(
@@ -178,9 +181,11 @@ export async function saveAnnotationsAction(input: {
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -212,6 +217,8 @@ export async function saveAnnotationsAction(input: {
         "lms.student.id": parsed.data.studentId,
       },
       async () => {
+        await assertGradingTarget(schoolId, parsed.data);
+
         const annotationService = await getAnnotationService();
         await annotationService.saveAnnotations({
           testId: parsed.data.testId,
@@ -250,9 +257,11 @@ export async function setTestFeedbackAction(
   const authService = await getAuthService();
 
   let adminUserId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireAdminSession(requestHeaders);
     adminUserId = session.userId;
+    schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
   }
@@ -278,6 +287,8 @@ export async function setTestFeedbackAction(
         "lms.student.id": parsed.data.studentId,
       },
       async () => {
+        await assertGradingTarget(schoolId, parsed.data);
+
         const testFeedbackService = await getTestFeedbackService();
         await testFeedbackService.setTestFeedback({
           testId: parsed.data.testId,
@@ -364,6 +375,11 @@ export async function releaseGradesAction(
       },
       async () => {
         const testService = await getTestService(schoolId);
+        await resolveOwnedTest(
+          testService,
+          parsed.data.testId,
+          parsed.data.courseId,
+        );
         await testService.releaseGrades(parsed.data.testId, adminUserId);
 
         revalidatePath(
@@ -449,6 +465,8 @@ export async function requestRedoAction(
         "lms.student.id": parsed.data.studentId,
       },
       async () => {
+        await assertGradingTarget(schoolId, parsed.data);
+
         const redoRequestService = await getRedoRequestService(schoolId);
         await redoRequestService.requestRedo(
           parsed.data.testId,
@@ -541,6 +559,8 @@ export async function releaseGradeForStudentAction(
         "lms.student.id": parsed.data.studentId,
       },
       async () => {
+        await assertGradingTarget(schoolId, parsed.data);
+
         const testSubmissionService = await getTestSubmissionService(schoolId);
         await testSubmissionService.releaseGradeToStudent(
           parsed.data.testId,
@@ -583,7 +603,11 @@ const saveAndJumpToNextSchema = z.object({
   studentId: z.string().min(1),
   currentStudentId: z.string().min(1),
   candidateIds: z.string().min(1),
-  returnPath: z.string().min(1),
+  // Must stay inside /admin/ — an open redirect off-site or to // is refused.
+  returnPath: z
+    .string()
+    .min(1)
+    .refine((path) => path.startsWith("/admin/"), "Invalid return path"),
   mode: z.enum(["student", "question"]),
   score: z.coerce.number().int().min(0).max(100),
   feedback: z.string(),
@@ -641,6 +665,9 @@ export async function saveAndJumpToNextAction(formData: FormData) {
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Invalid form data");
   }
+
+  // Before both the grade write below and the next-candidate read loop.
+  await assertGradingTarget(schoolId, parsed.data);
 
   const gradeService = await getGradeService(schoolId);
   // Wrap ONLY the persist block — the next-student lookup loop and the trailing
@@ -781,6 +808,11 @@ export async function releaseCorrectAnswersAction(
       },
       async () => {
         const testService = await getTestService(schoolId);
+        await resolveOwnedTest(
+          testService,
+          parsed.data.testId,
+          parsed.data.courseId,
+        );
         await testService.releaseCorrectAnswers(
           parsed.data.testId,
           adminUserId,

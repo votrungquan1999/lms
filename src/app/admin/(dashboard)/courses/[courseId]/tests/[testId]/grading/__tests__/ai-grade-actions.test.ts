@@ -29,6 +29,13 @@ const hasAnySuggestionsForStudent = vi.fn();
 const regenerateForStudent = vi.fn();
 const regenerateForQuestion = vi.fn();
 const applySuggestion = vi.fn();
+// Parent-check stubs — a fixed test-1/course-1/q-1, always enrolled, so
+// every literal id this file already uses resolves as the admin's own.
+const getTest = vi
+  .fn()
+  .mockResolvedValue({ id: "test-1", courseId: "course-1", isPractice: false });
+const listQuestions = vi.fn().mockResolvedValue([{ id: "q-1" }]);
+const isEnrolled = vi.fn().mockResolvedValue(true);
 
 vi.mock("src/lib/services-singleton", () => ({
   getAiGradeService: vi.fn(async () => ({
@@ -38,6 +45,9 @@ vi.mock("src/lib/services-singleton", () => ({
     regenerateForQuestion,
     applySuggestion,
   })),
+  getTestService: vi.fn(async () => ({ getTest })),
+  getQuestionService: vi.fn(async () => ({ listQuestions })),
+  getEnrollmentService: vi.fn(async () => ({ isEnrolled })),
 }));
 
 import { TEST_SCHOOL } from "src/tests/create-test-db";

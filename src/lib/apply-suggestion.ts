@@ -49,7 +49,9 @@ export const APPLY_OVER_HUMAN_GRADE_MESSAGE =
  * Promotes an AI suggestion to the official `grade` row.
  *
  * Order (documented design trade-off — see implementation-plan.md §Atomic Apply):
- *   1. Load target suggestion by id; throw "Suggestion not found" if missing.
+ *   1. Load target suggestion by id; throw "Suggestion not found" if missing
+ *      OR if its own testId/studentId don't match the caller's verified pair
+ *      — a mismatch gets the same generic refusal as a miss.
  *   2. Apply-over-human-grade check — refuse if a teacher already authored a
  *      grade for this question (no `ai_grade` row currently applied AND a
  *      `grade` row exists).
@@ -63,17 +65,25 @@ export const APPLY_OVER_HUMAN_GRADE_MESSAGE =
  *
  * The service contains no defensive try/catch — the action's outer try/catch
  * is the only error boundary.
+ * @param verifiedTestId - The test the caller already checked is this school's.
+ * @param verifiedStudentId - The student the caller already checked is enrolled.
  */
 export async function applySuggestion(
   deps: ApplySuggestionDeps,
   suggestionId: string,
   byAdminId: string,
+  verifiedTestId: string,
+  verifiedStudentId: string,
   overrides?: ApplySuggestionOverrides,
 ): Promise<AiGradeSuggestion> {
   const { suggestions, grades, gradeService } = deps;
 
   const target = await suggestions.findOne({ id: suggestionId });
-  if (!target) {
+  if (
+    !target ||
+    target.testId !== verifiedTestId ||
+    target.studentId !== verifiedStudentId
+  ) {
     throw new Error("Suggestion not found");
   }
 

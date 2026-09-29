@@ -61,7 +61,11 @@ export class RedoRequestService {
     requestedBy: string,
   ): Promise<RedoRequest> {
     const test = await this.testService.getTest(testId);
-    if (test?.isPractice) {
+    // Explicit — `test?.isPractice` would let a missing test through silently.
+    if (!test) {
+      throw new Error("Test not found");
+    }
+    if (test.isPractice) {
       throw new Error("Cannot request a redo on a practice test");
     }
 

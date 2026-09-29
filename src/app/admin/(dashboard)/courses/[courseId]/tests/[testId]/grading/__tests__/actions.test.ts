@@ -22,13 +22,22 @@ const setTestFeedback = vi.fn().mockResolvedValue(undefined);
 const releaseGrades = vi.fn().mockResolvedValue(undefined);
 const requestRedo = vi.fn().mockResolvedValue(undefined);
 const getLatestSuggestion = vi.fn().mockResolvedValue(null);
+// Parent-check stubs — a fixed test-1/course-1/q-1, always enrolled, so
+// every literal id this file already uses resolves as the admin's own.
+const getTest = vi
+  .fn()
+  .mockResolvedValue({ id: "test-1", courseId: "course-1", isPractice: false });
+const listQuestions = vi.fn().mockResolvedValue([{ id: "q-1" }]);
+const isEnrolled = vi.fn().mockResolvedValue(true);
 
 vi.mock("src/lib/services-singleton", () => ({
   getGradeService: vi.fn(async () => ({ gradeQuestion })),
   getTestFeedbackService: vi.fn(async () => ({ setTestFeedback })),
-  getTestService: vi.fn(async () => ({ releaseGrades })),
+  getTestService: vi.fn(async () => ({ releaseGrades, getTest })),
   getRedoRequestService: vi.fn(async () => ({ requestRedo })),
   getAiGradeService: vi.fn(async () => ({ getLatestSuggestion })),
+  getQuestionService: vi.fn(async () => ({ listQuestions })),
+  getEnrollmentService: vi.fn(async () => ({ isEnrolled })),
 }));
 
 import { TEST_SCHOOL } from "src/tests/create-test-db";

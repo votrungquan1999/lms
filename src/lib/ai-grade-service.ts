@@ -236,10 +236,14 @@ export class AiGradeService {
   /**
    * Promotes an AI suggestion into the real `grade` collection. Delegates to
    * `apply-suggestion.ts`. See that module for apply order + refusal policy.
+   * @param verifiedTestId - The test the caller already checked is this school's.
+   * @param verifiedStudentId - The student the caller already checked is enrolled.
    */
   async applySuggestion(
     suggestionId: string,
     byAdminId: string,
+    verifiedTestId: string,
+    verifiedStudentId: string,
     overrides?: ApplySuggestionOverrides,
   ): Promise<AiGradeSuggestion> {
     return applySuggestionImpl(
@@ -250,6 +254,8 @@ export class AiGradeService {
       },
       suggestionId,
       byAdminId,
+      verifiedTestId,
+      verifiedStudentId,
       overrides,
     );
   }

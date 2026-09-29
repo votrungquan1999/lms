@@ -11,6 +11,7 @@ import { logError } from "src/lib/observability/log-error";
 import { withSpan } from "src/lib/observability/with-span";
 import { getAiGradeService } from "src/lib/services-singleton";
 import { z } from "zod";
+import { assertGradingTarget } from "../test-parent-check";
 
 const autoGradeSchema = z.object({
   testId: z.string().min(1),
@@ -70,6 +71,8 @@ export async function autoGradeSubmissionAction(
         "lms.student.id": parsed.data.studentId,
       },
       async () => {
+        await assertGradingTarget(schoolId, parsed.data);
+
         const aiGradeService = await getAiGradeService(schoolId);
 
         const alreadyExists = await aiGradeService.hasAnySuggestionsForStudent(
@@ -170,6 +173,8 @@ export async function regenerateSubmissionAction(
         "lms.student.id": parsed.data.studentId,
       },
       async () => {
+        await assertGradingTarget(schoolId, parsed.data);
+
         const aiGradeService = await getAiGradeService(schoolId);
         await aiGradeService.regenerateForStudent(
           parsed.data.testId,
@@ -259,6 +264,8 @@ export async function regenerateQuestionAction(
         "lms.question.id": parsed.data.questionId,
       },
       async () => {
+        await assertGradingTarget(schoolId, parsed.data);
+
         const aiGradeService = await getAiGradeService(schoolId);
         await aiGradeService.regenerateForQuestion(
           parsed.data.testId,
@@ -363,10 +370,14 @@ export async function applyAiSuggestionAction(
         "lms.student.id": parsed.data.studentId,
       },
       async (span) => {
+        await assertGradingTarget(schoolId, parsed.data);
+
         const aiGradeService = await getAiGradeService(schoolId);
         const suggestion = await aiGradeService.applySuggestion(
           parsed.data.suggestionId,
           adminUserId,
+          parsed.data.testId,
+          parsed.data.studentId,
           {
             scoreOverride: parsed.data.scoreOverride,
             feedbackOverride: parsed.data.feedbackOverride,

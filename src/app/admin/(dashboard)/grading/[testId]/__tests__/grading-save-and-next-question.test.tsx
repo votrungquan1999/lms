@@ -20,12 +20,19 @@ vi.mock("src/lib/auth-singleton", () => ({
 const gradeQuestion = vi.fn().mockResolvedValue(undefined);
 const getGrade = vi.fn();
 const getStatus = vi.fn();
+// Parent-check stubs — fixed test-1/course-1, always enrolled.
+const getTest = vi
+  .fn()
+  .mockResolvedValue({ id: "test-1", courseId: "course-1", isPractice: false });
+const isEnrolled = vi.fn().mockResolvedValue(true);
 vi.mock("src/lib/services-singleton", () => ({
   getGradeService: vi.fn(async () => ({ gradeQuestion, getGrade })),
   getTestStatusService: vi.fn(async () => ({ getStatus })),
   getQuestionService: vi.fn(async () => ({
     listQuestions: vi.fn(async () => [{ id: "q1" }]),
   })),
+  getTestService: vi.fn(async () => ({ getTest })),
+  getEnrollmentService: vi.fn(async () => ({ isEnrolled })),
 }));
 
 import { TEST_SCHOOL } from "src/tests/create-test-db";
