@@ -8,12 +8,41 @@ import {
   getAnswerService,
   getEnrollmentService,
   getRedoRequestService,
+  getTestService,
   getTestStartService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
 import type { StudentSession } from "src/lib/session";
 import { z } from "zod";
 import { MAX_ANSWER_IMAGES } from "./answer-image-upload.schema";
+
+// One wording for every refusal, so a caller can't tell a foreign or missing
+// test from a course they aren't in.
+const NOT_ENROLLED_MESSAGE = "You are not enrolled in this course";
+
+/**
+ * A student may start, answer or submit a test only when it is their own
+ * school's, belongs to `courseId`, and they are enrolled in that course.
+ * @param schoolId - The signed-in student's school.
+ * @param studentId - The signed-in student.
+ * @param testId - The test the form names.
+ * @param courseId - The course the form names.
+ * @returns Whether the student may act on the test.
+ */
+async function canWorkOnTest(
+  schoolId: string,
+  studentId: string,
+  testId: string,
+  courseId: string,
+): Promise<boolean> {
+  const testService = await getTestService(schoolId);
+  const test = await testService.getTest(testId);
+  if (!test || test.courseId !== courseId) {
+    return false;
+  }
+  const enrollmentService = await getEnrollmentService();
+  return enrollmentService.isEnrolled(courseId, studentId);
+}
 
 const submitAnswerSchema = z.object({
   testId: z.string().min(1, "Test ID is missing"),
@@ -75,14 +104,8 @@ export async function submitAnswerAction(
     return { success: false, message: "Answer cannot be empty" };
   }
 
-  // Verify enrollment
-  const enrollmentService = await getEnrollmentService();
-  const enrolled = await enrollmentService.isEnrolled(courseId, studentId);
-  if (!enrolled) {
-    return {
-      success: false,
-      message: "You are not enrolled in this course",
-    };
+  if (!(await canWorkOnTest(schoolId, studentId, testId, courseId))) {
+    return { success: false, message: NOT_ENROLLED_MESSAGE };
   }
 
   try {
@@ -194,9 +217,11 @@ export async function startTest(
   const authService = await getAuthService();
 
   let studentId: string;
+  let schoolId: string;
   try {
     const session = await authService.requireStudentSession(requestHeaders);
     studentId = (session as StudentSession).studentId;
+    schoolId = session.schoolId;
   } catch {
     return { success: false, message: "Unauthorized: student access required" };
   }
@@ -210,10 +235,8 @@ export async function startTest(
   }
   const { testId, courseId } = parsed.data;
 
-  const enrollmentService = await getEnrollmentService();
-  const enrolled = await enrollmentService.isEnrolled(courseId, studentId);
-  if (!enrolled) {
-    return { success: false, message: "You are not enrolled in this course" };
+  if (!(await canWorkOnTest(schoolId, studentId, testId, courseId))) {
+    return { success: false, message: NOT_ENROLLED_MESSAGE };
   }
 
   try {
@@ -276,10 +299,8 @@ export async function submitTestAction(
     return { success: false, message: "Missing test or course ID" };
   }
 
-  const enrollmentService = await getEnrollmentService();
-  const enrolled = await enrollmentService.isEnrolled(courseId, studentId);
-  if (!enrolled) {
-    return { success: false, message: "You are not enrolled in this course" };
+  if (!(await canWorkOnTest(schoolId, studentId, testId, courseId))) {
+    return { success: false, message: NOT_ENROLLED_MESSAGE };
   }
 
   try {

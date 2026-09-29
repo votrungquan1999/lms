@@ -57,10 +57,20 @@ export class TestSubmissionService {
   }
 
   /**
-   * Explicitly submits a test for a student.
-   * Throws if the test already has an active (non-soft-deleted) submission.
+   * Explicitly submits a test for a student. Throws:
+   * - "Test not found" if the test doesn't exist in this service's school.
+   * - "Test has already been submitted" if the test already has an active
+   *   (non-soft-deleted) submission.
+   * - "Time limit exceeded" if a timed attempt is past its enforcement deadline.
    */
   async submitTest(testId: string, studentId: string): Promise<void> {
+    // Resolve the test before anything else — a missing test must never
+    // fall through to "no time limit, not practice" and accept the write.
+    const test = await this.testService.getTest(testId);
+    if (!test) {
+      throw new Error("Test not found");
+    }
+
     const existing = await this.testSubmissions.findOne({
       testId,
       studentId,
@@ -70,12 +80,11 @@ export class TestSubmissionService {
       throw new Error("Test has already been submitted");
     }
 
-    const test = await this.testService.getTest(testId);
     const start = await this.testStartService.getActiveStart(testId, studentId);
     if (
       isPastEnforcementDeadline(
         start?.startedAt ?? null,
-        test?.timeLimitMinutes ?? null,
+        test.timeLimitMinutes,
         this.now(),
       )
     ) {
@@ -93,7 +102,7 @@ export class TestSubmissionService {
     });
 
     // Practice tests are purely formative — never create grades (D2/D9).
-    if (!test?.isPractice) {
+    if (!test.isPractice) {
       await this.gradeService.autoGradeTest(testId, studentId);
     }
   }

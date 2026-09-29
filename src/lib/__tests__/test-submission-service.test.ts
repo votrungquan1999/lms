@@ -6,6 +6,7 @@ import type {
 import { TestStatusService } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -14,6 +15,7 @@ describe("TestSubmissionService - Integration Tests", () => {
   dbIt(
     "should auto-grade single_select as 100 when selection matches, 0 when wrong, triggered on submitTest",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const {
         questionService,
         answerService,
@@ -70,6 +72,7 @@ describe("TestSubmissionService - Integration Tests", () => {
   dbIt(
     "should auto-grade multi_select (all_or_nothing) as 100 for exact match, 0 otherwise",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const {
         questionService,
         answerService,
@@ -142,6 +145,7 @@ describe("TestSubmissionService - Integration Tests", () => {
   dbIt(
     "should auto-grade multi_select (partial) proportionally minus deduction for wrong selections",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const {
         questionService,
         answerService,
@@ -229,6 +233,7 @@ describe("TestSubmissionService - Integration Tests", () => {
   dbIt(
     "should only auto-grade multiple choice questions and leave free-text questions ungraded in a mixed test",
     async ({ db }) => {
+      await insertRawTest(db, "test-mix");
       const {
         questionService,
         answerService,
@@ -309,6 +314,7 @@ describe("TestSubmissionService - Soft Delete", () => {
   dbIt(
     "deleteSubmission clears submitted state and lets the student resubmit",
     async ({ db }) => {
+      await insertRawTest(db, "test-soft");
       const { questionService, answerService, testSubmissionService } =
         buildCoreServices(db);
 
@@ -354,6 +360,7 @@ describe("TestSubmissionService - Soft Delete", () => {
   dbIt(
     "legacy rows inserted without a `deletedAt` field are treated as active",
     async ({ db }) => {
+      await insertRawTest(db, "test-legacy");
       const { testSubmissionService } = buildCoreServices(db);
 
       // Direct insert simulates a pre-migration row produced by an older
@@ -399,6 +406,7 @@ describe("TestSubmissionService.getActiveSubmission", () => {
   dbIt(
     "returns the active row with releasedAt/releasedBy coerced to null when fresh",
     async ({ db }) => {
+      await insertRawTest(db, "test-active");
       const { testSubmissionService } = buildCoreServices(db);
 
       await testSubmissionService.submitTest("test-active", "student-1");
@@ -431,6 +439,7 @@ describe("TestSubmissionService.getActiveSubmission", () => {
   dbIt(
     "returns null when the only row for (testId, studentId) is soft-deleted",
     async ({ db }) => {
+      await insertRawTest(db, "test-soft-only");
       const { testSubmissionService } = buildCoreServices(db);
 
       await testSubmissionService.submitTest("test-soft-only", "student-1");
@@ -453,6 +462,7 @@ describe("TestSubmissionService.releaseGradeToStudent", () => {
   dbIt(
     "stamps releasedAt and releasedBy on the active submission",
     async ({ db }) => {
+      await insertRawTest(db, "test-rel");
       const { testSubmissionService } = buildCoreServices(db);
 
       await testSubmissionService.submitTest("test-rel", "student-1");
@@ -475,6 +485,7 @@ describe("TestSubmissionService.releaseGradeToStudent", () => {
   dbIt(
     "re-release refreshes both fields when a different admin re-releases",
     async ({ db }) => {
+      await insertRawTest(db, "test-rel-2");
       const { testSubmissionService } = buildCoreServices(db);
 
       await testSubmissionService.submitTest("test-rel-2", "student-1");
@@ -523,6 +534,7 @@ describe("TestSubmissionService.releaseGradeToStudent", () => {
   dbIt(
     "does not touch a soft-deleted row's stale releasedAt",
     async ({ db }) => {
+      await insertRawTest(db, "test-soft-stale");
       const { testSubmissionService } = buildCoreServices(db);
 
       // Seed a soft-deleted row with a stale releasedAt directly.
@@ -570,6 +582,7 @@ describe("TestSubmissionService.releaseGradeToStudent", () => {
 
 describe("TestSubmissionService - Edge Cases", () => {
   dbIt("submitTest called twice rejects the second call", async ({ db }) => {
+    await insertRawTest(db, "test-idem");
     const { questionService, answerService, testSubmissionService } =
       buildCoreServices(db);
 
@@ -603,6 +616,7 @@ describe("TestSubmissionService - Edge Cases", () => {
   dbIt(
     "submitTest on a free-text-only test creates no grades and does not crash",
     async ({ db }) => {
+      await insertRawTest(db, "test-freeonly");
       const {
         questionService,
         answerService,
@@ -634,6 +648,7 @@ describe("TestSubmissionService - Edge Cases", () => {
   dbIt(
     "submitTest when student has no MC answer skips that question and creates no grade",
     async ({ db }) => {
+      await insertRawTest(db, "test-noanswer");
       const { questionService, gradeService, testSubmissionService } =
         buildCoreServices(db);
 
@@ -719,6 +734,7 @@ describe("TestSubmissionService - Edge Cases", () => {
   dbIt(
     "submitTest with 2 MC questions where only one is answered auto-grades the answered question and leaves the other with no grade",
     async ({ db }) => {
+      await insertRawTest(db, "test-partial");
       const {
         questionService,
         answerService,
@@ -781,6 +797,28 @@ describe("TestSubmissionService - Edge Cases", () => {
         "student-1",
       );
       expect(avg).toBe(50);
+    },
+  );
+});
+
+// ── Missing test ─────────────────────────────────────────────────────────────
+
+describe("TestSubmissionService - Missing Test", () => {
+  dbIt(
+    "rejects submitTest for a test that doesn't exist and writes no submission",
+    async ({ db }) => {
+      const { testSubmissionService } = buildCoreServices(db);
+
+      await expect(
+        testSubmissionService.submitTest("no-such-test", "student-1"),
+      ).rejects.toThrow("Test not found");
+
+      expect(
+        await testSubmissionService.isTestSubmitted(
+          "no-such-test",
+          "student-1",
+        ),
+      ).toBe(false);
     },
   );
 });

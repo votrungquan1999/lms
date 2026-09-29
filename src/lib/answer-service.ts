@@ -68,15 +68,23 @@ export class AnswerService {
   /**
    * Submits an answer for a question. Always creates a new record.
    * Throws if:
+   * - The test doesn't exist in this service's school ("Test not found").
+   * - The question isn't one of the test's own.
    * - The answer is identical to the latest submission.
    * - An MC answer has no selected options.
    * - An MC answer references option IDs that don't exist on the question.
    */
   async submitAnswer(input: SubmitAnswerInput): Promise<Answer> {
+    // Resolve the test before anything else — a missing test must never
+    // fall through to "no time limit" and accept the write.
+    const test = await this.testService.getTest(input.testId);
+    if (!test) {
+      throw new Error("Test not found");
+    }
+
     // Reject writes past the enforcement deadline before any validation or
     // persistence, so a late write changes nothing. Uses the same deadline
     // math as the submit path (see enforcement-deadline.ts).
-    const test = await this.testService.getTest(input.testId);
     const start = await this.testStartService.getActiveStart(
       input.testId,
       input.studentId,
@@ -84,7 +92,7 @@ export class AnswerService {
     if (
       isPastEnforcementDeadline(
         start?.startedAt ?? null,
-        test?.timeLimitMinutes ?? null,
+        test.timeLimitMinutes,
         this.now(),
       )
     ) {
@@ -104,6 +112,16 @@ export class AnswerService {
       throw new Error(
         "Image answer must include at least one photo. To leave a question unanswered, do not submit an answer for it.",
       );
+    }
+
+    // The MC branch below proves its questionId belongs to this test while
+    // fetching its options; free_text/image have no such branch, so a
+    // question from another test would otherwise accept an answer here.
+    if (input.answer.type === "free_text" || input.answer.type === "image") {
+      const questions = await this.questionService.listQuestions(input.testId);
+      if (!questions.some((q) => q.id === input.questionId)) {
+        throw new Error("Question not found");
+      }
     }
 
     // Validate MC answers against the question's actual options

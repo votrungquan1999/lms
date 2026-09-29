@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import type { Db } from "mongodb";
 import type { Test } from "src/lib/test-service";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -15,8 +17,10 @@ vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 
 const test = { id: "test-1" } as Test;
 
+let db: Db;
+
 beforeEach(async () => {
-  await setupTestDb();
+  ({ db } = await setupTestDb());
 });
 
 afterEach(async () => {
@@ -27,6 +31,7 @@ afterEach(async () => {
 describe("Feature: grader sees a student's image answer", () => {
   it("renders the student's submitted photos via presigned URLs", async () => {
     // Given an image-answer question the student answered with two photos
+    await insertRawTest(db, "test-1");
     const { questionService, answerService } = getTestServices();
     const question = await questionService.addQuestion("test-1", {
       title: "Solve the integral",

@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import type { Db } from "mongodb";
 import type { Test } from "src/lib/test-service";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -15,8 +17,10 @@ vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 
 const test = { id: "test-1" } as Test;
 
+let db: Db;
+
 beforeEach(async () => {
-  await setupTestDb();
+  ({ db } = await setupTestDb());
 });
 
 afterEach(async () => {
@@ -66,6 +70,7 @@ describe("Feature: grader sees MC answers as read-only in the per-question view"
 
   it("should show 'No answer — counts as 0' for a blank MC question once the student has submitted, the same wording as free text and image", async () => {
     // Given a single_select question the student submitted having left blank.
+    await insertRawTest(db, "test-1");
     const services = getTestServices();
     const question = await services.questionService.addQuestion("test-1", {
       title: "Capital of France?",
@@ -98,6 +103,7 @@ describe("Feature: grader sees MC answers as read-only in the per-question view"
 
   it("colours the student's pick right or wrong but never shows a missed-correct outline chip", async () => {
     // Given a single_select question the student answered wrong
+    await insertRawTest(db, "test-1");
     const services = getTestServices();
     const question = await services.questionService.addQuestion("test-1", {
       title: "Capital of France?",

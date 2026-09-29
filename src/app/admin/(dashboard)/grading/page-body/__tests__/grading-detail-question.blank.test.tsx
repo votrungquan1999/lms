@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import type { Db } from "mongodb";
 import type { Test } from "src/lib/test-service";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -15,8 +17,10 @@ vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 
 const test = { id: "test-1" } as Test;
 
+let db: Db;
+
 beforeEach(async () => {
-  await setupTestDb();
+  ({ db } = await setupTestDb());
 });
 
 afterEach(async () => {
@@ -27,6 +31,7 @@ afterEach(async () => {
 describe("Feature: grader sees a blank free-text question in the per-question view", () => {
   it("shows 'No answer — counts as 0' with no grading form once the student has submitted", async () => {
     // Given a free-text question the student never answered, then submitted.
+    await insertRawTest(db, "test-1");
     const { questionService, testSubmissionService } = getTestServices();
     const question = await questionService.addQuestion("test-1", {
       title: "Explain recursion",
@@ -60,6 +65,7 @@ describe("Feature: grader sees a blank free-text question in the per-question vi
   it("shows the stored score instead of 'counts as 0' when a blank question already has a grade from before this fix", async () => {
     // Given a free-text question left blank, but already graded (legacy
     // data from before blanks became read-only in this view).
+    await insertRawTest(db, "test-1");
     const { questionService, testSubmissionService, gradeService } =
       getTestServices();
     const question = await questionService.addQuestion("test-1", {

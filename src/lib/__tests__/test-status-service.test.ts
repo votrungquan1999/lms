@@ -2,6 +2,7 @@ import type { Db } from "mongodb";
 import { TestStatusService } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -68,6 +69,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'graded' when a student explicitly submits a test having answered nothing at all",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const { testSubmissionService, testStatusService } = makeServices(db);
 
       await testSubmissionService.submitTest("test-1", "student-1");
@@ -110,6 +112,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'in_progress' when student answered some questions",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       // Real question — status now checks live-question existence, so a
       // bare "q-1" string with no backing question would be filtered out.
       const { questionService, answerService, testStatusService } =
@@ -140,6 +143,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'in_progress' when student answered every question but did not press Submit",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const { questionService, answerService, testStatusService } =
         makeServices(db);
       const q1 = await questionService.addQuestion("test-1", {
@@ -180,6 +184,7 @@ describe("TestStatusService", () => {
   dbIt(
     "getStatusCounts should return per-status histogram across multiple students with all four keys present",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const {
         questionService,
         answerService,
@@ -278,6 +283,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'submitted' when partially graded (Atomic Reveal)",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       // This covers: Mixed test - MC auto-graded but student sees nothing until free-text graded -> full reveal
       const {
         questionService,
@@ -362,6 +368,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'graded' for a submitted test where every answered question has a grade, even when some questions were left blank",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       // Given: a 2-question test where the student answered only q-1
       // (q-2 was left blank — no Answer row, no Grade row) and the
       // teacher graded q-1. The test was explicitly submitted.
@@ -420,6 +427,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'submitted' when the test was submitted but at least one answered question has no grade row yet",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       // Given: a 3-question test where the student answered q-1 and q-2
       // (q-3 was left blank). The teacher has graded only q-1. The test
       // was explicitly submitted. This setup uniquely targets the new
@@ -491,6 +499,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'graded', not permanently 'submitted', when the student's only ungraded answer belongs to a question that has since been deleted",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       // Given: a 2-question test. The student answered both and the
       // teacher graded Q1. Before Q2 is ever graded, the teacher deletes
       // it — its answer is now dangling with no way to grade it.
@@ -608,6 +617,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'graded' when a test is submitted and its only answer belongs to a question that has since been deleted",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       // Given: a 2-question test. The student answered only Q2 and
       // submitted; the teacher then deleted Q2 before grading it.
       const {
@@ -653,6 +663,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'in_progress' when every answered question is graded but the test has not been explicitly submitted",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       // Given: a 2-question test where the student answered both
       // questions and the auto-grader recorded grade rows for both, but
       // the student has not called submitTest. Only pressing Submit
@@ -721,6 +732,8 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'not_started' for an unsubmitted student whose only answer was to a since-deleted question, but 'in_progress' when a timed test in the same state has an active start",
     async ({ db }) => {
+      await insertRawTest(db, "test-untimed");
+      await insertRawTest(db, "test-timed");
       // Given: an untimed test where Q1 stays live and unanswered, and the
       // student's only answer (Q2) is later deleted — no live answer and no
       // start record remain.

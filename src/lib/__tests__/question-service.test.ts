@@ -17,6 +17,7 @@ import {
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -1214,6 +1215,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
   dbIt(
     "logs the changed fields, their before/after values and the current answered-student count",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const changeLogService = new QuestionChangeLogService(db);
       const testService = new TestService(db, TEST_SCHOOL_ID);
       const testStartService = new TestStartService(db);
@@ -1386,6 +1388,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
   dbIt(
     "reconstructs a stranded student's original option text from the change-log row after a real options edit through updateQuestion (Step 27 — D29/D48's core guarantee, proven end-to-end)",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const changeLogService = new QuestionChangeLogService(db);
       const testService = new TestService(db, TEST_SCHOOL_ID);
       const testStartService = new TestStartService(db);
@@ -1627,6 +1630,7 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
   dbIt(
     "records the real answered-student count on delete, not a false zero (Step 29 — wires the getAnswerService thunk)",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const changeLogService = new QuestionChangeLogService(db);
       const testService = new TestService(db, TEST_SCHOOL_ID);
       const testStartService = new TestStartService(db);

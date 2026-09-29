@@ -1,12 +1,47 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: this is for test */
-import { AnswerService } from "src/lib/answer-service";
+import type { Db } from "mongodb";
+import {
+  type AnswerDocument,
+  AnswerService,
+  type StudentAnswer,
+} from "src/lib/answer-service";
+import type { QuestionDocument } from "src/lib/question-service";
 import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
+
+/**
+ * Raw-inserts a minimal free-text question so `submitAnswer`'s
+ * question-in-test check resolves for these tests' literal question ids.
+ */
+async function seedQuestion(db: Db, testId: string, id: string): Promise<void> {
+  await db.collection<QuestionDocument>("question").insertOne({
+    id,
+    testId,
+    title: "Q",
+    content: "Q",
+    order: 0,
+    createdAt: new Date(),
+    createdBy: "admin",
+    updatedAt: null,
+    updatedBy: null,
+    type: "free_text",
+    options: null,
+    weight: 1,
+    mcGradingStrategy: null,
+    explanation: null,
+    referenceAnswer: null,
+    answerRevealMode: null,
+    media: [],
+    deletedAt: null,
+    deletedBy: null,
+  });
+}
 
 // ── Core answer behaviours ───────────────────────────────────────────────────
 
@@ -14,6 +49,8 @@ describe("AnswerService - Integration Tests", () => {
   dbIt(
     "should store an image answer as { type: 'image', mediaKeys } and reject an empty one",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -64,6 +101,8 @@ describe("AnswerService - Integration Tests", () => {
   dbIt(
     "should store MC answer as { type: 'mc', selectedIds } and free-text as { type: 'free_text', text }",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -125,6 +164,9 @@ describe("AnswerService - Integration Tests", () => {
   );
 
   dbIt("should create a new answer record for a question", async ({ db }) => {
+    await insertRawTest(db, "test-1");
+    await insertRawTest(db, "test-mc");
+    await seedQuestion(db, "test-1", "q-1");
     const questionService = new QuestionService(db);
     const answerService = new AnswerService(
       db,
@@ -152,6 +194,9 @@ describe("AnswerService - Integration Tests", () => {
   });
 
   dbIt("should preserve answer history (append-only model)", async ({ db }) => {
+    await insertRawTest(db, "test-1");
+    await insertRawTest(db, "test-mc");
+    await seedQuestion(db, "test-1", "q-1");
     const questionService = new QuestionService(db);
     const answerService = new AnswerService(
       db,
@@ -184,6 +229,8 @@ describe("AnswerService - Integration Tests", () => {
   dbIt(
     "should reject a blank/whitespace-only free_text answer and store nothing",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -212,6 +259,9 @@ describe("AnswerService - Integration Tests", () => {
   dbIt(
     "should reject a duplicate submission when answer is identical to the latest",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
+      await seedQuestion(db, "test-1", "q-1");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -241,6 +291,10 @@ describe("AnswerService - Integration Tests", () => {
   dbIt(
     "should return only the latest answer per question via getLatestAnswers",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
+      await seedQuestion(db, "test-1", "q-1");
+      await seedQuestion(db, "test-1", "q-2");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -285,6 +339,8 @@ describe("AnswerService - Integration Tests", () => {
   );
 
   dbIt("should return empty array when no answers exist", async ({ db }) => {
+    await insertRawTest(db, "test-1");
+    await insertRawTest(db, "test-mc");
     const questionService = new QuestionService(db);
     const answerService = new AnswerService(
       db,
@@ -304,6 +360,8 @@ describe("AnswerService - MC Answer Validation", () => {
   dbIt(
     "rejects a single_select MC answer with no selected options",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -337,6 +395,8 @@ describe("AnswerService - MC Answer Validation", () => {
   dbIt(
     "rejects a single_select MC answer with a bogus option ID",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -370,6 +430,8 @@ describe("AnswerService - MC Answer Validation", () => {
   dbIt(
     "rejects a multi_select MC answer with no selected options",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -408,6 +470,10 @@ describe("AnswerService - Attempt Counts", () => {
   dbIt(
     "returns per-question submission counts scoped to one student",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
+      await seedQuestion(db, "test-1", "q-1");
+      await seedQuestion(db, "test-1", "q-2");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -461,6 +527,9 @@ describe("AnswerService - Answered Student Counts", () => {
   dbIt(
     "counts a student who revised twice as one answered student, not two rows",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
+      await seedQuestion(db, "test-1", "q-1");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -494,6 +563,10 @@ describe("AnswerService - Answered Student Counts", () => {
   dbIt(
     "batches counts across every requested question, scoped per question",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-mc");
+      await seedQuestion(db, "test-1", "q-1");
+      await seedQuestion(db, "test-1", "q-2");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,
@@ -542,6 +615,8 @@ describe("AnswerService - Answered Student Counts", () => {
   );
 
   dbIt("returns an empty map for an empty question id list", async ({ db }) => {
+    await insertRawTest(db, "test-1");
+    await insertRawTest(db, "test-mc");
     const questionService = new QuestionService(db);
     const answerService = new AnswerService(
       db,
@@ -554,4 +629,74 @@ describe("AnswerService - Answered Student Counts", () => {
 
     expect(counts.size).toBe(0);
   });
+});
+
+// ── Missing test or foreign question ─────────────────────────────────────────
+
+describe("AnswerService - Missing Test", () => {
+  dbIt(
+    "rejects submitAnswer for a test that doesn't exist and persists nothing",
+    async ({ db }) => {
+      const questionService = new QuestionService(db);
+      const answerService = new AnswerService(
+        db,
+        questionService,
+        new TestService(db, TEST_SCHOOL_ID),
+        new TestStartService(db),
+      );
+
+      await expect(
+        answerService.submitAnswer({
+          testId: "no-such-test",
+          questionId: "q-1",
+          studentId: "student-1",
+          answer: { type: "free_text", text: "hello" },
+        }),
+      ).rejects.toThrow("Test not found");
+
+      const latest = await answerService.getLatestAnswers(
+        "no-such-test",
+        "student-1",
+      );
+      expect(latest).toHaveLength(0);
+    },
+  );
+});
+
+describe("AnswerService - Question From Another Test", () => {
+  const foreignQuestionAnswers: [string, StudentAnswer][] = [
+    ["free-text", { type: "free_text", text: "hello" }],
+    ["image", { type: "image", mediaKeys: ["answers/student-1/photo.png"] }],
+  ];
+
+  for (const [label, answer] of foreignQuestionAnswers) {
+    dbIt(
+      `rejects a ${label} answer naming another test's question and persists nothing`,
+      async ({ db }) => {
+        await insertRawTest(db, "test-1");
+        await insertRawTest(db, "test-2");
+        await seedQuestion(db, "test-2", "q-of-test-2");
+        const questionService = new QuestionService(db);
+        const answerService = new AnswerService(
+          db,
+          questionService,
+          new TestService(db, TEST_SCHOOL_ID),
+          new TestStartService(db),
+        );
+
+        await expect(
+          answerService.submitAnswer({
+            testId: "test-1",
+            questionId: "q-of-test-2",
+            studentId: "student-1",
+            answer,
+          }),
+        ).rejects.toThrow("Question not found");
+
+        expect(
+          await db.collection<AnswerDocument>("answer").countDocuments({}),
+        ).toBe(0);
+      },
+    );
+  }
 });

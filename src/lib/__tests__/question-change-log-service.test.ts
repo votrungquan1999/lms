@@ -5,6 +5,7 @@ import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -49,6 +50,7 @@ describe("QuestionChangeLogService", () => {
   dbIt(
     "reconstructs a stranded answer's option text purely from the log row's before.options",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const questionService = new QuestionService(db);
       const answerService = new AnswerService(
         db,

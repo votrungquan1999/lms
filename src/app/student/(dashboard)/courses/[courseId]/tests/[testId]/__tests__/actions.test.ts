@@ -1,13 +1,21 @@
 import { revalidatePath } from "next/cache";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { requireStudentSession, isEnrolled, recordStart, submitAnswer } =
-  vi.hoisted(() => ({
-    requireStudentSession: vi.fn(),
-    isEnrolled: vi.fn(),
-    recordStart: vi.fn(),
-    submitAnswer: vi.fn(),
-  }));
+const {
+  requireStudentSession,
+  isEnrolled,
+  recordStart,
+  submitAnswer,
+  getTest,
+} = vi.hoisted(() => ({
+  requireStudentSession: vi.fn(),
+  isEnrolled: vi.fn(),
+  recordStart: vi.fn(),
+  submitAnswer: vi.fn(),
+  // Every action resolves the test first — own-course by default so the
+  // file's existing happy-path rows keep passing.
+  getTest: vi.fn(async () => ({ courseId: "course-1" })),
+}));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
@@ -16,6 +24,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 vi.mock("src/lib/services-singleton", () => ({
   getEnrollmentService: vi.fn(async () => ({ isEnrolled })),
+  getTestService: vi.fn(async () => ({ getTest })),
   getTestStartService: vi.fn(async () => ({ recordStart })),
   getAnswerService: vi.fn(async () => ({ submitAnswer })),
 }));

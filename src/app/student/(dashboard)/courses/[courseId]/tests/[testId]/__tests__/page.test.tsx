@@ -609,3 +609,54 @@ describe("Feature: Student test page — Graded reads as Submitted until grades 
     expect(screen.getByText(/80\s*\/\s*100/)).toBeInTheDocument();
   });
 });
+
+describe("Feature: Student test page — a test id from another course is not found", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("404s when the testId belongs to a different course than the courseId in the URL (green from start — pre-existing courseId check)", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const otherCourse = await services.courseService.createCourse({
+      title: "Other course",
+      description: "",
+      createdBy: "admin",
+    });
+    const foreignTest = await services.testService.createTest(otherCourse.id, {
+      title: "Foreign test",
+      description: "",
+      createdBy: "admin",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-nf",
+      username: "u-nf",
+      name: "Stu",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin",
+    );
+    mockStudentSession(student.id);
+
+    await expect(
+      StudentTestDetailPage({
+        params: Promise.resolve({
+          courseId: course.id,
+          testId: foreignTest.id,
+        }),
+      }),
+    ).rejects.toThrow("notFound called");
+  });
+});

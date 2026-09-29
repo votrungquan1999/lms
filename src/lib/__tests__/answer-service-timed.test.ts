@@ -1,4 +1,5 @@
 import type { Db } from "mongodb";
+import type { QuestionDocument } from "src/lib/question-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
@@ -9,8 +10,38 @@ const T1 = new Date("2026-05-30T10:00:00.000Z");
 const LIMIT = 30;
 
 /**
- * Creates a timed test (limit 30 min) started at T1 for "stu-1", and returns a
- * helper to build a services bundle whose clock is pinned to a given instant.
+ * Raw-inserts a minimal free-text question so `submitAnswer`'s
+ * question-in-test check resolves for `writeAnswer`'s literal "q-1".
+ */
+async function seedQuestion(db: Db, testId: string, id: string): Promise<void> {
+  await db.collection<QuestionDocument>("question").insertOne({
+    id,
+    testId,
+    title: "Q",
+    content: "Q",
+    order: 0,
+    createdAt: new Date(),
+    createdBy: "admin",
+    updatedAt: null,
+    updatedBy: null,
+    type: "free_text",
+    options: null,
+    weight: 1,
+    mcGradingStrategy: null,
+    explanation: null,
+    referenceAnswer: null,
+    answerRevealMode: null,
+    media: [],
+    deletedAt: null,
+    deletedBy: null,
+  });
+}
+
+/**
+ * Creates a timed test (limit 30 min) started at T1 for "stu-1", plus the
+ * literal "q-1" question `writeAnswer` submits against (the question-in-test
+ * check needs a real one), and returns a helper to build a services bundle
+ * whose clock is pinned to a given instant.
  */
 async function seedTimedTest(db: Db) {
   const setup = buildCoreServices(db);
@@ -27,6 +58,7 @@ async function seedTimedTest(db: Db) {
     answerRevealMode: "diff",
     updatedBy: "admin",
   });
+  await seedQuestion(db, test.id, "q-1");
   await setup.testStartService.recordStart(test.id, "stu-1", T1);
   const at = (now: Date) => buildCoreServices(db, { now: () => now });
   return { testId: test.id, at };
@@ -101,6 +133,7 @@ describe("AnswerService — timed enforcement", () => {
       description: "",
       createdBy: "admin",
     });
+    await seedQuestion(db, test.id, "q-1");
     await setup.testStartService.recordStart(test.id, "stu-1", T1);
     const far = new Date(T1.getTime() + 1000 * 24 * 60 * 60_000);
     const core = buildCoreServices(db, { now: () => far });
