@@ -1,7 +1,11 @@
 import type { Db } from "mongodb";
 import { type AuthService, createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
-import { JoinRequestStatus } from "src/lib/course-join-request-service";
+import {
+  type CourseJoinRequestDocument,
+  JoinRequestStatus,
+} from "src/lib/course-join-request-service";
+import { ensureIndexes } from "src/lib/database";
 import { StudentSession } from "src/lib/session";
 import type { StudentDocument } from "src/lib/student-service";
 import {
@@ -401,6 +405,112 @@ describe("Feature: a Google signup whose derived username needed a choice can fi
       studentDoc?.id ?? "",
     );
     expect(pending).not.toBeNull();
+  });
+});
+
+/**
+ * Feature: a Google signup lands in the invite course's own school, not the
+ * caller's default school
+ * As a prospective student joining a school other than the harness default
+ * I want googleUsernameSignupAction to create my profile in THAT school
+ * So that a school admin sees me under their own roster, never another
+ * school's
+ */
+describe("Feature: googleUsernameSignupAction lands the new student in the invite course's own school", () => {
+  it("creates the student in the invite's school, not the default school", async () => {
+    // Given a live invite link for a course in another school
+    const school = await addTestSchool("School B");
+    const schoolServices = getTestServices(school.id);
+    const course = await schoolServices.courseService.createCourse({
+      title: "Geometry",
+      description: "",
+      createdBy: "admin-b",
+    });
+    const token = await schoolServices.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "resolveUnclassifiedIdentity",
+    ).mockResolvedValue({
+      authUserId: "school-b-google-auth-id",
+      email: "school.b.pick@gmail.com",
+      name: "School B Pick",
+    });
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("username", "school-b-pick");
+
+    // When they finish signup by picking their own username
+    const result = await googleUsernameSignupAction(null, formData);
+
+    // Then the student and their join request land in the invite's school,
+    // not the default
+    expect(result.success).toBe(true);
+    const schoolBStudents = await schoolServices.studentService.listStudents();
+    expect(schoolBStudents.map((student) => student.username)).toEqual([
+      "school-b-pick",
+    ]);
+    expect(await getTestServices().studentService.listStudents()).toHaveLength(
+      0,
+    );
+    const schoolBQueue =
+      await schoolServices.courseJoinRequestService.listByStatus(
+        JoinRequestStatus.Pending,
+        { skip: 0, limit: 50 },
+      );
+    expect(schoolBQueue.items.map((request) => request.studentId)).toEqual([
+      schoolBStudents[0].id,
+    ]);
+  });
+
+  it("refuses a second sign-up for the same sign-in account, even under a different username, and keeps exactly one profile", async () => {
+    // Given the unique sign-in-account index, and a first tab that already
+    // finished signing up
+    await ensureIndexes(db);
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    // Both tabs resolved the identity before either write landed, so each
+    // still sees a caller with no profile yet
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "resolveUnclassifiedIdentity",
+    ).mockResolvedValue({
+      authUserId: "two-tab-google-auth-id",
+      email: "two.tabs@gmail.com",
+      name: "Two Tabs",
+    });
+    const firstForm = new FormData();
+    firstForm.set("token", token);
+    firstForm.set("username", "first-tab-pick");
+    expect((await googleUsernameSignupAction(null, firstForm)).success).toBe(
+      true,
+    );
+
+    // When the second tab submits a different username for the same account
+    const secondForm = new FormData();
+    secondForm.set("token", token);
+    secondForm.set("username", "second-tab-pick");
+    const result = await googleUsernameSignupAction(null, secondForm);
+
+    // Then the database refuses it, and one profile remains
+    expect(result).toEqual({
+      success: false,
+      message: "This account already has a student profile",
+    });
+    expect(
+      await db
+        .collection<StudentDocument>("student")
+        .countDocuments({ authUserId: "two-tab-google-auth-id" }),
+    ).toBe(1);
   });
 });
 
@@ -857,6 +967,70 @@ describe("Feature: a student who is already in the course, or already waiting on
       student.id,
     );
     expect(pending).toBeNull();
+  });
+});
+
+/**
+ * Feature: a signed-in student can never ask to join a course in another
+ * school
+ * As a student who already belongs to one school
+ * I want requestToJoinAction to refuse a DIFFERENT school's invite link
+ * So that a student can never end up enrolled outside their own school
+ */
+describe("Feature: a signed-in student can never ask to join a course in another school", () => {
+  it("refuses requestToJoinAction for a course in a DIFFERENT school than the student's own, and writes no request", async () => {
+    // Given a live invite link for a course in another school
+    const school = await addTestSchool("School B");
+    const schoolServices = getTestServices(school.id);
+    const course = await schoolServices.courseService.createCourse({
+      title: "Geometry",
+      description: "",
+      createdBy: "admin-b",
+    });
+    const token = await schoolServices.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    // And a signed-in student who belongs to the DEFAULT school
+    const student = await (
+      authHolder.authService as AuthService
+    ).registerStudent({
+      name: "Own School Student",
+      username: "own-school-student",
+      password: "correct-horse-1",
+      createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
+    });
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "requireStudentSession",
+    ).mockResolvedValue(
+      new StudentSession({
+        userId: "auth-user-1",
+        username: student.username,
+        studentId: student.id,
+        schoolId: TEST_SCHOOL_ID,
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+
+    // When they submit the request-to-join action for the OTHER school's course
+    const result = await requestToJoinAction(null, formData);
+
+    // Then they are refused with the cross-school message, and no request
+    // is filed in any school
+    expect(result).toEqual({
+      success: false,
+      message:
+        "This join link is for a course in another school. You can only join courses in your own school.",
+    });
+    expect(
+      await db
+        .collection<CourseJoinRequestDocument>("course_join_request")
+        .countDocuments({}),
+    ).toBe(0);
   });
 });
 

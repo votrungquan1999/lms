@@ -2,9 +2,11 @@
 import { render, screen } from "@testing-library/react";
 import type { Db } from "mongodb";
 import type { ReactElement } from "react";
+import { JoinRequestStatus } from "src/lib/course-join-request-service";
 import { StudentSession } from "src/lib/session";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
+  addTestSchool,
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
@@ -411,5 +413,169 @@ describe("Feature: a signed-in student opening a valid invite link is offered to
       screen.getByRole("button", { name: "Request to Join" }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Feature: a signed-in student of one school still sees the request-to-join
+ * path for another school's invite link — the refusal itself lives in the
+ * action, not the page
+ * As a student who already belongs to school A
+ * I want opening school B's invite link to still show me a form to submit
+ * So that the action, not the page, is the one place the boundary is
+ * enforced and tested
+ */
+describe("Feature: a signed-in student of another school still sees the request-to-join form, never the registration form", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("renders the request-to-join form for a course in a DIFFERENT school than the signed-in student's own", async () => {
+    const school = await addTestSchool("School B");
+    const schoolServices = getTestServices(school.id);
+    const course = await schoolServices.courseService.createCourse({
+      title: "Geometry",
+      description: "",
+      createdBy: "admin-b",
+    });
+    const token = await schoolServices.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    mockGetSession.mockResolvedValue(
+      new StudentSession({
+        userId: "auth-user-1",
+        username: "school-a-student",
+        studentId: "student-1",
+        schoolId: TEST_SCHOOL_ID,
+      }),
+    );
+
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({}),
+    });
+    render(ui);
+
+    expect(
+      screen.getByRole("button", { name: "Request to Join" }),
+    ).toBeInTheDocument();
+  });
+});
+
+/**
+ * Feature: a Google signup lands in the invite course's own school
+ * As a prospective student joining a school other than the harness default
+ * I want the invite page's Google path to create my profile in THAT school
+ * So that a school admin sees me under their own roster, never another
+ * school's
+ */
+describe("Feature: the Google invite path provisions a student into the SAME school as the link", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("lands the new student in the invite course's own school, not the default school", async () => {
+    const school = await addTestSchool("School B");
+    const schoolServices = getTestServices(school.id);
+    const course = await schoolServices.courseService.createCourse({
+      title: "Geometry",
+      description: "",
+      createdBy: "admin-b",
+    });
+    const token = await schoolServices.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    mockResolveUnclassifiedIdentity.mockResolvedValue({
+      authUserId: "school-b-google-auth-id",
+      email: "school.b.signup@gmail.com",
+      name: "School B Signup",
+    });
+
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({ google: "1" }),
+    });
+    render(ui);
+
+    const schoolBStudents = await schoolServices.studentService.listStudents();
+    expect(schoolBStudents).toHaveLength(1);
+    expect(schoolBStudents[0].name).toBe("School B Signup");
+    expect(await getTestServices().studentService.listStudents()).toHaveLength(
+      0,
+    );
+    // ...and so does their join request, in school B's own queue
+    const schoolBQueue =
+      await schoolServices.courseJoinRequestService.listByStatus(
+        JoinRequestStatus.Pending,
+        { skip: 0, limit: 50 },
+      );
+    expect(schoolBQueue.items.map((request) => request.studentId)).toEqual([
+      schoolBStudents[0].id,
+    ]);
+  });
+});
+
+/**
+ * Feature: an identity already provisioned in another school is never
+ * provisioned a second time
+ * As a prospective student who already has a profile in a DIFFERENT school
+ * I want opening a new school's invite link with the same Google identity to
+ * reuse the "waiting for approval" outcome, not create a second profile
+ * So that one sign-in account can never hold two student documents
+ */
+describe("Feature: an identity already provisioned in another school is never provisioned a second time", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("creates no second student document, and leaves the original school's record untouched", async () => {
+    const school = await addTestSchool("School B");
+    const schoolServices = getTestServices(school.id);
+    const course = await schoolServices.courseService.createCourse({
+      title: "Geometry",
+      description: "",
+      createdBy: "admin-b",
+    });
+    const token = await schoolServices.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    // An existing student, already assigned to the DEFAULT school
+    const defaultServices = getTestServices();
+    await defaultServices.studentService.createStudentDocument({
+      authUserId: "cross-school-existing-id",
+      username: "existing-elsewhere",
+      name: "Existing Elsewhere",
+      createdBy: "admin-1",
+    });
+    mockResolveUnclassifiedIdentity.mockResolvedValue({
+      authUserId: "cross-school-existing-id",
+      email: "existing-elsewhere@gmail.com",
+      name: "Existing Elsewhere",
+    });
+
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({ google: "1" }),
+    });
+    render(ui);
+
+    expect(
+      screen.getByText(/now waiting for admin approval/i),
+    ).toBeInTheDocument();
+    expect(await schoolServices.studentService.listStudents()).toHaveLength(0);
+    expect(await defaultServices.studentService.listStudents()).toHaveLength(1);
   });
 });

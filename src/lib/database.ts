@@ -79,6 +79,13 @@ export async function ensureIndexes(db: Db): Promise<void> {
   await db.collection("student").createIndex({ schoolId: 1 });
   await db.collection("question_pool").createIndex({ schoolId: 1 });
 
+  // One student profile per Better Auth sign-in account, across every
+  // school — a raced or repeated Google provisioning attempt must fail at
+  // the database, not just at an app-level check.
+  await db
+    .collection("student")
+    .createIndex({ authUserId: 1 }, { unique: true });
+
   // Backs each school's admin queue: `find({schoolId, status})` sorted by
   // `{requestedAt, _id}` with skip/limit, and its `countDocuments`. Replaces
   // the old unscoped `{status, requestedAt, _id}` index, which is never

@@ -119,6 +119,13 @@ describe("Feature: Production database boot wires the safety indexes", () => {
         );
         expect(studentSchoolIndex).toBeDefined();
 
+        // ...and the student authUserId unique index exists — one
+        // profile per Better Auth sign-in account, across every school
+        const studentAuthUserIdIndex = studentIndexes.find(
+          (index) => index.key.authUserId === 1,
+        );
+        expect(studentAuthUserIdIndex?.unique).toBe(true);
+
         // ...and a school-led index serves every school's pool list
         const poolIndexes = await listIndexesOrEmpty(db, "question_pool");
         const poolSchoolIndex = poolIndexes.find(

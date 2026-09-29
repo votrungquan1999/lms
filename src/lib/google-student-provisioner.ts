@@ -62,11 +62,9 @@ export async function provisionGoogleStudent(
   deps: GoogleStudentProvisionDeps,
   input: GoogleStudentProvisionInput,
 ): Promise<GoogleProvisionOutcome> {
-  // M2: this function is not otherwise idempotent — two concurrent tabs (or
-  // a reload) can both pass the checks below before either write lands. This
-  // does not close that race, but it does collapse the common case (the
-  // SAME identity re-entering sequentially) to a no-op instead of the
-  // identity finding its own just-created username "taken".
+  // Collapses the common re-entry (a reload or second tab after the first
+  // write landed) to a no-op. A truly concurrent one passes this read and is
+  // caught below, where a clash is re-checked against this same account.
   const already = await deps.schoolDirectory.findByAuthUserId(input.authUserId);
   if (already) {
     return GoogleProvisionOutcome.Provisioned;
@@ -85,15 +83,47 @@ export async function provisionGoogleStudent(
   }
   const existing = await deps.schoolDirectory.findByUsername(username);
   if (existing) {
-    return GoogleProvisionOutcome.NeedsUsername;
+    // A second render (reload, second tab) can land here even though its
+    // OWN "already provisioned?" read above was stale — the write it raced
+    // against already landed. Re-checking by authUserId tells that self-
+    // collision apart from someone else's real username clash.
+    const ownProfile = await deps.schoolDirectory.findByAuthUserId(
+      input.authUserId,
+    );
+    return ownProfile
+      ? GoogleProvisionOutcome.Provisioned
+      : GoogleProvisionOutcome.NeedsUsername;
   }
 
-  const student = await deps.studentService.createStudentDocument({
-    authUserId: input.authUserId,
-    username,
-    name: input.name,
-    createdBy: "google-signup",
-  });
+  let student: Awaited<
+    ReturnType<typeof deps.studentService.createStudentDocument>
+  >;
+  try {
+    student = await deps.studentService.createStudentDocument({
+      authUserId: input.authUserId,
+      username,
+      name: input.name,
+      createdBy: "google-signup",
+    });
+  } catch (error) {
+    // A truly concurrent second render can pass BOTH checks above before
+    // either write lands — the create then refuses the loser as a duplicate
+    // username or sign-in account. Re-reading by authUserId tells a
+    // self-collision apart from a real clash, the same way as above.
+    if (
+      !(error instanceof Error) ||
+      (error.message !== "Username already exists" &&
+        error.message !== "This account already has a student profile")
+    ) {
+      throw error;
+    }
+    const ownProfile = await deps.schoolDirectory.findByAuthUserId(
+      input.authUserId,
+    );
+    return ownProfile
+      ? GoogleProvisionOutcome.Provisioned
+      : GoogleProvisionOutcome.NeedsUsername;
+  }
 
   await deps.courseJoinRequestService.createRequest({
     courseId: input.courseId,

@@ -79,6 +79,12 @@ const requestToJoinSchema = z.object({
 const INVALID_INVITE_MESSAGE =
   "This join link is no longer valid. Ask whoever shared it with you for a new one.";
 
+// A signed-in student's own school is fixed once they exist — the invite
+// page still shows them the request form for any school's link, so this is
+// where the boundary is actually enforced.
+const CROSS_SCHOOL_JOIN_MESSAGE =
+  "This join link is for a course in another school. You can only join courses in your own school.";
+
 // D3: a duplicate identity is BLOCKED, never linked or auto-suffixed. The
 // generic "Username already exists" registerStudent throws (shared with the
 // admin-facing create/bulk-import forms) reads as "pick another one" — wrong
@@ -286,9 +292,11 @@ export async function requestToJoinAction(
   const authService = await getAuthService();
 
   let studentId: string;
+  let studentSchoolId: string;
   try {
     const session = await authService.requireStudentSession(requestHeaders);
     studentId = session.studentId;
+    studentSchoolId = session.schoolId;
   } catch {
     return { success: false, message: "Unauthorized: student access required" };
   }
@@ -314,6 +322,10 @@ export async function requestToJoinAction(
           return { success: false, message: INVALID_INVITE_MESSAGE };
         }
         const { course, schoolId } = invite;
+
+        if (schoolId !== studentSchoolId) {
+          return { success: false, message: CROSS_SCHOOL_JOIN_MESSAGE };
+        }
 
         // Existence-equals-membership (enrollment-service.ts) — an enrolled
         // student is told so directly, never handed a second pending request.

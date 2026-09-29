@@ -1,4 +1,4 @@
-import type { Collection, Db } from "mongodb";
+import { type Collection, type Db, MongoServerError } from "mongodb";
 
 /**
  * Student document stored in the `student` collection.
@@ -74,6 +74,9 @@ export class StudentService {
 
   /**
    * Creates a student document in this service's school.
+   * Throws "Username already exists" when the username is taken in any
+   * school, and "This account already has a student profile" when the
+   * sign-in account already owns one.
    */
   async createStudentDocument(
     input: CreateStudentDocumentInput,
@@ -96,7 +99,20 @@ export class StudentService {
       schoolId: this.schoolId,
     };
 
-    await this.students.insertOne(doc);
+    try {
+      await this.students.insertOne(doc);
+    } catch (error) {
+      // Told apart by the index that refused the insert, never by message
+      // text; usernames are still guarded only by the find-first check above.
+      if (
+        error instanceof MongoServerError &&
+        error.code === 11000 &&
+        error.keyPattern?.authUserId
+      ) {
+        throw new Error("This account already has a student profile");
+      }
+      throw error;
+    }
 
     return toStudent(doc);
   }

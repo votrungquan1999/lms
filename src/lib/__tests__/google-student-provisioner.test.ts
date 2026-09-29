@@ -1,13 +1,17 @@
-import { ObjectId } from "mongodb";
-import { CourseJoinRequestService } from "src/lib/course-join-request-service";
+import { type Db, ObjectId } from "mongodb";
+import {
+  type CourseJoinRequestDocument,
+  CourseJoinRequestService,
+} from "src/lib/course-join-request-service";
+import { ensureIndexes } from "src/lib/database";
 import {
   GoogleProvisionOutcome,
   provisionGoogleStudent,
 } from "src/lib/google-student-provisioner";
 import { SchoolDirectory } from "src/lib/school-directory";
-import { StudentService } from "src/lib/student-service";
+import { type StudentDocument, StudentService } from "src/lib/student-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const dbIt = withTestDb(it);
 
@@ -325,6 +329,249 @@ describe("Feature: a Google signup whose derived username collides or is invalid
 
       expect(outcome).toBe(GoogleProvisionOutcome.NeedsUsername);
       expect(await studentService.listStudents()).toHaveLength(0);
+    },
+  );
+});
+
+/**
+ * Counts every student document for one sign-in account, in any school.
+ * @param db - The test's isolated database.
+ * @param authUserId - The sign-in account.
+ * @returns How many student profiles that account holds.
+ */
+async function countProfiles(db: Db, authUserId: string): Promise<number> {
+  return db
+    .collection<StudentDocument>("student")
+    .countDocuments({ authUserId });
+}
+
+/**
+ * Counts the join requests filed for one course, in any school.
+ * @param db - The test's isolated database.
+ * @param courseId - The invite link's course.
+ * @returns How many join requests exist for that course.
+ */
+async function countJoinRequests(db: Db, courseId: string): Promise<number> {
+  return db
+    .collection<CourseJoinRequestDocument>("course_join_request")
+    .countDocuments({ courseId });
+}
+
+/**
+ * Feature: two renders finishing the same Google identity at once never
+ * split it across two student documents
+ * As a prospective student who reloaded, or opened the link in a second tab,
+ * before the first render's write was visible to their own reads
+ * I want the second render to land on the same "waiting for approval"
+ * outcome, never a spurious username clash or a second profile
+ * So that a race window can never do what a sequential re-entry already
+ * doesn't, even though the reads that pass on the happy path can also go
+ * stale mid-race
+ */
+describe("Feature: two renders finishing the same Google identity at once never split it across two student documents", () => {
+  dbIt(
+    "treats a second render's own-identity username collision as already provisioned, not a real clash",
+    async ({ db }) => {
+      const studentService = new StudentService(db, TEST_SCHOOL_ID);
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        TEST_SCHOOL_ID,
+      );
+      const schoolDirectory = new SchoolDirectory(db);
+
+      const rawUserId = new ObjectId();
+      await db.collection("user").insertOne({
+        _id: rawUserId,
+        email: "racer@gmail.com",
+        name: "Racer",
+        role: "student",
+      });
+      const input = {
+        authUserId: rawUserId.toHexString(),
+        email: "racer@gmail.com",
+        name: "Racer",
+        courseId: "course-1",
+      };
+      const deps = {
+        studentService,
+        schoolDirectory,
+        courseJoinRequestService,
+      };
+
+      // Given the first render already provisioned this identity
+      const firstOutcome = await provisionGoogleStudent(deps, input);
+      expect(firstOutcome).toBe(GoogleProvisionOutcome.Provisioned);
+
+      // When a second render's OWN "already provisioned?" read is stale (the
+      // write already landed, but this read raced ahead of it) and falls
+      // through to the username check, which finds this SAME identity's own
+      // just-created row
+      vi.spyOn(schoolDirectory, "findByAuthUserId").mockResolvedValueOnce(null);
+      const secondOutcome = await provisionGoogleStudent(deps, input);
+
+      // Then it is still reported as provisioned, never sent to pick a new
+      // username for a "clash" that is really its own record
+      expect(secondOutcome).toBe(GoogleProvisionOutcome.Provisioned);
+      expect(await countProfiles(db, input.authUserId)).toBe(1);
+      expect(await countJoinRequests(db, "course-1")).toBe(1);
+    },
+  );
+
+  dbIt(
+    "treats a second render whose create is refused as a duplicate username as already provisioned, without creating a second document",
+    async ({ db }) => {
+      await ensureIndexes(db);
+      const studentService = new StudentService(db, TEST_SCHOOL_ID);
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        TEST_SCHOOL_ID,
+      );
+      const schoolDirectory = new SchoolDirectory(db);
+
+      const rawUserId = new ObjectId();
+      await db.collection("user").insertOne({
+        _id: rawUserId,
+        email: "double-racer@gmail.com",
+        name: "Double Racer",
+        role: "student",
+      });
+      const input = {
+        authUserId: rawUserId.toHexString(),
+        email: "double-racer@gmail.com",
+        name: "Double Racer",
+        courseId: "course-1",
+      };
+      const deps = {
+        studentService,
+        schoolDirectory,
+        courseJoinRequestService,
+      };
+
+      const firstOutcome = await provisionGoogleStudent(deps, input);
+      expect(firstOutcome).toBe(GoogleProvisionOutcome.Provisioned);
+
+      // When a second render's OWN authUserId AND username reads both land
+      // before the first render's write, only the create itself can refuse
+      // the duplicate — here as a taken username
+      vi.spyOn(schoolDirectory, "findByAuthUserId").mockResolvedValueOnce(null);
+      vi.spyOn(schoolDirectory, "findByUsername").mockResolvedValueOnce(null);
+      const secondOutcome = await provisionGoogleStudent(deps, input);
+
+      expect(secondOutcome).toBe(GoogleProvisionOutcome.Provisioned);
+      expect(await countProfiles(db, input.authUserId)).toBe(1);
+      expect(await countJoinRequests(db, "course-1")).toBe(1);
+    },
+  );
+
+  dbIt(
+    "treats a second render refused by the one-profile-per-account index as already provisioned, without creating a second document",
+    async ({ db }) => {
+      await ensureIndexes(db);
+      const studentService = new StudentService(db, TEST_SCHOOL_ID);
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        TEST_SCHOOL_ID,
+      );
+      const schoolDirectory = new SchoolDirectory(db);
+
+      const rawUserId = new ObjectId();
+      await db.collection("user").insertOne({
+        _id: rawUserId,
+        email: "late.racer@gmail.com",
+        name: "Late Racer",
+        role: "student",
+      });
+      const input = {
+        authUserId: rawUserId.toHexString(),
+        email: "late.racer@gmail.com",
+        name: "Late Racer",
+        courseId: "course-1",
+      };
+
+      // Given the first tab finished with a username the person picked, so
+      // the derived "late.racer" is still free
+      const picked = await studentService.createStudentDocument({
+        authUserId: input.authUserId,
+        username: "picked-name",
+        name: input.name,
+        createdBy: "google-signup",
+      });
+      await courseJoinRequestService.createRequest({
+        courseId: "course-1",
+        studentId: picked.id,
+      });
+
+      // When a second tab's "already provisioned?" read is stale, only the
+      // authUserId unique index can refuse its insert
+      vi.spyOn(schoolDirectory, "findByAuthUserId").mockResolvedValueOnce(null);
+      const outcome = await provisionGoogleStudent(
+        { studentService, schoolDirectory, courseJoinRequestService },
+        input,
+      );
+
+      expect(outcome).toBe(GoogleProvisionOutcome.Provisioned);
+      expect(await countProfiles(db, input.authUserId)).toBe(1);
+      expect(await countJoinRequests(db, "course-1")).toBe(1);
+    },
+  );
+});
+
+/**
+ * Feature: a derived username taken by someone else's profile still sends
+ * the person to pick their own, even when that other profile is in a
+ * different school
+ * As a prospective student whose Google email happens to derive a username
+ * some other school's student already holds
+ * I want to be sent to the username chooser, not silently merged with a
+ * stranger's account
+ * So that global username uniqueness is honored the same way across every
+ * school, not only within one
+ */
+describe("Feature: a derived username taken by another school's student still sends the person to pick their own", () => {
+  dbIt(
+    "reports NeedsUsername for a username already held in a DIFFERENT school, and creates no document anywhere",
+    async ({ db }) => {
+      const schoolBStudentService = new StudentService(db, "school-b");
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        TEST_SCHOOL_ID,
+      );
+      const schoolDirectory = new SchoolDirectory(db);
+
+      // Given a student in ANOTHER school already holds the username this
+      // signup's email would derive
+      await schoolBStudentService.createStudentDocument({
+        authUserId: "existing-in-school-b",
+        username: "shared.name",
+        name: "Existing In School B",
+        createdBy: "admin-b",
+      });
+
+      const rawUserId = new ObjectId();
+      await db.collection("user").insertOne({
+        _id: rawUserId,
+        email: "shared.name@gmail.com",
+        name: "New Signup",
+        role: "student",
+      });
+
+      const outcome = await provisionGoogleStudent(
+        {
+          studentService: new StudentService(db, TEST_SCHOOL_ID),
+          schoolDirectory,
+          courseJoinRequestService,
+        },
+        {
+          authUserId: rawUserId.toHexString(),
+          email: "shared.name@gmail.com",
+          name: "New Signup",
+          courseId: "course-1",
+        },
+      );
+
+      expect(outcome).toBe(GoogleProvisionOutcome.NeedsUsername);
+      expect(await countProfiles(db, rawUserId.toHexString())).toBe(0);
+      expect(await countJoinRequests(db, "course-1")).toBe(0);
     },
   );
 });
