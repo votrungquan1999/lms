@@ -121,3 +121,32 @@ export default {
   ]
 };
 ```
+
+## Multi-Tenant Backfill Runbook
+
+This section is unrelated to the test-creation tooling above — it covers deploying the multi-tenant (schools) feature and running `scripts/backfill-schools.ts`, the one-off script that moves existing pre-multi-tenant data and admins into a `default` school.
+
+### Deploy order (hard precondition)
+
+1. **Before the branch is pushed:** run `scripts/backfill-schools.ts` as a dry run, then with `--apply`, against production. Vercel preview deployments of this branch use the production database (`MONGODB_URI` targets both production and preview), so pushing the branch is a production deploy as far as data is concerned.
+2. **Right after the production promote:** run `--apply` again. It catches records the old build wrote in the window between the first apply and the promote.
+3. **No second school and no new school admins until the deploy is verified.**
+4. **Before creating a second school, delete or protect every older Vercel deployment.** An older preview or the previous production build stays live on its own URL against the production database and ignores schools entirely — a student signing in there reaches every school's tests. Use deployment deletion or Vercel deployment protection.
+5. **Once a second school exists, a rerun no longer guesses.** Unassigned courses, students and pools are reported and left unassigned; tests, join requests and pool questions still take their parent's school.
+6. **No rollback once a second school exists.** A pre-multi-tenant build ignores schools, so every admin would see every school's data. Any fix goes forward, never back.
+7. **The branch merges as one unit.** Intermediate commits are not deployable: from the point admins without a membership are locked out onward, only the finished branch is safe to run.
+8. **After deploy, never use an older checkout's `scripts/create-test.ts`.** It writes tests with no school, which no school can see.
+9. **If the new build boots before the first apply,** what happens depends on duplicates. With no duplicate usernames or sign-in accounts, every admin sees the "not part of any school yet" page and all data is hidden — the intended fail-closed behavior, not a bug. **With duplicates, every request fails** until they are resolved: the new build cannot create its unique username and sign-in-account indexes, and retries (and fails) on each request. The dry run lists them (item 10); resolve them before any boot.
+10. **Duplicates block the apply.** The dry run lists duplicate usernames and duplicate sign-in accounts (with each row's id, sign-in account, created date and enrollment count); `--apply` stops before writing anything while any exist. See the recovery steps in `backfill-schools.ts`'s own JSDoc.
+11. **Never run this script, not even a dry run, against production from an agent session.** A human operator runs it by hand, following this runbook.
+
+### Local databases
+
+Run against a local database the same way, with an explicit `MONGODB_URI` (never rely on Bun's `.env.local` autoload):
+
+```
+MONGODB_URI=mongodb://localhost:27017/lms_visual bun scripts/backfill-schools.ts --apply
+MONGODB_URI=mongodb://localhost:27017/lms bun scripts/backfill-schools.ts --apply
+```
+
+An agent session must never run either of these — or any `bun scripts/*.ts` invocation — from the worktree root, since Bun auto-loads `.env.local` (production Atlas). Scripts are exercised only through the Vitest subprocess harness in `scripts/__tests__`, which sets an explicit `mongodb://localhost:27017/<test-db>`.
