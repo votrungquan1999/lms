@@ -154,10 +154,14 @@ export class CourseJoinRequestService {
   }
 
   /**
-   * Returns the join request with this id, or null.
+   * Returns the join request with this id, or null — scoped to the bound
+   * school, so a foreign id is indistinguishable from a missing one.
    */
   async getRequest(id: string): Promise<CourseJoinRequest | null> {
-    const doc = await this.joinRequests.findOne({ id });
+    const doc = await this.joinRequests.findOne({
+      id,
+      schoolId: this.schoolId,
+    });
     return doc ? this.toCourseJoinRequest(doc) : null;
   }
 
@@ -174,7 +178,11 @@ export class CourseJoinRequestService {
    */
   async approve(requestId: string, resolvedBy: string): Promise<void> {
     const result = await this.joinRequests.updateOne(
-      { id: requestId, status: JoinRequestStatus.Pending },
+      {
+        id: requestId,
+        schoolId: this.schoolId,
+        status: JoinRequestStatus.Pending,
+      },
       {
         $set: {
           status: JoinRequestStatus.Approved,
@@ -187,7 +195,10 @@ export class CourseJoinRequestService {
       return;
     }
 
-    const current = await this.joinRequests.findOne({ id: requestId });
+    const current = await this.joinRequests.findOne({
+      id: requestId,
+      schoolId: this.schoolId,
+    });
     if (current?.status === JoinRequestStatus.Approved) {
       return;
     }
@@ -206,7 +217,11 @@ export class CourseJoinRequestService {
    */
   async reject(requestId: string, resolvedBy: string): Promise<void> {
     const result = await this.joinRequests.updateOne(
-      { id: requestId, status: JoinRequestStatus.Pending },
+      {
+        id: requestId,
+        schoolId: this.schoolId,
+        status: JoinRequestStatus.Pending,
+      },
       {
         $set: {
           status: JoinRequestStatus.Rejected,

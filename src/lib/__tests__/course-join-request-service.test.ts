@@ -166,4 +166,27 @@ describe("Feature: Course Join Request Service", () => {
       },
     );
   });
+
+  describe("Scenario: another school's service resolves this school's request", () => {
+    for (const resolve of ["approve", "reject"] as const) {
+      dbIt(
+        `${resolve} should refuse and leave the request Pending`,
+        async ({ db }) => {
+          const owner = new CourseJoinRequestService(db, TEST_SCHOOL_ID);
+          const request = await owner.createRequest({
+            courseId: "course-1",
+            studentId: "student-1",
+          });
+          const otherSchool = new CourseJoinRequestService(db, "school-b");
+
+          await expect(
+            otherSchool[resolve](request.id, "admin-b"),
+          ).rejects.toThrow();
+
+          const after = await owner.getRequest(request.id);
+          expect(after?.status).toBe(JoinRequestStatus.Pending);
+        },
+      );
+    }
+  });
 });
