@@ -286,6 +286,7 @@ describe("Feature: a school admin can never see or enrol another school's studen
     const result = await bulkImportStudentsAction(
       [{ name: "Alice", username: "alice-b", password: "secret123" }],
       [ownCourse.id, foreignCourse.id],
+      school.id,
     );
 
     expect(result.success).toBe(false);
@@ -321,6 +322,7 @@ describe("Feature: a school admin can never see or enrol another school's studen
     const result = await bulkImportStudentsAction(
       [{ name: "Alice", username: "alice-c", password: "secret123" }],
       injectedCourseIds,
+      school.id,
     );
 
     expect(result.success).toBe(false);
@@ -338,6 +340,7 @@ describe("Feature: a school admin can never see or enrol another school's studen
     formData.set("name", "Alice");
     formData.set("username", "alice-own");
     formData.set("password", "secret123");
+    formData.set("expectedSchoolId", school.id);
 
     const result = await createStudentAction(null, formData);
 

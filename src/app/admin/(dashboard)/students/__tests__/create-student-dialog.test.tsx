@@ -21,7 +21,7 @@ describe("Feature: Create Student dialog", () => {
         success: false,
         message: "Username already exists",
       });
-      render(<CreateStudentDialog />);
+      render(<CreateStudentDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Student" }));
 
       // Action — fill every field and submit, and it gets refused.
@@ -47,7 +47,7 @@ describe("Feature: Create Student dialog", () => {
         message: "Username already exists",
         fieldErrors: { username: "Username already exists" },
       });
-      render(<CreateStudentDialog />);
+      render(<CreateStudentDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Student" }));
 
       await user.type(screen.getByLabelText("Full Name"), "Alice Nguyen");
@@ -72,7 +72,7 @@ describe("Feature: Create Student dialog", () => {
         message: "Password must be at least 8 characters",
         fieldErrors: { password: "Password must be at least 8 characters" },
       });
-      render(<CreateStudentDialog />);
+      render(<CreateStudentDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Student" }));
 
       await user.type(screen.getByLabelText("Full Name"), "Alice Nguyen");
@@ -97,7 +97,7 @@ describe("Feature: Create Student dialog", () => {
         success: true,
         message: 'Student "Alice Nguyen" created successfully',
       });
-      render(<CreateStudentDialog />);
+      render(<CreateStudentDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Student" }));
 
       // Action — fill every field and submit.
@@ -124,7 +124,7 @@ describe("Feature: Create Student dialog", () => {
         success: true,
         message: 'Student "Alice Nguyen" created successfully',
       });
-      render(<CreateStudentDialog />);
+      render(<CreateStudentDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Student" }));
       await user.type(screen.getByLabelText("Full Name"), "Alice Nguyen");
       await user.type(screen.getByLabelText("Username"), "alice");
@@ -148,7 +148,7 @@ describe("Feature: Create Student dialog", () => {
         success: false,
         message: "Username already exists",
       });
-      render(<CreateStudentDialog />);
+      render(<CreateStudentDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Student" }));
       await user.type(screen.getByLabelText("Full Name"), "Alice Nguyen");
       await user.type(screen.getByLabelText("Username"), "alice");

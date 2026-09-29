@@ -18,8 +18,10 @@ import { createPoolAction, type PoolActionState } from "./actions";
 
 /**
  * Client component: dialog for admins to create a new global question pool.
+ * @param schoolId - The school this dialog was opened in; posted with the
+ *   form so the action can refuse a create from a stale tab.
  */
-export function CreatePoolDialog() {
+export function CreatePoolDialog({ schoolId }: { schoolId: string }) {
   const [open, setOpen] = useState(false);
   const [successCount, setSuccessCount] = useState(0);
   // A closed-and-reopened dialog abandons the last attempt — its banner
@@ -61,6 +63,8 @@ export function CreatePoolDialog() {
           onSubmit={submitWithoutReset(formAction)}
           className="space-y-4"
         >
+          <input type="hidden" name="expectedSchoolId" value={schoolId} />
+
           <div className="space-y-2">
             <Label htmlFor="name">Pool Name</Label>
             <Input

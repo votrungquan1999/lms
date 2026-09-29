@@ -44,6 +44,7 @@ describe("Pool actions", () => {
     const form = new FormData();
     form.set("name", "   ");
     form.set("description", "");
+    form.set("expectedSchoolId", TEST_SCHOOL.id);
 
     const result = await createPoolAction(null, form);
 
@@ -55,6 +56,7 @@ describe("Pool actions", () => {
     const form = new FormData();
     form.set("name", "Geometry");
     form.set("description", "Triangles and circles");
+    form.set("expectedSchoolId", TEST_SCHOOL.id);
 
     const result = await createPoolAction(null, form);
 
@@ -138,6 +140,7 @@ describe("Feature: a new pool lands in the admin's current school", () => {
     const form = new FormData();
     form.set("name", "Geometry");
     form.set("description", "");
+    form.set("expectedSchoolId", school.id);
 
     const result = await createPoolAction(null, form);
 

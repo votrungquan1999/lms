@@ -38,6 +38,11 @@ export async function createCourseAction(
     return { success: false, message: "Unauthorized: admin access required" };
   }
 
+  // A stale tab still showing an older active school must not create here.
+  if (formData.get("expectedSchoolId")?.toString() !== schoolId) {
+    return { success: false, message: "Your active school changed" };
+  }
+
   const parsed = createCourseSchema.safeParse({
     title: formData.get("title"),
     description: formData.get("description"),

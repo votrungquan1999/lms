@@ -22,8 +22,10 @@ const AUTO_CLOSE_MS = 3000;
  * Client component: dialog for admins to create a student account.
  * Uses useActionState to manage form submission + feedback.
  * On success, displays a 3-2-1 countdown and auto-closes the dialog.
+ * @param schoolId - The school this dialog was opened in; posted with the
+ *   form so the action can refuse a create from a stale tab.
  */
-export function CreateStudentDialog() {
+export function CreateStudentDialog({ schoolId }: { schoolId: string }) {
   const [open, setOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const [closeAt, setCloseAt] = useState<number | null>(null);
@@ -86,6 +88,8 @@ export function CreateStudentDialog() {
           onSubmit={submitWithoutReset(formAction)}
           className="space-y-4"
         >
+          <input type="hidden" name="expectedSchoolId" value={schoolId} />
+
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
             <Input

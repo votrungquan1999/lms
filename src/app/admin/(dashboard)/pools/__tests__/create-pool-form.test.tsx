@@ -24,7 +24,7 @@ describe("Feature: Pool Creation Dialog", () => {
         success: true,
         message: 'Pool "Algebra basics" created successfully',
       });
-      render(<CreatePoolDialog />);
+      render(<CreatePoolDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Pool" }));
 
       await user.type(screen.getByLabelText("Pool Name"), "Algebra basics");
@@ -43,7 +43,7 @@ describe("Feature: Pool Creation Dialog", () => {
         success: false,
         message: "Unauthorized: admin access required",
       });
-      render(<CreatePoolDialog />);
+      render(<CreatePoolDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Pool" }));
 
       await user.type(screen.getByLabelText("Pool Name"), "Algebra basics");
@@ -62,7 +62,7 @@ describe("Feature: Pool Creation Dialog", () => {
         message: "Pool name is required",
         fieldErrors: { name: "Pool name is required" },
       });
-      render(<CreatePoolDialog />);
+      render(<CreatePoolDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Pool" }));
 
       await user.type(screen.getByLabelText("Pool Name"), "   ");
@@ -82,7 +82,7 @@ describe("Feature: Pool Creation Dialog", () => {
         success: true,
         message: 'Pool "Algebra basics" created successfully',
       });
-      render(<CreatePoolDialog />);
+      render(<CreatePoolDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Pool" }));
 
       await user.type(screen.getByLabelText("Pool Name"), "Algebra basics");
@@ -100,7 +100,7 @@ describe("Feature: Pool Creation Dialog", () => {
         success: true,
         message: 'Pool "Algebra basics" created successfully',
       });
-      render(<CreatePoolDialog />);
+      render(<CreatePoolDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Pool" }));
       await user.type(screen.getByLabelText("Pool Name"), "Algebra basics");
       await user.click(screen.getByRole("button", { name: "Create Pool" }));
@@ -119,7 +119,7 @@ describe("Feature: Pool Creation Dialog", () => {
     it("should not invoke the create action when the name is empty", async () => {
       const user = userEvent.setup();
       vi.mocked(createPoolAction).mockClear();
-      render(<CreatePoolDialog />);
+      render(<CreatePoolDialog schoolId="school-1" />);
       await user.click(screen.getByRole("button", { name: "Add Pool" }));
 
       await user.click(screen.getByRole("button", { name: "Create Pool" }));

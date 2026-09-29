@@ -39,6 +39,7 @@ describe("createCourseAction", () => {
     const form = new FormData();
     form.set("title", "   ");
     form.set("description", "");
+    form.set("expectedSchoolId", TEST_SCHOOL.id);
 
     const result = await createCourseAction(null, form);
 
@@ -68,6 +69,7 @@ describe("Feature: a new course lands in the admin's current school", () => {
     const form = new FormData();
     form.set("title", "Algebra");
     form.set("description", "");
+    form.set("expectedSchoolId", school.id);
 
     const result = await createCourseAction(null, form);
 

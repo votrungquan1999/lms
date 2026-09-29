@@ -57,8 +57,11 @@ export default async function StudentsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <BulkImportDialog courses={courseOptions} />
-          <CreateStudentDialog />
+          <BulkImportDialog
+            courses={courseOptions}
+            schoolId={session.school.id}
+          />
+          <CreateStudentDialog schoolId={session.school.id} />
         </div>
       </header>
 
@@ -93,7 +96,7 @@ export default async function StudentsPage() {
               Create your first student account to get started.
             </p>
           </div>
-          <CreateStudentDialog />
+          <CreateStudentDialog schoolId={session.school.id} />
         </div>
       )}
     </div>

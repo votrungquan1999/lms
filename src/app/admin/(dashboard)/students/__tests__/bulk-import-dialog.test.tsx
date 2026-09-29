@@ -68,7 +68,7 @@ describe("Feature: Bulk import — teacher onboards a class via the Students pag
       summary: { created: 1, skipped: 1, failed: 0 },
     });
 
-    render(<BulkImportDialog courses={courses} />);
+    render(<BulkImportDialog courses={courses} schoolId="school-1" />);
 
     // Open the dialog
     await user.click(screen.getByRole("button", { name: /import from file/i }));
@@ -89,8 +89,13 @@ describe("Feature: Bulk import — teacher onboards a class via the Students pag
     expect(importButton).toBeEnabled();
     await user.click(importButton);
 
-    // The import action was called with parsed rows + selected course
-    expect(bulkImportStudentsAction).toHaveBeenCalledWith(parsedRows, ["c1"]);
+    // The import action was called with parsed rows, the selected course and
+    // the school the dialog was opened in
+    expect(bulkImportStudentsAction).toHaveBeenCalledWith(
+      parsedRows,
+      ["c1"],
+      "school-1",
+    );
 
     // The per-student report is shown
     expect(await screen.findByText(/imported 1 student/i)).toBeInTheDocument();
@@ -103,7 +108,7 @@ describe("Feature: Bulk import — teacher onboards a class via the Students pag
       error: ParseImportErrorKind.MissingHeader,
     });
 
-    render(<BulkImportDialog courses={courses} />);
+    render(<BulkImportDialog courses={courses} schoolId="school-1" />);
     await user.click(screen.getByRole("button", { name: /import from file/i }));
     await user.upload(screen.getByLabelText(/roster file/i), makeFile());
 
@@ -131,7 +136,7 @@ describe("Feature: Bulk import — teacher onboards a class via the Students pag
       summary: { total: 1, valid: 0, skipped: 1 },
     });
 
-    render(<BulkImportDialog courses={courses} />);
+    render(<BulkImportDialog courses={courses} schoolId="school-1" />);
     await user.click(screen.getByRole("button", { name: /import from file/i }));
     await user.upload(screen.getByLabelText(/roster file/i), makeFile());
 

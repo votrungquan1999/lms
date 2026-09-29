@@ -36,6 +36,11 @@ export async function createStudentAction(
     return { success: false, message: "Unauthorized: admin access required" };
   }
 
+  // A stale tab still showing an older active school must not create here.
+  if (formData.get("expectedSchoolId")?.toString() !== schoolId) {
+    return { success: false, message: "Your active school changed" };
+  }
+
   const name = formData.get("name")?.toString().trim() ?? "";
   // Lowercased here too — `registerStudent` lowercases internally, but doing
   // it at the boundary keeps this path's stored/displayed username in sync

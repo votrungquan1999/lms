@@ -18,8 +18,10 @@ import { type CreateCourseState, createCourseAction } from "./actions";
 
 /**
  * Client component: dialog for admins to create a new course.
+ * @param schoolId - The school this dialog was opened in; posted with the
+ *   form so the action can refuse a create from a stale tab.
  */
-export function CreateCourseDialog() {
+export function CreateCourseDialog({ schoolId }: { schoolId: string }) {
   const [open, setOpen] = useState(false);
   const [successCount, setSuccessCount] = useState(0);
   // A closed-and-reopened dialog abandons the last attempt — its banner
@@ -61,6 +63,8 @@ export function CreateCourseDialog() {
           onSubmit={submitWithoutReset(formAction)}
           className="space-y-4"
         >
+          <input type="hidden" name="expectedSchoolId" value={schoolId} />
+
           <div className="space-y-2">
             <Label htmlFor="title">Course Title</Label>
             <Input

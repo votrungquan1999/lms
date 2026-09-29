@@ -42,7 +42,7 @@ export default async function PoolsPage() {
             {pools.length} pool{pools.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <CreatePoolDialog />
+        <CreatePoolDialog schoolId={session.school.id} />
       </header>
 
       {pools.length > 0 ? (

@@ -19,11 +19,15 @@ import { BulkImportBody } from "./bulk-import-dialog.ui";
  * upload → preview → optional course enrollment → confirm → per-student report.
  * Remounts the provider on each open so state resets between sessions.
  * @param courses - Courses available for the optional enrollment picker.
+ * @param schoolId - The school this dialog was opened in; passed to the
+ *   import so the action can refuse a stale tab.
  */
 export function BulkImportDialog({
   courses,
+  schoolId,
 }: {
   courses: CourseOption[];
+  schoolId: string;
 }): React.ReactNode {
   const [open, setOpen] = useState(false);
 
@@ -41,7 +45,7 @@ export function BulkImportDialog({
         </DialogHeader>
 
         {open && (
-          <BulkImportProvider courses={courses}>
+          <BulkImportProvider courses={courses} schoolId={schoolId}>
             <BulkImportBody />
           </BulkImportProvider>
         )}

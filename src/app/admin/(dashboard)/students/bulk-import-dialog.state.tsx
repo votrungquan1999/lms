@@ -100,9 +100,11 @@ const BulkImportContext = createContext<BulkImportContextValue | null>(null);
  */
 export function BulkImportProvider({
   courses,
+  schoolId,
   children,
 }: {
   courses: CourseOption[];
+  schoolId: string;
   children: React.ReactNode;
 }): React.ReactNode {
   const [state, dispatch] = useReducer(bulkImportReducer, initialState);
@@ -137,6 +139,7 @@ export function BulkImportProvider({
     const result = await bulkImportStudentsAction(
       state.parsedRows,
       state.selectedCourseIds,
+      schoolId,
     );
     if (!result.success || !result.report || !result.summary) {
       dispatch({ type: "ACTION_ERROR", message: result.message });

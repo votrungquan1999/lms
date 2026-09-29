@@ -176,11 +176,13 @@ export async function previewImportAction(
  * different: it refuses the whole call before creating anyone.
  * @param rows - Parsed roster rows from the uploaded file.
  * @param courseIds - Course ids to enroll the created students into (may be empty).
+ * @param expectedSchoolId - The school the dialog was opened in.
  * @returns Per-row outcomes and summary counts, or a failure state.
  */
 export async function bulkImportStudentsAction(
   rows: ImportRowInput[],
   courseIds: string[],
+  expectedSchoolId: string,
 ): Promise<ImportState> {
   const requestHeaders = await headers();
   const authService = await getAuthService();
@@ -190,6 +192,11 @@ export async function bulkImportStudentsAction(
     schoolId = session.school.id;
   } catch {
     return { success: false, message: "Unauthorized: admin access required" };
+  }
+
+  // A stale tab still showing an older active school must not import here.
+  if (expectedSchoolId !== schoolId) {
+    return { success: false, message: "Your active school changed" };
   }
 
   const parsed = importRowsSchema.safeParse(rows);

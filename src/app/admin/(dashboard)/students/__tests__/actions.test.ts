@@ -183,6 +183,7 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
         { name: "Taker", username: "taken", password: "secret123" }, // skipped: already-exists
       ],
       [course.id],
+      TEST_SCHOOL.id,
     );
 
     // Then the per-row report and summary reflect each outcome
@@ -248,6 +249,7 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
         { name: "Bob", username: "bob", password: "secret123" },
       ],
       [courseA.id, courseB.id],
+      TEST_SCHOOL.id,
     );
 
     // Then both students are created
@@ -301,6 +303,7 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
         { name: "Bob", username: "bob", password: "secret123" }, // fails
       ],
       [course.id],
+      TEST_SCHOOL.id,
     );
 
     // Then the failing row is reported as Failed with the thrown reason
@@ -333,6 +336,7 @@ describe("Feature: Bulk import — teacher confirms the import", () => {
     const result = await bulkImportStudentsAction(
       [{ name: "Alice", username: "alice", password: "secret123" }],
       [],
+      TEST_SCHOOL.id,
     );
 
     // Then it is refused and no student is created
@@ -350,6 +354,7 @@ describe("Feature: Create Student names a taken username as a field error", () =
     form1.set("name", "Alice");
     form1.set("username", "alice");
     form1.set("password", "password123");
+    form1.set("expectedSchoolId", TEST_SCHOOL.id);
     await createStudentAction(null, form1);
 
     // When a second admin tries to create another student with the same username
@@ -357,6 +362,7 @@ describe("Feature: Create Student names a taken username as a field error", () =
     form2.set("name", "Alice Two");
     form2.set("username", "alice");
     form2.set("password", "password123");
+    form2.set("expectedSchoolId", TEST_SCHOOL.id);
     const result = await createStudentAction(null, form2);
 
     // Then the error names the username field, not only the banner
@@ -371,6 +377,7 @@ describe("Feature: Create Student names a short password as a field error", () =
     form.set("name", "Alice");
     form.set("username", "alice");
     form.set("password", "short");
+    form.set("expectedSchoolId", TEST_SCHOOL.id);
 
     const result = await createStudentAction(null, form);
 
@@ -389,6 +396,7 @@ describe("Feature: Create Student refuses a password made only of spaces", () =>
     form.set("username", "alice");
     // 8 spaces — passes the 8-character minimum, blank once trimmed
     form.set("password", "        ");
+    form.set("expectedSchoolId", TEST_SCHOOL.id);
 
     const result = await createStudentAction(null, form);
 
@@ -416,11 +424,13 @@ describe("Feature: a new student belongs to the admin's current school", () => {
     form.set("name", "Solo Student");
     form.set("username", "solo");
     form.set("password", "secret123");
+    form.set("expectedSchoolId", school.id);
 
     await createStudentAction(null, form);
     await bulkImportStudentsAction(
       [{ name: "Batch Student", username: "batch", password: "secret123" }],
       [],
+      school.id,
     );
 
     const { schoolDirectory } = getTestServices();

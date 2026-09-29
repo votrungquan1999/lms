@@ -28,7 +28,7 @@ export default async function CoursesPage() {
             {courses.length} course{courses.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <CreateCourseDialog />
+        <CreateCourseDialog schoolId={session.school.id} />
       </header>
 
       {courses.length > 0 ? (
