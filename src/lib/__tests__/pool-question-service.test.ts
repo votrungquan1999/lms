@@ -509,6 +509,46 @@ describe("deletePoolQuestion — a teacher removes a pool question (Step 30 / D3
   );
 });
 
+describe("a school-bound service never changes another school's pool question", () => {
+  const foreignWrites: [
+    string,
+    (service: PoolQuestionService, id: string) => Promise<void>,
+  ][] = [
+    [
+      "updatePoolQuestion",
+      (service, id) =>
+        service.updatePoolQuestion(id, { title: "Hacked" }, "admin-b"),
+    ],
+    [
+      "deletePoolQuestion",
+      (service, id) => service.deletePoolQuestion(id, "admin-b"),
+    ],
+  ];
+
+  for (const [name, act] of foreignWrites) {
+    dbIt(
+      `${name} refuses a foreign pool question and leaves it unchanged`,
+      async ({ db }) => {
+        const owner = new PoolQuestionService(db, TEST_SCHOOL_ID);
+        const question = await owner.addPoolQuestion("pool-1", {
+          title: "Explain gravity",
+          content: "In your own words.",
+          createdBy: "admin-1",
+        });
+        const otherSchool = new PoolQuestionService(db, "school-b");
+
+        await expect(act(otherSchool, question.id)).rejects.toThrow(
+          "Pool question not found",
+        );
+
+        expect(
+          (await owner.listPoolQuestions("pool-1")).map((q) => q.title),
+        ).toEqual(["Explain gravity"]);
+      },
+    );
+  }
+});
+
 describe("pool→test isolation (Step 30 — regression pin)", () => {
   dbIt(
     "editing a pool question has no retroactive effect on a test question already composed from it (green from the first run — composed copies share no references with the pool)",

@@ -372,13 +372,20 @@ export class PoolQuestionService {
    * @param poolQuestionId - The pool question to update.
    * @param input - The fields to change.
    * @param updatedBy - The admin making the change.
+   * @throws "Pool question not found" when it is missing or belongs to another school.
    */
   async updatePoolQuestion(
     poolQuestionId: string,
     input: UpdatePoolQuestionInput,
     updatedBy: string,
   ): Promise<void> {
-    const before = await this.questions.findOne({ id: poolQuestionId });
+    const before = await this.questions.findOne({
+      id: poolQuestionId,
+      schoolId: this.schoolId,
+    });
+    if (!before) {
+      throw new Error("Pool question not found");
+    }
 
     const set: Partial<PoolQuestionDocument> = {
       updatedAt: new Date(),
@@ -458,11 +465,12 @@ export class PoolQuestionService {
       }
     }
 
-    await this.questions.updateOne({ id: poolQuestionId }, { $set: set });
+    await this.questions.updateOne(
+      { id: poolQuestionId, schoolId: this.schoolId },
+      { $set: set },
+    );
 
-    if (before) {
-      await this.logRealChanges(before, set, updatedBy);
-    }
+    await this.logRealChanges(before, set, updatedBy);
   }
 
   /**
@@ -472,19 +480,23 @@ export class PoolQuestionService {
    * question as `before`.
    * @param poolQuestionId - The pool question to delete.
    * @param deletedBy - The admin performing the delete.
+   * @throws "Pool question not found" when it is missing or belongs to another school.
    */
   async deletePoolQuestion(
     poolQuestionId: string,
     deletedBy: string,
   ): Promise<void> {
-    const before = await this.questions.findOne({ id: poolQuestionId });
+    const before = await this.questions.findOne({
+      id: poolQuestionId,
+      schoolId: this.schoolId,
+    });
     if (!before) {
-      return;
+      throw new Error("Pool question not found");
     }
 
     const now = new Date();
     await this.questions.updateOne(
-      { id: poolQuestionId },
+      { id: poolQuestionId, schoolId: this.schoolId },
       {
         $set: {
           deletedAt: now,

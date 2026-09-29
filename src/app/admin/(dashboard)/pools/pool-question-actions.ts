@@ -5,7 +5,10 @@ import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import type { UpdatePoolQuestionInput } from "src/lib/pool-question-service";
-import { getPoolQuestionService } from "src/lib/services-singleton";
+import {
+  getPoolQuestionService,
+  getQuestionPoolService,
+} from "src/lib/services-singleton";
 import {
   type SubmittedMedia,
   submittedMediaSchema,
@@ -96,6 +99,12 @@ export async function addPoolQuestionAction(
         "lms.pool.id": parsed.data.poolId,
       },
       async () => {
+        const questionPoolService = await getQuestionPoolService(schoolId);
+        const pool = await questionPoolService.getPool(parsed.data.poolId);
+        if (!pool) {
+          return { success: false, message: "Pool not found" };
+        }
+
         const poolQuestionService = await getPoolQuestionService(schoolId);
         const data = parsed.data;
         if (data.type === "free_text") {
@@ -213,6 +222,23 @@ export async function updatePoolQuestionAction(
         const poolQuestionService = await getPoolQuestionService(schoolId);
         const data = parsed.data;
 
+        // Resolve the pool first: a foreign or soft-deleted pool must
+        // read "Pool not found", not the question-membership message below.
+        const questionPoolService = await getQuestionPoolService(schoolId);
+        const pool = await questionPoolService.getPool(data.poolId);
+        if (!pool) {
+          return { success: false, message: "Pool not found" };
+        }
+
+        // Membership in the pool's school-scoped list also rejects a question
+        // from a different pool in this same school.
+        const poolQuestions = await poolQuestionService.listPoolQuestions(
+          data.poolId,
+        );
+        if (!poolQuestions.some((q) => q.id === data.poolQuestionId)) {
+          return { success: false, message: "Pool question not found" };
+        }
+
         const input: UpdatePoolQuestionInput = {};
         if (data.answerRevealMode !== undefined) {
           input.answerRevealMode =
@@ -307,6 +333,22 @@ export async function deletePoolQuestionAction(
       },
       async () => {
         const poolQuestionService = await getPoolQuestionService(schoolId);
+
+        // Resolve the pool first: a foreign or soft-deleted pool must
+        // read "Pool not found", not the question-membership message below.
+        const questionPoolService = await getQuestionPoolService(schoolId);
+        const pool = await questionPoolService.getPool(poolId);
+        if (!pool) {
+          return { success: false, message: "Pool not found" };
+        }
+
+        // Same pool-membership check as the update action.
+        const poolQuestions =
+          await poolQuestionService.listPoolQuestions(poolId);
+        if (!poolQuestions.some((q) => q.id === poolQuestionId)) {
+          return { success: false, message: "Pool question not found" };
+        }
+
         await poolQuestionService.deletePoolQuestion(
           poolQuestionId,
           adminUserId,

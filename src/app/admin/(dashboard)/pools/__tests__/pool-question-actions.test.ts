@@ -1,5 +1,6 @@
 import type { Db } from "mongodb";
 import type { PoolQuestionDocument } from "src/lib/pool-question-service";
+import type { QuestionPoolDocument } from "src/lib/question-pool-service";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -17,7 +18,7 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => ({ requireAdminSession })),
 }));
 
-import { TEST_SCHOOL } from "src/tests/create-test-db";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   addPoolQuestionAction,
   deletePoolQuestionAction,
@@ -33,6 +34,19 @@ beforeEach(async () => {
     userId: "admin-1",
     role: "admin",
     school: TEST_SCHOOL,
+  });
+  // Tests name the literal pool id "pool-1"; createPool would mint its own id.
+  await db.collection<QuestionPoolDocument>("question_pool").insertOne({
+    id: "pool-1",
+    name: "Pool 1",
+    description: "",
+    createdAt: new Date(),
+    createdBy: "admin-1",
+    updatedAt: null,
+    updatedBy: null,
+    deletedAt: null,
+    deletedBy: null,
+    schoolId: TEST_SCHOOL_ID,
   });
 });
 

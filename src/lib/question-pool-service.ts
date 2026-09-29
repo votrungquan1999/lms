@@ -106,24 +106,29 @@ export class QuestionPoolService {
 
   /**
    * Renames a pool and stamps audit fields.
+   * @throws "Pool not found" when the pool is missing, already deleted, or belongs to another school.
    */
   async renamePool(
     poolId: string,
     name: string,
     updatedBy: string,
   ): Promise<void> {
-    await this.pools.updateOne(
-      { id: poolId },
+    const result = await this.pools.updateOne(
+      { id: poolId, schoolId: this.schoolId, deletedAt: null },
       { $set: { name, updatedAt: new Date(), updatedBy } },
     );
+    if (result.matchedCount === 0) {
+      throw new Error("Pool not found");
+    }
   }
 
   /**
    * Soft-deletes a pool so it no longer appears in `listPools`/`getPool`.
+   * @throws "Pool not found" when the pool is missing, already deleted, or belongs to another school.
    */
   async deletePool(poolId: string, deletedBy: string): Promise<void> {
-    await this.pools.updateOne(
-      { id: poolId },
+    const result = await this.pools.updateOne(
+      { id: poolId, schoolId: this.schoolId, deletedAt: null },
       {
         $set: {
           deletedAt: new Date(),
@@ -133,6 +138,9 @@ export class QuestionPoolService {
         },
       },
     );
+    if (result.matchedCount === 0) {
+      throw new Error("Pool not found");
+    }
   }
 
   private toPool(doc: QuestionPoolDocument): QuestionPool {

@@ -1,4 +1,7 @@
-import { QuestionPoolService } from "src/lib/question-pool-service";
+import {
+  type QuestionPoolDocument,
+  QuestionPoolService,
+} from "src/lib/question-pool-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -82,6 +85,50 @@ describe("QuestionPoolService", () => {
 
       expect(await service.getPool(created.id)).toBeNull();
       expect(await service.listPools()).toHaveLength(0);
+    },
+  );
+
+  dbIt(
+    "refuses to rename a pool that has already been soft-deleted",
+    async ({ db }) => {
+      const service = new QuestionPoolService(db, TEST_SCHOOL_ID);
+      const created = await service.createPool({
+        name: "Old name",
+        description: "",
+        createdBy: "admin-1",
+      });
+      await service.deletePool(created.id, "admin-2");
+
+      await expect(
+        service.renamePool(created.id, "New name", "admin-3"),
+      ).rejects.toThrow("Pool not found");
+      const stored = await db
+        .collection<QuestionPoolDocument>("question_pool")
+        .findOne({ id: created.id });
+      expect(stored?.name).toBe("Old name");
+      expect(stored?.updatedBy).toBe("admin-2");
+    },
+  );
+
+  dbIt(
+    "refuses to delete a pool that has already been soft-deleted",
+    async ({ db }) => {
+      const service = new QuestionPoolService(db, TEST_SCHOOL_ID);
+      const created = await service.createPool({
+        name: "Doomed",
+        description: "",
+        createdBy: "admin-1",
+      });
+      await service.deletePool(created.id, "admin-2");
+
+      await expect(service.deletePool(created.id, "admin-3")).rejects.toThrow(
+        "Pool not found",
+      );
+      // The first delete's audit trail survives the refused second one.
+      const stored = await db
+        .collection<QuestionPoolDocument>("question_pool")
+        .findOne({ id: created.id });
+      expect(stored?.deletedBy).toBe("admin-2");
     },
   );
 });
