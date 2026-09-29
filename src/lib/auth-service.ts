@@ -413,6 +413,16 @@ export class AuthService {
       return null;
     }
 
+    // classify() also returns null for a student who already has a record
+    // but no school yet — that caller is never "fresh", or Google
+    // provisioning would create a second student document for them.
+    const existingStudent = await this.schoolDirectory.findByAuthUserId(
+      betterAuthSession.user.id,
+    );
+    if (existingStudent) {
+      return null;
+    }
+
     return {
       authUserId: betterAuthSession.user.id,
       email: betterAuthSession.user.email,

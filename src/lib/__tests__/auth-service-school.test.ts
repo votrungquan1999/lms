@@ -3,12 +3,13 @@ import { ACTIVE_SCHOOL_COOKIE_NAME } from "src/lib/active-school-cookie";
 import {
   type AuthService,
   createAuthService,
+  LoginEntryState,
   OwnerRequiredError,
 } from "src/lib/auth-service";
-import type { AppConfig } from "src/lib/config";
 import { type School, SchoolService } from "src/lib/school-service";
 import { isAdminSession, type Session } from "src/lib/session";
 import { realAuthServiceDeps } from "src/tests/auth-service-deps";
+import { signedInHeaders, testConfig } from "src/tests/auth-test-helpers";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -22,26 +23,6 @@ import { describe, expect, it } from "vitest";
  */
 
 const dbIt = withTestDb(it);
-
-/**
- * Signs in through the real Better Auth instance and turns the response's
- * Set-Cookie header into a Cookie header usable by AuthService.getSession.
- */
-async function signedInHeaders(
-  authService: AuthService,
-  email: string,
-  password: string,
-): Promise<Headers> {
-  const { headers: signInHeaders } = await authService.auth.api.signInEmail({
-    body: { email, password },
-    returnHeaders: true,
-  });
-  const cookie = signInHeaders
-    .getSetCookie()
-    .map((entry) => entry.split(";")[0])
-    .join("; ");
-  return new Headers({ cookie });
-}
 
 /** Appends the active-school cookie to an already-signed-in Cookie header. */
 function withActiveSchoolCookie(headers: Headers, schoolId: string): Headers {
@@ -59,24 +40,6 @@ function activeSchoolOf(
     throw new Error("expected an admin session");
   }
   return session.school;
-}
-
-function testConfig(adminEmails: string[]): AppConfig {
-  return {
-    mongodbUri: "unused-in-test",
-    authSecret: "test-secret",
-    authAllowedHosts: ["localhost:3000"],
-    google: { clientId: "test-client-id", clientSecret: "test-client-secret" },
-    s3: {
-      bucket: "test-bucket",
-      region: "ap-southeast-1",
-      accessKeyId: "test-key",
-      secretAccessKey: "test-secret",
-    },
-    adminEmails,
-    trustedOrigins: [],
-    allowPublicSignUp: false,
-  };
 }
 
 /** Builds a real AuthService against the test db, with real dependencies. */
@@ -646,6 +609,86 @@ describe("Feature: a teacher who belongs to no school can't reach any school's d
 
       const session = await authService.requireOwnerSession(headers);
       expect(session.email).toBe("owner@example.com");
+    },
+  );
+});
+
+/**
+ * Feature: a school-less student is never treated as a fresh identity
+ * As the LMS system
+ * I want a student record with no school yet to resolve to Unclassified,
+ * distinct from both a genuinely signed-out visitor and a placed student
+ * So that they land on "Account Not Set Up" instead of the student area,
+ * and Google provisioning never hands them a second student document
+ */
+describe("Feature: a school-less student is never treated as a fresh identity", () => {
+  dbIt(
+    "resolveLoginEntryState classifies a school-less student as Unclassified, not SignedOut or Student",
+    async ({ db }) => {
+      const authService = realAuthService(db, []);
+      const { user } = await authService.auth.api.signUpEmail({
+        body: {
+          email: "orphan@example.com",
+          password: "password-123",
+          name: "Orphan Student",
+        },
+      });
+      // A record only a raw insert can produce — a bound StudentService
+      // always stamps its own school (a backfill/legacy record stand-in).
+      await db.collection("student").insertOne({
+        id: crypto.randomUUID(),
+        authUserId: user.id,
+        username: "orphan-student",
+        name: "Orphan Student",
+        createdAt: new Date(),
+        createdBy: "backfill",
+        updatedAt: null,
+        updatedBy: null,
+        schoolId: null,
+      });
+      const headers = await signedInHeaders(
+        authService,
+        "orphan@example.com",
+        "password-123",
+      );
+
+      const state = await authService.resolveLoginEntryState(headers);
+
+      expect(state).toBe(LoginEntryState.Unclassified);
+    },
+  );
+
+  dbIt(
+    "resolveUnclassifiedIdentity returns null for a school-less existing student, never handing back their identity as if they were brand new",
+    async ({ db }) => {
+      const authService = realAuthService(db, []);
+      const { user } = await authService.auth.api.signUpEmail({
+        body: {
+          email: "orphan2@example.com",
+          password: "password-123",
+          name: "Orphan Two",
+        },
+      });
+      await db.collection("student").insertOne({
+        id: crypto.randomUUID(),
+        authUserId: user.id,
+        username: "orphan-two",
+        name: "Orphan Two",
+        createdAt: new Date(),
+        createdBy: "backfill",
+        updatedAt: null,
+        updatedBy: null,
+        schoolId: null,
+      });
+      const headers = await signedInHeaders(
+        authService,
+        "orphan2@example.com",
+        "password-123",
+      );
+
+      const identity = await authService.resolveUnclassifiedIdentity(headers);
+
+      expect(identity).toBeNull();
     },
   );
 });

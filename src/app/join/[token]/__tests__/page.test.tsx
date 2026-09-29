@@ -88,6 +88,7 @@ describe("Feature: someone opening a broken or switched-off join link is told th
   let neverValidUi: ReactElement;
   let revokedUi: ReactElement;
   let deletedUi: ReactElement;
+  let schoolLessUi: ReactElement;
 
   beforeEach(async () => {
     const setup = await setupTestDb();
@@ -131,6 +132,24 @@ describe("Feature: someone opening a broken or switched-off join link is told th
       params: Promise.resolve({ token: deletedToken }),
       searchParams: Promise.resolve({}),
     });
+
+    // A course not yet assigned to any school — an invite into it
+    // reads exactly like an invalid one, never a course-existence leak.
+    const schoolLessCourse = await services.courseService.createCourse({
+      title: "School-less Course",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const schoolLessToken = await services.courseService.getOrCreateInviteToken(
+      schoolLessCourse.id,
+    );
+    await db
+      .collection("course")
+      .updateOne({ id: schoolLessCourse.id }, { $set: { schoolId: null } });
+    schoolLessUi = await JoinPage({
+      params: Promise.resolve({ token: schoolLessToken }),
+      searchParams: Promise.resolve({}),
+    });
   });
 
   afterEach(async () => {
@@ -141,6 +160,7 @@ describe("Feature: someone opening a broken or switched-off join link is told th
     ["a token that never existed", () => neverValidUi],
     ["a revoked link", () => revokedUi],
     ["a deleted course", () => deletedUi],
+    ["a course with no school yet", () => schoolLessUi],
   ] as const)(
     "shows the invalid-invitation message for %s",
     (_label, getUi) => {
@@ -153,15 +173,18 @@ describe("Feature: someone opening a broken or switched-off join link is told th
   );
 
   it("renders byte-identical markup regardless of why the link is invalid (D43)", () => {
-    const html = [neverValidUi, revokedUi, deletedUi].map((ui) => {
-      const { container, unmount } = render(ui);
-      const innerHtml = container.innerHTML;
-      unmount();
-      return innerHtml;
-    });
+    const html = [neverValidUi, revokedUi, deletedUi, schoolLessUi].map(
+      (ui) => {
+        const { container, unmount } = render(ui);
+        const innerHtml = container.innerHTML;
+        unmount();
+        return innerHtml;
+      },
+    );
 
     expect(html[1]).toBe(html[0]);
     expect(html[2]).toBe(html[0]);
+    expect(html[3]).toBe(html[0]);
   });
 
   it("offers a way back in — student sign-in or home — for every invalid reason", () => {

@@ -3,6 +3,7 @@ import { type AuthService, createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
 import { JoinRequestStatus } from "src/lib/course-join-request-service";
 import { StudentSession } from "src/lib/session";
+import type { StudentDocument } from "src/lib/student-service";
 import {
   addTestSchool,
   getTestServices,
@@ -26,6 +27,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
+import { headers } from "next/headers";
 import { realAuthServiceDeps } from "src/tests/auth-service-deps";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
@@ -399,6 +401,216 @@ describe("Feature: a Google signup whose derived username needed a choice can fi
       studentDoc?.id ?? "",
     );
     expect(pending).not.toBeNull();
+  });
+});
+
+/**
+ * Feature: an existing student with no school yet is never provisioned a
+ * second time through the Google invite flow
+ * As the LMS system
+ * I want a school-less student's Google identity to resolve to nothing
+ * So that finishing the "pick a username" form can never create a second
+ * student document for the same sign-in account
+ */
+describe("Feature: an existing student with no school yet is never provisioned a second time through the Google invite flow", () => {
+  it("refuses googleUsernameSignupAction and creates no second student document for a school-less existing student", async () => {
+    // Given a course with a live invite link, and a student record that
+    // already exists for this sign-in account but has no school yet (left
+    // behind by an interrupted backfill, for example). This row drives a
+    // REAL signed-in cookie through the real AuthService.resolveUnclassifiedIdentity
+    // — the fix under test lives there, so a spy would test nothing.
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    const authService = authHolder.authService as AuthService;
+    const { user } = await authService.auth.api.signUpEmail({
+      body: {
+        email: "orphan.google@example.com",
+        password: "password-123",
+        name: "Orphan Google",
+      },
+    });
+    await db.collection("student").insertOne({
+      id: crypto.randomUUID(),
+      authUserId: user.id,
+      username: "orphan-google",
+      name: "Orphan Google",
+      createdAt: new Date(),
+      createdBy: "backfill",
+      updatedAt: null,
+      updatedBy: null,
+      schoolId: null,
+    });
+    const { headers: signInHeaders } = await authService.auth.api.signInEmail({
+      body: { email: "orphan.google@example.com", password: "password-123" },
+      returnHeaders: true,
+    });
+    const cookie = signInHeaders
+      .getSetCookie()
+      .map((entry) => entry.split(";")[0])
+      .join("; ");
+    vi.mocked(headers).mockResolvedValueOnce(new Headers({ cookie }));
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("username", "picked-by-orphan");
+
+    // When they submit a freely-chosen username, as if provisioning had
+    // handed them the NeedsUsername outcome
+    const result = await googleUsernameSignupAction(null, formData);
+
+    // Then the action refuses, and no second document exists for this
+    // authUserId — only the one already seeded above
+    expect(result).toEqual({
+      success: false,
+      message: "Your Google sign-in has expired. Please sign in again.",
+    });
+    const studentDocs = await db
+      .collection("student")
+      .find({ authUserId: user.id })
+      .toArray();
+    expect(studentDocs).toHaveLength(1);
+  });
+});
+
+/**
+ * Feature: an invite into a course with no school yet never works
+ * As the LMS system
+ * I want every join action to refuse a course that hasn't been assigned a
+ * school, the same way it refuses a dead or revoked link
+ * So that a course still waiting on the operator's backfill can never be
+ * joined behind the scenes
+ */
+describe("Feature: an invite into a course with no school yet never works", () => {
+  it("refuses joinSignupAction and creates no account", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "School-less Course",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    await db
+      .collection("course")
+      .updateOne({ id: course.id }, { $set: { schoolId: null } });
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("name", "Late Joiner");
+    formData.set("username", "late-joiner");
+    formData.set("password", "secret1234");
+
+    const result = await joinSignupAction(null, formData);
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        "This join link is no longer valid. Ask whoever shared it with you for a new one.",
+      invalidInvite: true,
+    });
+    // Counted raw: a leaked student would carry no school, so no list shows it
+    expect(
+      await db.collection<StudentDocument>("student").countDocuments({}),
+    ).toBe(0);
+  });
+
+  it("refuses googleUsernameSignupAction and creates no account", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "School-less Course",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    await db
+      .collection("course")
+      .updateOne({ id: course.id }, { $set: { schoolId: null } });
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "resolveUnclassifiedIdentity",
+    ).mockResolvedValue({
+      authUserId: "google-auth-id-999",
+      email: "late.joiner@gmail.com",
+      name: "Late Joiner",
+    });
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("username", "late-joiner");
+
+    const result = await googleUsernameSignupAction(null, formData);
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        "This join link is no longer valid. Ask whoever shared it with you for a new one.",
+      invalidInvite: true,
+    });
+    expect(
+      await db.collection<StudentDocument>("student").countDocuments({}),
+    ).toBe(0);
+  });
+
+  it("refuses requestToJoinAction from a signed-in student and writes no request", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "School-less Course",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    await db
+      .collection("course")
+      .updateOne({ id: course.id }, { $set: { schoolId: null } });
+    const student = await (
+      authHolder.authService as AuthService
+    ).registerStudent({
+      name: "Returning Student",
+      username: "returning-student-2",
+      password: "correct-horse-1",
+      createdBy: "self-signup",
+      schoolId: TEST_SCHOOL_ID,
+    });
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "requireStudentSession",
+    ).mockResolvedValue(
+      new StudentSession({
+        userId: "auth-user-2",
+        username: student.username,
+        studentId: student.id,
+        schoolId: TEST_SCHOOL_ID,
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+
+    const result = await requestToJoinAction(null, formData);
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        "This join link is no longer valid. Ask whoever shared it with you for a new one.",
+    });
+    expect(
+      await db
+        .collection("course_join_request")
+        .countDocuments({ courseId: course.id }),
+    ).toBe(0);
   });
 });
 
