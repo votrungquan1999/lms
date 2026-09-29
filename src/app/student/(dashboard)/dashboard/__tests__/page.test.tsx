@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { StudentSession } from "src/lib/session";
-import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
+  addTestSchool,
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
@@ -32,6 +33,44 @@ beforeEach(async () => {
 afterEach(async () => {
   await teardownTestDb();
   vi.clearAllMocks();
+});
+
+/**
+ * Feature: A student sees their school's name on their dashboard
+ * As a student
+ * I want my own school's name shown on my dashboard
+ * So that I know which school's courses I'm looking at
+ */
+describe("Feature: Student dashboard shows the student's school name", () => {
+  it("shows the name of the student's own school, not another school's", async () => {
+    // A non-default school, so a page that named the default school fails.
+    const school = await addTestSchool("Riverside High");
+    const student = await getTestServices(
+      school.id,
+    ).studentService.createStudentDocument({
+      authUserId: "auth-1",
+      username: "student-1",
+      name: "Student One",
+      createdBy: "self-signup",
+    });
+    signInAs(
+      new StudentSession({
+        userId: "auth-1",
+        username: "student-1",
+        studentId: student.id,
+        schoolId: school.id,
+      }),
+    );
+
+    render(await StudentDashboardPage());
+
+    expect(
+      screen.getByText((content) => content.includes("Riverside High")),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText((content) => content.includes(TEST_SCHOOL.name)),
+    ).not.toBeInTheDocument();
+  });
 });
 
 /**

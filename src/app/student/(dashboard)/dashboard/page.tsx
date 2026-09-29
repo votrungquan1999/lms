@@ -13,6 +13,7 @@ import {
   getEnrollmentService,
   getGradeVisibilityService,
   getPageGuard,
+  getSchoolService,
   getTestService,
   getTestStatusService,
 } from "src/lib/services-singleton";
@@ -37,6 +38,9 @@ export default async function StudentDashboardPage() {
   const guard = await getPageGuard();
   const session = await guard.requireStudentLogin();
   const { username, studentId } = session;
+
+  const schoolService = await getSchoolService();
+  const school = await schoolService.getSchool(session.schoolId);
 
   const enrollmentService = await getEnrollmentService();
   const enrollments =
@@ -100,7 +104,13 @@ export default async function StudentDashboardPage() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-6">
       <PageHeader
         title={`Welcome, ${username}!`}
-        description="Here's where your courses stand."
+        // No school ever resolves to null in practice (schools aren't
+        // deleted), but the line is skipped rather than crashing if it does.
+        description={
+          school
+            ? `${school.name} · Here's where your courses stand.`
+            : "Here's where your courses stand."
+        }
       />
 
       {pendingRequests.length > 0 && <PendingRequestNotice />}
