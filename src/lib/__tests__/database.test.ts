@@ -126,6 +126,13 @@ describe("Feature: Production database boot wires the safety indexes", () => {
         );
         expect(studentAuthUserIdIndex?.unique).toBe(true);
 
+        // ...and the student username unique index exists — one username
+        // across every school, not just within one
+        const studentUsernameIndex = studentIndexes.find(
+          (index) => index.key.username === 1,
+        );
+        expect(studentUsernameIndex?.unique).toBe(true);
+
         // ...and a school-led index serves every school's pool list
         const poolIndexes = await listIndexesOrEmpty(db, "question_pool");
         const poolSchoolIndex = poolIndexes.find(

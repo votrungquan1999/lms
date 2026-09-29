@@ -86,6 +86,10 @@ export async function ensureIndexes(db: Db): Promise<void> {
     .collection("student")
     .createIndex({ authUserId: 1 }, { unique: true });
 
+  // One username across every school, not just within one — the
+  // authoritative guard behind a raced or stale app-level username check.
+  await db.collection("student").createIndex({ username: 1 }, { unique: true });
+
   // Backs each school's admin queue: `find({schoolId, status})` sorted by
   // `{requestedAt, _id}` with skip/limit, and its `countDocuments`. Replaces
   // the old unscoped `{status, requestedAt, _id}` index, which is never

@@ -76,17 +76,13 @@ export class StudentService {
    * Creates a student document in this service's school.
    * Throws "Username already exists" when the username is taken in any
    * school, and "This account already has a student profile" when the
-   * sign-in account already owns one.
+   * sign-in account already owns one. Both are enforced by the database's
+   * own unique indexes, not a find-first check, so a stale caller-side read
+   * can never let a duplicate through.
    */
   async createStudentDocument(
     input: CreateStudentDocumentInput,
   ): Promise<Student> {
-    // Not scoped to this school: usernames are unique across all schools.
-    const existing = await this.students.findOne({ username: input.username });
-    if (existing) {
-      throw new Error("Username already exists");
-    }
-
     const doc: StudentDocument = {
       id: crypto.randomUUID(),
       authUserId: input.authUserId,
@@ -102,14 +98,16 @@ export class StudentService {
     try {
       await this.students.insertOne(doc);
     } catch (error) {
-      // Told apart by the index that refused the insert, never by message
-      // text; usernames are still guarded only by the find-first check above.
-      if (
-        error instanceof MongoServerError &&
-        error.code === 11000 &&
-        error.keyPattern?.authUserId
-      ) {
-        throw new Error("This account already has a student profile");
+      // Told apart by which index refused the insert, never by message
+      // text — a document can violate both at once, and only the index
+      // that actually fired is a fact MongoDB reports.
+      if (error instanceof MongoServerError && error.code === 11000) {
+        if (error.keyPattern?.authUserId) {
+          throw new Error("This account already has a student profile");
+        }
+        if (error.keyPattern?.username) {
+          throw new Error("Username already exists");
+        }
       }
       throw error;
     }

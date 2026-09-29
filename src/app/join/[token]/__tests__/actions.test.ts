@@ -219,10 +219,10 @@ describe("Feature: registering through an invite link puts a request to join tha
  * else already uses
  * As the school
  * I want a duplicate username self-signup blocked, not linked or renamed
- * So that one person's grades and enrollments never split across two records (D3)
+ * So that one person's grades and enrollments never split across two records
  */
 describe("Feature: a prospective student is stopped from taking a username somebody else already uses", () => {
-  it("blocks a self-signup whose username already belongs to another student, and tells them to use their original sign-in method", async () => {
+  it("blocks a self-signup whose username already belongs to another student, and offers both sign-in and a new username", async () => {
     // Given a student already exists with username "alice"
     const services = getTestServices();
     await services.studentService.createStudentDocument({
@@ -250,11 +250,11 @@ describe("Feature: a prospective student is stopped from taking a username someb
     // When someone tries to self-register with that same username
     const result = await joinSignupAction(null, formData);
 
-    // Then registration is blocked and they are told to use their original
-    // sign-in method — never a generic "username taken, pick another"
+    // Then registration is blocked, offering both a returning user's sign-in
+    // and a stranger's next pick, since usernames are global
     expect(result.success).toBe(false);
     expect(result.message).toBe(
-      "This username already belongs to an account. Please sign in with your original method instead.",
+      "That username is already taken. If it's yours, sign in instead; otherwise choose another.",
     );
 
     // And no duplicate student or join request was created
@@ -295,17 +295,66 @@ describe("Feature: a prospective student is stopped from taking a username someb
     // When someone tries to self-register with a differently-cased username
     const result = await joinSignupAction(null, formData);
 
-    // Then registration is blocked with the same D3 message — never
+    // Then registration is blocked with the same message — never
     // better-auth's raw "user already exists" error, which would leak the
     // internal synthetic-email scheme to a stranger
     expect(result.success).toBe(false);
     expect(result.message).toBe(
-      "This username already belongs to an account. Please sign in with your original method instead.",
+      "That username is already taken. If it's yours, sign in instead; otherwise choose another.",
     );
 
     // And no second student and no join request were created
     const all = await services.studentService.listStudents();
     expect(all).toHaveLength(1);
+    expect(
+      await db
+        .collection("course_join_request")
+        .countDocuments({ courseId: course.id }),
+    ).toBe(0);
+  });
+
+  it("blocks a self-signup whose username is already held by another school's student", async () => {
+    // Given a student in another school already holds "alice"
+    const school = await addTestSchool("School B");
+    await getTestServices(school.id).studentService.createStudentDocument({
+      authUserId: "existing-auth-id-b",
+      username: "alice",
+      name: "Alice Existing",
+      createdBy: "admin-b",
+    });
+
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("name", "Someone Else");
+    formData.set("username", "alice");
+    formData.set("password", "secret1234");
+
+    // When someone tries to self-register with that same username
+    const result = await joinSignupAction(null, formData);
+
+    // Then registration is blocked with the message covering both a
+    // returning user and a genuine stranger, since usernames are global
+    expect(result.success).toBe(false);
+    expect(result.message).toBe(
+      "That username is already taken. If it's yours, sign in instead; otherwise choose another.",
+    );
+
+    // And only the original "alice" exists in any school, with no join request
+    expect(
+      await db
+        .collection<StudentDocument>("student")
+        .countDocuments({ username: "alice" }),
+    ).toBe(1);
     expect(
       await db
         .collection("course_join_request")
@@ -405,6 +454,56 @@ describe("Feature: a Google signup whose derived username needed a choice can fi
       studentDoc?.id ?? "",
     );
     expect(pending).not.toBeNull();
+  });
+
+  it("refuses a chosen username already held by another school's student, and creates no account", async () => {
+    await ensureIndexes(db);
+    // Given a student in another school already holds "taken-name"
+    const school = await addTestSchool("School B");
+    await getTestServices(school.id).studentService.createStudentDocument({
+      authUserId: "existing-auth-id-b",
+      username: "taken-name",
+      name: "Taken Name",
+      createdBy: "admin-b",
+    });
+
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Intro to Algorithms",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    vi.spyOn(
+      authHolder.authService as AuthService,
+      "resolveUnclassifiedIdentity",
+    ).mockResolvedValue({
+      authUserId: "google-auth-id-cross-school",
+      email: "cross.school@gmail.com",
+      name: "Cross School",
+    });
+
+    const formData = new FormData();
+    formData.set("token", token);
+    formData.set("username", "taken-name");
+
+    // When they submit the already-taken username
+    const result = await googleUsernameSignupAction(null, formData);
+
+    // Then it is a plain naming conflict, never the identity-collision
+    // wording — this is a brand-new Google signup with no other method
+    expect(result.success).toBe(false);
+    expect(result.message).toBe(
+      "That username is already taken. Please choose another.",
+    );
+    // And no profile was created for this Google account in any school
+    expect(
+      await db
+        .collection<StudentDocument>("student")
+        .countDocuments({ authUserId: "google-auth-id-cross-school" }),
+    ).toBe(0);
   });
 });
 

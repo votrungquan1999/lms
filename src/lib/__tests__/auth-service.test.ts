@@ -1,14 +1,11 @@
-import {
-  type AuthService,
-  createAuthService,
-  LoginEntryState,
-} from "src/lib/auth-service";
-import type { AppConfig } from "src/lib/config";
+import { createAuthService, LoginEntryState } from "src/lib/auth-service";
+import { ensureIndexes } from "src/lib/database";
 import { Role } from "src/lib/session";
 import { StudentService } from "src/lib/student-service";
 import { realAuthServiceDeps } from "src/tests/auth-service-deps";
+import { signedInHeaders, testConfig } from "src/tests/auth-test-helpers";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 /**
  * Feature: Auth Service
@@ -20,47 +17,11 @@ import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
 
-/**
- * Signs in through the real Better Auth instance and turns the response's
- * Set-Cookie header into a Cookie header usable by AuthService.getSession.
- */
-async function signedInHeaders(
-  authService: AuthService,
-  email: string,
-  password: string,
-): Promise<Headers> {
-  const { headers: signInHeaders } = await authService.auth.api.signInEmail({
-    body: { email, password },
-    returnHeaders: true,
-  });
-  const cookie = signInHeaders
-    .getSetCookie()
-    .map((entry) => entry.split(";")[0])
-    .join("; ");
-  return new Headers({ cookie });
-}
-
-const testConfig: AppConfig = {
-  mongodbUri: "unused-in-test",
-  authSecret: "test-secret",
-  authAllowedHosts: ["localhost:3000"],
-  google: { clientId: "test-client-id", clientSecret: "test-client-secret" },
-  s3: {
-    bucket: "test-bucket",
-    region: "ap-southeast-1",
-    accessKeyId: "test-key",
-    secretAccessKey: "test-secret",
-  },
-  adminEmails: [],
-  trustedOrigins: [],
-  allowPublicSignUp: false,
-};
-
 describe("Feature: Auth Service", () => {
   dbIt("admin can create a student account", async ({ db }) => {
     const authService = createAuthService(
       db,
-      testConfig,
+      testConfig(),
       realAuthServiceDeps(db),
     );
 
@@ -82,7 +43,7 @@ describe("Feature: Auth Service", () => {
     async ({ db }) => {
       const authService = createAuthService(
         db,
-        testConfig,
+        testConfig(),
         realAuthServiceDeps(db),
       );
 
@@ -107,11 +68,52 @@ describe("Feature: Auth Service", () => {
   );
 
   dbIt(
+    "refuses a username already held in another school even when registerStudent's own pre-check misses it",
+    async ({ db }) => {
+      await ensureIndexes(db);
+      const deps = realAuthServiceDeps(db);
+      const authService = createAuthService(db, testConfig(), deps);
+
+      // A Google-style student in another school already holds "alice".
+      await new StudentService(db, "school-b").createStudentDocument({
+        authUserId: "google-auth-alice",
+        username: "alice",
+        name: "Alice B",
+        createdBy: "google-signup",
+      });
+
+      // The pre-check misses the existing row exactly once, simulating a
+      // stale read racing ahead of the write above.
+      vi.spyOn(deps.schoolDirectory, "findByUsername").mockResolvedValueOnce(
+        null,
+      );
+
+      await expect(
+        authService.registerStudent({
+          name: "Alice A",
+          username: "alice",
+          password: "student-pass-123",
+          createdBy: "admin-test",
+          schoolId: TEST_SCHOOL_ID,
+        }),
+      ).rejects.toThrow("Username already exists");
+
+      expect(
+        await db.collection("student").countDocuments({ username: "alice" }),
+      ).toBe(1);
+      // The auth user created before the clash was found is rolled back.
+      expect(
+        await db.collection("user").findOne({ email: "alice@lms.internal" }),
+      ).toBeNull();
+    },
+  );
+
+  dbIt(
     "registerStudent refuses a password made only of spaces, creating no auth user",
     async ({ db }) => {
       const authService = createAuthService(
         db,
-        testConfig,
+        testConfig(),
         realAuthServiceDeps(db),
       );
 
@@ -139,7 +141,7 @@ describe("Feature: Auth Service", () => {
     async ({ db }) => {
       const authService = createAuthService(
         db,
-        testConfig,
+        testConfig(),
         realAuthServiceDeps(db),
       );
 
@@ -165,7 +167,7 @@ describe("Feature: Auth Service", () => {
     async ({ db }) => {
       const authService = createAuthService(
         db,
-        testConfig,
+        testConfig(),
         realAuthServiceDeps(db),
       );
 
@@ -190,7 +192,7 @@ describe("Feature: Auth Service", () => {
   dbIt("sign-in with wrong password throws an error", async ({ db }) => {
     const authService = createAuthService(
       db,
-      testConfig,
+      testConfig(),
       realAuthServiceDeps(db),
     );
 
@@ -213,7 +215,7 @@ describe("Feature: Auth Service", () => {
   dbIt("sign-in with non-existent username throws an error", async ({ db }) => {
     const authService = createAuthService(
       db,
-      testConfig,
+      testConfig(),
       realAuthServiceDeps(db),
     );
 
@@ -230,13 +232,9 @@ describe("Feature: admin access is decided by recorded role, not email", () => {
   dbIt(
     "a listed email with no recorded admin role is not admin, and a recorded admin role is admin regardless of the email list",
     async ({ db }) => {
-      const config: AppConfig = {
-        ...testConfig,
-        adminEmails: ["listed@example.com"],
-      };
       const authService = createAuthService(
         db,
-        config,
+        testConfig(["listed@example.com"]),
         realAuthServiceDeps(db),
       );
 
@@ -295,7 +293,7 @@ describe("Feature: registerStudent leaves no orphaned account on failure", () =>
           throw new Error("simulated student-document write failure");
         }
       }
-      const authService = createAuthService(db, testConfig, {
+      const authService = createAuthService(db, testConfig(), {
         ...realAuthServiceDeps(db),
         getStudentService: async (schoolId) =>
           new FailingStudentService(db, schoolId),
@@ -338,7 +336,7 @@ describe("Feature: resolving what a login page should show for the current calle
     async ({ db }) => {
       const authService = createAuthService(
         db,
-        testConfig,
+        testConfig(),
         realAuthServiceDeps(db),
       );
 
@@ -406,7 +404,7 @@ describe("Feature: an administrator signing in with Google is never turned into 
     async ({ db }) => {
       const authService = createAuthService(
         db,
-        testConfig,
+        testConfig(),
         realAuthServiceDeps(db),
       );
 

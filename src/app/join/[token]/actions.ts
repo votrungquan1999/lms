@@ -85,12 +85,11 @@ const INVALID_INVITE_MESSAGE =
 const CROSS_SCHOOL_JOIN_MESSAGE =
   "This join link is for a course in another school. You can only join courses in your own school.";
 
-// D3: a duplicate identity is BLOCKED, never linked or auto-suffixed. The
-// generic "Username already exists" registerStudent throws (shared with the
-// admin-facing create/bulk-import forms) reads as "pick another one" — wrong
-// here, since this is an identity collision, not a naming conflict.
+// Usernames are unique across every school, so a clash can be the visitor's
+// own earlier account or a stranger who happened to pick the same name —
+// covers both without guessing which, and still blocks the duplicate.
 const USERNAME_TAKEN_MESSAGE =
-  "This username already belongs to an account. Please sign in with your original method instead.";
+  "That username is already taken. If it's yours, sign in instead; otherwise choose another.";
 
 /**
  * Server action: lets a prospective student create their own account from an
