@@ -211,4 +211,64 @@ describe("Feature: a stale create dialog is stopped when the active school has c
       ),
     ).toEqual(["alice"]);
   });
+
+  // An old cached tab or a crafted POST carries no expectedSchoolId at all.
+  it("createCourseAction refuses a post with no expectedSchoolId, and creates no course", async () => {
+    const form = new FormData();
+    form.set("title", "Algorithms");
+    form.set("description", "");
+
+    const result = await createCourseAction(null, form);
+
+    expect(result).toEqual({
+      success: false,
+      message: "Your active school changed",
+    });
+    expect(await db.collection("course").countDocuments()).toBe(0);
+  });
+
+  it("createPoolAction refuses a post with no expectedSchoolId, and creates no pool", async () => {
+    const form = new FormData();
+    form.set("name", "Algebra basics");
+    form.set("description", "");
+
+    const result = await createPoolAction(null, form);
+
+    expect(result).toEqual({
+      success: false,
+      message: "Your active school changed",
+    });
+    expect(await db.collection("question_pool").countDocuments()).toBe(0);
+  });
+
+  it("createStudentAction refuses a post with no expectedSchoolId, and creates no student or sign-in account", async () => {
+    const form = new FormData();
+    form.set("name", "Alice");
+    form.set("username", "alice");
+    form.set("password", "secret123");
+
+    const result = await createStudentAction(null, form);
+
+    expect(result).toEqual({
+      success: false,
+      message: "Your active school changed",
+    });
+    expect(await db.collection("student").countDocuments()).toBe(0);
+    expect(await db.collection("user").countDocuments()).toBe(0);
+  });
+
+  it("bulkImportStudentsAction refuses a call with no expectedSchoolId, and creates nobody", async () => {
+    const result = await bulkImportStudentsAction(
+      [{ name: "Alice", username: "alice", password: "secret123" }],
+      [],
+      undefined as unknown as string,
+    );
+
+    expect(result).toEqual({
+      success: false,
+      message: "Your active school changed",
+    });
+    expect(await db.collection("student").countDocuments()).toBe(0);
+    expect(await db.collection("user").countDocuments()).toBe(0);
+  });
 });

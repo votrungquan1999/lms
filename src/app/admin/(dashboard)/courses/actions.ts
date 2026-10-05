@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import {
+  assertExpectedSchool,
+  EXPECTED_SCHOOL_FIELD,
+} from "src/lib/expected-school";
 import { withSpan } from "src/lib/observability/with-span";
 import { getCourseService } from "src/lib/services-singleton";
 import { z } from "zod";
@@ -39,8 +43,12 @@ export async function createCourseAction(
   }
 
   // A stale tab still showing an older active school must not create here.
-  if (formData.get("expectedSchoolId")?.toString() !== schoolId) {
-    return { success: false, message: "Your active school changed" };
+  const staleTab = assertExpectedSchool(
+    formData.get(EXPECTED_SCHOOL_FIELD),
+    schoolId,
+  );
+  if (staleTab) {
+    return staleTab;
   }
 
   const parsed = createCourseSchema.safeParse({

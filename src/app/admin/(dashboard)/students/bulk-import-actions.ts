@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import { assertExpectedSchool } from "src/lib/expected-school";
 import { withSpan } from "src/lib/observability/with-span";
 import {
   getCourseService,
@@ -195,8 +196,9 @@ export async function bulkImportStudentsAction(
   }
 
   // A stale tab still showing an older active school must not import here.
-  if (expectedSchoolId !== schoolId) {
-    return { success: false, message: "Your active school changed" };
+  const staleTab = assertExpectedSchool(expectedSchoolId, schoolId);
+  if (staleTab) {
+    return staleTab;
   }
 
   const parsed = importRowsSchema.safeParse(rows);

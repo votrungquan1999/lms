@@ -14,6 +14,7 @@ import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
 import { submitWithoutReset } from "src/lib/submit-without-reset";
+import { ExpectedSchoolField } from "../expected-school-field";
 import { type CreateCourseState, createCourseAction } from "./actions";
 
 /**
@@ -63,7 +64,7 @@ export function CreateCourseDialog({ schoolId }: { schoolId: string }) {
           onSubmit={submitWithoutReset(formAction)}
           className="space-y-4"
         >
-          <input type="hidden" name="expectedSchoolId" value={schoolId} />
+          <ExpectedSchoolField schoolId={schoolId} />
 
           <div className="space-y-2">
             <Label htmlFor="title">Course Title</Label>

@@ -14,6 +14,7 @@ import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { useNow } from "src/hooks/use-now";
 import { submitWithoutReset } from "src/lib/submit-without-reset";
+import { ExpectedSchoolField } from "../expected-school-field";
 import { type CreateStudentState, createStudentAction } from "./actions";
 
 const AUTO_CLOSE_MS = 3000;
@@ -88,7 +89,7 @@ export function CreateStudentDialog({ schoolId }: { schoolId: string }) {
           onSubmit={submitWithoutReset(formAction)}
           className="space-y-4"
         >
-          <input type="hidden" name="expectedSchoolId" value={schoolId} />
+          <ExpectedSchoolField schoolId={schoolId} />
 
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
