@@ -50,6 +50,10 @@ describe("isValidQuestionMediaKey", () => {
       "an extension no upload slot is minted with",
       `media/schools/${SCHOOL_A}/questions/${UUID}.svg`,
     ],
+    [
+      "extra content before the media path",
+      `x/media/schools/${SCHOOL_A}/questions/${UUID}.png`,
+    ],
   ])("refuses %s", (_label, key) => {
     expect(isValidQuestionMediaKey(key, SCHOOL_A)).toBe(false);
   });
