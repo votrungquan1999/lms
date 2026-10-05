@@ -4,7 +4,11 @@ import {
   type EnrollmentDocument,
   EnrollmentService,
 } from "src/lib/enrollment-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import {
+  insertRawCourses,
+  insertRawStudents,
+} from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it, vi } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -22,7 +26,9 @@ describe("Feature: Enroll Student", () => {
       "should succeed without creating a duplicate enrollment record",
       async ({ db }) => {
         // Given — the student is already enrolled
-        const service = new EnrollmentService(db);
+        await insertRawCourses(db, ["course-1"]);
+        await insertRawStudents(db, ["student-a"]);
+        const service = new EnrollmentService(db, TEST_SCHOOL_ID);
         await service.enrollStudent("course-1", "student-a", "admin-1");
 
         // When — enrolling the same student in the same course again
@@ -49,7 +55,9 @@ describe("Feature: Enroll Student", () => {
       "should not create a duplicate enrollment when a lost race hits the unique index",
       async ({ db }) => {
         await ensureIndexes(db);
-        const service = new EnrollmentService(db);
+        await insertRawCourses(db, ["course-1"]);
+        await insertRawStudents(db, ["student-a"]);
+        const service = new EnrollmentService(db, TEST_SCHOOL_ID);
 
         // First call wins normally.
         await service.enrollStudent("course-1", "student-a", "admin-1");

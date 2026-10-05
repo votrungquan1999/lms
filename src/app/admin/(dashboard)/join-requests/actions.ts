@@ -75,7 +75,7 @@ export async function approveJoinRequestAction(
         // throws here for a Rejected row, or for a losing concurrent Reject.
         await joinRequestService.approve(request.id, adminUserId);
 
-        const enrollmentService = await getEnrollmentService();
+        const enrollmentService = await getEnrollmentService(schoolId);
         await enrollmentService.enrollStudent(
           request.courseId,
           request.studentId,

@@ -25,7 +25,7 @@ export default async function StudentDashboardLayout({
   const guard = await getPageGuard();
   const session = await guard.requireStudentLogin();
 
-  const enrollmentService = await getEnrollmentService();
+  const enrollmentService = await getEnrollmentService(session.schoolId);
   const enrollments = await enrollmentService.listEnrollmentsByStudent(
     session.studentId,
   );

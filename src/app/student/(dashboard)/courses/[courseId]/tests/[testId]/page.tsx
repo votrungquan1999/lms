@@ -54,7 +54,7 @@ export default async function StudentTestDetailPage({
 
   const guard = await getPageGuard();
   const session = await guard.requireStudentLogin();
-  await guard.requireEnrollment(courseId, session.studentId);
+  await guard.requireEnrollment(session, courseId);
 
   const testService = await getTestService(session.schoolId);
   const test = await testService.getTest(testId);

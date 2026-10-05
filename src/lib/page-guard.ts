@@ -25,14 +25,21 @@ export interface PageGuardSessionLookup {
  * Services are injected via constructor for testability.
  */
 export class PageGuard {
-  private readonly enrollmentService: EnrollmentService;
+  private readonly enrollmentServiceFor: (
+    schoolId: string,
+  ) => Promise<EnrollmentService>;
   private readonly sessionLookup: PageGuardSessionLookup;
 
+  /**
+   * Builds the guard from its two injected lookups.
+   * @param enrollmentServiceFor - Returns the enrollment service bound to one school.
+   * @param sessionLookup - Reads the current request's session.
+   */
   constructor(
-    enrollmentService: EnrollmentService,
+    enrollmentServiceFor: (schoolId: string) => Promise<EnrollmentService>,
     sessionLookup: PageGuardSessionLookup,
   ) {
-    this.enrollmentService = enrollmentService;
+    this.enrollmentServiceFor = enrollmentServiceFor;
     this.sessionLookup = sessionLookup;
   }
 
@@ -104,13 +111,20 @@ export class PageGuard {
   }
 
   /**
-   * Requires a student to be enrolled in the specified course.
+   * Requires the signed-in student to be enrolled in the specified course,
+   * checked within the student's own school.
    * Calls forbidden() if not enrolled.
+   * @param session - The verified student session.
+   * @param courseId - The course the page was opened under.
    */
-  async requireEnrollment(courseId: string, studentId: string): Promise<void> {
-    const enrolled = await this.enrollmentService.isEnrolled(
+  async requireEnrollment(
+    session: StudentSession,
+    courseId: string,
+  ): Promise<void> {
+    const enrollmentService = await this.enrollmentServiceFor(session.schoolId);
+    const enrolled = await enrollmentService.isEnrolled(
       courseId,
-      studentId,
+      session.studentId,
     );
     if (!enrolled) {
       forbidden();

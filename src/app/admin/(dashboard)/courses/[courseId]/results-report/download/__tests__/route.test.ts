@@ -7,6 +7,7 @@ const {
   isEnrolled,
   getTest,
   findByIds,
+  getCourse,
 } = vi.hoisted(() => ({
   requireAdminSession: vi.fn(),
   buildReport: vi.fn(),
@@ -15,6 +16,8 @@ const {
   getTest: vi.fn(),
   // Every requested student is one of this school's.
   findByIds: vi.fn(async (ids: string[]) => ids.map((id) => ({ id }))),
+  // Every requested course is one of this school's.
+  getCourse: vi.fn(async (id: string) => ({ id })),
 }));
 
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
@@ -24,6 +27,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 
 vi.mock("src/lib/services-singleton", () => ({
+  getCourseService: vi.fn(async () => ({ getCourse })),
   getEnrollmentService: vi.fn(async () => ({ isEnrolled })),
   getStudentService: vi.fn(async () => ({ findByIds })),
   getTestService: vi.fn(async () => ({ getTest })),

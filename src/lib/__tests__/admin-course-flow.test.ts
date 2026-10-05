@@ -2,6 +2,7 @@ import { CourseService } from "src/lib/course-service";
 import { EnrollmentService } from "src/lib/enrollment-service";
 import { TestService } from "src/lib/test-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import { insertRawStudents } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -74,8 +75,9 @@ describe("Feature: Admin Course Management Flow", () => {
 
   describe("Scenario: Admin manages enrollment", () => {
     dbIt("should enroll a student without error", async ({ db }) => {
+      await insertRawStudents(db, ["student-123"]);
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const enrollmentService = new EnrollmentService(db);
+      const enrollmentService = new EnrollmentService(db, TEST_SCHOOL_ID);
       const course = await courseService.createCourse({
         title: "Test Course",
         description: "",
@@ -92,8 +94,9 @@ describe("Feature: Admin Course Management Flow", () => {
     dbIt(
       "should succeed without duplicating an already-enrolled student",
       async ({ db }) => {
+        await insertRawStudents(db, ["student-123"]);
         const courseService = new CourseService(db, TEST_SCHOOL_ID);
-        const enrollmentService = new EnrollmentService(db);
+        const enrollmentService = new EnrollmentService(db, TEST_SCHOOL_ID);
         const course = await courseService.createCourse({
           title: "Test Course",
           description: "",
@@ -119,8 +122,9 @@ describe("Feature: Admin Course Management Flow", () => {
     );
 
     dbIt("should bulk enroll students and skip duplicates", async ({ db }) => {
+      await insertRawStudents(db, ["student-1", "student-2", "student-3"]);
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const enrollmentService = new EnrollmentService(db);
+      const enrollmentService = new EnrollmentService(db, TEST_SCHOOL_ID);
       const course = await courseService.createCourse({
         title: "Test Course",
         description: "",

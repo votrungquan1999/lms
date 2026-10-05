@@ -4,6 +4,7 @@ import {
   JoinRequestStatus,
 } from "src/lib/course-join-request-service";
 import { CourseService } from "src/lib/course-service";
+import { EnrollmentService } from "src/lib/enrollment-service";
 import { PoolQuestionService } from "src/lib/pool-question-service";
 import { QuestionPoolService } from "src/lib/question-pool-service";
 import {
@@ -11,6 +12,7 @@ import {
   getAnswerService,
   getCourseJoinRequestService,
   getCourseService,
+  getEnrollmentService,
   getGradeService,
   getGradeVisibilityService,
   getPoolQuestionService,
@@ -216,6 +218,57 @@ describe("Feature: a student service is only ever built for one school", () => {
 
     await expect(
       mockedGetStudentService(undefined as unknown as string),
+    ).rejects.toThrow("A school is required");
+  });
+});
+
+/**
+ * Feature: an enrollment service is only ever built for one school
+ * As the LMS system
+ * I want an enrollment service with no school to be refused
+ * So that no enrolment is read or written without a school to check it against
+ */
+describe("Feature: an enrollment service is only ever built for one school", () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    ({ db } = await setupTestDb());
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["an empty string", ""],
+  ])(
+    "refuses to build an enrollment service for %s school",
+    (_label, schoolId) => {
+      expect(() => new EnrollmentService(db, schoolId as string)).toThrow(
+        "A school is required",
+      );
+    },
+  );
+
+  it.each([
+    ["undefined", undefined],
+    ["an empty string", ""],
+  ])(
+    "the real enrollment getter refuses %s school",
+    async (_label, schoolId) => {
+      await expect(getEnrollmentService(schoolId as string)).rejects.toThrow(
+        "A school is required",
+      );
+    },
+  );
+
+  it("the mocked enrollment getter refuses an undefined school instead of falling back to the default one", async () => {
+    const { getEnrollmentService: mockedGetEnrollmentService } =
+      servicesSingletonMockFactory();
+
+    await expect(
+      mockedGetEnrollmentService(undefined as unknown as string),
     ).rejects.toThrow("A school is required");
   });
 });

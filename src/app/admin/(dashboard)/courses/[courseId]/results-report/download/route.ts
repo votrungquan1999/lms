@@ -4,6 +4,7 @@ import { ResultsReportAssembler } from "src/lib/results-report-assembler";
 import { renderResultsReportToBuffer } from "src/lib/results-report-pdf";
 import {
   getAnswerService,
+  getCourseService,
   getEnrollmentService,
   getGradeService,
   getQuestionService,
@@ -42,16 +43,10 @@ export async function GET(
     return new Response("Missing studentId or test selection", { status: 400 });
   }
 
-  // Scope the report to this course: the student must be enrolled here.
   const { courseId } = await context.params;
-  const enrollmentService = await getEnrollmentService();
-  if (!(await enrollmentService.isEnrolled(courseId, studentId))) {
-    return new Response("Student is not enrolled in this course", {
-      status: 403,
-    });
-  }
-
   const [
+    courseService,
+    enrollmentService,
     studentService,
     testService,
     questionService,
@@ -60,6 +55,8 @@ export async function GET(
     testStatusService,
     testFeedbackService,
   ] = await Promise.all([
+    getCourseService(schoolId),
+    getEnrollmentService(schoolId),
     getStudentService(schoolId),
     getTestService(schoolId),
     getQuestionService(schoolId),
@@ -69,10 +66,21 @@ export async function GET(
     getTestFeedbackService(),
   ]);
 
-  // Enrolments are not school-scoped, so a stray one can name another school's student.
+  // School checks first, so another school's ids get the same 404 whether or
+  // not an enrolment links them.
+  if (!(await courseService.getCourse(courseId))) {
+    return new Response("Course not found", { status: 404 });
+  }
   const [student] = await studentService.findByIds([studentId]);
   if (!student) {
     return new Response("Student not found", { status: 404 });
+  }
+
+  // Scope the report to this course: the student must be enrolled here.
+  if (!(await enrollmentService.isEnrolled(courseId, studentId))) {
+    return new Response("Student is not enrolled in this course", {
+      status: 403,
+    });
   }
 
   // Every selected test must belong to this course (the route is directly

@@ -254,7 +254,7 @@ async function main() {
     const testService = new TestService(db, schoolId);
     const questionService = new QuestionService(db);
     const studentService = new StudentService(db, schoolId);
-    const enrollmentService = new EnrollmentService(db);
+    const enrollmentService = new EnrollmentService(db, schoolId);
     const testStartService = new TestStartService(db);
     const answerService = new AnswerService(
       db,

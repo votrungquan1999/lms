@@ -40,6 +40,7 @@ const aiGradeServices = new Map<string, AiGradeService>();
 const answerServices = new Map<string, AnswerService>();
 const courseJoinRequestServices = new Map<string, CourseJoinRequestService>();
 const courseServices = new Map<string, CourseService>();
+const enrollmentServices = new Map<string, EnrollmentService>();
 const gradeServices = new Map<string, GradeService>();
 const gradeVisibilityServices = new Map<string, GradeVisibilityService>();
 const poolQuestionServices = new Map<string, PoolQuestionService>();
@@ -51,7 +52,6 @@ const testServices = new Map<string, TestService>();
 const testStatusServices = new Map<string, TestStatusService>();
 const testSubmissionServices = new Map<string, TestSubmissionService>();
 
-let enrollmentService: EnrollmentService | null = null;
 let annotationService: AnnotationService | null = null;
 let testStartService: TestStartService | null = null;
 let testFeedbackService: TestFeedbackService | null = null;
@@ -108,9 +108,8 @@ function realPageGuardSessionLookup() {
 
 export async function getPageGuard(): Promise<PageGuard> {
   if (!pageGuard) {
-    const enrollment = await getEnrollmentService();
     pageGuard = tracedService(
-      new PageGuard(enrollment, realPageGuardSessionLookup()),
+      new PageGuard(getEnrollmentService, realPageGuardSessionLookup()),
       "pageGuard",
     );
   }
@@ -189,12 +188,17 @@ export async function getCourseService(
   });
 }
 
-export async function getEnrollmentService(): Promise<EnrollmentService> {
-  if (!enrollmentService) {
+/**
+ * Returns the enrollment service bound to one school, cached per school.
+ * @param schoolId - The verified session's school.
+ */
+export async function getEnrollmentService(
+  schoolId: string,
+): Promise<EnrollmentService> {
+  return forSchool(enrollmentServices, schoolId, async () => {
     const db = await getDatabase();
-    enrollmentService = tracedService(new EnrollmentService(db), "enrollment");
-  }
-  return enrollmentService;
+    return tracedService(new EnrollmentService(db, schoolId), "enrollment");
+  });
 }
 
 /**

@@ -328,7 +328,7 @@ export async function requestToJoinAction(
 
         // Existence-equals-membership (enrollment-service.ts) — an enrolled
         // student is told so directly, never handed a second pending request.
-        const enrollmentService = await getEnrollmentService();
+        const enrollmentService = await getEnrollmentService(schoolId);
         const alreadyEnrolled = await enrollmentService.isEnrolled(
           course.id,
           studentId,

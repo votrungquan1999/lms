@@ -1,7 +1,12 @@
+import type { Db } from "mongodb";
 import { EnrollmentService } from "src/lib/enrollment-service";
 import { PageGuard, type PageGuardSessionLookup } from "src/lib/page-guard";
 import { AdminSession, StudentSession } from "src/lib/session";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import {
+  insertRawCourses,
+  insertRawStudents,
+} from "src/tests/raw-enrollment-seeds";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -42,11 +47,27 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+/** A guard whose enrolment checks run against `db`, bound per school. */
+function guardFor(db: Db): PageGuard {
+  return new PageGuard(
+    async (schoolId) => new EnrollmentService(db, schoolId),
+    fakeSessionLookup,
+  );
+}
+
+/** A default-school student, as their verified session carries them. */
+const enrolledStudentSession = new StudentSession({
+  userId: "user-1",
+  username: "john",
+  studentId: "student-1",
+  schoolId: TEST_SCHOOL_ID,
+});
+
 describe("PageGuard.requireStudentLogin", () => {
   dbIt(
     "should redirect to /student/login when no session exists",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(null);
 
       await expect(guard.requireStudentLogin()).rejects.toThrow("REDIRECT");
@@ -57,7 +78,7 @@ describe("PageGuard.requireStudentLogin", () => {
   dbIt(
     "should call forbidden when session role is not student",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(
         new AdminSession({
           userId: "admin-1",
@@ -74,7 +95,7 @@ describe("PageGuard.requireStudentLogin", () => {
   dbIt(
     "should return StudentSession when authenticated as student",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(
         new StudentSession({
           userId: "user-1",
@@ -97,7 +118,7 @@ describe("PageGuard.requireAdminLogin", () => {
   dbIt(
     "should redirect to /admin/login when no session exists",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(null);
 
       await expect(guard.requireAdminLogin()).rejects.toThrow("REDIRECT");
@@ -108,7 +129,7 @@ describe("PageGuard.requireAdminLogin", () => {
   dbIt(
     "should call forbidden when session role is not admin",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(
         new StudentSession({
           userId: "user-1",
@@ -126,7 +147,7 @@ describe("PageGuard.requireAdminLogin", () => {
   // No school required (Tier 1) — unlike requireSchoolAdmin below, a
   // zero-membership admin still gets a session back here.
   dbIt("should return AdminSession with no school required", async ({ db }) => {
-    const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+    const guard = guardFor(db);
     mockGetSession.mockResolvedValue(
       new AdminSession({
         userId: "admin-1",
@@ -146,7 +167,7 @@ describe("PageGuard.requireRoleManagerLogin", () => {
   dbIt(
     "should redirect to /admin/login when no session exists",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(null);
 
       await expect(guard.requireRoleManagerLogin()).rejects.toThrow("REDIRECT");
@@ -157,7 +178,7 @@ describe("PageGuard.requireRoleManagerLogin", () => {
   dbIt(
     "should call forbidden when session role is not admin",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(
         new StudentSession({
           userId: "user-1",
@@ -181,7 +202,7 @@ describe("PageGuard.requireRoleManagerLogin", () => {
   dbIt(
     "should call forbidden when session role is admin but the email is not an owner",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(
         new AdminSession({
           userId: "admin-1",
@@ -202,7 +223,7 @@ describe("PageGuard.requireRoleManagerLogin", () => {
   dbIt(
     "should return AdminSession when authenticated as an admin who is also an owner, with no school required",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(
         new AdminSession({
           userId: "owner-1",
@@ -232,7 +253,7 @@ describe("PageGuard.requireSchoolAdmin", () => {
   dbIt(
     "should redirect to /admin/login when no session exists",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(null);
 
       await expect(guard.requireSchoolAdmin()).rejects.toThrow("REDIRECT");
@@ -243,7 +264,7 @@ describe("PageGuard.requireSchoolAdmin", () => {
   dbIt(
     "should call forbidden when session role is not admin",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(
         new StudentSession({
           userId: "user-1",
@@ -261,7 +282,7 @@ describe("PageGuard.requireSchoolAdmin", () => {
   dbIt(
     "should redirect to /admin/no-school when the admin has no active school",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(
         new AdminSession({
           userId: "admin-1",
@@ -278,7 +299,7 @@ describe("PageGuard.requireSchoolAdmin", () => {
   dbIt(
     "should return a SchoolAdminSession when the admin has an active school",
     async ({ db }) => {
-      const guard = new PageGuard(new EnrollmentService(db), fakeSessionLookup);
+      const guard = guardFor(db);
       mockGetSession.mockResolvedValue(
         new AdminSession({
           userId: "admin-1",
@@ -299,22 +320,26 @@ describe("PageGuard.requireEnrollment", () => {
   dbIt(
     "should call forbidden when student is not enrolled in the course",
     async ({ db }) => {
-      const enrollmentService = new EnrollmentService(db);
-      const guard = new PageGuard(enrollmentService, fakeSessionLookup);
+      const guard = guardFor(db);
 
       await expect(
-        guard.requireEnrollment("course-1", "student-1"),
+        guard.requireEnrollment(enrolledStudentSession, "course-1"),
       ).rejects.toThrow("FORBIDDEN");
       expect(mockForbidden).toHaveBeenCalled();
     },
   );
 
   dbIt("should pass through when student is enrolled", async ({ db }) => {
-    const enrollmentService = new EnrollmentService(db);
-    await enrollmentService.enrollStudent("course-1", "student-1", "admin-1");
-    const guard = new PageGuard(enrollmentService, fakeSessionLookup);
+    await insertRawCourses(db, ["course-1"]);
+    await insertRawStudents(db, ["student-1"]);
+    await new EnrollmentService(db, TEST_SCHOOL_ID).enrollStudent(
+      "course-1",
+      "student-1",
+      "admin-1",
+    );
+    const guard = guardFor(db);
 
-    await guard.requireEnrollment("course-1", "student-1");
+    await guard.requireEnrollment(enrolledStudentSession, "course-1");
 
     expect(mockForbidden).not.toHaveBeenCalled();
   });

@@ -1,4 +1,6 @@
+import type { Db } from "mongodb";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { insertRawStudents } from "src/tests/raw-enrollment-seeds";
 import {
   addTestSchool,
   getTestServices,
@@ -19,8 +21,10 @@ vi.mock("src/lib/auth-singleton", () => ({
 
 import { startTest, submitAnswerAction, submitTestAction } from "../actions";
 
+let db: Db;
+
 beforeEach(async () => {
-  await setupTestDb();
+  ({ db } = await setupTestDb());
 });
 
 afterEach(async () => {
@@ -28,11 +32,12 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
-/** Creates a course + test (own school unless `schoolId` names another) and enrolls a student in the course. */
+/** Creates a course + test and a student enrolled in the course, all in the own school unless `schoolId` names another. */
 async function seedOwnCourseAndTest(
   studentId: string,
   schoolId = TEST_SCHOOL_ID,
 ) {
+  await insertRawStudents(db, [studentId], schoolId);
   const services = getTestServices(schoolId);
   const course = await services.courseService.createCourse({
     title: "Course",

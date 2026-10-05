@@ -139,6 +139,7 @@ This section is unrelated to the test-creation tooling above — it covers deplo
 9. **If the new build boots before the first apply,** what happens depends on duplicates. With no duplicate usernames or sign-in accounts, every admin sees the "not part of any school yet" page and all data is hidden — the intended fail-closed behavior, not a bug. **With duplicates, every request fails** until they are resolved: the new build cannot create its unique username and sign-in-account indexes, and retries (and fails) on each request. The dry run lists them (item 10); resolve them before any boot.
 10. **Duplicates block the apply.** The dry run lists duplicate usernames and duplicate sign-in accounts (with each row's id, sign-in account, created date and enrollment count); `--apply` stops before writing anything while any exist. See the recovery steps in `backfill-schools.ts`'s own JSDoc.
 11. **Never run this script, not even a dry run, against production from an agent session.** A human operator runs it by hand, following this runbook.
+12. **Cross-school enrollments are listed, never changed.** The dry run and `--apply` list every enrollment whose course and student are in different schools, by enrollment id. The app already hides such a row from both schools; whether to delete it is a manual decision.
 
 ### Local databases
 

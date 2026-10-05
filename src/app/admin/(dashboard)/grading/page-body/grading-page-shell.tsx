@@ -54,7 +54,7 @@ export async function GradingPageShell({
   basePath,
   selection,
 }: GradingPageShellProps) {
-  const enrollmentService = await getEnrollmentService();
+  const enrollmentService = await getEnrollmentService(schoolId);
   const studentIds = await enrollmentService.listEnrollmentsByCourse(courseId);
 
   const studentService = await getStudentService(schoolId);

@@ -67,6 +67,7 @@ interface SchoolBoundServices {
   answerService: AnswerService;
   courseJoinRequestService: CourseJoinRequestService;
   courseService: CourseService;
+  enrollmentService: EnrollmentService;
   gradeService: GradeService;
   gradeVisibilityService: GradeVisibilityService;
   poolQuestionService: PoolQuestionService;
@@ -129,12 +130,15 @@ function makeSharedServices(db: Db): SharedServices {
   const questionChangeLogService = new QuestionChangeLogService(db);
   const testStartService = new TestStartService(db);
   const annotationService = new AnnotationService(db);
-  const enrollmentService = new EnrollmentService(db);
   const testFeedbackService = new TestFeedbackService(db);
-  const pageGuard = new PageGuard(enrollmentService, {
-    getSession: async () => currentSession,
-    isAdminEmail: async () => currentIsAdminEmail,
-  });
+  // Resolved per call, the same way the mocked getter routes it.
+  const pageGuard = new PageGuard(
+    async (schoolId) => servicesForSchool(schoolId).enrollmentService,
+    {
+      getSession: async () => currentSession,
+      isAdminEmail: async () => currentIsAdminEmail,
+    },
+  );
   const userRoleService = new UserRoleService(db);
   const schoolService = new SchoolService(db);
   const schoolDirectory = new SchoolDirectory(db);
@@ -150,7 +154,6 @@ function makeSharedServices(db: Db): SharedServices {
 
   return {
     annotationService,
-    enrollmentService,
     pageGuard,
     questionChangeLogService,
     s3StorageService,
@@ -175,6 +178,7 @@ function makeSchoolServices(
   const { questionChangeLogService, testStartService } = shared;
   const courseService = new CourseService(db, schoolId);
   const courseJoinRequestService = new CourseJoinRequestService(db, schoolId);
+  const enrollmentService = new EnrollmentService(db, schoolId);
   const studentService = new StudentService(db, schoolId);
   const questionPoolService = new QuestionPoolService(db, schoolId);
   const poolQuestionService = new PoolQuestionService(
@@ -240,6 +244,7 @@ function makeSchoolServices(
     answerService,
     courseJoinRequestService,
     courseService,
+    enrollmentService,
     gradeService,
     gradeVisibilityService,
     poolQuestionService,
@@ -384,7 +389,8 @@ export function servicesSingletonMockFactory() {
       servicesForSchool(schoolId).courseJoinRequestService,
     getCourseService: async (schoolId: string) =>
       servicesForSchool(schoolId).courseService,
-    getEnrollmentService: async () => getTestServices().enrollmentService,
+    getEnrollmentService: async (schoolId: string) =>
+      servicesForSchool(schoolId).enrollmentService,
     getGradeService: async (schoolId: string) =>
       servicesForSchool(schoolId).gradeService,
     getGradeVisibilityService: async (schoolId: string) =>

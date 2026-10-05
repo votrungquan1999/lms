@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import type { Db } from "mongodb";
 import { isValidElement, type ReactNode } from "react";
 import { TooltipProvider } from "src/components/ui/tooltip";
 import { AdminSession } from "src/lib/session";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { insertRawEnrollment } from "src/tests/raw-enrollment-seeds";
 import {
   addTestSchool,
   getTestServices,
@@ -22,6 +24,7 @@ import TestGradingPage from "../courses/[courseId]/tests/[testId]/grading/page";
 import TestDetailPage from "../courses/[courseId]/tests/[testId]/page";
 import CoursesPage from "../courses/page";
 import AdminDashboardPage from "../dashboard/page";
+import GradingVariantPage from "../grading/[testId]/page";
 import GradingHubPage from "../grading/page";
 import JoinRequestsPage from "../join-requests/page";
 import PoolsPage from "../pools/page";
@@ -175,9 +178,13 @@ async function seedTestWaitingForGrade(schoolId: string, title: string) {
  * So that another school's tests never appear in my grading work
  */
 describe("Feature: a school admin's grading views show only their current school's tests", () => {
+  let db: Db;
+  let schoolId: string;
+
   beforeEach(async () => {
-    await setupTestDb();
+    ({ db } = await setupTestDb());
     const school = await signInAsOtherSchoolAdmin();
+    schoolId = school.id;
     await seedTestWaitingForGrade(TEST_SCHOOL_ID, "Foreign Test");
     await seedTestWaitingForGrade(school.id, "Own Test");
   });
@@ -203,6 +210,56 @@ describe("Feature: a school admin's grading views show only their current school
     );
     expect(count?.textContent).toBe("1");
   });
+
+  it("the dashboard's tests-needing-grading and students-waiting counts ignore a cross-school enrollment", async () => {
+    const own = getTestServices(schoolId);
+    const course = await own.courseService.createCourse({
+      title: "Cross-School Course",
+      description: "",
+      createdBy: "school-b-admin",
+    });
+    const test = await own.testService.createTest(course.id, {
+      title: "Cross-School Test",
+      description: "",
+      createdBy: "school-b-admin",
+    });
+    const question = await own.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Q",
+      content: "Q",
+      createdBy: "school-b-admin",
+    });
+    // A default-school student enrolled here by legacy data, waiting for a
+    // grade on top of the own-school student beforeEach already seeded.
+    const foreign =
+      await getTestServices().studentService.createStudentDocument({
+        authUserId: "auth-cross-school",
+        username: "cross.school.student",
+        name: "Cross School Student",
+        createdBy: "default-school-admin",
+      });
+    await insertRawEnrollment(db, course.id, foreign.id);
+    await own.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: foreign.id,
+      answer: { type: "free_text", text: "x" },
+    });
+    await own.testSubmissionService.submitTest(test.id, foreign.id);
+
+    const { container } = render(
+      <TooltipProvider>{await AdminDashboardPage()}</TooltipProvider>,
+    );
+
+    // Only beforeEach's own-school submission counts; a leak would show 2.
+    expect(
+      container.querySelector('[data-stat="tests-needing-grading"]')
+        ?.textContent,
+    ).toBe("1");
+    expect(
+      container.querySelector('[data-stat="students-waiting"]')?.textContent,
+    ).toBe("1");
+  });
 });
 
 /**
@@ -212,13 +269,14 @@ describe("Feature: a school admin's grading views show only their current school
  * So that another school's students never appear in my work
  */
 describe("Feature: a school admin's lists show only their current school's students", () => {
+  let db: Db;
   let schoolId: string;
   let ownCourseId: string;
   let ownStudentId: string;
   let foreignStudentId: string;
 
   beforeEach(async () => {
-    await setupTestDb();
+    ({ db } = await setupTestDb());
     const school = await signInAsOtherSchoolAdmin();
     schoolId = school.id;
     const own = getTestServices(school.id);
@@ -243,9 +301,9 @@ describe("Feature: a school admin's lists show only their current school's stude
       name: "Own Student",
       createdBy: "school-b-admin",
     });
-    // Enrolled in the own course too, so a roster built from enrolments alone
-    // would still show the foreign student.
-    await own.enrollmentService.enrollStudent(course.id, foreign.id, "seed");
+    // Enrolled in the own course too (legacy data), so a roster built from
+    // enrolments alone would still show the foreign student.
+    await insertRawEnrollment(db, course.id, foreign.id);
     await own.enrollmentService.enrollStudent(course.id, ownStudent.id, "seed");
     ownStudentId = ownStudent.id;
     foreignStudentId = foreign.id;
@@ -260,6 +318,19 @@ describe("Feature: a school admin's lists show only their current school's stude
 
     expect(screen.getByText("Own Student")).toBeInTheDocument();
     expect(screen.queryByText("Foreign Student")).not.toBeInTheDocument();
+  });
+
+  it("the students page counts only the current school's courses for a student", async () => {
+    const foreignCourse = await getTestServices().courseService.createCourse({
+      title: "Foreign Course",
+      description: "",
+      createdBy: "default-school-admin",
+    });
+    await insertRawEnrollment(db, foreignCourse.id, ownStudentId);
+
+    render(await StudentsPage());
+
+    expect(screen.getByText("1 course enrolled")).toBeInTheDocument();
   });
 
   it("the dashboard counts only the current school's students", async () => {
@@ -286,6 +357,18 @@ describe("Feature: a school admin's lists show only their current school's stude
     expect(picker?.students.map((student) => student.name)).toEqual([
       "Own Student",
     ]);
+  });
+
+  it("the course page's enrol dialog is never handed another school's enrolled student id", async () => {
+    const page = await CourseDetailPage({
+      params: Promise.resolve({ courseId: ownCourseId }),
+    });
+
+    const dialog = propsPassedTo<{ enrolledStudentIds: string[] }>(
+      page,
+      ManageEnrollmentsDialog,
+    );
+    expect(dialog?.enrolledStudentIds).toEqual([ownStudentId]);
   });
 
   it("the results-report page offers only the current school's enrolled students", async () => {
@@ -361,6 +444,21 @@ describe("Feature: a school admin's lists show only their current school's stude
     );
 
     expect(screen.getByText(/^1 student enrolled/)).toBeInTheDocument();
+  });
+
+  it("the grading-variant page's student count header counts only the current school's students", async () => {
+    const test = await getTestServices(schoolId).testService.createTest(
+      ownCourseId,
+      { title: "Own Test", description: "", createdBy: "school-b-admin" },
+    );
+
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+      }),
+    );
+
+    expect(screen.getByText(/^Own Course · 1 student ·/)).toBeInTheDocument();
   });
 
   it("the grading roster lists only the current school's enrolled students", async () => {

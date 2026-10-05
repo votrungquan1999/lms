@@ -67,7 +67,7 @@ export default async function GradingVariantPage({
   const courseService = await getCourseService(session.school.id);
   const course = await courseService.getCourse(courseId);
 
-  const enrollmentService = await getEnrollmentService();
+  const enrollmentService = await getEnrollmentService(session.school.id);
   const studentIds = await enrollmentService.listEnrollmentsByCourse(courseId);
 
   const questionService = await getQuestionService(session.school.id);

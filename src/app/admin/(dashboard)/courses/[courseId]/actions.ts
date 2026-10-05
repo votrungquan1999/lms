@@ -27,9 +27,9 @@ export interface SetEnrollmentsState {
  * Server action: sets the enrolled students for a course (idempotent).
  * Enrolls new students and removes only those the admin's dialog actually
  * observed and unticked — an enrollment made after the dialog opened is
- * never touched (BUG-2). A newly-added id must belong to this school; an
- * already-enrolled id from another school is left alone and can never be
- * un-enrolled through this action.
+ * never touched (BUG-2). Every ticked id must belong to this school; the
+ * school-bound enrolment service never sees another school's enrolment, so
+ * it can never be un-enrolled through this action.
  */
 export async function setEnrollmentsAction(
   _prevState: SetEnrollmentsState | null,
@@ -72,34 +72,21 @@ export async function setEnrollmentsAction(
           return { success: false, message: "Course not found" };
         }
 
-        const enrollmentService = await getEnrollmentService();
         const studentService = await getStudentService(schoolId);
-        const currentStudentIds = new Set(
-          await enrollmentService.listEnrollmentsByCourse(parsed.data.courseId),
-        );
-
-        const newlyAddedIds = parsed.data.studentIds.filter(
-          (id) => !currentStudentIds.has(id),
-        );
-        const observedIds = parsed.data.observedStudentIds;
-        const ownStudentIds = new Set(
-          (
-            await studentService.findByIds([...newlyAddedIds, ...observedIds])
-          ).map((student) => student.id),
-        );
-
-        // Only ids being added must be this school's.
-        if (newlyAddedIds.some((id) => !ownStudentIds.has(id))) {
+        // The dialog lists only this school's students, so any other id is forged or stale.
+        const desiredIds = new Set(parsed.data.studentIds);
+        const ownDesired = await studentService.findByIds([...desiredIds]);
+        if (ownDesired.length !== desiredIds.size) {
           return {
             success: false,
             message: "One or more selected students were not found.",
           };
         }
 
+        const enrollmentService = await getEnrollmentService(schoolId);
         await enrollmentService.setEnrolledStudents(parsed.data.courseId, {
           desired: parsed.data.studentIds,
-          // Out-of-school ids are never removal candidates.
-          observed: observedIds.filter((id) => ownStudentIds.has(id)),
+          observed: parsed.data.observedStudentIds,
           updatedBy: adminUserId,
         });
 

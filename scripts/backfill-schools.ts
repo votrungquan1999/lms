@@ -39,7 +39,9 @@
  */
 
 import { type Db, MongoClient, MongoServerError, ObjectId } from "mongodb";
+import type { CourseDocument } from "../src/lib/course-service";
 import { ensureIndexes } from "../src/lib/database";
+import type { EnrollmentDocument } from "../src/lib/enrollment-service";
 import { SchoolService } from "../src/lib/school-service";
 import { Role } from "../src/lib/session";
 import type { StudentDocument } from "../src/lib/student-service";
@@ -229,6 +231,71 @@ async function countMismatchedChildren(
   return mismatched;
 }
 
+/** An enrollment whose course and student are stamped with different schools. */
+interface CrossSchoolEnrollment {
+  id: string;
+  courseId: string;
+  courseSchoolId: string;
+  studentId: string;
+  studentSchoolId: string;
+}
+
+/**
+ * Finds enrollments whose course and student both have a school, but not the
+ * same one. Reported for a manual decision, never rewritten: enrollments
+ * carry no school, so the app already hides such a row from both schools.
+ */
+async function findCrossSchoolEnrollments(
+  db: Db,
+): Promise<CrossSchoolEnrollment[]> {
+  const [courses, students, enrollments] = await Promise.all([
+    db
+      .collection<CourseDocument>("course")
+      .find({ schoolId: { $ne: null } })
+      .toArray(),
+    db
+      .collection<StudentDocument>("student")
+      .find({ schoolId: { $ne: null } })
+      .toArray(),
+    db.collection<EnrollmentDocument>("enrollment").find({}).toArray(),
+  ]);
+  const courseSchools = new Map(courses.map((c) => [c.id, c.schoolId]));
+  const studentSchools = new Map(students.map((s) => [s.id, s.schoolId]));
+
+  const crossing: CrossSchoolEnrollment[] = [];
+  for (const enrollment of enrollments) {
+    const courseSchoolId = courseSchools.get(enrollment.courseId);
+    const studentSchoolId = studentSchools.get(enrollment.studentId);
+    // An unassigned or missing side is not a second school.
+    if (
+      courseSchoolId &&
+      studentSchoolId &&
+      courseSchoolId !== studentSchoolId
+    ) {
+      crossing.push({
+        id: enrollment.id,
+        courseId: enrollment.courseId,
+        courseSchoolId,
+        studentId: enrollment.studentId,
+        studentSchoolId,
+      });
+    }
+  }
+  return crossing;
+}
+
+/** Prints every cross-school enrollment, one per line, after a count. */
+function reportCrossSchoolEnrollments(rows: CrossSchoolEnrollment[]): void {
+  console.log(
+    `Enrollments whose course and student are in different schools: ${rows.length} (reported only, never changed)`,
+  );
+  for (const row of rows) {
+    console.log(
+      `  ${row.id}: course ${row.courseId} (${row.courseSchoolId}), student ${row.studentId} (${row.studentSchoolId})`,
+    );
+  }
+}
+
 /**
  * Drops the old unscoped join-queue index if present. A fresh database
  * that never had it still applies cleanly — only IndexNotFound (27) is
@@ -389,6 +456,7 @@ async function run(): Promise<void> {
     console.log(
       `Children in a different school than their parent: ${totalMismatches} mismatch(es) (reported only, never changed)`,
     );
+    reportCrossSchoolEnrollments(await findCrossSchoolEnrollments(db));
 
     if (!apply) {
       console.log(

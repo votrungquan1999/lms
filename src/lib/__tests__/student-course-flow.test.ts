@@ -5,6 +5,10 @@ import { QuestionService } from "src/lib/question-service";
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import {
+  insertRawCourses,
+  insertRawStudents,
+} from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -20,8 +24,9 @@ describe("Feature: Student Course & Test Taking Flow", () => {
   describe("Scenario: Student views enrolled courses", () => {
     dbIt("should list all courses a student is enrolled in", async ({ db }) => {
       // Setup
+      await insertRawStudents(db, ["student-1"]);
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const enrollmentService = new EnrollmentService(db);
+      const enrollmentService = new EnrollmentService(db, TEST_SCHOOL_ID);
       const courseA = await courseService.createCourse({
         title: "Course A",
         description: "",
@@ -50,7 +55,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
       "should return empty array for student with no enrollments",
       async ({ db }) => {
         // Setup
-        const enrollmentService = new EnrollmentService(db);
+        const enrollmentService = new EnrollmentService(db, TEST_SCHOOL_ID);
 
         // Action
         const enrollments =
@@ -106,7 +111,9 @@ describe("Feature: Student Course & Test Taking Flow", () => {
   describe("Scenario: Enrollment check", () => {
     dbIt("should return true when student is enrolled", async ({ db }) => {
       // Setup
-      const enrollmentService = new EnrollmentService(db);
+      await insertRawCourses(db, ["course-1"]);
+      await insertRawStudents(db, ["student-1"]);
+      const enrollmentService = new EnrollmentService(db, TEST_SCHOOL_ID);
       await enrollmentService.enrollStudent("course-1", "student-1", "admin-1");
 
       // Action & Assert
@@ -117,7 +124,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
 
     dbIt("should return false when student is not enrolled", async ({ db }) => {
       // Setup
-      const enrollmentService = new EnrollmentService(db);
+      const enrollmentService = new EnrollmentService(db, TEST_SCHOOL_ID);
 
       // Action & Assert
       expect(await enrollmentService.isEnrolled("course-1", "student-1")).toBe(
@@ -163,7 +170,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
       async ({ db }) => {
         // Setup services
         const courseService = new CourseService(db, TEST_SCHOOL_ID);
-        const enrollmentService = new EnrollmentService(db);
+        const enrollmentService = new EnrollmentService(db, TEST_SCHOOL_ID);
         const testService = new TestService(db, TEST_SCHOOL_ID);
         const questionService = new QuestionService(db);
         const answerService = new AnswerService(
@@ -196,6 +203,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
         });
 
         // Admin enrolls student
+        await insertRawStudents(db, ["student-1"]);
         await enrollmentService.enrollStudent(
           course.id,
           "student-1",

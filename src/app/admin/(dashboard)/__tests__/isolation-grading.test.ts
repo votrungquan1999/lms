@@ -1,5 +1,7 @@
+import type { Db } from "mongodb";
 import type { AiClient, AiGradeBatchInput } from "src/lib/ai/ai-client";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
+import { insertRawEnrollment } from "src/tests/raw-enrollment-seeds";
 import {
   addTestSchool,
   getTestServices,
@@ -164,8 +166,10 @@ const stubAiClient: AiClient = {
   },
 };
 
+let db: Db;
+
 beforeEach(async () => {
-  await setupTestDb({ aiClient: stubAiClient });
+  ({ db } = await setupTestDb({ aiClient: stubAiClient }));
 });
 
 afterEach(async () => {
@@ -226,6 +230,39 @@ describe("Feature: a school admin can never grade another school's test", () => 
         own.testId,
         own.questionId,
         outsiderId,
+      ),
+    ).toBeNull();
+  });
+
+  it("gradeQuestionAction refuses another school's student even when legacy data enrols them in the admin's own course", async () => {
+    signInAsDefaultAdmin();
+    const own = await seedFixture(getTestServices(), "admin-1");
+    const otherSchool = await addTestSchool("School B");
+    const foreignStudent = await getTestServices(
+      otherSchool.id,
+    ).studentService.createStudentDocument({
+      authUserId: "auth-foreign-enrolled",
+      username: "foreign.enrolled",
+      name: "Foreign Enrolled",
+      createdBy: "admin-b",
+    });
+    await insertRawEnrollment(db, own.courseId, foreignStudent.id);
+    const formData = new FormData();
+    formData.set("testId", own.testId);
+    formData.set("courseId", own.courseId);
+    formData.set("questionId", own.questionId);
+    formData.set("studentId", foreignStudent.id);
+    formData.set("score", "80");
+    formData.set("feedback", "ok");
+
+    const result = await gradeQuestionAction(null, formData);
+
+    expect(result).toEqual({ success: false, message: "Student not found" });
+    expect(
+      await getTestServices().gradeService.getGrade(
+        own.testId,
+        own.questionId,
+        foreignStudent.id,
       ),
     ).toBeNull();
   });

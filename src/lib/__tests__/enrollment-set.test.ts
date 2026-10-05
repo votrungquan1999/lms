@@ -1,9 +1,21 @@
+import type { Db } from "mongodb";
 import { ensureIndexes } from "src/lib/database";
 import { EnrollmentService } from "src/lib/enrollment-service";
-import { withTestDb } from "src/tests/create-test-db";
+import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import {
+  insertRawCourses,
+  insertRawStudents,
+} from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it, vi } from "vitest";
 
 const dbIt = withTestDb(it);
+
+/** A default-school service over raw courses and students the suite names by literal id. */
+async function seededService(db: Db): Promise<EnrollmentService> {
+  await insertRawCourses(db, ["course-1", "course-2"]);
+  await insertRawStudents(db, ["student-a", "student-b", "student-c"]);
+  return new EnrollmentService(db, TEST_SCHOOL_ID);
+}
 
 /**
  * Feature: Set Enrolled Students (idempotent batch update)
@@ -18,7 +30,7 @@ describe("Feature: Set Enrolled Students", () => {
       "should enroll all specified students when none are currently enrolled",
       async ({ db }) => {
         // Setup
-        const service = new EnrollmentService(db);
+        const service = await seededService(db);
 
         // Action — dialog opened seeing nobody enrolled
         await service.setEnrolledStudents("course-1", {
@@ -41,7 +53,7 @@ describe("Feature: Set Enrolled Students", () => {
       "should add new students and remove unselected students",
       async ({ db }) => {
         // Setup — [A, B] enrolled
-        const service = new EnrollmentService(db);
+        const service = await seededService(db);
         await service.enrollStudent("course-1", "student-a", "admin-1");
         await service.enrollStudent("course-1", "student-b", "admin-1");
 
@@ -67,7 +79,7 @@ describe("Feature: Set Enrolled Students", () => {
       "should make no changes when the same student list is provided",
       async ({ db }) => {
         // Setup — [A, B] enrolled
-        const service = new EnrollmentService(db);
+        const service = await seededService(db);
         await service.enrollStudent("course-1", "student-a", "admin-1");
         await service.enrollStudent("course-1", "student-b", "admin-1");
 
@@ -92,7 +104,7 @@ describe("Feature: Set Enrolled Students", () => {
       "should remove all enrolled students when empty list is provided",
       async ({ db }) => {
         // Setup — [A, B] enrolled
-        const service = new EnrollmentService(db);
+        const service = await seededService(db);
         await service.enrollStudent("course-1", "student-a", "admin-1");
         await service.enrollStudent("course-1", "student-b", "admin-1");
 
@@ -115,7 +127,7 @@ describe("Feature: Set Enrolled Students", () => {
       "should only modify enrollments for the specified course",
       async ({ db }) => {
         // Setup — student-a enrolled in both courses
-        const service = new EnrollmentService(db);
+        const service = await seededService(db);
         await service.enrollStudent("course-1", "student-a", "admin-1");
         await service.enrollStudent("course-2", "student-a", "admin-1");
 
@@ -143,7 +155,7 @@ describe("Feature: Set Enrolled Students", () => {
       "should not remove a student who was enrolled after the admin's dialog snapshot was taken",
       async ({ db }) => {
         // Setup — the admin's dialog opens seeing only student-a enrolled
-        const service = new EnrollmentService(db);
+        const service = await seededService(db);
         await service.enrollStudent("course-1", "student-a", "admin-1");
         const observedStudentIds =
           await service.listEnrollmentsByCourse("course-1");
@@ -173,7 +185,7 @@ describe("Feature: Set Enrolled Students", () => {
       "should remove an observed-but-unwanted student while a mid-dialog enrollment survives",
       async ({ db }) => {
         // Setup — the admin's dialog opens seeing student-a and student-c enrolled
-        const service = new EnrollmentService(db);
+        const service = await seededService(db);
         await service.enrollStudent("course-1", "student-a", "admin-1");
         await service.enrollStudent("course-1", "student-c", "admin-1");
         const observedStudentIds =
@@ -204,7 +216,7 @@ describe("Feature: Set Enrolled Students", () => {
       "should not throw and must not create a duplicate enrollment row",
       async ({ db }) => {
         await ensureIndexes(db);
-        const service = new EnrollmentService(db);
+        const service = await seededService(db);
 
         // The dialog's snapshot is stale: it read "nobody enrolled" before a
         // concurrent enrollStudent() call (e.g. an approve(), R8) landed for

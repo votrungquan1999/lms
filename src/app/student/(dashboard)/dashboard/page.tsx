@@ -42,7 +42,7 @@ export default async function StudentDashboardPage() {
   const schoolService = await getSchoolService();
   const school = await schoolService.getSchool(session.schoolId);
 
-  const enrollmentService = await getEnrollmentService();
+  const enrollmentService = await getEnrollmentService(session.schoolId);
   const enrollments =
     await enrollmentService.listEnrollmentsByStudent(studentId);
 

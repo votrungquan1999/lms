@@ -10,7 +10,6 @@ import {
   getEnrollmentService,
   getPageGuard,
   getQuestionService,
-  getStudentService,
   getTestService,
   getTestStatusService,
 } from "src/lib/services-singleton";
@@ -91,14 +90,9 @@ export default async function GradingHubPage({
 
   const testService = await getTestService(session.school.id);
   const courseService = await getCourseService(session.school.id);
-  const enrollmentService = await getEnrollmentService();
+  const enrollmentService = await getEnrollmentService(session.school.id);
   const questionService = await getQuestionService(session.school.id);
   const testStatusService = await getTestStatusService(session.school.id);
-  const studentService = await getStudentService(session.school.id);
-  // Enrolments are not school-scoped, so a stray one must not skew the counts.
-  const ownStudentIds = new Set(
-    (await studentService.listStudents()).map((s) => s.id),
-  );
 
   const allTests = await testService.listAllTests();
   const courseIds = [...new Set(allTests.map((t) => t.courseId))];
@@ -111,9 +105,7 @@ export default async function GradingHubPage({
   for (const t of allTests) {
     let studentIds = enrollmentsByCourse.get(t.courseId);
     if (!studentIds) {
-      studentIds = (
-        await enrollmentService.listEnrollmentsByCourse(t.courseId)
-      ).filter((id) => ownStudentIds.has(id));
+      studentIds = await enrollmentService.listEnrollmentsByCourse(t.courseId);
       enrollmentsByCourse.set(t.courseId, studentIds);
     }
     const questions = await questionService.listQuestions(t.id);

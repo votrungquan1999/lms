@@ -4,6 +4,7 @@ import type { AppConfig } from "src/lib/config";
 import { ensureIndexes } from "src/lib/database";
 import { realAuthServiceDeps } from "src/tests/auth-service-deps";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
+import { insertRawEnrollment } from "src/tests/raw-enrollment-seeds";
 import {
   addTestSchool,
   getTestServices,
@@ -122,14 +123,13 @@ describe("Feature: a school admin can never see or enrol another school's studen
       success: false,
       message: "One or more selected students were not found.",
     });
+    // Counted raw: the school-bound listing would hide a leaked foreign row.
     expect(
-      await getTestServices(
-        school.id,
-      ).enrollmentService.listEnrollmentsByCourse(course.id),
-    ).toEqual([]);
+      await db.collection("enrollment").countDocuments({ courseId: course.id }),
+    ).toBe(0);
   });
 
-  it("setEnrollmentsAction saves new own-school enrollments while leaving an out-of-school enrollment untouched, submitted the way the dialog does", async () => {
+  it("setEnrollmentsAction saves a new own-school enrollment while leaving an out-of-school enrollment untouched, submitted the way the dialog does", async () => {
     const school = await addTestSchool("School B");
     const own = getTestServices(school.id);
     const course = await own.courseService.createCourse({
@@ -144,11 +144,7 @@ describe("Feature: a school admin can never see or enrol another school's studen
         name: "Out Of School Student",
         createdBy: "default-school-admin",
       });
-    await own.enrollmentService.enrollStudent(
-      course.id,
-      outOfSchoolStudent.id,
-      "admin-b",
-    );
+    await insertRawEnrollment(db, course.id, outOfSchoolStudent.id);
     const ownStudent = await own.studentService.createStudentDocument({
       authUserId: "auth-own-student",
       username: "own.student",
@@ -156,24 +152,24 @@ describe("Feature: a school admin can never see or enrol another school's studen
       createdBy: "admin-b",
     });
     signInAsSchool(school);
-    // The dialog's shape: desired names both the pre-existing (out-of-school)
-    // enrollment AND the new own-school one; observed carries every id the
-    // dialog rendered when it opened.
+    // The dialog's shape: it is never handed the out-of-school id, so it
+    // posts only the newly ticked own-school student and observes nobody.
     const formData = new FormData();
     formData.set("courseId", course.id);
-    formData.append("studentIds", outOfSchoolStudent.id);
     formData.append("studentIds", ownStudent.id);
-    formData.append("observedStudentIds", outOfSchoolStudent.id);
 
     const result = await setEnrollmentsAction(null, formData);
 
     expect(result.success).toBe(true);
-    const enrolled = await own.enrollmentService.listEnrollmentsByCourse(
-      course.id,
-    );
-    expect(new Set(enrolled)).toEqual(
-      new Set([outOfSchoolStudent.id, ownStudent.id]),
-    );
+    expect(
+      await own.enrollmentService.listEnrollmentsByCourse(course.id),
+    ).toEqual([ownStudent.id]);
+    expect(
+      await db.collection("enrollment").countDocuments({
+        courseId: course.id,
+        studentId: outOfSchoolStudent.id,
+      }),
+    ).toBe(1);
   });
 
   it("setEnrollmentsAction never un-enrolls an out-of-school student even when a crafted request omits them from desired but observes them", async () => {
@@ -191,11 +187,7 @@ describe("Feature: a school admin can never see or enrol another school's studen
         name: "Out Of School Student",
         createdBy: "default-school-admin",
       });
-    await own.enrollmentService.enrollStudent(
-      course.id,
-      outOfSchoolStudent.id,
-      "admin-b",
-    );
+    await insertRawEnrollment(db, course.id, outOfSchoolStudent.id);
     signInAsSchool(school);
     // Crafted: desired is empty, but observed names the out-of-school
     // student — a legitimate dialog would use this shape to un-enroll them.
@@ -207,8 +199,11 @@ describe("Feature: a school admin can never see or enrol another school's studen
 
     expect(result.success).toBe(true);
     expect(
-      await own.enrollmentService.listEnrollmentsByCourse(course.id),
-    ).toEqual([outOfSchoolStudent.id]);
+      await db.collection("enrollment").countDocuments({
+        courseId: course.id,
+        studentId: outOfSchoolStudent.id,
+      }),
+    ).toBe(1);
   });
 
   it("setEnrollmentsAction still enrolls a student that belongs to the admin's own school", async () => {

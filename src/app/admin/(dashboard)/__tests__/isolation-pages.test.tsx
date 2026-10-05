@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import type { Db } from "mongodb";
 import { getAuthService } from "src/lib/auth-singleton";
 import { AdminSession } from "src/lib/session";
+import { insertRawEnrollment } from "src/tests/raw-enrollment-seeds";
 import {
   addTestSchool,
   getTestServices,
@@ -365,8 +367,10 @@ describe("Feature: a school admin's breadcrumbs never name another school's reco
  * So that another school's (or an un-enrolled) student is never shown
  */
 describe("Feature: a grading link naming a student who isn't on the roster falls back to the first roster student", () => {
+  let db: Db;
+
   beforeEach(async () => {
-    await setupTestDb();
+    ({ db } = await setupTestDb());
   });
 
   afterEach(async () => {
@@ -394,9 +398,8 @@ describe("Feature: a grading link naming a student who isn't on the roster falls
     });
     await own.enrollmentService.enrollStudent(course.id, ownStudent.id, "seed");
 
-    // Enrolment itself is school-agnostic — a foreign student could
-    // end up enrolled here; the school-bound student lookup hides them from
-    // the roster regardless.
+    // Legacy data can enrol a foreign student here; the school-bound
+    // enrolment service hides them from the roster regardless.
     const foreignStudent =
       await getTestServices().studentService.createStudentDocument({
         authUserId: "auth-foreign-roster",
@@ -404,11 +407,7 @@ describe("Feature: a grading link naming a student who isn't on the roster falls
         name: "Foreign Roster Student",
         createdBy: "default-school-admin",
       });
-    await own.enrollmentService.enrollStudent(
-      course.id,
-      foreignStudent.id,
-      "attacker",
-    );
+    await insertRawEnrollment(db, course.id, foreignStudent.id);
 
     render(
       await TestGradingPage({
@@ -484,8 +483,10 @@ describe("Feature: a grading link naming a student who isn't on the roster falls
  * So that a stray enrolment never crashes the download or exports anything
  */
 describe("Feature: the results-report download refuses a student outside this school", () => {
+  let db: Db;
+
   beforeEach(async () => {
-    await setupTestDb();
+    ({ db } = await setupTestDb());
   });
 
   afterEach(async () => {
@@ -520,8 +521,8 @@ describe("Feature: the results-report download refuses a student outside this sc
         name: "Foreign Student",
         createdBy: "default-school-admin",
       });
-    // Enrolments are not school-scoped, so legacy data can hold this row.
-    await own.enrollmentService.enrollStudent(course.id, foreign.id, "seed");
+    // Enrolments carry no school, so legacy data can hold this row.
+    await insertRawEnrollment(db, course.id, foreign.id);
 
     const res = await downloadResultsReport(
       new Request(
@@ -533,5 +534,62 @@ describe("Feature: the results-report download refuses a student outside this sc
     expect(res.status).toBe(404);
     expect(res.headers.get("content-type")).not.toContain("application/pdf");
     expect(res.headers.get("content-disposition")).toBeNull();
+  });
+
+  it("returns the same non-PDF 404 for another school's course whether or not the named student is enrolled there", async () => {
+    const school = await addTestSchool("School B");
+    const session = new AdminSession({
+      userId: "0000000000000000000000c1",
+      email: "school-b-admin@example.com",
+      school,
+    });
+    vi.mocked(getAuthService).mockResolvedValue({
+      requireAdminSession: async () => session,
+    } as unknown as Awaited<ReturnType<typeof getAuthService>>);
+    const foreign = getTestServices();
+    const course = await foreign.courseService.createCourse({
+      title: "Foreign Course",
+      description: "",
+      createdBy: "default-school-admin",
+    });
+    const test = await foreign.testService.createTest(course.id, {
+      title: "Foreign Test",
+      description: "",
+      createdBy: "default-school-admin",
+    });
+    const enrolled = await foreign.studentService.createStudentDocument({
+      authUserId: "auth-foreign-enrolled",
+      username: "foreign.enrolled",
+      name: "Foreign Enrolled",
+      createdBy: "default-school-admin",
+    });
+    const notEnrolled = await foreign.studentService.createStudentDocument({
+      authUserId: "auth-foreign-not-enrolled",
+      username: "foreign.not.enrolled",
+      name: "Foreign Not Enrolled",
+      createdBy: "default-school-admin",
+    });
+    await foreign.enrollmentService.enrollStudent(
+      course.id,
+      enrolled.id,
+      "default-school-admin",
+    );
+    const download = (studentId: string) =>
+      downloadResultsReport(
+        new Request(
+          `http://test/admin/courses/${course.id}/results-report/download?studentId=${studentId}&testId=${test.id}`,
+        ),
+        { params: Promise.resolve({ courseId: course.id }) },
+      );
+
+    const withEnrolment = await download(enrolled.id);
+    const withoutEnrolment = await download(notEnrolled.id);
+
+    // A differing status would tell the admin the foreign enrolment exists.
+    expect(withEnrolment.status).toBe(404);
+    expect(withoutEnrolment.status).toBe(404);
+    expect(withoutEnrolment.headers.get("content-type")).not.toContain(
+      "application/pdf",
+    );
   });
 });

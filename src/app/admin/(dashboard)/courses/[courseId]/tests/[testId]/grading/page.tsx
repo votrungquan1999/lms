@@ -9,7 +9,6 @@ import {
   getEnrollmentService,
   getPageGuard,
   getQuestionService,
-  getStudentService,
   getTestService,
 } from "src/lib/services-singleton";
 import {
@@ -55,11 +54,10 @@ export default async function GradingPage({
     notFound();
   }
 
-  const enrollmentService = await getEnrollmentService();
-  const studentIds = await enrollmentService.listEnrollmentsByCourse(courseId);
-  // Enrolments are not school-scoped, so count only this school's students.
-  const studentService = await getStudentService(session.school.id);
-  const enrolledCount = (await studentService.findByIds(studentIds)).length;
+  const enrollmentService = await getEnrollmentService(session.school.id);
+  const enrolledCount = (
+    await enrollmentService.listEnrollmentsByCourse(courseId)
+  ).length;
 
   const questionService = await getQuestionService(session.school.id);
   const questions = await questionService.listQuestions(testId);

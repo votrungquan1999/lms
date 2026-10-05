@@ -148,6 +148,23 @@ function rawJoinRequest(
   };
 }
 
+/** A raw enrollment of the given student in the given course. */
+function rawEnrollment(
+  id: string,
+  courseId: string,
+  studentId: string,
+): RawFields {
+  return {
+    id,
+    courseId,
+    studentId,
+    enrolledAt: new Date(),
+    createdBy: "seed",
+    updatedAt: null,
+    updatedBy: null,
+  };
+}
+
 /** A raw free-text pool question in the given pool. */
 function rawPoolQuestion(
   id: string,
@@ -537,6 +554,55 @@ describe("Feature: the operator applies the school backfill", () => {
         (await db.collection("test").findOne({ id: "test-mismatch" }))
           ?.schoolId,
       ).toBe("school-y");
+    },
+  );
+
+  dbIt(
+    "lists an enrollment whose course and student are in different schools, and leaves it as it is",
+    async ({ db, client }) => {
+      // Given: one enrollment crossing two schools, one inside a single school
+      await db
+        .collection("course")
+        .insertOne(rawCourse("course-x", { schoolId: "school-x" }));
+      await db.collection("student").insertMany([
+        rawStudent("student-x", {
+          authUserId: "auth-x",
+          username: "student-x",
+          schoolId: "school-x",
+        }),
+        rawStudent("student-y", {
+          authUserId: "auth-y",
+          username: "student-y",
+          schoolId: "school-y",
+        }),
+      ]);
+      await db
+        .collection("enrollment")
+        .insertMany([
+          rawEnrollment("enrollment-cross", "course-x", "student-y"),
+          rawEnrollment("enrollment-same", "course-x", "student-x"),
+        ]);
+
+      // When: the operator runs --apply
+      const mongoUri = mongoUriFor(client, db.databaseName);
+      const result = await runBackfillScript(mongoUri, ["--apply"]);
+
+      // Then: only the crossing enrollment is listed, for a manual decision
+      expect(
+        result.exitCode,
+        `Script failed:\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
+      ).toBe(0);
+      expect(result.stdout).toContain(
+        "Enrollments whose course and student are in different schools: 1",
+      );
+      expect(result.stdout).toContain(
+        "enrollment-cross: course course-x (school-x), student student-y (school-y)",
+      );
+      expect(result.stdout).not.toContain("enrollment-same");
+      // And: it is never rewritten or deleted
+      expect(
+        await db.collection("enrollment").findOne({ id: "enrollment-cross" }),
+      ).toMatchObject({ courseId: "course-x", studentId: "student-y" });
     },
   );
 });

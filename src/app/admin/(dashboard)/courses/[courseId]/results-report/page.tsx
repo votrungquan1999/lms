@@ -38,7 +38,7 @@ export default async function ResultsReportPage({
     notFound();
   }
 
-  const enrollmentService = await getEnrollmentService();
+  const enrollmentService = await getEnrollmentService(session.school.id);
   const enrolledStudentIds =
     await enrollmentService.listEnrollmentsByCourse(courseId);
 

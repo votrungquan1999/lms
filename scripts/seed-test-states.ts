@@ -178,7 +178,7 @@ async function main() {
     const testService = new TestService(db, school.id);
     const questionService = new QuestionService(db);
     const studentService = new StudentService(db, school.id);
-    const enrollmentService = new EnrollmentService(db);
+    const enrollmentService = new EnrollmentService(db, school.id);
     const testStartService = new TestStartService(db);
     const answerService = new AnswerService(
       db,

@@ -35,7 +35,7 @@ export default async function AdminDashboardPage() {
   const studentService = await getStudentService(session.school.id);
   const courseService = await getCourseService(session.school.id);
   const testService = await getTestService(session.school.id);
-  const enrollmentService = await getEnrollmentService();
+  const enrollmentService = await getEnrollmentService(session.school.id);
   const questionService = await getQuestionService(session.school.id);
   const testStatusService = await getTestStatusService(session.school.id);
 

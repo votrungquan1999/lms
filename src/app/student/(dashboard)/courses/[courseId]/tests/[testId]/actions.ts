@@ -40,7 +40,7 @@ async function canWorkOnTest(
   if (!test || test.courseId !== courseId) {
     return false;
   }
-  const enrollmentService = await getEnrollmentService();
+  const enrollmentService = await getEnrollmentService(schoolId);
   return enrollmentService.isEnrolled(courseId, studentId);
 }
 

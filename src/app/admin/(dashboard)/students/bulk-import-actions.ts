@@ -280,7 +280,7 @@ export async function bulkImportStudentsAction(
       }
 
       // Enroll all created students into each selected course (one call per course).
-      const enrollmentService = await getEnrollmentService();
+      const enrollmentService = await getEnrollmentService(schoolId);
       for (const courseId of validCourseIds) {
         await enrollmentService.enrollStudents(
           courseId,

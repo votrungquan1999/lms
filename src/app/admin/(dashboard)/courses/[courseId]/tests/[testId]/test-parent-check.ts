@@ -58,11 +58,10 @@ export async function assertQuestionInTest(
 
 /**
  * A write aimed at one student needs that student enrolled in the
- * already-verified test's course. Catches a foreign-school student and a
- * same-school student never added to this course with the same check —
- * neither has an enrolment row for `courseId`.
- * @param enrollmentService - School-agnostic by design; the caller's own
- * school access already came from {@link resolveOwnedTest}.
+ * already-verified test's course. Catches a foreign-school student (even one
+ * a legacy enrolment row names) and a same-school student never added to
+ * this course with the same check.
+ * @param enrollmentService - The acting admin's school-bound enrollment service.
  * @param courseId - The already-verified owning test's `courseId`.
  * @param studentId - The student the entry point was asked to act on.
  * @throws "Student not found" when the student isn't enrolled in courseId.
@@ -103,7 +102,7 @@ export async function assertGradingTarget(
     );
   }
   await assertStudentEnrolled(
-    await getEnrollmentService(),
+    await getEnrollmentService(schoolId),
     test.courseId,
     target.studentId,
   );

@@ -23,7 +23,7 @@ export default async function StudentsPage() {
   const guard = await getPageGuard();
   const session = await guard.requireSchoolAdmin();
   const studentService = await getStudentService(session.school.id);
-  const enrollmentService = await getEnrollmentService();
+  const enrollmentService = await getEnrollmentService(session.school.id);
   const courseService = await getCourseService(session.school.id);
 
   const students = await studentService.listStudents();

@@ -59,14 +59,9 @@ export default async function CourseDetailPage({
   const studentService = await getStudentService(session.school.id);
   const students = await studentService.listStudents();
 
-  const enrollmentService = await getEnrollmentService();
+  const enrollmentService = await getEnrollmentService(session.school.id);
   const enrolledStudentIds =
     await enrollmentService.listEnrollmentsByCourse(courseId);
-  // Enrolments are not school-scoped, so a stray one must not inflate counts.
-  const ownStudentIds = new Set(students.map((s) => s.id));
-  const ownEnrolledStudentIds = enrolledStudentIds.filter((id) =>
-    ownStudentIds.has(id),
-  );
 
   const questionService = await getQuestionService(session.school.id);
   const testStatusService = await getTestStatusService(session.school.id);
@@ -82,7 +77,7 @@ export default async function CourseDetailPage({
         [TestStatus.Graded]: 0,
       };
 
-      for (const studentId of ownEnrolledStudentIds) {
+      for (const studentId of enrolledStudentIds) {
         const status = await testStatusService.getStatus(
           test.id,
           studentId,
@@ -94,7 +89,7 @@ export default async function CourseDetailPage({
       return {
         ...test,
         statusCounts,
-        totalStudents: ownEnrolledStudentIds.length,
+        totalStudents: enrolledStudentIds.length,
       };
     }),
   );
@@ -127,7 +122,7 @@ export default async function CourseDetailPage({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">
-              Enrolled Students ({ownEnrolledStudentIds.length})
+              Enrolled Students ({enrolledStudentIds.length})
             </h2>
             <ManageEnrollmentsDialog
               courseId={courseId}
@@ -135,7 +130,7 @@ export default async function CourseDetailPage({
               enrolledStudentIds={enrolledStudentIds}
             />
           </div>
-          {ownEnrolledStudentIds.length > 0 ? (
+          {enrolledStudentIds.length > 0 ? (
             <div className="space-y-2">
               {students
                 .filter((s) => enrolledStudentIds.includes(s.id))
