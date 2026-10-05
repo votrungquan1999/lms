@@ -38,9 +38,9 @@ export default async function JoinPage({
   // No session here, so the course's school comes from the platform-wide
   // directory; a course with no school yet is an invalid invite.
   const schoolDirectory = await getSchoolDirectory();
-  const invite = await schoolDirectory.findCourseByInviteToken(token);
+  const invite = await schoolDirectory.findAssignedInviteCourse(token);
 
-  if (!invite?.schoolId) {
+  if (!invite) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
         <InvalidInviteCard />

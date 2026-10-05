@@ -211,3 +211,52 @@ describe("Feature: SchoolDirectory.findExistingUsernames", () => {
     expect(existing).toEqual([]);
   });
 });
+
+/**
+ * Feature: the join flows resolve an invite to a course that has a school
+ * As a visitor opening an invite link
+ * I want a link to a course no school owns yet to look like any invalid link
+ * So that no join step has to remember the "no school" check
+ */
+describe("Feature: the join flows resolve an invite to a course that has a school", () => {
+  dbIt(
+    "returns the course and school for an assigned course, and null for an unassigned or unknown token",
+    async ({ db }) => {
+      const courses = new CourseService(db, TEST_SCHOOL_ID);
+      const assigned = await courses.createCourse({
+        title: "Assigned",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const assignedToken = await courses.getOrCreateInviteToken(assigned.id);
+      // A legacy course no school owns yet, with a live link.
+      await db.collection("course").insertOne({
+        id: "unassigned-course",
+        title: "Unassigned",
+        description: "",
+        inviteToken: "unassigned-token",
+        schoolId: null,
+        createdAt: new Date(),
+        createdBy: "admin-1",
+        updatedAt: null,
+        updatedBy: null,
+        deletedAt: null,
+        deletedBy: null,
+      });
+      const schoolDirectory = new SchoolDirectory(db);
+
+      expect(
+        await schoolDirectory.findAssignedInviteCourse(assignedToken),
+      ).toMatchObject({
+        course: { id: assigned.id },
+        schoolId: TEST_SCHOOL_ID,
+      });
+      expect(
+        await schoolDirectory.findAssignedInviteCourse("unassigned-token"),
+      ).toBeNull();
+      expect(
+        await schoolDirectory.findAssignedInviteCourse("no-such-token"),
+      ).toBeNull();
+    },
+  );
+});

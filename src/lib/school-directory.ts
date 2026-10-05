@@ -16,6 +16,12 @@ export interface InviteCourse {
   schoolId: string | null;
 }
 
+/** An invite course known to belong to a school. */
+export interface AssignedInviteCourse {
+  course: Course;
+  schoolId: string;
+}
+
 /**
  * SchoolDirectory — the lookups that must see every school: invite links
  * (no session to take a school from), and student usernames and sign-in
@@ -51,6 +57,22 @@ export class SchoolDirectory {
       return null;
     }
     return { course: toCourse(doc), schoolId: doc.schoolId ?? null };
+  }
+
+  /**
+   * Like `findCourseByInviteToken`, but a course with no school folds into
+   * "not found" — the join flows treat both as an invalid invite.
+   * @param token - The invite token from the join URL.
+   * @returns The course and its school, or null.
+   */
+  async findAssignedInviteCourse(
+    token: string,
+  ): Promise<AssignedInviteCourse | null> {
+    const invite = await this.findCourseByInviteToken(token);
+    if (!invite?.schoolId) {
+      return null;
+    }
+    return { course: invite.course, schoolId: invite.schoolId };
   }
 
   /**

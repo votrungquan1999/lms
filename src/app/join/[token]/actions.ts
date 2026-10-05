@@ -121,10 +121,10 @@ export async function joinSignupAction(
       { "lms.action.name": "joinSignupAction" }, // never the token itself (D41)
       async () => {
         const schoolDirectory = await getSchoolDirectory();
-        const invite = await schoolDirectory.findCourseByInviteToken(
+        const invite = await schoolDirectory.findAssignedInviteCourse(
           parsed.data.token,
         );
-        if (!invite?.schoolId) {
+        if (!invite) {
           return {
             success: false,
             message: INVALID_INVITE_MESSAGE,
@@ -202,10 +202,10 @@ export async function googleUsernameSignupAction(
       { "lms.action.name": "googleUsernameSignupAction" },
       async () => {
         const schoolDirectory = await getSchoolDirectory();
-        const invite = await schoolDirectory.findCourseByInviteToken(
+        const invite = await schoolDirectory.findAssignedInviteCourse(
           parsed.data.token,
         );
-        if (!invite?.schoolId) {
+        if (!invite) {
           return {
             success: false,
             message: INVALID_INVITE_MESSAGE,
@@ -309,10 +309,10 @@ export async function requestToJoinAction(
       { "lms.action.name": "requestToJoinAction" }, // never the token itself (D41)
       async () => {
         const schoolDirectory = await getSchoolDirectory();
-        const invite = await schoolDirectory.findCourseByInviteToken(
+        const invite = await schoolDirectory.findAssignedInviteCourse(
           parsed.data.token,
         );
-        if (!invite?.schoolId) {
+        if (!invite) {
           return { success: false, message: INVALID_INVITE_MESSAGE };
         }
         const { course, schoolId } = invite;
