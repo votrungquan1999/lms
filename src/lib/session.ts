@@ -6,6 +6,8 @@
  * safe narrowing in route handlers and server actions.
  */
 
+import type { UserSchool } from "./school-service";
+
 /**
  * The two kinds of person the school records: an administrator or a student.
  */
@@ -35,12 +37,12 @@ abstract class Session {
 export class AdminSession extends Session {
   readonly role = Role.Admin;
   readonly email: string;
-  readonly school: { id: string; name: string } | null;
+  readonly school: UserSchool | null;
 
   constructor(input: {
     userId: string;
     email: string;
-    school: { id: string; name: string } | null;
+    school: UserSchool | null;
   }) {
     super(input.userId);
     this.email = input.email;
@@ -85,7 +87,7 @@ export function isAdminSession(session: Session): session is AdminSession {
  * hand callers `session.school.id` with no non-null assertion.
  */
 export interface SchoolAdminSession extends AdminSession {
-  readonly school: { id: string; name: string };
+  readonly school: UserSchool;
 }
 
 /**

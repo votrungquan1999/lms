@@ -1,7 +1,8 @@
 import type { Db } from "mongodb";
 import { createAuthService } from "src/lib/auth-service";
-import type { AppConfig } from "src/lib/config";
+import { AdminSession, isSchoolAdminSession } from "src/lib/session";
 import { realAuthServiceDeps } from "src/tests/auth-service-deps";
+import { testConfig } from "src/tests/auth-test-helpers";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   addTestSchool,
@@ -27,42 +28,26 @@ import { createPoolAction } from "../pools/actions";
 import { createStudentAction } from "../students/actions";
 import { bulkImportStudentsAction } from "../students/bulk-import-actions";
 
-const testConfig: AppConfig = {
-  mongodbUri: "unused-in-test",
-  authSecret: "test-secret",
-  authAllowedHosts: ["localhost:3000"],
-  google: { clientId: "test-client-id", clientSecret: "test-client-secret" },
-  s3: {
-    bucket: "test-bucket",
-    region: "ap-southeast-1",
-    accessKeyId: "test-key",
-    secretAccessKey: "test-secret",
-  },
-  adminEmails: [],
-  trustedOrigins: [],
-  allowPublicSignUp: false,
-};
-
-// Controllable admin gate, re-created each test. The session's school always
-// stays TEST_SCHOOL (the "current" tab); rows vary only expectedSchoolId.
-let requireAdminSession: ReturnType<typeof vi.fn>;
+// The admin gate is stubbed; the session's school always stays TEST_SCHOOL
+// (the "current" tab), and rows vary only expectedSchoolId.
 let db: Db;
 
 beforeEach(async () => {
   ({ db } = await setupTestDb());
   const authService = createAuthService(
     db,
-    testConfig,
+    testConfig(),
     realAuthServiceDeps(db),
   );
-  requireAdminSession = vi.fn().mockResolvedValue({
+  const session = new AdminSession({
     userId: "admin-1",
-    role: "admin",
+    email: "admin@example.com",
     school: TEST_SCHOOL,
   });
-  (
-    authService as unknown as { requireAdminSession: unknown }
-  ).requireAdminSession = requireAdminSession;
+  if (!isSchoolAdminSession(session)) {
+    throw new Error("the stubbed admin must have a school");
+  }
+  vi.spyOn(authService, "requireAdminSession").mockResolvedValue(session);
   authHolder.authService = authService;
 });
 

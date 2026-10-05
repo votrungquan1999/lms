@@ -27,6 +27,7 @@ import {
   SidebarRail,
 } from "src/components/ui/sidebar";
 import { authClient } from "src/lib/auth-client";
+import type { UserSchool } from "src/lib/school-service";
 import { SchoolSwitcher } from "./school-switcher";
 
 const navItems = [
@@ -49,8 +50,8 @@ export function AdminSidebar({
 }: {
   email: string;
   isOwner?: boolean;
-  school?: { id: string; name: string } | null;
-  schools?: { id: string; name: string }[];
+  school?: UserSchool | null;
+  schools?: UserSchool[];
 }) {
   const pathname = usePathname();
   const router = useRouter();

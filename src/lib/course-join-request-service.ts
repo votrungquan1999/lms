@@ -234,7 +234,7 @@ export class CourseJoinRequestService {
 
   /**
    * Lists one page of the bound school's join requests with the given
-   * status, and counts them across every page — R4 keys strictly
+   * status, and counts them across every page. It keys strictly
    * on the status enum, never a nullable "resolved" field (this driver
    * treats `{field: null}` as matching both an explicit null AND an absent
    * key, so a nullable filter would silently pull in the wrong rows).

@@ -8,12 +8,8 @@ import {
   DropdownMenuTrigger,
 } from "src/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "src/components/ui/sidebar";
+import type { UserSchool } from "src/lib/school-service";
 import { switchSchoolAction } from "./switch-school-actions";
-
-interface SchoolOption {
-  id: string;
-  name: string;
-}
 
 /**
  * Sidebar header control: shows the active school's name and, via the
@@ -26,7 +22,7 @@ export function SchoolSwitcher({
   otherSchools,
 }: {
   activeSchoolName: string;
-  otherSchools: SchoolOption[];
+  otherSchools: UserSchool[];
 }) {
   return (
     <DropdownMenu>
