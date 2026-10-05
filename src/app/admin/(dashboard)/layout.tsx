@@ -25,10 +25,13 @@ export default async function AdminDashboardLayout({
   const authService = await getAuthService();
   const isOwner = await authService.isAdminEmail(adminSession.email);
 
-  // Tier-1 only: a school-less admin (owner console, no-school page) still
-  // gets a working layout, just with no school in the sidebar.
+  // Shares the session lookup's per-render read, so no second query. A
+  // school-less admin (owner console, no-school page) still gets a working
+  // layout, just with no school in the sidebar.
   const schoolService = await getSchoolService();
-  const schools = await schoolService.listSchoolsForUser(adminSession.userId);
+  const schools = await schoolService.listSchoolsForRequest(
+    adminSession.userId,
+  );
 
   return (
     <TooltipProvider>

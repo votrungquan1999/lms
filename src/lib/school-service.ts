@@ -1,4 +1,5 @@
 import { type Collection, type Db, ObjectId } from "mongodb";
+import { cache } from "react";
 
 /** School document stored in the `school` collection. */
 export interface SchoolDocument {
@@ -43,6 +44,11 @@ export interface UserSchool {
 export class SchoolService {
   private readonly schools: Collection<SchoolDocument>;
   private readonly memberships: Collection<SchoolMembershipDocument>;
+
+  /** One lookup per user per server render; see `listSchoolsForRequest`. */
+  private readonly schoolsForRequest = cache((userId: string) =>
+    this.listSchoolsForUser(userId),
+  );
 
   constructor(private readonly db: Db) {
     this.schools = db.collection<SchoolDocument>("school");
@@ -193,6 +199,17 @@ export class SchoolService {
     const schoolIds = memberships.map((m) => m.schoolId);
     const docs = await this.schools.find({ id: { $in: schoolIds } }).toArray();
     return docs.map((doc) => ({ id: doc.id, name: doc.name }));
+  }
+
+  /**
+   * `listSchoolsForUser`, memoized for the current server render so the
+   * session lookup, layout, page and breadcrumb slots share one read. The
+   * memo dies with the request, so a revoked membership still takes effect
+   * on the next one.
+   * @param userId - The hex user id.
+   */
+  async listSchoolsForRequest(userId: string): Promise<UserSchool[]> {
+    return this.schoolsForRequest(userId);
   }
 
   /** Stamps `schoolAccessManagedAt` on the user this membership change targets. */

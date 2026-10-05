@@ -42,59 +42,82 @@ export function getMongoClient(): MongoClient | null {
 /**
  * Creates the indexes this app depends on for correctness (not just speed).
  * Exported so tests can apply them to their own per-test database.
+ * The builds are independent, so they run together to keep the cold start to
+ * one round trip; a unique build that hits duplicates still rejects, which
+ * fails the boot on purpose.
  */
 export async function ensureIndexes(db: Db): Promise<void> {
-  // Partial (not plain) unique index — a plain one would also block a
-  // rejected student from ever re-requesting (D11/D51 say they can). This
-  // makes duplicate concurrent submits for the same pair impossible (F10).
-  await db.collection("course_join_request").createIndex(
-    { courseId: 1, studentId: 1 },
-    {
-      unique: true,
-      partialFilterExpression: { status: JoinRequestStatus.Pending },
-    },
-  );
+  await Promise.all([
+    // Partial (not plain) unique index — a plain one would also block a
+    // rejected student from ever re-requesting (D11/D51 say they can). This
+    // makes duplicate concurrent submits for the same pair impossible (F10).
+    db
+      .collection("course_join_request")
+      .createIndex(
+        { courseId: 1, studentId: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { status: JoinRequestStatus.Pending },
+        },
+      ),
 
-  // Not partial — an enrollment has no status dimension to filter on, unlike
-  // the join-request index above. Without this, two concurrent enrollments
-  // for the same pair (e.g. a raced approve, or an approve racing the
-  // roster-dialog save) both insert, and the student renders twice in the
-  // grading roster with no self-healing.
-  await db
-    .collection("enrollment")
-    .createIndex({ courseId: 1, studentId: 1 }, { unique: true });
+    // Not partial — an enrollment has no status dimension to filter on, unlike
+    // the join-request index above. Without this, two concurrent enrollments
+    // for the same pair (e.g. a raced approve, or an approve racing the
+    // roster-dialog save) both insert, and the student renders twice in the
+    // grading roster with no self-healing.
+    db
+      .collection("enrollment")
+      .createIndex({ courseId: 1, studentId: 1 }, { unique: true }),
 
-  // The owner-typed slug is a school's only unique key; names may repeat.
-  await db.collection("school").createIndex({ slug: 1 }, { unique: true });
+    // The owner-typed slug is a school's only unique key; names may repeat.
+    db
+      .collection("school")
+      .createIndex({ slug: 1 }, { unique: true }),
 
-  // One membership per (school, user) pair — a second "add admin" for the
-  // same school must be refused, not silently duplicated.
-  await db
-    .collection("school_membership")
-    .createIndex({ schoolId: 1, userId: 1 }, { unique: true });
+    // Every admin request resolves its schools by id.
+    db
+      .collection("school")
+      .createIndex({ id: 1 }, { unique: true }),
 
-  // Every course, test, student and pool list filters by school first.
-  await db.collection("course").createIndex({ schoolId: 1 });
-  await db.collection("test").createIndex({ schoolId: 1 });
-  await db.collection("student").createIndex({ schoolId: 1 });
-  await db.collection("question_pool").createIndex({ schoolId: 1 });
+    // One membership per (school, user) pair — a second "add admin" for the
+    // same school must be refused, not silently duplicated.
+    db
+      .collection("school_membership")
+      .createIndex({ schoolId: 1, userId: 1 }, { unique: true }),
 
-  // One student profile per Better Auth sign-in account, across every
-  // school — a raced or repeated Google provisioning attempt must fail at
-  // the database, not just at an app-level check.
-  await db
-    .collection("student")
-    .createIndex({ authUserId: 1 }, { unique: true });
+    // Every admin request lists a user's memberships.
+    db
+      .collection("school_membership")
+      .createIndex({ userId: 1 }),
 
-  // One username across every school, not just within one — the
-  // authoritative guard behind a raced or stale app-level username check.
-  await db.collection("student").createIndex({ username: 1 }, { unique: true });
+    // Every course, test, student and pool list filters by school first.
+    db
+      .collection("course")
+      .createIndex({ schoolId: 1 }),
+    db.collection("test").createIndex({ schoolId: 1 }),
+    db.collection("student").createIndex({ schoolId: 1 }),
+    db.collection("question_pool").createIndex({ schoolId: 1 }),
 
-  // Backs each school's admin queue: `find({schoolId, status})` sorted by
-  // `{requestedAt, _id}` with skip/limit, and its `countDocuments`. Replaces
-  // the old unscoped `{status, requestedAt, _id}` index, which is never
-  // dropped here: a failed drop would fail every boot (the backfill drops it).
-  await db
-    .collection("course_join_request")
-    .createIndex({ schoolId: 1, status: 1, requestedAt: 1, _id: 1 });
+    // One student profile per Better Auth sign-in account, across every
+    // school — a raced or repeated Google provisioning attempt must fail at
+    // the database, not just at an app-level check.
+    db
+      .collection("student")
+      .createIndex({ authUserId: 1 }, { unique: true }),
+
+    // One username across every school, not just within one — the
+    // authoritative guard behind a raced or stale app-level username check.
+    db
+      .collection("student")
+      .createIndex({ username: 1 }, { unique: true }),
+
+    // Backs each school's admin queue: `find({schoolId, status})` sorted by
+    // `{requestedAt, _id}` with skip/limit, and its `countDocuments`. Replaces
+    // the old unscoped `{status, requestedAt, _id}` index, which is never
+    // dropped here: a failed drop would fail every boot (the backfill drops it).
+    db
+      .collection("course_join_request")
+      .createIndex({ schoolId: 1, status: 1, requestedAt: 1, _id: 1 }),
+  ]);
 }

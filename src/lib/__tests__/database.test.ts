@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { type Db, MongoServerError } from "mongodb";
+import { type Db, MongoClient, MongoServerError } from "mongodb";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {
@@ -98,6 +98,17 @@ describe("Feature: Production database boot wires the safety indexes", () => {
         );
         expect(membershipUniqueIndex?.unique).toBe(true);
 
+        // ...and the school id lookup is unique and indexed
+        const schoolIdIndex = schoolIndexes.find((index) => index.key.id === 1);
+        expect(schoolIdIndex?.unique).toBe(true);
+
+        // ...and the by-user membership lookup is indexed
+        const membershipUserIndex = membershipIndexes.find(
+          (index) =>
+            JSON.stringify(index.key) === JSON.stringify({ userId: 1 }),
+        );
+        expect(membershipUserIndex).toBeDefined();
+
         // ...and a school-led index serves every school's course list
         const courseIndexes = await listIndexesOrEmpty(db, "course");
         const courseSchoolIndex = courseIndexes.find(
@@ -161,6 +172,43 @@ describe("Feature: Production database boot wires the safety indexes", () => {
           await client.db(dbName).dropDatabase();
           await client.close();
         }
+      }
+    });
+  });
+  describe("Scenario: the database already holds duplicate usernames", () => {
+    it("refuses to boot instead of starting without the unique index", async () => {
+      const mongoBaseUri =
+        process.env.MONGODB_URI ?? "mongodb://localhost:27017";
+      const dbName = `lms-test-db-dups-${randomUUID()}`;
+
+      // Given two student profiles sharing a username, from before the unique index
+      const seedClient = new MongoClient(mongoBaseUri);
+      await seedClient.connect();
+      await seedClient
+        .db(dbName)
+        .collection("student")
+        .insertMany([
+          { id: "s1", username: "dup", authUserId: "a1" },
+          { id: "s2", username: "dup", authUserId: "a2" },
+        ]);
+
+      vi.stubEnv("MONGODB_URI", `${mongoBaseUri}/${dbName}`);
+      vi.stubEnv("GOOGLE_CLIENT_ID", "gid");
+      vi.stubEnv("GOOGLE_CLIENT_SECRET", "gsecret");
+      vi.stubEnv("AWS_REGION", "ap-southeast-1");
+      vi.stubEnv("S3_BUCKET_NAME", "quanvo-lms");
+      vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE");
+      vi.stubEnv("AWS_SECRET_ACCESS_KEY", "s3cr3t");
+      vi.resetModules();
+      const { getDatabase, getMongoClient } = await import("../database");
+
+      try {
+        // When the app boots, Then the duplicate-key failure surfaces
+        await expect(getDatabase()).rejects.toMatchObject({ code: 11000 });
+      } finally {
+        await seedClient.db(dbName).dropDatabase();
+        await seedClient.close();
+        await getMongoClient()?.close();
       }
     });
   });

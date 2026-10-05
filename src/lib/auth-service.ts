@@ -318,9 +318,9 @@ export class AuthService {
   ): Promise<Session | null> {
     // Admin-ness is a recorded fact on the user, never an email-string match.
     if (isRecordedAdmin(user.role)) {
-      // Read fresh on every call — never cached — so a revoked membership
-      // or a newly added one is honored on the very next request.
-      const schools = await this.schoolService.listSchoolsForUser(user.id);
+      // Memoized per render only, so a revoked or newly added membership is
+      // honored on the very next request.
+      const schools = await this.schoolService.listSchoolsForRequest(user.id);
       const school = resolveActiveSchool(
         schools,
         readActiveSchoolCookie(headers),
