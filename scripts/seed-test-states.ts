@@ -280,15 +280,8 @@ async function main() {
       });
       console.log(`  ✓ created student ${student.username}`);
 
-      try {
-        await enrollmentService.enrollStudent(
-          COURSE_ID,
-          student.id,
-          SEED_AUTHOR,
-        );
-      } catch {
-        // Already enrolled.
-      }
+      // Already-enrolled is a no-op in the service, so any throw is a real refusal.
+      await enrollmentService.enrollStudent(COURSE_ID, student.id, SEED_AUTHOR);
 
       await applyScenario({
         scenario: seedStudent.scenario,

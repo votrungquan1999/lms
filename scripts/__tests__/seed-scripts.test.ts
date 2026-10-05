@@ -240,6 +240,38 @@ describe("seed-test-states script", () => {
     },
     SEED_SCRIPT_TIMEOUT_MS,
   );
+
+  dbIt(
+    "stops with the enrolment refusal when the sandbox course belongs to another school",
+    async ({ db, client }) => {
+      // Given: the sandbox was seeded into one school, then its students removed
+      const mongoUri = mongoUriFor(client, db.databaseName);
+      const first = await runSeedScript(
+        "seed-test-states.ts",
+        ["--school", "acme"],
+        mongoUri,
+      );
+      expect(
+        first.exitCode,
+        `Script failed:\nstdout: ${first.stdout}\nstderr: ${first.stderr}`,
+      ).toBe(0);
+      await db.collection("student").deleteMany({});
+      await db.collection("enrollment").deleteMany({});
+
+      // When: the script is rerun naming another school, so a new student
+      // can't be enrolled in the other school's sandbox course
+      const rerun = await runSeedScript(
+        "seed-test-states.ts",
+        ["--school", "other"],
+        mongoUri,
+      );
+
+      // Then: it fails on the enrolment refusal, not on a later step
+      expect(rerun.exitCode).not.toBe(0);
+      expect(rerun.stderr).toContain("Course not found");
+    },
+    SEED_SCRIPT_TIMEOUT_MS,
+  );
 });
 
 describe("seed-pools script", () => {
