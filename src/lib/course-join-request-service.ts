@@ -1,4 +1,5 @@
 import { type Collection, type Db, MongoServerError } from "mongodb";
+import { assertSchoolId } from "./assert-school-id";
 
 /**
  * The three states a course join request moves through. A TS enum, never a
@@ -80,11 +81,7 @@ export class CourseJoinRequestService {
     db: Db,
     private readonly schoolId: string,
   ) {
-    // Fail closed: a missing school would query `{ schoolId: null }`, which
-    // matches exactly the requests no school owns yet.
-    if (!schoolId) {
-      throw new Error("A school is required to build a join request service");
-    }
+    assertSchoolId(schoolId, "a join request service");
     this.joinRequests = db.collection<CourseJoinRequestDocument>(
       "course_join_request",
     );

@@ -1,4 +1,5 @@
 import type { Collection, Db, UpdateFilter } from "mongodb";
+import { assertSchoolId } from "./assert-school-id";
 import type { CourseService } from "./course-service";
 
 /**
@@ -100,11 +101,7 @@ export class TestService {
     private readonly schoolId: string,
     private readonly courseService: CourseService,
   ) {
-    // Fail closed: a missing school would query `{ schoolId: null }`, which
-    // matches exactly the tests no school owns yet.
-    if (!schoolId) {
-      throw new Error("A school is required to build a test service");
-    }
+    assertSchoolId(schoolId, "a test service");
     this.tests = db.collection<TestDocument>("test");
   }
 

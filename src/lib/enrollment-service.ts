@@ -1,4 +1,5 @@
 import { type Collection, type Db, MongoServerError } from "mongodb";
+import { assertSchoolId } from "./assert-school-id";
 import type { CourseDocument } from "./course-service";
 import type { StudentDocument } from "./student-service";
 
@@ -42,11 +43,7 @@ export class EnrollmentService {
     db: Db,
     private readonly schoolId: string,
   ) {
-    // Fail closed: a missing school would match `{ schoolId: null }`, which
-    // is exactly the courses and students no school owns yet.
-    if (!schoolId) {
-      throw new Error("A school is required to build an enrollment service");
-    }
+    assertSchoolId(schoolId, "an enrollment service");
     this.enrollments = db.collection<EnrollmentDocument>("enrollment");
     this.courses = db.collection<CourseDocument>("course");
     this.students = db.collection<StudentDocument>("student");

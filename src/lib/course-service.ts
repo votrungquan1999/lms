@@ -1,4 +1,5 @@
 import type { Collection, Db } from "mongodb";
+import { assertSchoolId } from "./assert-school-id";
 
 /**
  * A downloadable course material as stored on the course document.
@@ -113,11 +114,7 @@ export class CourseService {
     db: Db,
     private readonly schoolId: string,
   ) {
-    // Fail closed: a missing school would query `{ schoolId: null }`, which
-    // matches exactly the courses no school owns yet.
-    if (!schoolId) {
-      throw new Error("A school is required to build a course service");
-    }
+    assertSchoolId(schoolId, "a course service");
     this.courses = db.collection<CourseDocument>("course");
   }
 

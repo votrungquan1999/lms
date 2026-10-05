@@ -1,4 +1,5 @@
 import type { Collection, Db } from "mongodb";
+import { assertSchoolId } from "./assert-school-id";
 
 /**
  * Question pool document stored in the `question_pool` collection.
@@ -50,11 +51,7 @@ export class QuestionPoolService {
     db: Db,
     private readonly schoolId: string,
   ) {
-    // Fail closed: a missing school would query `{ schoolId: null }`, which
-    // matches exactly the pools no school owns yet.
-    if (!schoolId) {
-      throw new Error("A school is required to build a question pool service");
-    }
+    assertSchoolId(schoolId, "a question pool service");
     this.pools = db.collection<QuestionPoolDocument>("question_pool");
   }
 

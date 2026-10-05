@@ -12,6 +12,7 @@ import {
   type QuestionType,
 } from "src/lib/question-service";
 import type { AnswerRevealMode } from "src/lib/test-service";
+import { assertSchoolId } from "./assert-school-id";
 
 /**
  * Value equality for change-log diffing — mirrors `question-service.ts`'s own
@@ -210,11 +211,7 @@ export class PoolQuestionService {
     private readonly questionPoolService: QuestionPoolService,
     private readonly changeLogService?: QuestionChangeLogService,
   ) {
-    // Fail closed: a missing school would query `{ schoolId: null }`, which
-    // matches exactly the pool questions no school owns yet.
-    if (!schoolId) {
-      throw new Error("A school is required to build a pool question service");
-    }
+    assertSchoolId(schoolId, "a pool question service");
     this.questions = db.collection<PoolQuestionDocument>("pool_question");
   }
 

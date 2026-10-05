@@ -1,4 +1,5 @@
 import { type Collection, type Db, MongoServerError } from "mongodb";
+import { assertSchoolId } from "./assert-school-id";
 
 /**
  * Student document stored in the `student` collection.
@@ -81,11 +82,7 @@ export class StudentService {
     /** The school this service reads and writes. */
     readonly schoolId: string,
   ) {
-    // Fail closed: a missing school would query `{ schoolId: null }`, which
-    // matches exactly the students no school owns yet.
-    if (!schoolId) {
-      throw new Error("A school is required to build a student service");
-    }
+    assertSchoolId(schoolId, "a student service");
     this.students = db.collection<StudentDocument>("student");
   }
 
