@@ -20,7 +20,16 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+// The page's own owner check goes through auth-singleton, like the layout's.
+const ownerEmails = vi.hoisted(() => new Set<string>());
+vi.mock("src/lib/auth-singleton", () => ({
+  getAuthService: vi.fn(async () => ({
+    isAdminEmail: vi.fn(async (email: string) => ownerEmails.has(email)),
+  })),
+}));
+
 beforeEach(async () => {
+  ownerEmails.clear();
   await setupTestDb();
 });
 
@@ -51,5 +60,37 @@ describe("Feature: the no-school page tells a school-less admin what happened", 
     expect(
       screen.getByText(/aren't part of any school yet/i),
     ).toBeInTheDocument();
+  });
+
+  it("links the platform owner to the schools console", async () => {
+    ownerEmails.add("owner@example.com");
+    signInAs(
+      new AdminSession({
+        userId: "owner-1",
+        email: "owner@example.com",
+        school: null,
+      }),
+    );
+
+    render(await NoSchoolPage());
+
+    expect(screen.getByRole("link", { name: /schools/i })).toHaveAttribute(
+      "href",
+      "/admin/schools",
+    );
+  });
+
+  it("shows another school-less admin no link to the schools console", async () => {
+    signInAs(
+      new AdminSession({
+        userId: "admin-1",
+        email: "admin@example.com",
+        school: null,
+      }),
+    );
+
+    render(await NoSchoolPage());
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

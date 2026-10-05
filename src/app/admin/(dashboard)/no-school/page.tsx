@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { getAuthService } from "src/lib/auth-singleton";
 import { getPageGuard } from "src/lib/services-singleton";
 
 export const metadata = {
@@ -13,7 +15,10 @@ export const metadata = {
  */
 export default async function NoSchoolPage() {
   const guard = await getPageGuard();
-  await guard.requireAdminLogin();
+  const adminSession = await guard.requireAdminLogin();
+  // A fresh install's owner has no school yet; point them at where to make one.
+  const authService = await getAuthService();
+  const isOwner = await authService.isAdminEmail(adminSession.email);
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
@@ -24,6 +29,14 @@ export default async function NoSchoolPage() {
         Ask the platform owner to add you as an admin of a school. Once you're
         added, sign in again to reach its data.
       </p>
+      {isOwner && (
+        <Link
+          href="/admin/schools"
+          className="text-sm font-medium underline underline-offset-4"
+        >
+          Go to the schools console
+        </Link>
+      )}
     </div>
   );
 }
