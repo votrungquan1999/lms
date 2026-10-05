@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
+import { DuplicateUsernameError } from "src/lib/student-service";
 
 export interface CreateStudentState {
   success: boolean;
@@ -86,7 +87,7 @@ export async function createStudentAction(
     const message =
       error instanceof Error ? error.message : "Failed to create student";
     let fieldErrors: CreateStudentState["fieldErrors"];
-    if (message === "Username already exists") {
+    if (error instanceof DuplicateUsernameError) {
       fieldErrors = { username: message };
     } else if (message === "Password cannot be only spaces") {
       fieldErrors = { password: message };

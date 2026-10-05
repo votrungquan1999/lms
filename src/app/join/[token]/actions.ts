@@ -9,6 +9,7 @@ import {
   getSchoolDirectory,
   getStudentService,
 } from "src/lib/services-singleton";
+import { DuplicateUsernameError } from "src/lib/student-service";
 import { USERNAME_PATTERN } from "src/lib/username";
 import { z } from "zod";
 
@@ -143,10 +144,7 @@ export async function joinSignupAction(
             schoolId,
           });
         } catch (error) {
-          if (
-            error instanceof Error &&
-            error.message === "Username already exists"
-          ) {
+          if (error instanceof DuplicateUsernameError) {
             return { success: false, message: USERNAME_TAKEN_MESSAGE };
           }
           throw error;
@@ -243,10 +241,7 @@ export async function googleUsernameSignupAction(
           // conflict on a username the person picked themselves — "sign in
           // with your original method" would make no sense here, since
           // there is no other method for a brand-new Google signup.
-          if (
-            error instanceof Error &&
-            error.message === "Username already exists"
-          ) {
+          if (error instanceof DuplicateUsernameError) {
             return {
               success: false,
               message: "That username is already taken. Please choose another.",

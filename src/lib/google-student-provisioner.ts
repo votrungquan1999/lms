@@ -1,6 +1,10 @@
 import type { CourseJoinRequestService } from "./course-join-request-service";
 import type { SchoolDirectory } from "./school-directory";
-import type { StudentService } from "./student-service";
+import {
+  DuplicateAuthAccountError,
+  DuplicateUsernameError,
+  type StudentService,
+} from "./student-service";
 import { USERNAME_PATTERN } from "./username";
 
 /**
@@ -111,9 +115,8 @@ export async function provisionGoogleStudent(
     // username or sign-in account. Re-reading by authUserId tells a
     // self-collision apart from a real clash, the same way as above.
     if (
-      !(error instanceof Error) ||
-      (error.message !== "Username already exists" &&
-        error.message !== "This account already has a student profile")
+      !(error instanceof DuplicateUsernameError) &&
+      !(error instanceof DuplicateAuthAccountError)
     ) {
       throw error;
     }

@@ -57,6 +57,22 @@ export function toStudent(doc: StudentDocument): Student {
  * Auth concerns (credentials, sessions) stay in AuthService; lookups that
  * must see every school live in SchoolDirectory.
  */
+/** The username is already taken (in any school). The message is user-facing. */
+export class DuplicateUsernameError extends Error {
+  constructor() {
+    super("Username already exists");
+    this.name = "DuplicateUsernameError";
+  }
+}
+
+/** The sign-in account already owns a student profile. The message is user-facing. */
+export class DuplicateAuthAccountError extends Error {
+  constructor() {
+    super("This account already has a student profile");
+    this.name = "DuplicateAuthAccountError";
+  }
+}
+
 export class StudentService {
   private readonly students: Collection<StudentDocument>;
 
@@ -74,8 +90,8 @@ export class StudentService {
 
   /**
    * Creates a student document in this service's school.
-   * Throws "Username already exists" when the username is taken in any
-   * school, and "This account already has a student profile" when the
+   * Throws `DuplicateUsernameError` when the username is taken in any
+   * school, and `DuplicateAuthAccountError` when the
    * sign-in account already owns one. Both are enforced by the database's
    * own unique indexes, not a find-first check, so a stale caller-side read
    * can never let a duplicate through.
@@ -103,10 +119,10 @@ export class StudentService {
       // that actually fired is a fact MongoDB reports.
       if (error instanceof MongoServerError && error.code === 11000) {
         if (error.keyPattern?.authUserId) {
-          throw new Error("This account already has a student profile");
+          throw new DuplicateAuthAccountError();
         }
         if (error.keyPattern?.username) {
-          throw new Error("Username already exists");
+          throw new DuplicateUsernameError();
         }
       }
       throw error;

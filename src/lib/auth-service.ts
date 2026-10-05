@@ -13,7 +13,7 @@ import {
   type Session,
   StudentSession,
 } from "./session";
-import type { StudentService } from "./student-service";
+import { DuplicateUsernameError, type StudentService } from "./student-service";
 
 /**
  * What a login page should show for the current caller (BUG-4): a genuinely
@@ -221,7 +221,7 @@ export class AuthService {
     // Usernames are unique across schools, so the check reads every school.
     const existing = await this.schoolDirectory.findByUsername(username);
     if (existing) {
-      throw new Error("Username already exists");
+      throw new DuplicateUsernameError();
     }
     // Resolved before sign-up, so a missing school leaves no auth user behind.
     const studentService = await this.getStudentService(input.schoolId);
