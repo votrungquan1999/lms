@@ -962,3 +962,73 @@ describe("Feature: the backfill retracts a stale default membership, but never a
     },
   );
 });
+
+describe("Feature: a backfill that stopped between an admin's membership and marker can be rerun", () => {
+  dbIt(
+    "stamps the marker of an admin who already has the default membership and still grants the other legacy admins",
+    async ({ db, client }) => {
+      const mongoUri = mongoUriFor(client, db.databaseName);
+      const authService = realAuthService(db);
+
+      // Given: a first apply created the default school and granted admin1.
+      const { user: admin1 } = await authService.auth.api.signUpEmail({
+        body: {
+          email: "half@example.com",
+          password: "password-123",
+          name: "Half Granted",
+        },
+      });
+      await db
+        .collection("user")
+        .updateOne({ email: admin1.email }, { $set: { role: "admin" } });
+      const first = await runBackfillScript(mongoUri, ["--apply"]);
+      expect(first.exitCode, first.stderr).toBe(0);
+      const defaultSchool = await db
+        .collection("school")
+        .findOne({ slug: "default" });
+      const defaultSchoolId = defaultSchool?.id as string;
+
+      // And: the run died after admin1's membership insert, before the marker.
+      await db
+        .collection("user")
+        .updateOne(
+          { email: admin1.email },
+          { $unset: { schoolAccessManagedAt: "" } },
+        );
+
+      // And: another legacy admin was not reached yet.
+      const { user: admin2 } = await authService.auth.api.signUpEmail({
+        body: {
+          email: "untouched@example.com",
+          password: "password-123",
+          name: "Untouched",
+        },
+      });
+      await db
+        .collection("user")
+        .updateOne({ email: admin2.email }, { $set: { role: "admin" } });
+
+      // When: the operator reruns --apply
+      const rerun = await runBackfillScript(mongoUri, ["--apply"]);
+
+      // Then: it completes
+      expect(rerun.exitCode, rerun.stderr).toBe(0);
+
+      // And: the half-granted admin now carries the marker, with one membership
+      const half = await db.collection("user").findOne({ email: admin1.email });
+      expect(half?.schoolAccessManagedAt).toBeInstanceOf(Date);
+      expect(
+        await db
+          .collection("school_membership")
+          .countDocuments({ schoolId: defaultSchoolId, userId: admin1.id }),
+      ).toBe(1);
+
+      // And: the admin it had not reached is granted
+      expect(
+        await db
+          .collection("school_membership")
+          .findOne({ schoolId: defaultSchoolId, userId: admin2.id }),
+      ).not.toBeNull();
+    },
+  );
+});

@@ -67,6 +67,8 @@ const BACKFILL_AUTHOR = "backfill-schools-script";
 const OLD_QUEUE_INDEX_NAME = "status_1_requestedAt_1__id_1";
 /** MongoServerError code for "index not found" — a fresh DB never had it. */
 const INDEX_NOT_FOUND_CODE = 27;
+/** MongoDB duplicate-key error code (E11000). */
+const DUPLICATE_KEY_CODE = 11000;
 /** Matches a record with no school — Mongo's `null` also matches a missing key. */
 const UNASSIGNED = { schoolId: null };
 
@@ -325,7 +327,9 @@ interface UserDocument {
  * before it happens: an admin already managed by hand (added to any school,
  * or removed from one) already carries the marker and is skipped, so a
  * rerun never re-grants what the owner deliberately changed.
- * `SchoolService.addMembership` stamps the marker as its own side effect.
+ * `SchoolService.addMembership` stamps the marker as its own side effect;
+ * an admin whose membership exists without the marker (a run stopped
+ * between the two writes) only gets the marker, so a rerun can finish.
  */
 async function grantLegacyAdminMemberships(
   db: Db,
@@ -337,11 +341,25 @@ async function grantLegacyAdminMemberships(
     .find({ role: Role.Admin, schoolAccessManagedAt: { $exists: false } })
     .toArray();
   for (const user of legacyAdmins) {
-    await schoolService.addMembership(
-      schoolId,
-      user._id.toHexString(),
-      BACKFILL_AUTHOR,
-    );
+    try {
+      await schoolService.addMembership(
+        schoolId,
+        user._id.toHexString(),
+        BACKFILL_AUTHOR,
+      );
+    } catch (err) {
+      if (
+        !(err instanceof MongoServerError && err.code === DUPLICATE_KEY_CODE)
+      ) {
+        throw err;
+      }
+      // A run stopped after the membership insert but before the marker:
+      // already a member, so only the marker is missing.
+      await users.updateOne(
+        { _id: user._id },
+        { $set: { schoolAccessManagedAt: new Date() } },
+      );
+    }
   }
   return legacyAdmins.length;
 }
