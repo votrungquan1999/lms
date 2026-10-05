@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { JoinRequestStatus } from "src/lib/course-join-request-service";
 import {
+  addTestSchool,
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
@@ -84,6 +85,47 @@ describe("Feature: Approve a course join request", () => {
     expect(updated?.resolvedAt).toBeInstanceOf(Date);
     expect(updated?.resolvedBy).toBe("admin-1");
     expect(revalidatePath).toHaveBeenCalledWith("/admin/join-requests");
+  });
+
+  it("refuses a request naming another school's student and leaves it pending", async () => {
+    const { courseService, courseJoinRequestService, enrollmentService } =
+      getTestServices();
+
+    // Given a (legacy) pending request in this school naming a student who
+    // belongs to another school
+    const course = await courseService.createCourse({
+      title: "Algebra I",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const otherSchool = await addTestSchool("School B");
+    const outsider = await getTestServices(
+      otherSchool.id,
+    ).studentService.createStudentDocument({
+      authUserId: "auth-outsider",
+      username: "outsider",
+      name: "Outsider",
+      createdBy: "self-signup",
+    });
+    const request = await courseJoinRequestService.createRequest({
+      courseId: course.id,
+      studentId: outsider.id,
+    });
+
+    const formData = new FormData();
+    formData.set("requestId", request.id);
+
+    // When an admin approves it
+    const state = await approveJoinRequestAction(null, formData);
+
+    // Then it is refused, nobody is enrolled, and the request is not left
+    // approved-but-not-enrolled
+    expect(state.success).toBe(false);
+    expect(await enrollmentService.isEnrolled(course.id, outsider.id)).toBe(
+      false,
+    );
+    const after = await courseJoinRequestService.getRequest(request.id);
+    expect(after?.status).toBe(JoinRequestStatus.Pending);
   });
 
   it("refuses a non-admin caller and enrolls no one", async () => {

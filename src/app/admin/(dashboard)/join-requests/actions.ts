@@ -7,6 +7,7 @@ import { withSpan } from "src/lib/observability/with-span";
 import {
   getCourseJoinRequestService,
   getEnrollmentService,
+  getStudentService,
 } from "src/lib/services-singleton";
 import { z } from "zod";
 
@@ -69,6 +70,16 @@ export async function approveJoinRequestAction(
         );
         if (!request) {
           return { success: false, message: "Join request not found" };
+        }
+
+        // Refused before the claim: enrolment rejects an out-of-school
+        // student, which would leave the request approved but not enrolled.
+        const studentService = await getStudentService(schoolId);
+        const [ownStudent] = await studentService.findByIds([
+          request.studentId,
+        ]);
+        if (!ownStudent) {
+          return { success: false, message: "Student not found" };
         }
 
         // Claim the status BEFORE enrolling (D90/R6) — the atomic claim
