@@ -528,7 +528,7 @@ describe("Feature: the Google invite path provisions a student into the SAME sch
  * provisioned a second time
  * As a prospective student who already has a profile in a DIFFERENT school
  * I want opening a new school's invite link with the same Google identity to
- * reuse the "waiting for approval" outcome, not create a second profile
+ * be refused as another school's link, not create a second profile
  * So that one sign-in account can never hold two student documents
  */
 describe("Feature: an identity already provisioned in another school is never provisioned a second time", () => {
@@ -573,8 +573,9 @@ describe("Feature: an identity already provisioned in another school is never pr
     render(ui);
 
     expect(
-      screen.getByText(/now waiting for admin approval/i),
+      screen.getByText(/join link is for a course in another school/i),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/waiting for admin approval/i)).toBeNull();
     expect(await schoolServices.studentService.listStudents()).toHaveLength(0);
     expect(await defaultServices.studentService.listStudents()).toHaveLength(1);
   });

@@ -78,7 +78,8 @@ export class StudentService {
 
   constructor(
     db: Db,
-    private readonly schoolId: string,
+    /** The school this service reads and writes. */
+    readonly schoolId: string,
   ) {
     // Fail closed: a missing school would query `{ schoolId: null }`, which
     // matches exactly the students no school owns yet.

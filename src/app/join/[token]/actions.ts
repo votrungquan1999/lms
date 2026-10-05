@@ -12,6 +12,7 @@ import {
 import { DuplicateUsernameError } from "src/lib/student-service";
 import { USERNAME_PATTERN } from "src/lib/username";
 import { z } from "zod";
+import { CROSS_SCHOOL_JOIN_MESSAGE } from "./join-messages";
 
 const joinSignupSchema = z.object({
   token: z.string().min(1, "Invalid invite link"),
@@ -79,12 +80,6 @@ const requestToJoinSchema = z.object({
 
 const INVALID_INVITE_MESSAGE =
   "This join link is no longer valid. Ask whoever shared it with you for a new one.";
-
-// A signed-in student's own school is fixed once they exist — the invite
-// page still shows them the request form for any school's link, so this is
-// where the boundary is actually enforced.
-const CROSS_SCHOOL_JOIN_MESSAGE =
-  "This join link is for a course in another school. You can only join courses in your own school.";
 
 // Usernames are unique across every school, so a clash can be the visitor's
 // own earlier account or a stranger who happened to pick the same name —

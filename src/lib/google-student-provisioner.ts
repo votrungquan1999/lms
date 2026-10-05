@@ -30,13 +30,15 @@ export interface GoogleStudentProvisionInput {
 }
 
 /**
- * The two outcomes of a Google join attempt. A colliding or unusable
+ * The outcomes of a Google join attempt. A colliding or unusable
  * derived username is never refused outright (D49) — the person keeps their
  * Google session and picks their own username instead.
  */
 export enum GoogleProvisionOutcome {
   Provisioned = "provisioned",
   NeedsUsername = "needs-username",
+  /** The sign-in account already has a profile in a different school. */
+  WrongSchool = "wrong-school",
 }
 
 /**
@@ -51,6 +53,20 @@ export enum GoogleProvisionOutcome {
 export function deriveUsername(email: string): string {
   const localPart = email.split("@")[0]?.toLowerCase() ?? "";
   return localPart.replace(/[^a-z0-9._+-]/g, "").slice(0, 32);
+}
+
+/**
+ * The outcome when the sign-in account already has a profile: re-entry into
+ * the same school is a no-op, but a profile in another school must not be
+ * reported as waiting for approval here — no request exists for this school.
+ */
+function outcomeForExistingProfile(
+  profile: { schoolId: string | null },
+  inviteSchoolId: string,
+): GoogleProvisionOutcome {
+  return profile.schoolId === inviteSchoolId
+    ? GoogleProvisionOutcome.Provisioned
+    : GoogleProvisionOutcome.WrongSchool;
 }
 
 /**
@@ -69,9 +85,10 @@ export async function provisionGoogleStudent(
   // Collapses the common re-entry (a reload or second tab after the first
   // write landed) to a no-op. A truly concurrent one passes this read and is
   // caught below, where a clash is re-checked against this same account.
+  const schoolId = deps.studentService.schoolId;
   const already = await deps.schoolDirectory.findByAuthUserId(input.authUserId);
   if (already) {
-    return GoogleProvisionOutcome.Provisioned;
+    return outcomeForExistingProfile(already, schoolId);
   }
 
   const username = deriveUsername(input.email);
@@ -95,7 +112,7 @@ export async function provisionGoogleStudent(
       input.authUserId,
     );
     return ownProfile
-      ? GoogleProvisionOutcome.Provisioned
+      ? outcomeForExistingProfile(ownProfile, schoolId)
       : GoogleProvisionOutcome.NeedsUsername;
   }
 
@@ -124,7 +141,7 @@ export async function provisionGoogleStudent(
       input.authUserId,
     );
     return ownProfile
-      ? GoogleProvisionOutcome.Provisioned
+      ? outcomeForExistingProfile(ownProfile, schoolId)
       : GoogleProvisionOutcome.NeedsUsername;
   }
 

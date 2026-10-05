@@ -575,3 +575,61 @@ describe("Feature: a derived username taken by another school's student still se
     },
   );
 });
+
+/**
+ * Feature: a Google sign-up whose account already belongs to another school
+ * is refused instead of told it is waiting for approval
+ * As a student of one school who opens another school's invite
+ * I want to be told the link is for another school
+ * So that I never wait for an approval no admin can see
+ */
+describe("Feature: a Google sign-up whose account already belongs to another school is refused", () => {
+  dbIt(
+    "reports WrongSchool and writes no join request when the account's profile is in another school",
+    async ({ db }) => {
+      const inviteSchoolId = "school-b";
+      const studentService = new StudentService(db, inviteSchoolId);
+      const courseJoinRequestService = new CourseJoinRequestService(
+        db,
+        inviteSchoolId,
+      );
+      const schoolDirectory = new SchoolDirectory(db);
+
+      // Given the Google account already has a profile in the default school
+      const rawUserId = new ObjectId();
+      await db.collection("user").insertOne({
+        _id: rawUserId,
+        email: "two.schools@gmail.com",
+        name: "Two Schools",
+        role: "student",
+      });
+      await new StudentService(db, TEST_SCHOOL_ID).createStudentDocument({
+        authUserId: rawUserId.toHexString(),
+        username: "two.schools",
+        name: "Two Schools",
+        createdBy: "google-signup",
+      });
+
+      // When the invite page provisions it for a course in school B
+      const outcome = await provisionGoogleStudent(
+        { studentService, schoolDirectory, courseJoinRequestService },
+        {
+          authUserId: rawUserId.toHexString(),
+          email: "two.schools@gmail.com",
+          name: "Two Schools",
+          courseId: "course-b",
+        },
+      );
+
+      // Then it is refused as another school's, not "provisioned"
+      expect(outcome).toBe(GoogleProvisionOutcome.WrongSchool);
+
+      // And no request to join school B's course was written
+      expect(
+        await db
+          .collection("course_join_request")
+          .countDocuments({ courseId: "course-b" }),
+      ).toBe(0);
+    },
+  );
+});

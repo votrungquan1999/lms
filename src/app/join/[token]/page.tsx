@@ -13,6 +13,7 @@ import {
 import { isStudentSession } from "src/lib/session";
 import { GoogleJoinButton } from "./google-join-button";
 import { GoogleUsernameForm } from "./google-username-form";
+import { CROSS_SCHOOL_JOIN_MESSAGE } from "./join-messages";
 import { InvalidInviteCard, ValidInviteCard } from "./join-page.ui";
 import { RequestToJoinForm } from "./request-to-join-form";
 import { SelfSignupForm } from "./self-signup-form";
@@ -119,6 +120,10 @@ export default async function JoinPage({
               Go to your dashboard
             </a>
             .
+          </output>
+        ) : googleOutcome === GoogleProvisionOutcome.WrongSchool ? (
+          <output className="block text-sm text-muted-foreground">
+            {CROSS_SCHOOL_JOIN_MESSAGE}
           </output>
         ) : googleOutcome === GoogleProvisionOutcome.NeedsUsername ? (
           <GoogleUsernameForm
