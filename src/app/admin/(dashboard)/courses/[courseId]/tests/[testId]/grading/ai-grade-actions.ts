@@ -376,8 +376,7 @@ export async function applyAiSuggestionAction(
         const suggestion = await aiGradeService.applySuggestion(
           parsed.data.suggestionId,
           adminUserId,
-          parsed.data.testId,
-          parsed.data.studentId,
+          { testId: parsed.data.testId, studentId: parsed.data.studentId },
           {
             scoreOverride: parsed.data.scoreOverride,
             feedbackOverride: parsed.data.feedbackOverride,

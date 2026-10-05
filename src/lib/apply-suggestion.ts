@@ -37,6 +37,16 @@ export interface ApplySuggestionOverrides {
 }
 
 /**
+ * The test and student the caller already checked: the test is this school's
+ * and the student is enrolled in its course. Named fields, so the two ids
+ * can't be swapped by position.
+ */
+export interface VerifiedSuggestionTarget {
+  testId: string;
+  studentId: string;
+}
+
+/**
  * Verbatim user-facing message (pinned by implementation-plan.md). Refusal
  * fires when no `ai_grade` row currently carries `appliedAt != null` AND a
  * `grade` row already exists for `(testId, questionId, studentId)` — the grade
@@ -65,15 +75,13 @@ export const APPLY_OVER_HUMAN_GRADE_MESSAGE =
  *
  * The service contains no defensive try/catch — the action's outer try/catch
  * is the only error boundary.
- * @param verifiedTestId - The test the caller already checked is this school's.
- * @param verifiedStudentId - The student the caller already checked is enrolled.
+ * @param verified - The test and student the caller already checked.
  */
 export async function applySuggestion(
   deps: ApplySuggestionDeps,
   suggestionId: string,
   byAdminId: string,
-  verifiedTestId: string,
-  verifiedStudentId: string,
+  verified: VerifiedSuggestionTarget,
   overrides?: ApplySuggestionOverrides,
 ): Promise<AiGradeSuggestion> {
   const { suggestions, grades, gradeService } = deps;
@@ -81,8 +89,8 @@ export async function applySuggestion(
   const target = await suggestions.findOne({ id: suggestionId });
   if (
     !target ||
-    target.testId !== verifiedTestId ||
-    target.studentId !== verifiedStudentId
+    target.testId !== verified.testId ||
+    target.studentId !== verified.studentId
   ) {
     throw new Error("Suggestion not found");
   }

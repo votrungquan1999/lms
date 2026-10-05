@@ -14,6 +14,7 @@ import type { AnswerService } from "src/lib/answer-service";
 import {
   type ApplySuggestionOverrides,
   applySuggestion as applySuggestionImpl,
+  type VerifiedSuggestionTarget,
 } from "src/lib/apply-suggestion";
 import type { GradeDocument, GradeService } from "src/lib/grade-service";
 import type { QuestionService } from "src/lib/question-service";
@@ -236,14 +237,12 @@ export class AiGradeService {
   /**
    * Promotes an AI suggestion into the real `grade` collection. Delegates to
    * `apply-suggestion.ts`. See that module for apply order + refusal policy.
-   * @param verifiedTestId - The test the caller already checked is this school's.
-   * @param verifiedStudentId - The student the caller already checked is enrolled.
+   * @param verified - The test and student the caller already checked.
    */
   async applySuggestion(
     suggestionId: string,
     byAdminId: string,
-    verifiedTestId: string,
-    verifiedStudentId: string,
+    verified: VerifiedSuggestionTarget,
     overrides?: ApplySuggestionOverrides,
   ): Promise<AiGradeSuggestion> {
     return applySuggestionImpl(
@@ -254,8 +253,7 @@ export class AiGradeService {
       },
       suggestionId,
       byAdminId,
-      verifiedTestId,
-      verifiedStudentId,
+      verified,
       overrides,
     );
   }

@@ -431,12 +431,10 @@ describe("AiGradeService.applySuggestion - Step 6 (apply-over-human-grade refusa
 
       // When + Then: applySuggestion throws the pinned verbatim message.
       await expect(
-        aiGradeService.applySuggestion(
-          suggestionId,
-          "admin-X",
-          test.id,
-          "student-1",
-        ),
+        aiGradeService.applySuggestion(suggestionId, "admin-X", {
+          testId: test.id,
+          studentId: "student-1",
+        }),
       ).rejects.toThrow(
         "This question already has a teacher-authored grade. Edit the grade directly to change it.",
       );
@@ -523,12 +521,10 @@ describe("AiGradeService.applySuggestion - Step 6", () => {
       expect(suggestion.appliedBy).toBeNull();
 
       // When: a teacher (admin-3) clicks Apply on this suggestion.
-      await aiGradeService.applySuggestion(
-        suggestion.id,
-        "admin-3",
-        test.id,
-        "student-1",
-      );
+      await aiGradeService.applySuggestion(suggestion.id, "admin-3", {
+        testId: test.id,
+        studentId: "student-1",
+      });
 
       // Then: the official grade is the suggestion's score/feedback, attributed
       // to admin-3 (gradedBy is the applier — the suggestion becomes the
@@ -621,8 +617,7 @@ describe("AiGradeService.applySuggestion - Step 6 override semantics (?? not ||)
       await aiGradeService.applySuggestion(
         suggestion.id,
         "admin-3",
-        test.id,
-        "student-1",
+        { testId: test.id, studentId: "student-1" },
         {
           scoreOverride: 0,
           feedbackOverride: "",
@@ -796,24 +791,18 @@ describe("AiGradeService.applySuggestion - Step 7 (switch applied back to a non-
       });
 
       // When: apply A first, then apply B, then switch back to A.
-      await aiGradeService.applySuggestion(
-        suggestionAId,
-        "admin-1",
-        test.id,
-        "student-1",
-      );
-      await aiGradeService.applySuggestion(
-        suggestionBId,
-        "admin-2",
-        test.id,
-        "student-1",
-      );
-      await aiGradeService.applySuggestion(
-        suggestionAId,
-        "admin-3",
-        test.id,
-        "student-1",
-      );
+      await aiGradeService.applySuggestion(suggestionAId, "admin-1", {
+        testId: test.id,
+        studentId: "student-1",
+      });
+      await aiGradeService.applySuggestion(suggestionBId, "admin-2", {
+        testId: test.id,
+        studentId: "student-1",
+      });
+      await aiGradeService.applySuggestion(suggestionAId, "admin-3", {
+        testId: test.id,
+        studentId: "student-1",
+      });
 
       // Then: the grade row reflects A's score/feedback attributed to admin-3.
       const grade = await gradeService.getGrade(test.id, q1.id, "student-1");
@@ -908,8 +897,7 @@ describe("AiGradeService.applySuggestion - Step 7 (solutionOverride precedence)"
       await aiGradeService.applySuggestion(
         suggestionId,
         "admin-3",
-        test.id,
-        "student-1",
+        { testId: test.id, studentId: "student-1" },
         {
           solutionOverride: "",
         },
@@ -977,12 +965,10 @@ describe("AiGradeService.applySuggestion - Step 6 (solution into grade row)", ()
         appliedBy: null,
       });
 
-      await aiGradeService.applySuggestion(
-        suggestionId,
-        "admin-2",
-        test.id,
-        "student-1",
-      );
+      await aiGradeService.applySuggestion(suggestionId, "admin-2", {
+        testId: test.id,
+        studentId: "student-1",
+      });
 
       const gradeDoc = await db.collection<GradeDocument>("grade").findOne({
         testId: test.id,
@@ -1067,12 +1053,10 @@ describe("AiGradeService.applySuggestion - the verified test and student must ma
         // The pair a real caller already checked; it no longer names the
         // suggestion's own student or test, so it must not let it through.
         await expect(
-          aiGradeService.applySuggestion(
-            suggestionId,
-            "admin-3",
-            useOtherTest ? otherTest.id : test.id,
-            verifiedStudentId,
-          ),
+          aiGradeService.applySuggestion(suggestionId, "admin-3", {
+            testId: useOtherTest ? otherTest.id : test.id,
+            studentId: verifiedStudentId,
+          }),
         ).rejects.toThrow("Suggestion not found");
 
         const grade = await services.gradeService.getGrade(
@@ -1280,12 +1264,10 @@ describe("AiGradeService.applySuggestion - Step 6 (apply-over-human-grade refusa
 
       // When + Then: applySuggestion throws the pinned verbatim message.
       await expect(
-        aiGradeService.applySuggestion(
-          suggestionId,
-          "admin-X",
-          test.id,
-          "student-1",
-        ),
+        aiGradeService.applySuggestion(suggestionId, "admin-X", {
+          testId: test.id,
+          studentId: "student-1",
+        }),
       ).rejects.toThrow(
         "This question already has a teacher-authored grade. Edit the grade directly to change it.",
       );
@@ -1372,12 +1354,10 @@ describe("AiGradeService.applySuggestion - Step 6", () => {
       expect(suggestion.appliedBy).toBeNull();
 
       // When: a teacher (admin-3) clicks Apply on this suggestion.
-      await aiGradeService.applySuggestion(
-        suggestion.id,
-        "admin-3",
-        test.id,
-        "student-1",
-      );
+      await aiGradeService.applySuggestion(suggestion.id, "admin-3", {
+        testId: test.id,
+        studentId: "student-1",
+      });
 
       // Then: the official grade is the suggestion's score/feedback, attributed
       // to admin-3 (gradedBy is the applier — the suggestion becomes the
@@ -1470,8 +1450,7 @@ describe("AiGradeService.applySuggestion - Step 6 override semantics (?? not ||)
       await aiGradeService.applySuggestion(
         suggestion.id,
         "admin-3",
-        test.id,
-        "student-1",
+        { testId: test.id, studentId: "student-1" },
         {
           scoreOverride: 0,
           feedbackOverride: "",
@@ -1645,24 +1624,18 @@ describe("AiGradeService.applySuggestion - Step 7 (switch applied back to a non-
       });
 
       // When: apply A first, then apply B, then switch back to A.
-      await aiGradeService.applySuggestion(
-        suggestionAId,
-        "admin-1",
-        test.id,
-        "student-1",
-      );
-      await aiGradeService.applySuggestion(
-        suggestionBId,
-        "admin-2",
-        test.id,
-        "student-1",
-      );
-      await aiGradeService.applySuggestion(
-        suggestionAId,
-        "admin-3",
-        test.id,
-        "student-1",
-      );
+      await aiGradeService.applySuggestion(suggestionAId, "admin-1", {
+        testId: test.id,
+        studentId: "student-1",
+      });
+      await aiGradeService.applySuggestion(suggestionBId, "admin-2", {
+        testId: test.id,
+        studentId: "student-1",
+      });
+      await aiGradeService.applySuggestion(suggestionAId, "admin-3", {
+        testId: test.id,
+        studentId: "student-1",
+      });
 
       // Then: the grade row reflects A's score/feedback attributed to admin-3.
       const grade = await gradeService.getGrade(test.id, q1.id, "student-1");
@@ -1757,8 +1730,7 @@ describe("AiGradeService.applySuggestion - Step 7 (solutionOverride precedence)"
       await aiGradeService.applySuggestion(
         suggestionId,
         "admin-3",
-        test.id,
-        "student-1",
+        { testId: test.id, studentId: "student-1" },
         {
           solutionOverride: "",
         },
@@ -1826,12 +1798,10 @@ describe("AiGradeService.applySuggestion - Step 6 (solution into grade row)", ()
         appliedBy: null,
       });
 
-      await aiGradeService.applySuggestion(
-        suggestionId,
-        "admin-2",
-        test.id,
-        "student-1",
-      );
+      await aiGradeService.applySuggestion(suggestionId, "admin-2", {
+        testId: test.id,
+        studentId: "student-1",
+      });
 
       const gradeDoc = await db.collection<GradeDocument>("grade").findOne({
         testId: test.id,
