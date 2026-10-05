@@ -77,10 +77,7 @@ export class AnswerService {
   async submitAnswer(input: SubmitAnswerInput): Promise<Answer> {
     // Resolve the test before anything else — a missing test must never
     // fall through to "no time limit" and accept the write.
-    const test = await this.testService.getTest(input.testId);
-    if (!test) {
-      throw new Error("Test not found");
-    }
+    const test = await this.testService.requireTest(input.testId);
 
     // Reject writes past the enforcement deadline before any validation or
     // persistence, so a late write changes nothing. Uses the same deadline

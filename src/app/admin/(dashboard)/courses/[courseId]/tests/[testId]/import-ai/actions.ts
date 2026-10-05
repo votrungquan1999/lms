@@ -369,7 +369,11 @@ export async function importAiQuestionsAction(
         if (mode === "replace") {
           const existing = await questionService.listQuestions(testId);
           for (const question of existing) {
-            await questionService.deleteQuestion(question.id, adminUserId);
+            await questionService.deleteQuestion(
+              testId,
+              question.id,
+              adminUserId,
+            );
           }
         }
 

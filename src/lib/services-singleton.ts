@@ -37,6 +37,7 @@ import { UserRoleService } from "./user-role-service";
 // One instance per school: a school-bound service never serves another school,
 // and a dependent is only ever built from its own school's instances.
 const aiGradeServices = new Map<string, AiGradeService>();
+const annotationServices = new Map<string, AnnotationService>();
 const answerServices = new Map<string, AnswerService>();
 const courseJoinRequestServices = new Map<string, CourseJoinRequestService>();
 const courseServices = new Map<string, CourseService>();
@@ -48,13 +49,12 @@ const questionPoolServices = new Map<string, QuestionPoolService>();
 const questionServices = new Map<string, QuestionService>();
 const redoRequestServices = new Map<string, RedoRequestService>();
 const studentServices = new Map<string, StudentService>();
+const testFeedbackServices = new Map<string, TestFeedbackService>();
 const testServices = new Map<string, TestService>();
 const testStatusServices = new Map<string, TestStatusService>();
 const testSubmissionServices = new Map<string, TestSubmissionService>();
 
-let annotationService: AnnotationService | null = null;
 let testStartService: TestStartService | null = null;
-let testFeedbackService: TestFeedbackService | null = null;
 let questionChangeLogService: QuestionChangeLogService | null = null;
 let questionParseClient: QuestionParseClient | null = null;
 let s3StorageService: S3StorageService | null = null;
@@ -130,6 +130,7 @@ export async function getAiGradeService(
     const questionService = await getQuestionService(schoolId);
     const answerService = await getAnswerService(schoolId);
     const gradeService = await getGradeService(schoolId);
+    const testService = await getTestService(schoolId);
     return tracedService(
       new AiGradeService(
         db,
@@ -137,6 +138,7 @@ export async function getAiGradeService(
         questionService,
         answerService,
         gradeService,
+        testService,
       ),
       "aiGrade",
     );
@@ -211,19 +213,32 @@ export async function getGradeService(schoolId: string): Promise<GradeService> {
     const questionService = await getQuestionService(schoolId);
     const answerService = await getAnswerService(schoolId);
     const visibility = await getGradeVisibilityService(schoolId);
+    const testService = await getTestService(schoolId);
     return tracedService(
-      new GradeService(db, questionService, answerService, visibility),
+      new GradeService(
+        db,
+        questionService,
+        answerService,
+        visibility,
+        testService,
+      ),
       "grade",
     );
   });
 }
 
-export async function getAnnotationService(): Promise<AnnotationService> {
-  if (!annotationService) {
+/**
+ * Returns the school's `AnnotationService`, built on that school's tests.
+ * @param schoolId - The verified session's school.
+ */
+export async function getAnnotationService(
+  schoolId: string,
+): Promise<AnnotationService> {
+  return forSchool(annotationServices, schoolId, async () => {
     const db = await getDatabase();
-    annotationService = tracedService(new AnnotationService(db), "annotation");
-  }
-  return annotationService;
+    const testService = await getTestService(schoolId);
+    return tracedService(new AnnotationService(db, testService), "annotation");
+  });
 }
 
 /**
@@ -254,19 +269,26 @@ export async function getGradeVisibilityService(
 export async function getTestService(schoolId: string): Promise<TestService> {
   return forSchool(testServices, schoolId, async () => {
     const db = await getDatabase();
-    return tracedService(new TestService(db, schoolId), "test");
+    const courseService = await getCourseService(schoolId);
+    return tracedService(new TestService(db, schoolId, courseService), "test");
   });
 }
 
-export async function getTestFeedbackService(): Promise<TestFeedbackService> {
-  if (!testFeedbackService) {
+/**
+ * Returns the school's `TestFeedbackService`, built on that school's tests.
+ * @param schoolId - The verified session's school.
+ */
+export async function getTestFeedbackService(
+  schoolId: string,
+): Promise<TestFeedbackService> {
+  return forSchool(testFeedbackServices, schoolId, async () => {
     const db = await getDatabase();
-    testFeedbackService = tracedService(
-      new TestFeedbackService(db),
+    const testService = await getTestService(schoolId);
+    return tracedService(
+      new TestFeedbackService(db, testService),
       "testFeedback",
     );
-  }
-  return testFeedbackService;
+  });
 }
 
 /**
@@ -319,11 +341,11 @@ export async function getTestStatusService(
 }
 
 /**
- * Returns the school's `QuestionService`. Constructed WITH a lazy
- * `getAnswerService` thunk, not an instance — `AnswerService` itself depends
- * on `QuestionService`, so passing an instance here would be a construction
- * cycle. Same shape as `getGradeVisibilityService`'s `getTestSubmissionService`
- * thunk above.
+ * Returns the school's `QuestionService`, built on that school's tests.
+ * Constructed WITH a lazy `getAnswerService` thunk, not an instance —
+ * `AnswerService` itself depends on `QuestionService`, so passing an instance
+ * here would be a construction cycle. Same shape as
+ * `getGradeVisibilityService`'s `getTestSubmissionService` thunk above.
  * @param schoolId - The verified session's school.
  */
 export async function getQuestionService(
@@ -331,9 +353,10 @@ export async function getQuestionService(
 ): Promise<QuestionService> {
   return forSchool(questionServices, schoolId, async () => {
     const db = await getDatabase();
+    const testService = await getTestService(schoolId);
     const changeLogService = await getQuestionChangeLogService();
     return tracedService(
-      new QuestionService(db, changeLogService, () =>
+      new QuestionService(db, testService, changeLogService, () =>
         getAnswerService(schoolId),
       ),
       "question",
@@ -373,9 +396,15 @@ export async function getPoolQuestionService(
 ): Promise<PoolQuestionService> {
   return forSchool(poolQuestionServices, schoolId, async () => {
     const db = await getDatabase();
+    const questionPoolService = await getQuestionPoolService(schoolId);
     const changeLogService = await getQuestionChangeLogService();
     return tracedService(
-      new PoolQuestionService(db, schoolId, changeLogService),
+      new PoolQuestionService(
+        db,
+        schoolId,
+        questionPoolService,
+        changeLogService,
+      ),
       "poolQuestion",
     );
   });

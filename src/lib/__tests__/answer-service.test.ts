@@ -7,9 +7,9 @@ import {
 } from "src/lib/answer-service";
 import type { QuestionDocument } from "src/lib/question-service";
 import { QuestionService } from "src/lib/question-service";
-import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
-import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import { buildTestService } from "src/tests/build-test-service";
+import { withTestDb } from "src/tests/create-test-db";
 import { insertRawTest } from "src/tests/insert-raw-test";
 import { describe, expect, it } from "vitest";
 
@@ -51,11 +51,11 @@ describe("AnswerService - Integration Tests", () => {
     async ({ db }) => {
       await insertRawTest(db, "test-1");
       await insertRawTest(db, "test-mc");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -103,11 +103,11 @@ describe("AnswerService - Integration Tests", () => {
     async ({ db }) => {
       await insertRawTest(db, "test-1");
       await insertRawTest(db, "test-mc");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -167,11 +167,11 @@ describe("AnswerService - Integration Tests", () => {
     await insertRawTest(db, "test-1");
     await insertRawTest(db, "test-mc");
     await seedQuestion(db, "test-1", "q-1");
-    const questionService = new QuestionService(db);
+    const questionService = new QuestionService(db, buildTestService(db));
     const answerService = new AnswerService(
       db,
       questionService,
-      new TestService(db, TEST_SCHOOL_ID),
+      buildTestService(db),
       new TestStartService(db),
     );
 
@@ -197,11 +197,11 @@ describe("AnswerService - Integration Tests", () => {
     await insertRawTest(db, "test-1");
     await insertRawTest(db, "test-mc");
     await seedQuestion(db, "test-1", "q-1");
-    const questionService = new QuestionService(db);
+    const questionService = new QuestionService(db, buildTestService(db));
     const answerService = new AnswerService(
       db,
       questionService,
-      new TestService(db, TEST_SCHOOL_ID),
+      buildTestService(db),
       new TestStartService(db),
     );
 
@@ -231,11 +231,11 @@ describe("AnswerService - Integration Tests", () => {
     async ({ db }) => {
       await insertRawTest(db, "test-1");
       await insertRawTest(db, "test-mc");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -262,11 +262,11 @@ describe("AnswerService - Integration Tests", () => {
       await insertRawTest(db, "test-1");
       await insertRawTest(db, "test-mc");
       await seedQuestion(db, "test-1", "q-1");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -295,11 +295,11 @@ describe("AnswerService - Integration Tests", () => {
       await insertRawTest(db, "test-mc");
       await seedQuestion(db, "test-1", "q-1");
       await seedQuestion(db, "test-1", "q-2");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -341,11 +341,11 @@ describe("AnswerService - Integration Tests", () => {
   dbIt("should return empty array when no answers exist", async ({ db }) => {
     await insertRawTest(db, "test-1");
     await insertRawTest(db, "test-mc");
-    const questionService = new QuestionService(db);
+    const questionService = new QuestionService(db, buildTestService(db));
     const answerService = new AnswerService(
       db,
       questionService,
-      new TestService(db, TEST_SCHOOL_ID),
+      buildTestService(db),
       new TestStartService(db),
     );
 
@@ -362,11 +362,11 @@ describe("AnswerService - MC Answer Validation", () => {
     async ({ db }) => {
       await insertRawTest(db, "test-1");
       await insertRawTest(db, "test-mc");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -397,11 +397,11 @@ describe("AnswerService - MC Answer Validation", () => {
     async ({ db }) => {
       await insertRawTest(db, "test-1");
       await insertRawTest(db, "test-mc");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -432,11 +432,11 @@ describe("AnswerService - MC Answer Validation", () => {
     async ({ db }) => {
       await insertRawTest(db, "test-1");
       await insertRawTest(db, "test-mc");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -474,11 +474,11 @@ describe("AnswerService - Attempt Counts", () => {
       await insertRawTest(db, "test-mc");
       await seedQuestion(db, "test-1", "q-1");
       await seedQuestion(db, "test-1", "q-2");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -530,11 +530,11 @@ describe("AnswerService - Answered Student Counts", () => {
       await insertRawTest(db, "test-1");
       await insertRawTest(db, "test-mc");
       await seedQuestion(db, "test-1", "q-1");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -567,11 +567,11 @@ describe("AnswerService - Answered Student Counts", () => {
       await insertRawTest(db, "test-mc");
       await seedQuestion(db, "test-1", "q-1");
       await seedQuestion(db, "test-1", "q-2");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -617,11 +617,11 @@ describe("AnswerService - Answered Student Counts", () => {
   dbIt("returns an empty map for an empty question id list", async ({ db }) => {
     await insertRawTest(db, "test-1");
     await insertRawTest(db, "test-mc");
-    const questionService = new QuestionService(db);
+    const questionService = new QuestionService(db, buildTestService(db));
     const answerService = new AnswerService(
       db,
       questionService,
-      new TestService(db, TEST_SCHOOL_ID),
+      buildTestService(db),
       new TestStartService(db),
     );
 
@@ -637,11 +637,11 @@ describe("AnswerService - Missing Test", () => {
   dbIt(
     "rejects submitAnswer for a test that doesn't exist and persists nothing",
     async ({ db }) => {
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -676,11 +676,11 @@ describe("AnswerService - Question From Another Test", () => {
         await insertRawTest(db, "test-1");
         await insertRawTest(db, "test-2");
         await seedQuestion(db, "test-2", "q-of-test-2");
-        const questionService = new QuestionService(db);
+        const questionService = new QuestionService(db, buildTestService(db));
         const answerService = new AnswerService(
           db,
           questionService,
-          new TestService(db, TEST_SCHOOL_ID),
+          buildTestService(db),
           new TestStartService(db),
         );
 

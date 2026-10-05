@@ -14,7 +14,7 @@ import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 export function makeAssembler(db: Db) {
   const core = buildCoreServices(db);
   const studentService = new StudentService(db, TEST_SCHOOL_ID);
-  const testFeedbackService = new TestFeedbackService(db);
+  const testFeedbackService = new TestFeedbackService(db, core.testService);
   const testStatusService = new TestStatusService(
     core.answerService,
     core.testSubmissionService,

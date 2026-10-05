@@ -38,8 +38,8 @@ export async function resolveOwnedTest(
 }
 
 /**
- * A question belongs to a test when its id is among that test's own
- * (non-deleted) questions, so `QuestionService` keeps its id-only signatures.
+ * A question belongs to a test when it's one of that test's own (non-deleted)
+ * questions.
  * @param questionService - The acting admin's school-bound question service.
  * @param testId - The already-verified owning test (see {@link resolveOwnedTest}).
  * @param questionId - The question the entry point was asked to act on.
@@ -50,8 +50,7 @@ export async function assertQuestionInTest(
   testId: string,
   questionId: string,
 ): Promise<void> {
-  const questions = await questionService.listQuestions(testId);
-  if (!questions.some((question) => question.id === questionId)) {
+  if (!(await questionService.getQuestion(testId, questionId))) {
     throw new Error("Question not found");
   }
 }

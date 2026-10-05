@@ -92,7 +92,7 @@ export async function GradingDetailStudent({
   // Pre-load photo URLs + annotations for image answers (the map callback
   // below is synchronous). Annotations live in their own collection, separate
   // from the grade.
-  const annotationService = await getAnnotationService();
+  const annotationService = await getAnnotationService(schoolId);
   const answerImagesMap = new Map<string, AnswerImage[]>();
   const annotationsMap = new Map<string, AnnotationEntry[]>();
   for (const [questionId, ans] of rawAnswerMap) {
@@ -108,7 +108,7 @@ export async function GradingDetailStudent({
     }
   }
 
-  const testFeedbackService = await getTestFeedbackService();
+  const testFeedbackService = await getTestFeedbackService(schoolId);
   const testFeedback = await testFeedbackService.getTestFeedback(
     testId,
     student.id,

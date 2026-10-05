@@ -3,6 +3,7 @@ import { render } from "@testing-library/react";
 import { MediaContentType } from "src/lib/question-service";
 import type { Test } from "src/lib/test-service";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -17,7 +18,8 @@ vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 const test = { id: "test-1" } as Test;
 
 beforeEach(async () => {
-  await setupTestDb();
+  const { db } = await setupTestDb();
+  await insertRawTest(db, test.id);
 });
 
 afterEach(async () => {

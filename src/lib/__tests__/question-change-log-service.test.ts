@@ -2,9 +2,9 @@
 import { AnswerService } from "src/lib/answer-service";
 import { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import { QuestionService } from "src/lib/question-service";
-import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
-import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import { buildTestService } from "src/tests/build-test-service";
+import { withTestDb } from "src/tests/create-test-db";
 import { insertRawTest } from "src/tests/insert-raw-test";
 import { describe, expect, it } from "vitest";
 
@@ -51,11 +51,11 @@ describe("QuestionChangeLogService", () => {
     "reconstructs a stranded answer's option text purely from the log row's before.options",
     async ({ db }) => {
       await insertRawTest(db, "test-1");
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
       const changeLogService = new QuestionChangeLogService(db);

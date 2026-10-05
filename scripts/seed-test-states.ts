@@ -26,7 +26,7 @@ import {
   type AiGradeSuggestionDocument,
 } from "../src/lib/ai-grade-types";
 import { AnswerService } from "../src/lib/answer-service";
-import type { CourseDocument } from "../src/lib/course-service";
+import { type CourseDocument, CourseService } from "../src/lib/course-service";
 import { EnrollmentService } from "../src/lib/enrollment-service";
 import { GradeService } from "../src/lib/grade-service";
 import { GradeVisibilityService } from "../src/lib/grade-visibility-service";
@@ -175,8 +175,12 @@ async function main() {
     });
     const schoolDirectory = new SchoolDirectory(db);
 
-    const testService = new TestService(db, school.id);
-    const questionService = new QuestionService(db);
+    const testService = new TestService(
+      db,
+      school.id,
+      new CourseService(db, school.id),
+    );
+    const questionService = new QuestionService(db, testService);
     const studentService = new StudentService(db, school.id);
     const enrollmentService = new EnrollmentService(db, school.id);
     const testStartService = new TestStartService(db);
@@ -198,6 +202,7 @@ async function main() {
       questionService,
       answerService,
       gradeVisibilityService,
+      testService,
     );
     testSubmissionService = new TestSubmissionService(
       db,

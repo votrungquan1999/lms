@@ -19,7 +19,7 @@
 
 import { type Db, MongoClient } from "mongodb";
 import { AnswerService } from "../src/lib/answer-service";
-import type { CourseDocument } from "../src/lib/course-service";
+import { type CourseDocument, CourseService } from "../src/lib/course-service";
 import { EnrollmentService } from "../src/lib/enrollment-service";
 import { GradeService } from "../src/lib/grade-service";
 import { GradeVisibilityService } from "../src/lib/grade-visibility-service";
@@ -251,8 +251,12 @@ async function main() {
     const schoolId = course.schoolId;
     const schoolDirectory = new SchoolDirectory(db);
 
-    const testService = new TestService(db, schoolId);
-    const questionService = new QuestionService(db);
+    const testService = new TestService(
+      db,
+      schoolId,
+      new CourseService(db, schoolId),
+    );
+    const questionService = new QuestionService(db, testService);
     const studentService = new StudentService(db, schoolId);
     const enrollmentService = new EnrollmentService(db, schoolId);
     const testStartService = new TestStartService(db);
@@ -272,6 +276,7 @@ async function main() {
       questionService,
       answerService,
       gradeVisibilityService,
+      testService,
     );
     testSubmissionService = new TestSubmissionService(
       db,

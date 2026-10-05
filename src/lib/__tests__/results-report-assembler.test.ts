@@ -1,5 +1,6 @@
 import { QuestionGradeStatus } from "src/lib/results-report-assembler";
 import { withTestDb } from "src/tests/create-test-db";
+import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 import { createAlice, makeAssembler } from "./results-report-assembler.helpers";
 
@@ -12,6 +13,7 @@ describe("ResultsReportAssembler.buildReport — per-test summary", () => {
       // Given an enrolled student "Alice" and three tests A, B, C, where A and
       // B have a graded, submitted answer and overall feedback recorded.
       const courseId = "course-1";
+      await insertRawCourses(db, [courseId]);
       const {
         assembler,
         studentService,
@@ -113,6 +115,7 @@ describe("ResultsReportAssembler.buildReport — per-test summary", () => {
   dbIt(
     "shows a submitted blank as Graded with score 0 while an answered, ungraded question beside it stays Pending",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given a 3-question test where the student answered and got graded
       // on Q1, left Q2 entirely blank, answered Q3 (not graded yet), then
       // submitted.
@@ -196,6 +199,7 @@ describe("ResultsReportAssembler.buildReport — per-test summary", () => {
   dbIt(
     "flags an answered photo question as answered even though it has no text to show",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given a submitted test whose only question takes a photo, answered
       // and scored a genuine 0 — its display text is always empty.
       const {
@@ -251,6 +255,7 @@ describe("ResultsReportAssembler.buildReport — per-test summary", () => {
   dbIt(
     "keeps an unanswered question Pending, not 0, while the student has not submitted",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given a 2-question test the student is still working on: Q1
       // answered, Q2 not reached yet, no submission.
       const {

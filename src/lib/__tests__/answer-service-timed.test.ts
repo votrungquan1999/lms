@@ -2,6 +2,7 @@ import type { Db } from "mongodb";
 import type { QuestionDocument } from "src/lib/question-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
+import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -44,6 +45,7 @@ async function seedQuestion(db: Db, testId: string, id: string): Promise<void> {
  * whose clock is pinned to a given instant.
  */
 async function seedTimedTest(db: Db) {
+  await insertRawCourses(db, ["course-1"]);
   const setup = buildCoreServices(db);
   const test = await setup.testService.createTest("course-1", {
     title: "Timed",
@@ -126,6 +128,7 @@ describe("AnswerService — timed enforcement", () => {
   });
 
   dbIt("never rejects an answer write on an untimed test", async ({ db }) => {
+    await insertRawCourses(db, ["course-1"]);
     // Given an untimed test, started at T1, clock far in the future.
     const setup = buildCoreServices(db);
     const test = await setup.testService.createTest("course-1", {

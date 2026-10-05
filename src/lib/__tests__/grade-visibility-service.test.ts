@@ -1,6 +1,7 @@
 import { TestStatus } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
+import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -19,6 +20,7 @@ describe("GradeVisibilityService.canRevealGrades", () => {
       // Course + test with EVERY tier flipped to "visible" — the only thing
       // that should still gate is the testStatus.
       const courseId = "c1";
+      await insertRawCourses(db, [courseId]);
       const test = await testService.createTest(courseId, {
         title: "T",
         description: "",
@@ -53,6 +55,7 @@ describe("GradeVisibilityService.canRevealGrades", () => {
   dbIt(
     "returns false when none of the three reveal tiers is satisfied",
     async ({ db }) => {
+      await insertRawCourses(db, ["c1"]);
       const {
         testService,
         testSubmissionService,
@@ -82,6 +85,7 @@ describe("GradeVisibilityService.canRevealGrades", () => {
   dbIt(
     "returns true when showGradeAfterSubmit is set (no submission lookup needed)",
     async ({ db }) => {
+      await insertRawCourses(db, ["c1"]);
       const {
         testService,
         testSubmissionService,
@@ -110,6 +114,7 @@ describe("GradeVisibilityService.canRevealGrades", () => {
   dbIt(
     "returns true when gradesReleasedAt is set on the test",
     async ({ db }) => {
+      await insertRawCourses(db, ["c1"]);
       const {
         testService,
         testSubmissionService,
@@ -138,6 +143,7 @@ describe("GradeVisibilityService.canRevealGrades", () => {
   dbIt(
     "returns true when the active submission has releasedAt set (per-student tier)",
     async ({ db }) => {
+      await insertRawCourses(db, ["c1"]);
       const {
         testService,
         testSubmissionService,
@@ -171,6 +177,7 @@ describe("GradeVisibilityService.canRevealGrades", () => {
   dbIt(
     "returns false when only a soft-deleted submission carries a stale releasedAt",
     async ({ db }) => {
+      await insertRawCourses(db, ["c1"]);
       const {
         testService,
         testSubmissionService,
@@ -211,6 +218,7 @@ describe("GradeVisibilityService.getStudentFacingStatus", () => {
   dbIt(
     "reads as Submitted for a Graded test when grades are withheld from the student",
     async ({ db }) => {
+      await insertRawCourses(db, ["c1"]);
       const {
         testService,
         testSubmissionService,
@@ -239,6 +247,7 @@ describe("GradeVisibilityService.getStudentFacingStatus", () => {
   dbIt(
     "reads as Graded for a Graded test once grades are visible to the student",
     async ({ db }) => {
+      await insertRawCourses(db, ["c1"]);
       const {
         testService,
         testSubmissionService,
@@ -266,6 +275,7 @@ describe("GradeVisibilityService.getStudentFacingStatus", () => {
   dbIt(
     "passes a not-started or in-progress status through unchanged while grades are withheld",
     async ({ db }) => {
+      await insertRawCourses(db, ["c1"]);
       const { testService, gradeVisibilityService: visibility } =
         buildCoreServices(db);
 

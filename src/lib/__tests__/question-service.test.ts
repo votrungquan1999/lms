@@ -4,6 +4,7 @@ import type { GradeDocument } from "src/lib/grade-service";
 import { PoolQuestionService } from "src/lib/pool-question-service";
 import { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
+import { QuestionPoolService } from "src/lib/question-pool-service";
 import {
   checkMcOptions,
   type FreeTextQuestion,
@@ -14,9 +15,10 @@ import {
   QuestionService,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
-import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
+import { buildTestService } from "src/tests/build-test-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import { insertRawPool } from "src/tests/insert-raw-pool";
 import { insertRawTest } from "src/tests/insert-raw-test";
 import { describe, expect, it } from "vitest";
 
@@ -26,7 +28,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "should store type, options, weight, and mcGradingStrategy when admin creates a single_select question",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "What is 2 + 2?",
@@ -54,7 +57,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "should persist and read back an explanation on a single_select question, leaving it undefined when omitted",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await service.addQuestion("test-1", {
         title: "What is 2 + 2?",
@@ -89,7 +93,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "should persist and read back a referenceAnswer and explanation on a free_text question, leaving them undefined when omitted",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await service.addQuestion("test-1", {
         title: "Explain photosynthesis.",
@@ -122,7 +127,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "should reject single_select creation when no option is marked correct",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await expect(
         service.addQuestion("test-1", {
@@ -144,7 +150,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "should reject single_select creation when more than one option is marked correct",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await expect(
         service.addQuestion("test-1", {
@@ -166,7 +173,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "should store a multi_select question with multiple correct options",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Which are even numbers?",
@@ -193,7 +201,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "should reject multi_select creation when no option is marked correct",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await expect(
         service.addQuestion("test-1", {
@@ -214,7 +223,8 @@ describe("QuestionService - Integration Tests", () => {
   );
 
   dbIt("should add a question with raw markdown content", async ({ db }) => {
-    const service = new QuestionService(db);
+    await insertRawTest(db, "test-1");
+    const service = new QuestionService(db, buildTestService(db));
     const markdownContent = `## Question 1\n\nWrite a function that sorts an array using **merge sort**.\n\n\`\`\`python\ndef merge_sort(arr):\n    # Your code here\n    pass\n\`\`\``;
 
     const question = await service.addQuestion("test-1", {
@@ -232,7 +242,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "should store an image_answer question and map it back as image_answer",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Solve the integral",
@@ -246,7 +257,8 @@ describe("QuestionService - Integration Tests", () => {
   );
 
   dbIt("should assign increasing order numbers", async ({ db }) => {
-    const service = new QuestionService(db);
+    await insertRawTest(db, "test-1");
+    const service = new QuestionService(db, buildTestService(db));
 
     const q1 = await service.addQuestion("test-1", {
       title: "Q1",
@@ -264,7 +276,8 @@ describe("QuestionService - Integration Tests", () => {
   });
 
   dbIt("should list questions ordered by order field", async ({ db }) => {
-    const service = new QuestionService(db);
+    await insertRawTest(db, "test-1");
+    const service = new QuestionService(db, buildTestService(db));
     await service.addQuestion("test-1", {
       title: "Q1",
       content: "First",
@@ -284,7 +297,8 @@ describe("QuestionService - Integration Tests", () => {
   });
 
   dbIt("should bulk import questions with correct ordering", async ({ db }) => {
-    const service = new QuestionService(db);
+    await insertRawTest(db, "test-1");
+    const service = new QuestionService(db, buildTestService(db));
 
     const imported = await service.importQuestions(
       "test-1",
@@ -303,7 +317,8 @@ describe("QuestionService - Integration Tests", () => {
   });
 
   dbIt("should continue ordering after existing questions", async ({ db }) => {
-    const service = new QuestionService(db);
+    await insertRawTest(db, "test-1");
+    const service = new QuestionService(db, buildTestService(db));
     await service.addQuestion("test-1", {
       title: "Existing",
       content: "Already here",
@@ -322,7 +337,8 @@ describe("QuestionService - Integration Tests", () => {
   });
 
   dbIt("should return empty array when importing nothing", async ({ db }) => {
-    const service = new QuestionService(db);
+    await insertRawTest(db, "test-1");
+    const service = new QuestionService(db, buildTestService(db));
 
     const result = await service.importQuestions("test-1", [], "admin-1");
 
@@ -332,7 +348,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "should persist ordered media keys and round-trip them back in order without a URL",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await service.addQuestion("test-1", {
         title: "Diagram question",
@@ -378,7 +395,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "should return media: [] for a question created without media and for imported questions",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await service.addQuestion("test-1", {
         title: "Plain question",
@@ -406,7 +424,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "composeFromPools snapshots the drawn pool questions into the test with fresh ids and copied media",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const composed = await service.composeFromPools(
         "test-1",
@@ -468,7 +487,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "composeFromPools carries a pooled single_select question's explanation into the composed test question",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await service.composeFromPools(
         "test-1",
@@ -511,7 +531,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "composeFromPools carries a pooled free_text question's referenceAnswer into the composed test question",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await service.composeFromPools(
         "test-1",
@@ -549,8 +570,14 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "traces an answerRevealMode override end-to-end: authored on a pool question, composed into a test, readable on the composed question — while a pool question with no override composes as undefined",
     async ({ db }) => {
-      const poolQuestionService = new PoolQuestionService(db, TEST_SCHOOL_ID);
-      const questionService = new QuestionService(db);
+      await insertRawPool(db, "pool-1");
+      await insertRawTest(db, "test-1");
+      const poolQuestionService = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
+      const questionService = new QuestionService(db, buildTestService(db));
 
       await poolQuestionService.addPoolQuestion("pool-1", {
         title: "Pool question with override",
@@ -587,7 +614,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "composeFromPools appends after existing questions, draws across pools, and caps count at the pool size",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await service.addQuestion("test-1", {
         title: "Existing",
@@ -622,7 +650,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "composeFromPools with all counts zero stores nothing",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const composed = await service.composeFromPools(
         "test-1",
@@ -643,7 +672,8 @@ describe("QuestionService - Integration Tests", () => {
   dbIt(
     "a composed set is identical across repeated reads (every student sees the same questions)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await service.composeFromPools(
         "test-1",
@@ -676,7 +706,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   dbIt(
     "switches a free_text question's answer-reveal override and stamps who/when",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Explain gravity",
@@ -685,6 +716,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       });
 
       await service.updateQuestion(
+        question.testId,
         question.id,
         { answerRevealMode: "plain" },
         "admin-2",
@@ -708,7 +740,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   dbIt(
     "clears the override back to inheriting the test's default, distinct from switching it",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Explain gravity",
@@ -718,6 +751,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       });
 
       await service.updateQuestion(
+        question.testId,
         question.id,
         { answerRevealMode: null },
         "admin-2",
@@ -734,7 +768,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   dbIt(
     "corrects a free_text question's model answer and explanation (Step 20)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Explain gravity",
@@ -743,6 +778,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       });
 
       await service.updateQuestion(
+        question.testId,
         question.id,
         {
           referenceAnswer: "Objects with mass attract each other.",
@@ -766,7 +802,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   dbIt(
     "clears a model answer and explanation back to absent, not empty string (Step 20)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Explain gravity",
@@ -777,6 +814,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       });
 
       await service.updateQuestion(
+        question.testId,
         question.id,
         { referenceAnswer: null, explanation: null },
         "admin-2",
@@ -793,7 +831,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   dbIt(
     "leaves referenceAnswer and answerRevealMode untouched when only explanation is corrected (Step 20)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Explain gravity",
@@ -805,6 +844,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       });
 
       await service.updateQuestion(
+        question.testId,
         question.id,
         { explanation: "Newton's law, corrected." },
         "admin-2",
@@ -824,7 +864,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   dbIt(
     "corrects a multiple-choice question's explanation — the column it shares with free_text (Step 20)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "What is 2 + 2?",
@@ -838,6 +879,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       });
 
       await service.updateQuestion(
+        question.testId,
         question.id,
         { explanation: "4 is the sum of 2 and 2." },
         "admin-2",
@@ -851,7 +893,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   );
 
   dbIt("corrects a question's title and content (Step 26)", async ({ db }) => {
-    const service = new QuestionService(db);
+    await insertRawTest(db, "test-1");
+    const service = new QuestionService(db, buildTestService(db));
 
     const question = await service.addQuestion("test-1", {
       title: "Explain gravity",
@@ -860,6 +903,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
     });
 
     await service.updateQuestion(
+      question.testId,
       question.id,
       {
         title: "Explain gravity (revised)",
@@ -876,7 +920,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   dbIt(
     "leaves title and content untouched when only another field is corrected (Step 26 — absent-key pin)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Explain gravity",
@@ -886,6 +931,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
 
       // title/content are absent from this input — only explanation changes.
       await service.updateQuestion(
+        question.testId,
         question.id,
         { explanation: "Focus on mass, not weight." },
         "admin-2",
@@ -903,7 +949,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   dbIt(
     "leaves a student's submitted answer and grade byte-identical (Step 21 — regression pin, no production change)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Explain gravity",
@@ -942,6 +989,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       // so exercise every field this batch DOES own instead): reveal mode,
       // model answer, and explanation.
       await service.updateQuestion(
+        question.testId,
         question.id,
         {
           answerRevealMode: "plain",
@@ -968,7 +1016,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   dbIt(
     "rewrites a single_select question's options, preserving ids for options that are kept and minting a fresh id only for the genuinely new one (Step 27 / D53)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = (await service.addQuestion("test-1", {
         title: "Pick the capital",
@@ -983,6 +1032,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
       const [parisId, londonId] = question.options.map((o) => o.id);
 
       await service.updateQuestion(
+        question.testId,
         question.id,
         {
           options: [
@@ -1017,7 +1067,8 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
   dbIt(
     "rejects an options edit that leaves a single_select question with no correct option (Step 27 — the MC rule is re-run, not bypassed)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = (await service.addQuestion("test-1", {
         title: "Pick the capital",
@@ -1033,6 +1084,7 @@ describe("updateQuestion — a teacher corrects a question they already wrote (S
 
       await expect(
         service.updateQuestion(
+          question.testId,
           question.id,
           {
             options: [
@@ -1060,7 +1112,8 @@ describe("updateQuestion — a teacher changes a question's type (Step 28 / D46)
   dbIt(
     "switches a free_text question into single_select, clearing fields the new type cannot hold while keeping the shared explanation (Step 28 / D54)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Explain gravity",
@@ -1072,6 +1125,7 @@ describe("updateQuestion — a teacher changes a question's type (Step 28 / D46)
       });
 
       await service.updateQuestion(
+        question.testId,
         question.id,
         {
           type: "single_select",
@@ -1106,7 +1160,8 @@ describe("updateQuestion — a teacher changes a question's type (Step 28 / D46)
   dbIt(
     "switches a single_select question back to free_text, clearing its options and grading strategy (Step 28 / D54)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Pick the capital",
@@ -1126,6 +1181,7 @@ describe("updateQuestion — a teacher changes a question's type (Step 28 / D46)
       });
 
       await service.updateQuestion(
+        question.testId,
         question.id,
         { type: "free_text" },
         "admin-2",
@@ -1151,7 +1207,8 @@ describe("updateQuestion — a teacher changes a question's type (Step 28 / D46)
   dbIt(
     "rejects switching a question into single_select without providing a valid option set (Step 28 — no valid intermediate state)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Explain gravity",
@@ -1161,6 +1218,7 @@ describe("updateQuestion — a teacher changes a question's type (Step 28 / D46)
 
       await expect(
         service.updateQuestion(
+          question.testId,
           question.id,
           { type: "single_select" },
           "admin-2",
@@ -1177,7 +1235,8 @@ describe("updateQuestion — a teacher changes a question's type (Step 28 / D46)
   dbIt(
     "does not touch options or type when neither is part of the input (Step 28 — absent-key pin, e.g. a title-only correction)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       // A keyless MC question (D32/D44) — an update that never mentions
       // type/options must not re-run the MC rule against it and fail.
@@ -1197,6 +1256,7 @@ describe("updateQuestion — a teacher changes a question's type (Step 28 / D46)
       );
 
       await service.updateQuestion(
+        question.testId,
         question.id,
         { title: "Pick one (revised)" },
         "admin-2",
@@ -1217,9 +1277,13 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
     async ({ db }) => {
       await insertRawTest(db, "test-1");
       const changeLogService = new QuestionChangeLogService(db);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
       const testStartService = new TestStartService(db);
-      const questionService = new QuestionService(db, changeLogService);
+      const questionService = new QuestionService(
+        db,
+        buildTestService(db),
+        changeLogService,
+      );
       const answerService = new AnswerService(
         db,
         questionService,
@@ -1230,6 +1294,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
       // JSDoc) — here it just always resolves to the one instance above.
       const questionServiceWithLogging = new QuestionService(
         db,
+        buildTestService(db),
         changeLogService,
         () => Promise.resolve(answerService),
       );
@@ -1255,6 +1320,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
       });
 
       await questionServiceWithLogging.updateQuestion(
+        question.testId,
         question.id,
         { referenceAnswer: "Objects with mass attract each other." },
         "admin-2",
@@ -1280,8 +1346,13 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
   dbIt(
     "writes no row when the save doesn't actually change anything",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const changeLogService = new QuestionChangeLogService(db);
-      const questionService = new QuestionService(db, changeLogService);
+      const questionService = new QuestionService(
+        db,
+        buildTestService(db),
+        changeLogService,
+      );
 
       const question = await questionService.addQuestion("test-1", {
         title: "Explain gravity",
@@ -1292,6 +1363,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
 
       // Same value the question already holds — nothing actually changes.
       await questionService.updateQuestion(
+        question.testId,
         question.id,
         { referenceAnswer: "Same answer" },
         "admin-2",
@@ -1308,8 +1380,13 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
   dbIt(
     "logs a type change together with the before-value of a field it cleared, so a mis-click is recoverable by hand (Step 28 / D54)",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const changeLogService = new QuestionChangeLogService(db);
-      const questionService = new QuestionService(db, changeLogService);
+      const questionService = new QuestionService(
+        db,
+        buildTestService(db),
+        changeLogService,
+      );
 
       const question = await questionService.addQuestion("test-1", {
         title: "Explain gravity",
@@ -1319,6 +1396,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
       });
 
       await questionService.updateQuestion(
+        question.testId,
         question.id,
         {
           type: "single_select",
@@ -1349,8 +1427,13 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
   dbIt(
     "writes no row when an options save carries the same values, even though it's a new array reference (Step 27 — value comparison, not identity, for array fields)",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const changeLogService = new QuestionChangeLogService(db);
-      const questionService = new QuestionService(db, changeLogService);
+      const questionService = new QuestionService(
+        db,
+        buildTestService(db),
+        changeLogService,
+      );
 
       const question = (await questionService.addQuestion("test-1", {
         title: "Pick the capital",
@@ -1367,6 +1450,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
       // A brand-new array object, but every option's id/text/isCorrect is
       // identical to what's already stored — a genuine no-op.
       await questionService.updateQuestion(
+        question.testId,
         question.id,
         {
           options: [
@@ -1390,9 +1474,13 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
     async ({ db }) => {
       await insertRawTest(db, "test-1");
       const changeLogService = new QuestionChangeLogService(db);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
       const testStartService = new TestStartService(db);
-      const questionService = new QuestionService(db, changeLogService);
+      const questionService = new QuestionService(
+        db,
+        buildTestService(db),
+        changeLogService,
+      );
       const answerService = new AnswerService(
         db,
         questionService,
@@ -1401,6 +1489,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
       );
       const questionServiceWithLogging = new QuestionService(
         db,
+        buildTestService(db),
         changeLogService,
         () => Promise.resolve(answerService),
       );
@@ -1429,6 +1518,7 @@ describe("updateQuestion — records a change-log entry (Step 24 / D48)", () => 
       // The teacher removes "London" (the option the student chose) and adds
       // "Berlin" — through the real edit path, not a direct collection write.
       await questionServiceWithLogging.updateQuestion(
+        question.testId,
         question.id,
         {
           options: [
@@ -1464,8 +1554,14 @@ describe("composeFromPools isolation (Step 22 — regression pin, no production 
   dbIt(
     "editing a composed question does not change the pool question it was drawn from",
     async ({ db }) => {
-      const questionService = new QuestionService(db);
-      const poolQuestionService = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      await insertRawTest(db, "test-1");
+      const questionService = new QuestionService(db, buildTestService(db));
+      const poolQuestionService = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       const poolQuestion = await poolQuestionService.addPoolQuestion("pool-1", {
         title: "Explain gravity",
@@ -1487,6 +1583,7 @@ describe("composeFromPools isolation (Step 22 — regression pin, no production 
       // Edit the composed copy — new ids, no pool backlink, structurally
       // isolated from the pool per `composeFromPools`'s own doc comment.
       await questionService.updateQuestion(
+        composed[0].testId,
         composed[0].id,
         {
           answerRevealMode: "plain",
@@ -1507,11 +1604,60 @@ describe("composeFromPools isolation (Step 22 — regression pin, no production 
   );
 });
 
+/**
+ * Feature: a question is found only through its own test
+ * As a grading or editing entry point
+ * I want one direct lookup of a test's own live question
+ * So that a question id from another test, or a deleted one, is never accepted
+ */
+describe("getQuestion — a question is found only through its own test", () => {
+  dbIt("returns the test's own live question", async ({ db }) => {
+    await insertRawTest(db, "test-1");
+    const service = new QuestionService(db, buildTestService(db));
+    const question = await service.addQuestion("test-1", {
+      title: "Own",
+      content: "",
+      createdBy: "admin-1",
+    });
+
+    const found = await service.getQuestion("test-1", question.id);
+
+    expect(found?.title).toBe("Own");
+  });
+
+  dbIt("returns null for another test's question", async ({ db }) => {
+    await insertRawTest(db, "test-1");
+    await insertRawTest(db, "test-2");
+    const service = new QuestionService(db, buildTestService(db));
+    const question = await service.addQuestion("test-2", {
+      title: "Other test's",
+      content: "",
+      createdBy: "admin-1",
+    });
+
+    expect(await service.getQuestion("test-1", question.id)).toBeNull();
+  });
+
+  dbIt("returns null for a deleted question", async ({ db }) => {
+    await insertRawTest(db, "test-1");
+    const service = new QuestionService(db, buildTestService(db));
+    const question = await service.addQuestion("test-1", {
+      title: "Deleted",
+      content: "",
+      createdBy: "admin-1",
+    });
+    await service.deleteQuestion("test-1", question.id, "admin-1");
+
+    expect(await service.getQuestion("test-1", question.id)).toBeNull();
+  });
+});
+
 describe("deleteQuestion — a teacher deletes a question from a test (Step 29 / D37/D47)", () => {
   dbIt(
     "soft-deletes the question: stamps deletedAt/deletedBy and excludes it from listQuestions",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       const question = await service.addQuestion("test-1", {
         title: "Explain gravity",
@@ -1519,7 +1665,7 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
         createdBy: "admin-1",
       });
 
-      await service.deleteQuestion(question.id, "admin-2");
+      await service.deleteQuestion(question.testId, question.id, "admin-2");
 
       const remaining = await service.listQuestions("test-1");
       expect(remaining).toEqual([]);
@@ -1533,7 +1679,8 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
   );
 
   dbIt("excludes a deleted question from countByTestIds", async ({ db }) => {
-    const service = new QuestionService(db);
+    await insertRawTest(db, "test-1");
+    const service = new QuestionService(db, buildTestService(db));
 
     const question = await service.addQuestion("test-1", {
       title: "Q1",
@@ -1546,7 +1693,7 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
       createdBy: "admin-1",
     });
 
-    await service.deleteQuestion(question.id, "admin-2");
+    await service.deleteQuestion(question.testId, question.id, "admin-2");
 
     const counts = await service.countByTestIds(["test-1"]);
     expect(counts.get("test-1")).toBe(1);
@@ -1555,7 +1702,8 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
   dbIt(
     "assigns the next order based on non-deleted questions only, letting a new question reuse a deleted one's order (Step 29 — the accepted consequence of a tombstone-excluding getNextOrder)",
     async ({ db }) => {
-      const service = new QuestionService(db);
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
 
       await service.addQuestion("test-1", {
         title: "Q1",
@@ -1569,7 +1717,7 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
       });
       expect(q2.order).toBe(2);
 
-      await service.deleteQuestion(q2.id, "admin-2");
+      await service.deleteQuestion(q2.testId, q2.id, "admin-2");
 
       const q3 = await service.addQuestion("test-1", {
         title: "Q3",
@@ -1586,8 +1734,13 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
   dbIt(
     "records the delete as its own change-log row carrying the whole question document as before, with an empty after",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const changeLogService = new QuestionChangeLogService(db);
-      const service = new QuestionService(db, changeLogService);
+      const service = new QuestionService(
+        db,
+        buildTestService(db),
+        changeLogService,
+      );
 
       const question = (await service.addQuestion("test-1", {
         title: "Pick the capital",
@@ -1601,7 +1754,7 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
         explanation: "Paris is the capital of France.",
       })) as SingleSelectQuestion;
 
-      await service.deleteQuestion(question.id, "admin-2");
+      await service.deleteQuestion(question.testId, question.id, "admin-2");
 
       const row = await db
         .collection("questionChangeLog")
@@ -1632,9 +1785,13 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
     async ({ db }) => {
       await insertRawTest(db, "test-1");
       const changeLogService = new QuestionChangeLogService(db);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
       const testStartService = new TestStartService(db);
-      const questionService = new QuestionService(db, changeLogService);
+      const questionService = new QuestionService(
+        db,
+        buildTestService(db),
+        changeLogService,
+      );
       const answerService = new AnswerService(
         db,
         questionService,
@@ -1643,6 +1800,7 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
       );
       const questionServiceWithLogging = new QuestionService(
         db,
+        buildTestService(db),
         changeLogService,
         () => Promise.resolve(answerService),
       );
@@ -1666,7 +1824,11 @@ describe("deleteQuestion — a teacher deletes a question from a test (Step 29 /
         answer: { type: "free_text", text: "Attempt" },
       });
 
-      await questionServiceWithLogging.deleteQuestion(question.id, "admin-2");
+      await questionServiceWithLogging.deleteQuestion(
+        question.testId,
+        question.id,
+        "admin-2",
+      );
 
       const row = await db
         .collection("questionChangeLog")

@@ -1,7 +1,7 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: this is test */
 import { CourseService } from "src/lib/course-service";
 import { QuestionService } from "src/lib/question-service";
-import { TestService } from "src/lib/test-service";
+import { buildTestService } from "src/tests/build-test-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -12,7 +12,7 @@ describe("TestService", () => {
     "should create a test with default visibility settings",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -37,7 +37,7 @@ describe("TestService", () => {
     "should create a test with custom visibility settings",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -62,8 +62,8 @@ describe("TestService", () => {
     "should add questions then release grades and correct answers",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
-      const questionService = new QuestionService(db);
+      const testService = buildTestService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -100,7 +100,7 @@ describe("TestService", () => {
 
   dbIt("should soft delete a test and hide it from queries", async ({ db }) => {
     const courseService = new CourseService(db, TEST_SCHOOL_ID);
-    const testService = new TestService(db, TEST_SCHOOL_ID);
+    const testService = buildTestService(db);
 
     const course = await courseService.createCourse({
       title: "Course",
@@ -134,7 +134,7 @@ describe("TestService", () => {
     "updateTestSettings overwrites both visibility flags",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -169,7 +169,7 @@ describe("TestService", () => {
     "updateTestSettings persists isPractice: true and it stays marked after a re-fetch",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -201,7 +201,7 @@ describe("TestService", () => {
     "updateTestSettings rejects turning on practice mode while a time limit is set",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -230,7 +230,7 @@ describe("TestService", () => {
 
   dbIt("updateTestSettings persists a positive time limit", async ({ db }) => {
     const courseService = new CourseService(db, TEST_SCHOOL_ID);
-    const testService = new TestService(db, TEST_SCHOOL_ID);
+    const testService = buildTestService(db);
 
     const course = await courseService.createCourse({
       title: "Course",
@@ -260,7 +260,7 @@ describe("TestService", () => {
     "updateTestSettings clears the time limit back to untimed (null)",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -297,7 +297,7 @@ describe("TestService", () => {
 
   dbIt("a newly created test is untimed by default", async ({ db }) => {
     const courseService = new CourseService(db, TEST_SCHOOL_ID);
-    const testService = new TestService(db, TEST_SCHOOL_ID);
+    const testService = buildTestService(db);
 
     const course = await courseService.createCourse({
       title: "Course",
@@ -316,7 +316,7 @@ describe("TestService", () => {
 
   dbIt("a newly created test defaults to non-practice", async ({ db }) => {
     const courseService = new CourseService(db, TEST_SCHOOL_ID);
-    const testService = new TestService(db, TEST_SCHOOL_ID);
+    const testService = buildTestService(db);
 
     const course = await courseService.createCourse({
       title: "Course",
@@ -336,7 +336,7 @@ describe("TestService", () => {
     "a newly created test defaults to showing the correct answer plainly",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -357,7 +357,7 @@ describe("TestService", () => {
     "a test that predates this field still shows the side-by-side comparison its students were already seeing",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -384,7 +384,7 @@ describe("TestService", () => {
     "createTest persists an explicit isPractice: true and it stays marked after a re-fetch",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -409,7 +409,7 @@ describe("TestService", () => {
     "createTest rejects a practice test that also has a time limit",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const course = await courseService.createCourse({
         title: "Course",
@@ -433,7 +433,7 @@ describe("TestService", () => {
     "listAllTests should return every non-deleted test across all courses",
     async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       const courseA = await courseService.createCourse({
         title: "Course A",
@@ -491,13 +491,13 @@ describe("Feature: a school admin can never open another school's test by id", (
         description: "",
         createdBy: "admin",
       });
-      const foreignTest = await new TestService(db, "school-b").createTest(
+      const foreignTest = await buildTestService(db, "school-b").createTest(
         foreignCourse.id,
         { title: "Foreign Test", description: "", createdBy: "admin" },
       );
 
       // When the current school's bound service looks it up by id
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       // Then it isn't found
       expect(await testService.getTest(foreignTest.id)).toBeNull();

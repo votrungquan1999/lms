@@ -9,6 +9,7 @@ import type { AnswerDocument } from "src/lib/answer-service";
 import type { GradeDocument } from "src/lib/grade-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
+import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -17,6 +18,7 @@ describe("AiGradeService.generateForStudent - Step 1", () => {
   dbIt(
     "given two answered free-text questions and no existing grades, when generating, then inserts one suggestion row per question with deterministic stub scores and audit fields populated",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client that echoes per-question deterministic scores
       const stubScores = new Map<string, { score: number; feedback: string }>();
       const stubAiClient: AiClient = {
@@ -113,6 +115,7 @@ describe("AiGradeService.generateForStudent - Step 3 (skip filter)", () => {
   dbIt(
     "given four free-text questions where Q1 is answered, Q2 is whitespace-only, Q3 is unanswered, and Q4 has a human grade, when generating, then only Q1 is sent to the AI client and only Q1 receives a suggestion",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: stub AI client. We assert the filter through observable
       // outcomes (returned suggestions + persisted rows), not by spying on
       // the AI client's call args.
@@ -241,6 +244,7 @@ describe("AiGradeService.regenerateForStudent - Step 5", () => {
   dbIt(
     "given one free-text question with an existing suggestion, when regenerating with a reason, then appends a new row carrying the reason while leaving the prior row immutable and forwards the prior grade and reason to the AI client",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client whose first call returns the initial
       // deterministic score and whose second call (regenerate) returns a
       // different score so we can tell the new row apart from the prior one.
@@ -351,6 +355,7 @@ describe("AiGradeService.applySuggestion - Step 6 (apply-over-human-grade refusa
   dbIt(
     "given a teacher-authored grade exists and an AI suggestion with appliedAt=null targets the same question, when applying the suggestion, then throws the pinned refusal message AND leaves the existing grade row unchanged AND keeps the suggestion's appliedAt null",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client that lands a deterministic initial suggestion.
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
@@ -464,6 +469,7 @@ describe("AiGradeService.applySuggestion - Step 6", () => {
   dbIt(
     "given one free-text question with a single unapplied AI suggestion and no existing human grade, when applying the suggestion, then writes the suggestion's score and feedback to the grade collection attributed to the applying admin AND marks the suggestion row as applied",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client that lands a deterministic initial suggestion.
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
@@ -560,6 +566,7 @@ describe("AiGradeService.applySuggestion - Step 6 override semantics (?? not ||)
   dbIt(
     "given a suggestion with score=80 and feedback='good', when applying with scoreOverride=0 and feedbackOverride='', then the grade row stores score=0 and feedback='' (the falsy values are honored as intentional overrides, not silently replaced by the suggestion defaults)",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client that lands a deterministic initial suggestion.
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
@@ -639,6 +646,7 @@ describe("AiGradeService.generateForStudent - Step 9 (atomicity on LLM failure)"
   dbIt(
     "given two answered free-text questions and a stubbed AI client that throws synchronously, when generating, then the call rejects AND zero rows are inserted into the ai_grade collection",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client that throws synchronously, simulating an LLM
       // network failure or a Zod schema rejection thrown by the SDK.
       const stubAiClient: AiClient = {
@@ -707,6 +715,7 @@ describe("AiGradeService.applySuggestion - Step 7 (switch applied back to a non-
   dbIt(
     "given two suggestions for the same question where A was applied then B was applied, when applying A again (the non-latest), then the grade row reflects A, A carries the applied marker, B's marker is cleared, and exactly one suggestion is marked applied",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a free-text question and two pre-seeded suggestions (A older,
       // B newer). We bypass `generateForStudent` so the test is decoupled from
       // the LLM seam and exercises the apply path directly — the only path
@@ -843,6 +852,7 @@ describe("AiGradeService.applySuggestion - Step 7 (solutionOverride precedence)"
   dbIt(
     "given a suggestion with solution='ai-solution', when applying with solutionOverride='', then the grade row stores solution='' (empty-string is honored as an intentional override via ?? not ||)",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch() {
           throw new Error("not used in this test");
@@ -913,6 +923,7 @@ describe("AiGradeService.applySuggestion - Step 6 (solution into grade row)", ()
   dbIt(
     "given an unapplied suggestion whose solution is set, when applying, then the persisted grade row carries the same solution string",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch() {
           throw new Error("not used in this test");
@@ -1001,6 +1012,7 @@ describe("AiGradeService.applySuggestion - the verified test and student must ma
     dbIt(
       `given a suggestion for student-1 on its test, when applying it with ${label}, then throws Suggestion not found and writes no grade`,
       async ({ db }) => {
+        await insertRawCourses(db, ["course-1"]);
         const stubAiClient: AiClient = {
           async gradeFreeTextBatch() {
             throw new Error("not used in this test");
@@ -1074,6 +1086,7 @@ describe("AiGradeService.regenerateForStudent - Step 5", () => {
   dbIt(
     "given one free-text question with an existing suggestion, when regenerating with a reason, then appends a new row carrying the reason while leaving the prior row immutable and forwards the prior grade and reason to the AI client",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client whose first call returns the initial
       // deterministic score and whose second call (regenerate) returns a
       // different score so we can tell the new row apart from the prior one.
@@ -1184,6 +1197,7 @@ describe("AiGradeService.applySuggestion - Step 6 (apply-over-human-grade refusa
   dbIt(
     "given a teacher-authored grade exists and an AI suggestion with appliedAt=null targets the same question, when applying the suggestion, then throws the pinned refusal message AND leaves the existing grade row unchanged AND keeps the suggestion's appliedAt null",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client that lands a deterministic initial suggestion.
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
@@ -1297,6 +1311,7 @@ describe("AiGradeService.applySuggestion - Step 6", () => {
   dbIt(
     "given one free-text question with a single unapplied AI suggestion and no existing human grade, when applying the suggestion, then writes the suggestion's score and feedback to the grade collection attributed to the applying admin AND marks the suggestion row as applied",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client that lands a deterministic initial suggestion.
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
@@ -1393,6 +1408,7 @@ describe("AiGradeService.applySuggestion - Step 6 override semantics (?? not ||)
   dbIt(
     "given a suggestion with score=80 and feedback='good', when applying with scoreOverride=0 and feedbackOverride='', then the grade row stores score=0 and feedback='' (the falsy values are honored as intentional overrides, not silently replaced by the suggestion defaults)",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client that lands a deterministic initial suggestion.
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
@@ -1472,6 +1488,7 @@ describe("AiGradeService.generateForStudent - Step 9 (atomicity on LLM failure)"
   dbIt(
     "given two answered free-text questions and a stubbed AI client that throws synchronously, when generating, then the call rejects AND zero rows are inserted into the ai_grade collection",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client that throws synchronously, simulating an LLM
       // network failure or a Zod schema rejection thrown by the SDK.
       const stubAiClient: AiClient = {
@@ -1540,6 +1557,7 @@ describe("AiGradeService.applySuggestion - Step 7 (switch applied back to a non-
   dbIt(
     "given two suggestions for the same question where A was applied then B was applied, when applying A again (the non-latest), then the grade row reflects A, A carries the applied marker, B's marker is cleared, and exactly one suggestion is marked applied",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a free-text question and two pre-seeded suggestions (A older,
       // B newer). We bypass `generateForStudent` so the test is decoupled from
       // the LLM seam and exercises the apply path directly — the only path
@@ -1676,6 +1694,7 @@ describe("AiGradeService.applySuggestion - Step 7 (solutionOverride precedence)"
   dbIt(
     "given a suggestion with solution='ai-solution', when applying with solutionOverride='', then the grade row stores solution='' (empty-string is honored as an intentional override via ?? not ||)",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch() {
           throw new Error("not used in this test");
@@ -1746,6 +1765,7 @@ describe("AiGradeService.applySuggestion - Step 6 (solution into grade row)", ()
   dbIt(
     "given an unapplied suggestion whose solution is set, when applying, then the persisted grade row carries the same solution string",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch() {
           throw new Error("not used in this test");
@@ -1821,6 +1841,7 @@ describe("AiGradeService.regenerateForStudent - Step 5 (prior solution forwarded
   dbIt(
     "given an existing suggestion with a solution, when regenerating, then the AI client's regenerate call receives the prior solution in priorGrades",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const calls: Array<{
         items: AiGradeBatchInput[];
         opts: AiGradeBatchOptions | undefined;
@@ -1895,6 +1916,7 @@ describe("AiGradeService.regenerateForQuestion - Step A1 (single-question scope)
   dbIt(
     "given two answered ungraded free-text questions each with an initial suggestion, when regenerating scoped to Q1 with a reason, then Q1 gets one new appended suggestion carrying the reason while Q2 is left with its single original suggestion untouched",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a stub AI client whose first call returns the initial score and
       // whose later calls (regenerate) return a different score so the new row
       // is distinguishable from the prior one.
@@ -1993,6 +2015,7 @@ describe("AiGradeService.generateForStudent - Step 4 (solution persistence)", ()
   dbIt(
     "given the AI client returns a per-item solution, when generating, then the inserted ai_grade doc AND the returned suggestion both carry that solution string",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
           return items.map((item) => ({
@@ -2051,6 +2074,7 @@ describe("AiGradeService.generateForStudent - Step 4 (solution persistence)", ()
   dbIt(
     "given the AI client returns a solution with CRLF line endings and trailing whitespace, when generating, then the stored and returned solution are normalized to LF with no trailing whitespace",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const stubAiClient: AiClient = {
         async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
           return items.map((item) => ({

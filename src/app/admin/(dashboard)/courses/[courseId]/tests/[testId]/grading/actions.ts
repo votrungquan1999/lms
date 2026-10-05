@@ -219,7 +219,7 @@ export async function saveAnnotationsAction(input: {
       async () => {
         await assertGradingTarget(schoolId, parsed.data);
 
-        const annotationService = await getAnnotationService();
+        const annotationService = await getAnnotationService(schoolId);
         await annotationService.saveAnnotations({
           testId: parsed.data.testId,
           questionId: parsed.data.questionId,
@@ -289,7 +289,7 @@ export async function setTestFeedbackAction(
       async () => {
         await assertGradingTarget(schoolId, parsed.data);
 
-        const testFeedbackService = await getTestFeedbackService();
+        const testFeedbackService = await getTestFeedbackService(schoolId);
         await testFeedbackService.setTestFeedback({
           testId: parsed.data.testId,
           studentId: parsed.data.studentId,

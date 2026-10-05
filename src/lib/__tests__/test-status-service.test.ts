@@ -3,6 +3,7 @@ import { TestStatusService } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
 import { insertRawTest } from "src/tests/insert-raw-test";
+import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -86,6 +87,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'submitted', not 'graded', when a practice test is explicitly submitted having answered nothing at all",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a practice test — exempt from the all-blank-is-Graded rule,
       // so a blank practice submission reads Submitted, exactly like an
       // answered practice submission.
@@ -547,7 +549,7 @@ describe("TestStatusService", () => {
       });
 
       // When: the teacher deletes Q2 before ever grading its answer.
-      await questionService.deleteQuestion(q2.id, "admin-1");
+      await questionService.deleteQuestion(q2.testId, q2.id, "admin-1");
 
       // Then: status reads 'graded' — the dangling deleted-question answer
       // no longer blocks the transition. totalQuestions=1 matches what a
@@ -564,6 +566,7 @@ describe("TestStatusService", () => {
   dbIt(
     "should return 'submitted', not 'graded', when a practice test is submitted and its only answer belongs to a question that has since been deleted",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: a 2-question practice test. The student answered only Q2,
       // submitted, and the teacher then deleted Q2 — with that answer
       // ignored, this is a blank practice submission.
@@ -601,7 +604,7 @@ describe("TestStatusService", () => {
       await testSubmissionService.submitTest(practiceTest.id, "student-1");
 
       // When: the teacher deletes Q2.
-      await questionService.deleteQuestion(q2.id, "admin-1");
+      await questionService.deleteQuestion(q2.testId, q2.id, "admin-1");
 
       // Then: practice tests never grade, so it reads Submitted like any
       // other blank practice submission — never Graded.
@@ -647,7 +650,7 @@ describe("TestStatusService", () => {
       await testSubmissionService.submitTest("test-1", "student-1");
 
       // When: the teacher deletes Q2.
-      await questionService.deleteQuestion(q2.id, "admin-1");
+      await questionService.deleteQuestion(q2.testId, q2.id, "admin-1");
 
       // Then: with that answer ignored the submission is entirely blank,
       // so it reads Graded — never stuck at Submitted.
@@ -762,7 +765,11 @@ describe("TestStatusService", () => {
         studentId: "student-1",
         answer: { type: "free_text", text: "answer" },
       });
-      await questionService.deleteQuestion(untimedQ2.id, "admin-1");
+      await questionService.deleteQuestion(
+        untimedQ2.testId,
+        untimedQ2.id,
+        "admin-1",
+      );
 
       // When: status is derived against totalQuestions=1 (the live count
       // after Q2's deletion).
@@ -796,7 +803,11 @@ describe("TestStatusService", () => {
         studentId: "student-1",
         answer: { type: "free_text", text: "answer" },
       });
-      await questionService.deleteQuestion(timedQ2.id, "admin-1");
+      await questionService.deleteQuestion(
+        timedQ2.testId,
+        timedQ2.id,
+        "admin-1",
+      );
       await testStartService.recordStart("test-timed", "student-1", new Date());
 
       // When: status is derived for the timed test.

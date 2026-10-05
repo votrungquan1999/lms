@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import type { CourseDocument } from "src/lib/course-service";
 import { CourseService } from "src/lib/course-service";
 import { QuestionService } from "src/lib/question-service";
-import { TestService } from "src/lib/test-service";
+import { buildTestService } from "src/tests/build-test-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -125,14 +125,14 @@ export default {
       ).toBe(0);
 
       // And: the test was created in the database
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
       const tests = await testService.listTests(course.id);
       expect(tests).toHaveLength(1);
       expect(tests[0].title).toBe("Script Created Test");
       expect(tests[0].description).toBe("Created by the create-test script");
 
       // And: the questions were created with correct ordering
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const questions = await questionService.listQuestions(tests[0].id);
       expect(questions).toHaveLength(2);
       expect(questions[0].title).toBe("Q1 - Essay");
@@ -199,9 +199,9 @@ export default {
       ).toBe(0);
 
       // And: the single-select question was created with correct options
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
       const tests = await testService.listTests(course.id);
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const questions = await questionService.listQuestions(tests[0].id);
 
       expect(questions).toHaveLength(1);
@@ -275,9 +275,9 @@ export default {
       ).toBe(0);
 
       // And: the multi-select question has the correct grading strategy
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
       const tests = await testService.listTests(course.id);
-      const questionService = new QuestionService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const questions = await questionService.listQuestions(tests[0].id);
 
       expect(questions).toHaveLength(1);
@@ -392,7 +392,7 @@ export default {
       ).toBe(0);
 
       // And: the created test carries the 90-minute limit
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
       const tests = await testService.listTests(course.id);
       expect(tests).toHaveLength(1);
       expect(tests[0].timeLimitMinutes).toBe(90);

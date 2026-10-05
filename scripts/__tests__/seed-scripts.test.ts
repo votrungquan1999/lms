@@ -6,7 +6,7 @@ import { CourseService } from "src/lib/course-service";
 import { QuestionPoolService } from "src/lib/question-pool-service";
 import { SchoolService } from "src/lib/school-service";
 import { StudentService } from "src/lib/student-service";
-import { TestService } from "src/lib/test-service";
+import { buildTestService } from "src/tests/build-test-service";
 import { withTestDb } from "src/tests/create-test-db";
 import { describe, expect, it } from "vitest";
 
@@ -98,7 +98,7 @@ describe("seed-test-states script", () => {
       if (!sandboxCourse) throw new Error("sandbox course not found");
 
       // And: both sandbox tests are visible through that school's bound test service
-      const testService = new TestService(db, school.id);
+      const testService = buildTestService(db, school.id);
       const tests = await testService.listTests(sandboxCourse.id);
       expect(tests.map((t) => t.title).sort()).toEqual([
         "Sandbox: All visibility OFF",
@@ -346,7 +346,7 @@ describe("seed-coding-test script", () => {
       );
       if (!school) throw new Error("school not created");
 
-      const testService = new TestService(db, school.id);
+      const testService = buildTestService(db, school.id);
       const tests = await testService.listTests(COURSE_ID);
       expect(tests.map((t) => t.id)).toContain(TEST_CODING_ID);
     },

@@ -1,6 +1,7 @@
 import type { Collection, Db } from "mongodb";
 import type { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
+import type { QuestionPoolService } from "src/lib/question-pool-service";
 import {
   isMcQuestionType,
   type McGradingStrategy,
@@ -196,15 +197,17 @@ export class PoolQuestionService {
   private readonly questions: Collection<PoolQuestionDocument>;
 
   /**
-   * `changeLogService` is optional so a direct
-   * `new PoolQuestionService(db, schoolId)` logs nothing (mirrors
-   * `QuestionService`'s own optional constructor param). No
+   * `questionPoolService` is the same school's pools, where a new question's
+   * pool is looked up. `changeLogService` is optional so a direct
+   * `new PoolQuestionService(db, schoolId, questionPoolService)` logs nothing
+   * (mirrors `QuestionService`'s own optional constructor param). No
    * `getAnswerService` thunk exists here — pool questions carry no student
    * answers (D51), so there is no answered-student count to fetch.
    */
   constructor(
     db: Db,
     private readonly schoolId: string,
+    private readonly questionPoolService: QuestionPoolService,
     private readonly changeLogService?: QuestionChangeLogService,
   ) {
     // Fail closed: a missing school would query `{ schoolId: null }`, which
@@ -231,6 +234,10 @@ export class PoolQuestionService {
     poolId: string,
     input: AddPoolQuestionInput,
   ): Promise<PoolQuestion> {
+    // Found through this school's pools, so the school stamped below is the pool's own.
+    if (!(await this.questionPoolService.getPool(poolId))) {
+      throw new Error("Pool not found");
+    }
     const nextOrder = await this.getNextOrder(poolId);
 
     const type: QuestionType = input.type ?? "free_text";

@@ -8,6 +8,7 @@ import type {
 import { AiGradeService } from "src/lib/ai-grade-service";
 import { AnnotationService } from "src/lib/annotation-service";
 import { AnswerService } from "src/lib/answer-service";
+import { CourseService } from "src/lib/course-service";
 import { GradeService } from "src/lib/grade-service";
 import { GradeVisibilityService } from "src/lib/grade-visibility-service";
 import { QuestionChangeLogService } from "src/lib/question-change-log-service";
@@ -76,16 +77,21 @@ export function buildCoreServices(
   opts: BuildCoreServicesOptions = {},
 ): CoreServices {
   const questionChangeLogService = new QuestionChangeLogService(db);
+  const testService = new TestService(
+    db,
+    TEST_SCHOOL_ID,
+    new CourseService(db, TEST_SCHOOL_ID),
+  );
   // Lazy thunk — AnswerService itself depends on QuestionService, so passing
   // an instance here would be a construction cycle (see QuestionService's
   // constructor JSDoc). Same shape as the testSubmissionService thunk below.
   let answerService!: AnswerService;
   const questionService = new QuestionService(
     db,
+    testService,
     questionChangeLogService,
     () => Promise.resolve(answerService),
   );
-  const testService = new TestService(db, TEST_SCHOOL_ID);
   const testStartService = new TestStartService(db);
   answerService = new AnswerService(
     db,
@@ -103,8 +109,9 @@ export function buildCoreServices(
     questionService,
     answerService,
     gradeVisibilityService,
+    testService,
   );
-  const annotationService = new AnnotationService(db);
+  const annotationService = new AnnotationService(db, testService);
   testSubmissionService = new TestSubmissionService(
     db,
     gradeService,
@@ -120,6 +127,7 @@ export function buildCoreServices(
     questionService,
     answerService,
     gradeService,
+    testService,
   );
 
   return {

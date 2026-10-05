@@ -19,6 +19,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 
 import type { TestDocument } from "src/lib/test-service";
 import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { insertRawPool } from "src/tests/insert-raw-pool";
 import { composeFromPoolsAction } from "../compose-from-pools-actions";
 
 let db: Db;
@@ -53,6 +54,7 @@ beforeEach(async () => {
     deletedBy: null,
     schoolId: TEST_SCHOOL_ID,
   });
+  await insertRawPool(db, "pool-1");
 });
 
 afterEach(async () => {

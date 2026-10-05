@@ -1,6 +1,7 @@
 import type { Db } from "mongodb";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
+import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -13,6 +14,7 @@ const LIMIT = 30;
  * submission service's clock pinned to `now`.
  */
 async function seedTimedTest(db: Db, now: Date) {
+  await insertRawCourses(db, ["course-1"]);
   const core = buildCoreServices(db, { now: () => now });
   const test = await core.testService.createTest("course-1", {
     title: "Timed",
@@ -78,6 +80,7 @@ describe("TestSubmissionService — timed enforcement", () => {
   );
 
   dbIt("never rejects an untimed test no matter how late", async ({ db }) => {
+    await insertRawCourses(db, ["course-1"]);
     // Given an untimed test and a clock far in the future.
     const far = new Date(T1.getTime() + 1000 * 24 * 60 * 60_000);
     const core = buildCoreServices(db, { now: () => far });

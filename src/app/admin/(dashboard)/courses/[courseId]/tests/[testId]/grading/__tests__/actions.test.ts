@@ -27,7 +27,9 @@ const getLatestSuggestion = vi.fn().mockResolvedValue(null);
 const getTest = vi
   .fn()
   .mockResolvedValue({ id: "test-1", courseId: "course-1", isPractice: false });
-const listQuestions = vi.fn().mockResolvedValue([{ id: "q-1" }]);
+const getQuestion = vi.fn(async (_testId: string, questionId: string) =>
+  questionId === "q-1" ? { id: questionId } : null,
+);
 const isEnrolled = vi.fn().mockResolvedValue(true);
 
 vi.mock("src/lib/services-singleton", () => ({
@@ -36,7 +38,7 @@ vi.mock("src/lib/services-singleton", () => ({
   getTestService: vi.fn(async () => ({ releaseGrades, getTest })),
   getRedoRequestService: vi.fn(async () => ({ requestRedo })),
   getAiGradeService: vi.fn(async () => ({ getLatestSuggestion })),
-  getQuestionService: vi.fn(async () => ({ listQuestions })),
+  getQuestionService: vi.fn(async () => ({ getQuestion })),
   getEnrollmentService: vi.fn(async () => ({ isEnrolled })),
 }));
 

@@ -175,7 +175,11 @@ async function main() {
     });
 
     const poolService = new QuestionPoolService(db, school.id);
-    const poolQuestionService = new PoolQuestionService(db, school.id);
+    const poolQuestionService = new PoolQuestionService(
+      db,
+      school.id,
+      poolService,
+    );
 
     const existingPools = await poolService.listPools();
     const existingByName = new Map(existingPools.map((p) => [p.name, p]));

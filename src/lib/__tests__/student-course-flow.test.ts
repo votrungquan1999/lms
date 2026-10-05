@@ -2,8 +2,8 @@ import { AnswerService } from "src/lib/answer-service";
 import { CourseService } from "src/lib/course-service";
 import { EnrollmentService } from "src/lib/enrollment-service";
 import { QuestionService } from "src/lib/question-service";
-import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
+import { buildTestService } from "src/tests/build-test-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import {
   insertRawCourses,
@@ -135,8 +135,9 @@ describe("Feature: Student Course & Test Taking Flow", () => {
 
   describe("Scenario: Get test by ID", () => {
     dbIt("should return a test by its ID", async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Setup
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
       const created = await testService.createTest("course-1", {
         title: "Midterm",
         description: "Covers chapters 1-5",
@@ -154,7 +155,7 @@ describe("Feature: Student Course & Test Taking Flow", () => {
 
     dbIt("should return null for non-existent test ID", async ({ db }) => {
       // Setup
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
 
       // Action
       const found = await testService.getTest("non-existent");
@@ -171,12 +172,12 @@ describe("Feature: Student Course & Test Taking Flow", () => {
         // Setup services
         const courseService = new CourseService(db, TEST_SCHOOL_ID);
         const enrollmentService = new EnrollmentService(db, TEST_SCHOOL_ID);
-        const testService = new TestService(db, TEST_SCHOOL_ID);
-        const questionService = new QuestionService(db);
+        const testService = buildTestService(db);
+        const questionService = new QuestionService(db, buildTestService(db));
         const answerService = new AnswerService(
           db,
           questionService,
-          new TestService(db, TEST_SCHOOL_ID),
+          buildTestService(db),
           new TestStartService(db),
         );
 

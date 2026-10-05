@@ -1,5 +1,6 @@
 import { QuestionGradeStatus } from "src/lib/results-report-assembler";
 import { withTestDb } from "src/tests/create-test-db";
+import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 import { createAlice, makeAssembler } from "./results-report-assembler.helpers";
 
@@ -9,6 +10,7 @@ describe("ResultsReportAssembler.buildReport — pending vs graded", () => {
   dbIt(
     "marks an answered-but-ungraded free-text question as Pending with a null score, not 0",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given a free-text question the student answered but which has no grade.
       const {
         assembler,
@@ -52,6 +54,7 @@ describe("ResultsReportAssembler.buildReport — pending vs graded", () => {
   dbIt(
     "marks the whole test as Pending with a null score when the weighted average is null",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given a selected test with an answered free-text question that has no
       // grade row — so the weighted average is null (manual review pending).
       const {
@@ -95,6 +98,7 @@ describe("ResultsReportAssembler.buildReport — pending vs graded", () => {
   dbIt(
     "keeps a genuinely zero-scored question as Graded with score 0, not Pending",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given a free-text question the student answered and the teacher graded
       // explicitly with a score of 0.
       const {

@@ -54,17 +54,14 @@ export class RedoRequestService {
    * If an active request already exists it is left in place (idempotent insert).
    * Rejects for a practice test (R11) — redo reopens a graded test for
    * revision, and a practice test has no grades to redo against.
+   * @throws "Test not found" when the test isn't this school's.
    */
   async requestRedo(
     testId: string,
     studentId: string,
     requestedBy: string,
   ): Promise<RedoRequest> {
-    const test = await this.testService.getTest(testId);
-    // Explicit — `test?.isPractice` would let a missing test through silently.
-    if (!test) {
-      throw new Error("Test not found");
-    }
+    const test = await this.testService.requireTest(testId);
     if (test.isPractice) {
       throw new Error("Cannot request a redo on a practice test");
     }
@@ -100,8 +97,10 @@ export class RedoRequestService {
    * Marks all active redo requests for (testId, studentId) as resolved.
    * Called when the student resubmits the test.
    * No-op if there is no active request.
+   * @throws "Test not found" when the test isn't this school's.
    */
   async resolveRedoRequest(testId: string, studentId: string): Promise<void> {
+    await this.testService.requireTest(testId);
     await this.redoRequests.updateMany(
       { testId, studentId, resolvedAt: null },
       { $set: { resolvedAt: new Date() } },

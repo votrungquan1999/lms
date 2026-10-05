@@ -31,6 +31,7 @@ afterEach(async () => {
 describe("Feature: grader sees MC answers as read-only in the per-question view", () => {
   it("should render the read-only score display (no CompactGradeForm inputs) and show 'No answer submitted' for an MC question the student has not yet submitted", async () => {
     // Given an unanswered, not-yet-submitted single_select question
+    await insertRawTest(db, "test-1");
     const question = await getTestServices().questionService.addQuestion(
       "test-1",
       {

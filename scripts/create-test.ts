@@ -10,7 +10,7 @@
 
 import { resolve } from "node:path";
 import { MongoClient } from "mongodb";
-import type { CourseDocument } from "../src/lib/course-service";
+import { type CourseDocument, CourseService } from "../src/lib/course-service";
 import { QuestionService } from "../src/lib/question-service";
 import { TestService } from "../src/lib/test-service";
 import type { TestDefinition } from "./types";
@@ -57,8 +57,12 @@ async function main() {
     if (!course.schoolId) {
       throw new Error("course has no school; run backfill-schools first");
     }
-    const testService = new TestService(db, course.schoolId);
-    const questionService = new QuestionService(db);
+    const testService = new TestService(
+      db,
+      course.schoolId,
+      new CourseService(db, course.schoolId),
+    );
+    const questionService = new QuestionService(db, testService);
 
     // Create the test
     const test = await testService.createTest(definition.courseId, {

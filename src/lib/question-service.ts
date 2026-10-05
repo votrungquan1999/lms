@@ -7,7 +7,7 @@ import {
   type QuestionSampler,
   shuffleAndTake,
 } from "src/lib/question-compose";
-import type { AnswerRevealMode } from "src/lib/test-service";
+import type { AnswerRevealMode, TestService } from "src/lib/test-service";
 
 /**
  * Checks whether MC options satisfy the correctness rule for their question
@@ -339,9 +339,10 @@ export class QuestionService {
   private readonly questions: Collection<QuestionDocument>;
 
   /**
-   * `changeLogService` and `getAnswerService` are optional so every existing
-   * direct `new QuestionService(db)` call site keeps compiling and logs
-   * nothing (D48 requires a real log; the many unit tests that never touch
+   * `testService` is the same school's tests, where every write looks up the
+   * test it writes under. `changeLogService` and `getAnswerService` are
+   * optional so a direct `new QuestionService(db, testService)` logs nothing
+   * (D48 requires a real log; the many unit tests that never touch
    * `updateQuestion` don't need one wired). `getAnswerService` is a lazy
    * getter, not an instance — `AnswerService` itself depends on
    * `QuestionService`, so passing an instance here would be a construction
@@ -350,12 +351,20 @@ export class QuestionService {
    */
   constructor(
     db: Db,
+    private readonly testService: TestService,
     private readonly changeLogService?: QuestionChangeLogService,
     private readonly getAnswerService?: () => Promise<AnswerService>,
   ) {
     this.questions = db.collection<QuestionDocument>("question");
   }
 
+  /**
+   * Appends a question to one of this school's tests.
+   * @param testId - The test to add to.
+   * @param input - The question's content, type and options.
+   * @param opts - Write-policy options (see {@link AddQuestionOpts}).
+   * @throws "Test not found" when the test isn't this school's.
+   */
   async addQuestion(
     testId: string,
     input: AddSingleSelectQuestionInput,
@@ -381,6 +390,7 @@ export class QuestionService {
     input: AddQuestionInput,
     opts?: AddQuestionOpts,
   ): Promise<Question> {
+    await this.testService.requireTest(testId);
     const nextOrder = await this.getNextOrder(testId);
 
     const type: QuestionType = input.type ?? "free_text";
@@ -424,11 +434,19 @@ export class QuestionService {
     return this.toQuestion(doc);
   }
 
+  /**
+   * Appends plain free-text questions to one of this school's tests.
+   * @param testId - The test to import into.
+   * @param questions - The imported titles and contents, in order.
+   * @param createdBy - The importing admin.
+   * @throws "Test not found" when the test isn't this school's.
+   */
   async importQuestions(
     testId: string,
     questions: { title: string; content: string }[],
     createdBy: string,
   ): Promise<Question[]> {
+    await this.testService.requireTest(testId);
     if (questions.length === 0) {
       return [];
     }
@@ -470,7 +488,7 @@ export class QuestionService {
    * admin as `createdBy`, media keys shared read-only, no live backlink to the
    * pool. New questions are appended after any existing test questions.
    *
-   * @param testId - The test to compose into.
+   * @param testId - The test to compose into; refused unless it's this school's.
    * @param selections - Per-pool question lists and draw counts.
    * @param createdBy - The composing admin's id.
    * @param sampler - Selection strategy; defaults to Fisher-Yates shuffle+take.
@@ -482,6 +500,7 @@ export class QuestionService {
     createdBy: string,
     sampler: QuestionSampler = shuffleAndTake,
   ): Promise<Question[]> {
+    await this.testService.requireTest(testId);
     const drawn: PoolQuestionSnapshotInput[] = selections.flatMap((selection) =>
       sampler(selection.questions, selection.count),
     );
@@ -527,16 +546,24 @@ export class QuestionService {
   /**
    * Corrects fields on a question a teacher already wrote and stamps who/when.
    * Only fields present on `input` are touched (see {@link UpdateQuestionInput}).
+   * @param testId - The test the question belongs to.
    * @param questionId - The question to update.
    * @param input - The fields to change.
    * @param updatedBy - The admin making the change.
+   * @throws "Test not found" or "Question not found" when the question isn't one of this school's test's own.
    */
   async updateQuestion(
+    testId: string,
     questionId: string,
     input: UpdateQuestionInput,
     updatedBy: string,
   ): Promise<void> {
-    const before = await this.questions.findOne({ id: questionId });
+    await this.testService.requireTest(testId);
+    // Matched on the test too, so a question can only be edited through its own test.
+    const before = await this.questions.findOne({ id: questionId, testId });
+    if (!before) {
+      throw new Error("Question not found");
+    }
 
     const set: Partial<QuestionDocument> = {
       updatedAt: new Date(),
@@ -564,9 +591,7 @@ export class QuestionService {
     }
     const optionsProvided = "options" in input && input.options !== undefined;
     const typeChanging =
-      "type" in input &&
-      input.type !== undefined &&
-      input.type !== before?.type;
+      "type" in input && input.type !== undefined && input.type !== before.type;
     // Resolves to the type this document will hold AFTER this save — used
     // by both the MC-rule check and the D54 field-clearing below. Reading
     // neither key at all (a title/content-only edit) must never resolve to
@@ -574,7 +599,7 @@ export class QuestionService {
     // is never re-validated by an edit that has nothing to do with it.
     const resolvedType: QuestionType = typeChanging
       ? (input.type as QuestionType)
-      : (before?.type ?? "free_text");
+      : (before.type ?? "free_text");
 
     if (typeChanging) {
       set.type = resolvedType;
@@ -611,7 +636,7 @@ export class QuestionService {
             isCorrect: o.isCorrect,
           }))
         : isMcQuestionType(resolvedType)
-          ? (before?.options ?? null)
+          ? (before.options ?? null)
           : null;
       const mcError = checkMcOptions(resolvedType, resolvedOptions);
       if (mcError) {
@@ -626,11 +651,9 @@ export class QuestionService {
       }
     }
 
-    await this.questions.updateOne({ id: questionId }, { $set: set });
+    await this.questions.updateOne({ id: questionId, testId }, { $set: set });
 
-    if (before) {
-      await this.logRealChanges(before, set, updatedBy);
-    }
+    await this.logRealChanges(before, set, updatedBy);
   }
 
   /**
@@ -707,18 +730,26 @@ export class QuestionService {
    * resolvable for audit purposes. Records its own change-log row carrying
    * the whole question as `before` — the strand stays diagnosable even if
    * the tombstone is later purged.
+   * @param testId - The test the question belongs to.
    * @param questionId - The question to delete.
    * @param deletedBy - The admin performing the delete.
+   * @throws "Test not found" or "Question not found" when the question isn't one of this school's test's own.
    */
-  async deleteQuestion(questionId: string, deletedBy: string): Promise<void> {
-    const before = await this.questions.findOne({ id: questionId });
+  async deleteQuestion(
+    testId: string,
+    questionId: string,
+    deletedBy: string,
+  ): Promise<void> {
+    await this.testService.requireTest(testId);
+    // Matched on the test too, so a question can only be deleted through its own test.
+    const before = await this.questions.findOne({ id: questionId, testId });
     if (!before) {
-      return;
+      throw new Error("Question not found");
     }
 
     const now = new Date();
     await this.questions.updateOne(
-      { id: questionId },
+      { id: questionId, testId },
       {
         $set: {
           deletedAt: now,
@@ -774,6 +805,24 @@ export class QuestionService {
       after: {},
       answeredStudentCount,
     });
+  }
+
+  /**
+   * Returns one of a test's own live questions.
+   * @param testId - The test the question must belong to.
+   * @param questionId - The question to look up.
+   * @returns The question, or null when it's missing, deleted, or another test's.
+   */
+  async getQuestion(
+    testId: string,
+    questionId: string,
+  ): Promise<Question | null> {
+    const doc = await this.questions.findOne({
+      id: questionId,
+      testId,
+      deletedAt: null,
+    });
+    return doc ? this.toQuestion(doc) : null;
   }
 
   async listQuestions(testId: string): Promise<Question[]> {

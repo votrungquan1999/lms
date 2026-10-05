@@ -1,5 +1,6 @@
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -23,6 +24,7 @@ describe("AnnotationService - Integration Tests", () => {
   dbIt(
     "saveAnnotations persists the strokes and getAnnotations returns them",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const { annotationService } = buildCoreServices(db);
 
       // Given a grader saves annotations for a student's answer photo
@@ -47,6 +49,7 @@ describe("AnnotationService - Integration Tests", () => {
   dbIt(
     "an annotation-only save creates no grade row (never flips the student to Graded)",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const { annotationService, gradeService } = buildCoreServices(db);
 
       // Given a grader who only draws annotations — never scores the question

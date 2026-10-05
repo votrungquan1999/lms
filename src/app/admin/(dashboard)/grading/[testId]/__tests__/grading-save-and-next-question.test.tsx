@@ -29,7 +29,9 @@ vi.mock("src/lib/services-singleton", () => ({
   getGradeService: vi.fn(async () => ({ gradeQuestion, getGrade })),
   getTestStatusService: vi.fn(async () => ({ getStatus })),
   getQuestionService: vi.fn(async () => ({
-    listQuestions: vi.fn(async () => [{ id: "q1" }]),
+    getQuestion: vi.fn(async (_testId: string, questionId: string) =>
+      questionId === "q1" ? { id: questionId } : null,
+    ),
   })),
   getTestService: vi.fn(async () => ({ getTest })),
   getEnrollmentService: vi.fn(async () => ({ isEnrolled })),

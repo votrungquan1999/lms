@@ -1,4 +1,5 @@
 import type { Collection, Db } from "mongodb";
+import type { TestService } from "./test-service";
 
 /** A single point of a freehand annotation stroke, in normalized (0..1) coords. */
 export interface AnnotationPoint {
@@ -54,7 +55,14 @@ export interface SaveAnnotationsInput {
 export class AnnotationService {
   private readonly annotations: Collection<AnnotationDocument>;
 
-  constructor(db: Db) {
+  /**
+   * @param db - The database.
+   * @param testService - The same school's tests, where every write looks up its test.
+   */
+  constructor(
+    db: Db,
+    private readonly testService: TestService,
+  ) {
     this.annotations = db.collection<AnnotationDocument>("annotation");
   }
 
@@ -63,10 +71,12 @@ export class AnnotationService {
    * photos. Creates no grade row — annotations are stored on their own.
    * @param input - Target ids, the grader, and the annotation entries.
    * @returns The saved annotation entries.
+   * @throws "Test not found" when the test isn't this school's.
    */
   async saveAnnotations(
     input: SaveAnnotationsInput,
   ): Promise<AnnotationEntry[]> {
+    await this.testService.requireTest(input.testId);
     const filter = {
       testId: input.testId,
       questionId: input.questionId,

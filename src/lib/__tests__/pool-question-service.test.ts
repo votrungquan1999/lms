@@ -5,8 +5,12 @@ import {
   type PoolSingleSelectQuestion,
 } from "src/lib/pool-question-service";
 import { QuestionChangeLogService } from "src/lib/question-change-log-service";
+import { QuestionPoolService } from "src/lib/question-pool-service";
 import { MediaContentType, QuestionService } from "src/lib/question-service";
+import { buildTestService } from "src/tests/build-test-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import { insertRawPool } from "src/tests/insert-raw-pool";
+import { insertRawTest } from "src/tests/insert-raw-test";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -15,7 +19,12 @@ describe("PoolQuestionService", () => {
   dbIt(
     "stores a free-text question scoped to the pool with default weight and order",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       const question = await service.addPoolQuestion("pool-1", {
         title: "Explain recursion",
@@ -34,7 +43,12 @@ describe("PoolQuestionService", () => {
   dbIt(
     "stores a single-select question with exactly one correct option, assigning option ids",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       const question = await service.addPoolQuestion("pool-1", {
         type: "single_select",
@@ -59,7 +73,12 @@ describe("PoolQuestionService", () => {
   dbIt(
     "persists and reads back an explanation on a single_select pool question, including via listSnapshotInputs",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       await service.addPoolQuestion("pool-1", {
         type: "single_select",
@@ -90,7 +109,12 @@ describe("PoolQuestionService", () => {
   dbIt(
     "persists and reads back an answerRevealMode override on a free_text pool question via both listPoolQuestions and listSnapshotInputs, leaving it absent when omitted",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       await service.addPoolQuestion("pool-1", {
         title: "Explain photosynthesis",
@@ -123,7 +147,13 @@ describe("PoolQuestionService", () => {
   dbIt(
     "lists a pool's questions ordered by their order, excluding other pools' questions",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      await insertRawPool(db, "pool-2");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       const first = await service.addPoolQuestion("pool-1", {
         title: "Q1",
@@ -154,7 +184,12 @@ describe("PoolQuestionService", () => {
   dbIt(
     "rejects a single-select question that has no correct option",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       await expect(
         service.addPoolQuestion("pool-1", {
@@ -176,7 +211,12 @@ describe("PoolQuestionService", () => {
   dbIt(
     "rejects a multi-select question with no correct options and stores one with at least one",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       await expect(
         service.addPoolQuestion("pool-1", {
@@ -212,7 +252,12 @@ describe("PoolQuestionService", () => {
   dbIt(
     "stores a question's weight and its media keys, returning media with an empty url placeholder",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       const question = await service.addPoolQuestion("pool-1", {
         title: "With media",
@@ -240,7 +285,12 @@ describe("PoolQuestionService", () => {
   dbIt(
     "projects pool questions as compose snapshot inputs with full media fields",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       await service.addPoolQuestion("pool-1", {
         type: "single_select",
@@ -283,7 +333,12 @@ describe("PoolQuestionService", () => {
 
 describe("updatePoolQuestion — a teacher corrects a pool question (Step 30 / D30/D51)", () => {
   dbIt("corrects a pool question's title and content", async ({ db }) => {
-    const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+    await insertRawPool(db, "pool-1");
+    const service = new PoolQuestionService(
+      db,
+      TEST_SCHOOL_ID,
+      new QuestionPoolService(db, TEST_SCHOOL_ID),
+    );
 
     const question = await service.addPoolQuestion("pool-1", {
       title: "Explain recursion",
@@ -305,7 +360,12 @@ describe("updatePoolQuestion — a teacher corrects a pool question (Step 30 / D
   dbIt(
     "rewrites a single_select pool question's options, preserving ids for kept options and minting a fresh id for the new one (D53)",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       const question = (await service.addPoolQuestion("pool-1", {
         type: "single_select",
@@ -348,7 +408,12 @@ describe("updatePoolQuestion — a teacher corrects a pool question (Step 30 / D
   dbIt(
     "switches a pool question's type, clearing fields the new type cannot hold (D54)",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       const question = await service.addPoolQuestion("pool-1", {
         title: "Explain gravity",
@@ -387,7 +452,12 @@ describe("updatePoolQuestion — a teacher corrects a pool question (Step 30 / D
   dbIt(
     "rejects switching a pool question into single_select without a valid option set",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       const question = await service.addPoolQuestion("pool-1", {
         title: "Explain gravity",
@@ -410,10 +480,12 @@ describe("updatePoolQuestion — a teacher corrects a pool question (Step 30 / D
   dbIt(
     "records the edit in the change log with poolId set and testId null, and no answered-student count (Step 30 / D51 — pool questions have no answers)",
     async ({ db }) => {
+      await insertRawPool(db, "pool-1");
       const changeLogService = new QuestionChangeLogService(db);
       const service = new PoolQuestionService(
         db,
         TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
         changeLogService,
       );
 
@@ -448,7 +520,12 @@ describe("deletePoolQuestion — a teacher removes a pool question (Step 30 / D3
   dbIt(
     "soft-deletes the question: excludes it from BOTH listPoolQuestions and listSnapshotInputs (Step 30 — the second read funnel)",
     async ({ db }) => {
-      const service = new PoolQuestionService(db, TEST_SCHOOL_ID);
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
 
       const question = await service.addPoolQuestion("pool-1", {
         title: "Explain gravity",
@@ -476,10 +553,12 @@ describe("deletePoolQuestion — a teacher removes a pool question (Step 30 / D3
   dbIt(
     "records the delete as its own change-log row carrying the whole question as before, with poolId set and testId null",
     async ({ db }) => {
+      await insertRawPool(db, "pool-1");
       const changeLogService = new QuestionChangeLogService(db);
       const service = new PoolQuestionService(
         db,
         TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
         changeLogService,
       );
 
@@ -529,13 +608,22 @@ describe("a school-bound service never changes another school's pool question", 
     dbIt(
       `${name} refuses a foreign pool question and leaves it unchanged`,
       async ({ db }) => {
-        const owner = new PoolQuestionService(db, TEST_SCHOOL_ID);
+        await insertRawPool(db, "pool-1");
+        const owner = new PoolQuestionService(
+          db,
+          TEST_SCHOOL_ID,
+          new QuestionPoolService(db, TEST_SCHOOL_ID),
+        );
         const question = await owner.addPoolQuestion("pool-1", {
           title: "Explain gravity",
           content: "In your own words.",
           createdBy: "admin-1",
         });
-        const otherSchool = new PoolQuestionService(db, "school-b");
+        const otherSchool = new PoolQuestionService(
+          db,
+          "school-b",
+          new QuestionPoolService(db, "school-b"),
+        );
 
         await expect(act(otherSchool, question.id)).rejects.toThrow(
           "Pool question not found",
@@ -553,8 +641,14 @@ describe("pool→test isolation (Step 30 — regression pin)", () => {
   dbIt(
     "editing a pool question has no retroactive effect on a test question already composed from it (green from the first run — composed copies share no references with the pool)",
     async ({ db }) => {
-      const poolQuestionService = new PoolQuestionService(db, TEST_SCHOOL_ID);
-      const questionService = new QuestionService(db);
+      await insertRawPool(db, "pool-1");
+      const poolQuestionService = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
+      await insertRawTest(db, "test-1");
+      const questionService = new QuestionService(db, buildTestService(db));
 
       const poolQuestion = await poolQuestionService.addPoolQuestion("pool-1", {
         title: "Explain gravity",

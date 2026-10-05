@@ -1,4 +1,5 @@
 import type { Collection, Db } from "mongodb";
+import type { TestService } from "./test-service";
 
 /**
  * Test feedback document stored in the `test_feedback` collection.
@@ -32,14 +33,24 @@ export interface SetTestFeedbackInput {
 export class TestFeedbackService {
   private readonly testFeedback: Collection<TestFeedbackDocument>;
 
-  constructor(db: Db) {
+  /**
+   * @param db - The database.
+   * @param testService - The same school's tests, where every write looks up its test.
+   */
+  constructor(
+    db: Db,
+    private readonly testService: TestService,
+  ) {
     this.testFeedback = db.collection<TestFeedbackDocument>("test_feedback");
   }
 
   /**
    * Sets (or updates) overall test feedback for a student.
+   * @param input - The test, the student, the feedback and who wrote it.
+   * @throws "Test not found" when the test isn't this school's.
    */
   async setTestFeedback(input: SetTestFeedbackInput): Promise<void> {
+    await this.testService.requireTest(input.testId);
     const now = new Date();
     await this.testFeedback.updateOne(
       { testId: input.testId, studentId: input.studentId },

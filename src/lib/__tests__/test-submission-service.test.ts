@@ -7,6 +7,7 @@ import { TestStatusService } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
 import { insertRawTest } from "src/tests/insert-raw-test";
+import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -520,6 +521,7 @@ describe("TestSubmissionService.releaseGradeToStudent", () => {
   );
 
   dbIt("throws when no active submission exists", async ({ db }) => {
+    await insertRawTest(db, "test-nobody");
     const { testSubmissionService } = buildCoreServices(db);
 
     await expect(
@@ -678,6 +680,7 @@ describe("TestSubmissionService - Edge Cases", () => {
   dbIt(
     "submitTest on a practice test with an MC question creates no grades and keeps the status as submitted (not graded)",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const {
         questionService,
         answerService,

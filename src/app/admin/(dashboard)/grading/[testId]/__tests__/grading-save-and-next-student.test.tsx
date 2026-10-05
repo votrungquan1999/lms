@@ -23,14 +23,14 @@ const gradeQuestion = vi.fn().mockResolvedValue(undefined);
 const getTest = vi
   .fn()
   .mockResolvedValue({ id: "test-1", courseId: "course-1", isPractice: false });
-const listQuestions = vi
-  .fn()
-  .mockResolvedValue([{ id: "q1" }, { id: "q2" }, { id: "q3" }]);
+const getQuestion = vi.fn(async (_testId: string, questionId: string) =>
+  ["q1", "q2", "q3"].includes(questionId) ? { id: questionId } : null,
+);
 const isEnrolled = vi.fn().mockResolvedValue(true);
 vi.mock("src/lib/services-singleton", () => ({
   getGradeService: vi.fn(async () => ({ gradeQuestion, getGrade: vi.fn() })),
   getTestService: vi.fn(async () => ({ getTest })),
-  getQuestionService: vi.fn(async () => ({ listQuestions })),
+  getQuestionService: vi.fn(async () => ({ getQuestion })),
   getEnrollmentService: vi.fn(async () => ({ isEnrolled })),
 }));
 

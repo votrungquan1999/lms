@@ -18,6 +18,7 @@ import {
 } from "src/lib/apply-suggestion";
 import type { GradeDocument, GradeService } from "src/lib/grade-service";
 import type { QuestionService } from "src/lib/question-service";
+import type { TestService } from "src/lib/test-service";
 import { normalizeText } from "src/lib/text-normalization";
 
 /** Internal candidate row for the generate/regenerate skip-filter. */
@@ -40,12 +41,21 @@ export class AiGradeService {
   private readonly suggestions: Collection<AiGradeSuggestionDocument>;
   private readonly grades: Collection<GradeDocument>;
 
+  /**
+   * @param db - The database.
+   * @param aiClient - The model client that drafts the suggestions.
+   * @param questionService - The same school's questions.
+   * @param answerService - The same school's answers.
+   * @param gradeService - The same school's grades, where Apply writes.
+   * @param testService - The same school's tests, where every write looks up its test.
+   */
   constructor(
     db: Db,
     private readonly aiClient: AiClient,
     private readonly questionService: QuestionService,
     private readonly answerService: AnswerService,
     private readonly gradeService: GradeService,
+    private readonly testService: TestService,
   ) {
     this.suggestions = db.collection<AiGradeSuggestionDocument>("ai_grade");
     this.grades = db.collection<GradeDocument>("grade");
@@ -66,11 +76,19 @@ export class AiGradeService {
     return count > 0;
   }
 
+  /**
+   * Drafts AI suggestions for a student's ungraded free-text answers.
+   * @param testId - The test.
+   * @param studentId - The student whose answers are graded.
+   * @param byAdminId - The admin triggering the generate.
+   * @throws "Test not found" when the test isn't this school's.
+   */
   async generateForStudent(
     testId: string,
     studentId: string,
     byAdminId: string,
   ): Promise<AiGradeSuggestion[]> {
+    await this.testService.requireTest(testId);
     const candidates = await this.buildCandidates(testId, studentId);
     if (candidates.length === 0) return [];
 
@@ -95,6 +113,7 @@ export class AiGradeService {
   /**
    * Regenerates AI suggestions. Appends NEW rows per still-in-scope free-text
    * question. History is append-only. Caller (action) validates `reason`.
+   * @throws "Test not found" when the test isn't this school's.
    */
   async regenerateForStudent(
     testId: string,
@@ -102,6 +121,7 @@ export class AiGradeService {
     byAdminId: string,
     reason: string,
   ): Promise<AiGradeSuggestion[]> {
+    await this.testService.requireTest(testId);
     const candidates = await this.buildCandidates(testId, studentId);
     if (candidates.length === 0) return [];
 
@@ -152,6 +172,7 @@ export class AiGradeService {
    * @param questionId - The single question to regenerate.
    * @param byAdminId - The admin triggering the regenerate.
    * @param reason - Why the teacher is regenerating (forwarded to the AI client).
+   * @throws "Test not found" when the test isn't this school's.
    */
   async regenerateForQuestion(
     testId: string,
@@ -160,6 +181,7 @@ export class AiGradeService {
     byAdminId: string,
     reason: string,
   ): Promise<AiGradeSuggestion[]> {
+    await this.testService.requireTest(testId);
     const candidates = await this.buildCandidates(testId, studentId);
     const scoped = candidates.filter((c) => c.questionId === questionId);
     if (scoped.length === 0) return [];
@@ -238,6 +260,7 @@ export class AiGradeService {
    * Promotes an AI suggestion into the real `grade` collection. Delegates to
    * `apply-suggestion.ts`. See that module for apply order + refusal policy.
    * @param verified - The test and student the caller already checked.
+   * @throws "Test not found" when the test isn't this school's.
    */
   async applySuggestion(
     suggestionId: string,
@@ -245,6 +268,8 @@ export class AiGradeService {
     verified: VerifiedSuggestionTarget,
     overrides?: ApplySuggestionOverrides,
   ): Promise<AiGradeSuggestion> {
+    // Before any write: Apply marks the suggestion before writing the grade.
+    await this.testService.requireTest(verified.testId);
     return applySuggestionImpl(
       {
         suggestions: this.suggestions,

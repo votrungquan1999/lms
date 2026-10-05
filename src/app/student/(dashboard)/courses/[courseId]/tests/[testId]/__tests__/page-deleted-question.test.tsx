@@ -114,7 +114,7 @@ describe("Feature: a student's progress ignores an answer to a question that was
         answer: { type: "free_text", text: "My answer" },
       });
     }
-    await services.questionService.deleteQuestion(q3.id, "admin-1");
+    await services.questionService.deleteQuestion(q3.testId, q3.id, "admin-1");
 
     // When: the student opens the test and starts to submit it.
     mockStudentSession(student.id);

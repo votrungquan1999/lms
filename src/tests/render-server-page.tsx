@@ -64,6 +64,7 @@ export interface TestServices {
 /** Services built for one school — one set per school in the harness. */
 interface SchoolBoundServices {
   aiGradeService: AiGradeService;
+  annotationService: AnnotationService;
   answerService: AnswerService;
   courseJoinRequestService: CourseJoinRequestService;
   courseService: CourseService;
@@ -75,6 +76,7 @@ interface SchoolBoundServices {
   questionService: QuestionService;
   redoRequestService: RedoRequestService;
   studentService: StudentService;
+  testFeedbackService: TestFeedbackService;
   testService: TestService;
   testStatusService: TestStatusService;
   testSubmissionService: TestSubmissionService;
@@ -129,8 +131,6 @@ export function signInAs(
 function makeSharedServices(db: Db): SharedServices {
   const questionChangeLogService = new QuestionChangeLogService(db);
   const testStartService = new TestStartService(db);
-  const annotationService = new AnnotationService(db);
-  const testFeedbackService = new TestFeedbackService(db);
   // Resolved per call, the same way the mocked getter routes it.
   const pageGuard = new PageGuard(
     async (schoolId) => servicesForSchool(schoolId).enrollmentService,
@@ -153,13 +153,11 @@ function makeSharedServices(db: Db): SharedServices {
   } as unknown as S3StorageService;
 
   return {
-    annotationService,
     pageGuard,
     questionChangeLogService,
     s3StorageService,
     schoolDirectory,
     schoolService,
-    testFeedbackService,
     testStartService,
     userRoleService,
   };
@@ -184,15 +182,17 @@ function makeSchoolServices(
   const poolQuestionService = new PoolQuestionService(
     db,
     schoolId,
+    questionPoolService,
     questionChangeLogService,
   );
-  const testService = new TestService(db, schoolId);
+  const testService = new TestService(db, schoolId, courseService);
   // Lazy thunk — AnswerService itself depends on QuestionService, so passing
   // an instance here would be a construction cycle (see QuestionService's
   // constructor JSDoc, and the TestSubmissionService thunk just below).
   let answerService!: AnswerService;
   const questionService = new QuestionService(
     db,
+    testService,
     questionChangeLogService,
     () => Promise.resolve(answerService),
   );
@@ -215,6 +215,7 @@ function makeSchoolServices(
     questionService,
     answerService,
     gradeVisibilityService,
+    testService,
   );
   testSubmissionService = new TestSubmissionService(
     db,
@@ -236,11 +237,15 @@ function makeSchoolServices(
     questionService,
     answerService,
     gradeService,
+    testService,
   );
   const redoRequestService = new RedoRequestService(db, testService);
+  const annotationService = new AnnotationService(db, testService);
+  const testFeedbackService = new TestFeedbackService(db, testService);
 
   return {
     aiGradeService,
+    annotationService,
     answerService,
     courseJoinRequestService,
     courseService,
@@ -252,6 +257,7 @@ function makeSchoolServices(
     questionService,
     redoRequestService,
     studentService,
+    testFeedbackService,
     testService,
     testStatusService,
     testSubmissionService,
@@ -382,7 +388,8 @@ export function servicesSingletonMockFactory() {
   return {
     getAiGradeService: async (schoolId: string) =>
       servicesForSchool(schoolId).aiGradeService,
-    getAnnotationService: async () => getTestServices().annotationService,
+    getAnnotationService: async (schoolId: string) =>
+      servicesForSchool(schoolId).annotationService,
     getAnswerService: async (schoolId: string) =>
       servicesForSchool(schoolId).answerService,
     getCourseJoinRequestService: async (schoolId: string) =>
@@ -411,7 +418,8 @@ export function servicesSingletonMockFactory() {
     getSchoolService: async () => getTestServices().schoolService,
     getStudentService: async (schoolId: string) =>
       servicesForSchool(schoolId).studentService,
-    getTestFeedbackService: async () => getTestServices().testFeedbackService,
+    getTestFeedbackService: async (schoolId: string) =>
+      servicesForSchool(schoolId).testFeedbackService,
     getTestService: async (schoolId: string) =>
       servicesForSchool(schoolId).testService,
     getTestStartService: async () => getTestServices().testStartService,

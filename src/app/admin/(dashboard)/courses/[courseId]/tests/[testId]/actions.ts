@@ -144,6 +144,7 @@ export async function updateQuestionAction(
         }
 
         await questionService.updateQuestion(
+          data.testId,
           data.questionId,
           input,
           adminUserId,
@@ -520,7 +521,7 @@ export async function deleteQuestionAction(
         await resolveOwnedTest(testService, testId, courseId);
         const questionService = await getQuestionService(schoolId);
         await assertQuestionInTest(questionService, testId, questionId);
-        await questionService.deleteQuestion(questionId, adminUserId);
+        await questionService.deleteQuestion(testId, questionId, adminUserId);
 
         revalidatePath(`/admin/courses/${courseId}/tests/${testId}`);
 

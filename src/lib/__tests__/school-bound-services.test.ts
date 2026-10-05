@@ -9,6 +9,7 @@ import { PoolQuestionService } from "src/lib/pool-question-service";
 import { QuestionPoolService } from "src/lib/question-pool-service";
 import {
   getAiGradeService,
+  getAnnotationService,
   getAnswerService,
   getCourseJoinRequestService,
   getCourseService,
@@ -20,12 +21,14 @@ import {
   getQuestionService,
   getRedoRequestService,
   getStudentService,
+  getTestFeedbackService,
   getTestService,
   getTestStatusService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
 import { StudentService } from "src/lib/student-service";
 import { TestService } from "src/lib/test-service";
+import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   addTestSchool,
   getTestServices,
@@ -39,11 +42,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 const TEST_BOUND_GETTERS = {
   getTestService,
   getAiGradeService,
+  getAnnotationService,
   getAnswerService,
   getGradeService,
   getGradeVisibilityService,
   getQuestionService,
   getRedoRequestService,
+  getTestFeedbackService,
   getTestStatusService,
   getTestSubmissionService,
 };
@@ -158,9 +163,14 @@ describe("Feature: a school's test service only ever lists that school's tests",
     ["undefined", undefined],
     ["an empty string", ""],
   ])("refuses to build a test service for %s school", (_label, schoolId) => {
-    expect(() => new TestService(db, schoolId as string)).toThrow(
-      "A school is required",
-    );
+    expect(
+      () =>
+        new TestService(
+          db,
+          schoolId as string,
+          new CourseService(db, TEST_SCHOOL_ID),
+        ),
+    ).toThrow("A school is required");
   });
 
   it.each(
@@ -407,9 +417,14 @@ describe("Feature: a school's pool services only ever list that school's pools a
   ])(
     "refuses to build a pool question service for %s school",
     (_label, schoolId) => {
-      expect(() => new PoolQuestionService(db, schoolId as string)).toThrow(
-        "A school is required",
-      );
+      expect(
+        () =>
+          new PoolQuestionService(
+            db,
+            schoolId as string,
+            new QuestionPoolService(db, TEST_SCHOOL_ID),
+          ),
+      ).toThrow("A school is required");
     },
   );
 

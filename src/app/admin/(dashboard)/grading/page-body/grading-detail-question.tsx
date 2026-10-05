@@ -75,7 +75,7 @@ export async function GradingDetailQuestion({
 
   const answerService = await getAnswerService(schoolId);
   const gradeService = await getGradeService(schoolId);
-  const annotationService = await getAnnotationService();
+  const annotationService = await getAnnotationService(schoolId);
   const testStatusService = await getTestStatusService(schoolId);
 
   const rows = await Promise.all(

@@ -6,11 +6,13 @@ import {
   QuestionService,
   type SingleSelectQuestion,
 } from "src/lib/question-service";
-import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
 import { TestStatus } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
+import { buildTestService } from "src/tests/build-test-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import { insertRawTest } from "src/tests/insert-raw-test";
+import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
@@ -19,6 +21,7 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "should return weighted average of grades based on question weights",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const { testService, questionService, gradeService } =
         buildCoreServices(db);
 
@@ -70,6 +73,7 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "autoGradeTest should correctly grade single_select and multi_select questions",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const { testService, questionService, answerService, gradeService } =
         buildCoreServices(db);
 
@@ -190,6 +194,7 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "should persist grade with score, feedback, and timestamp",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const { testService, questionService, answerService, gradeService } =
         buildCoreServices(db);
 
@@ -234,6 +239,7 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "should store an optional solution per student-question",
     async ({ db }) => {
+      await insertRawTest(db, "test-1");
       const { questionService, answerService, gradeService } =
         buildCoreServices(db);
       void questionService;
@@ -255,6 +261,7 @@ describe("GradeService - Integration Tests", () => {
   );
 
   dbIt("should update score and feedback when re-grading", async ({ db }) => {
+    await insertRawTest(db, "test-1");
     const { questionService, answerService, gradeService } =
       buildCoreServices(db);
     void questionService;
@@ -285,6 +292,7 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "getStudentGrades & getStudentAverageScore should enforce visibility and atomic reveal",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const { testService, questionService, answerService, gradeService } =
         buildCoreServices(db);
 
@@ -372,6 +380,7 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "getStudentGrades should return empty when test is configured to not reveal grades after submit",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-reveal"]);
       const { testService, questionService, answerService, gradeService } =
         buildCoreServices(db);
 
@@ -432,6 +441,7 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "getAverageScore returns null when a free-text question has an answer but no grade yet",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const { testService, questionService, answerService, gradeService } =
         buildCoreServices(db);
 
@@ -465,6 +475,7 @@ describe("GradeService - Integration Tests", () => {
   dbIt(
     "getAverageScore counts an unanswered free-text question as 0 instead of returning null",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given: two free-text questions of equal weight. The student
       // answered q1 (graded 100) but never answered q2 — no Answer row,
       // no Grade row for q2. The old code would have tripped the
@@ -521,6 +532,7 @@ describe("GradeService - Atomic Reveal", () => {
   dbIt(
     "happy path: grades are hidden until all questions are graded (flags ON)",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-ar"]);
       const {
         testService,
         questionService,
@@ -628,6 +640,7 @@ describe("GradeService - Atomic Reveal", () => {
   dbIt(
     "flags OFF: grades remain hidden even after all questions are graded, until admin releases",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-ar2"]);
       const {
         testService,
         questionService,
@@ -716,6 +729,7 @@ describe("GradeService - Auto-Grade Edge Cases", () => {
   dbIt(
     "multi_select partial with all correct and no wrong selected scores 100",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const { testService, questionService, answerService, gradeService } =
         buildCoreServices(db);
 
@@ -759,12 +773,13 @@ describe("GradeService - Auto-Grade Edge Cases", () => {
   dbIt(
     "multi_select rejects an MC answer with no selected options",
     async ({ db }) => {
-      const testService = new TestService(db, TEST_SCHOOL_ID);
-      const questionService = new QuestionService(db);
+      await insertRawCourses(db, ["course-1"]);
+      const testService = buildTestService(db);
+      const questionService = new QuestionService(db, buildTestService(db));
       const answerService = new AnswerService(
         db,
         questionService,
-        new TestService(db, TEST_SCHOOL_ID),
+        buildTestService(db),
         new TestStartService(db),
       );
 
@@ -803,6 +818,7 @@ describe("GradeService - Visibility Edge Cases", () => {
   dbIt(
     "getStudentGrades returns empty when showGradeAfterSubmit=true but one question is still ungraded",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const { testService, questionService, gradeService } =
         buildCoreServices(db);
 
@@ -925,6 +941,7 @@ describe("GradeService - Re-grade Override", () => {
   dbIt(
     "manually re-grading an auto-graded MC question upserts the score correctly",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       const { testService, questionService, answerService, gradeService } =
         buildCoreServices(db);
 

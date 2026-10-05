@@ -191,7 +191,7 @@ export default async function StudentTestDetailPage({
   // Mint photo URLs for image answers whose grade is revealed, plus the
   // grader's annotations (stored separately from the grade) over those photos.
   // Same reveal gate as grades — annotations stay hidden until release.
-  const annotationService = await getAnnotationService();
+  const annotationService = await getAnnotationService(session.schoolId);
   const answerImagesMap = new Map<string, AnswerImage[]>();
   const annotationsMap = new Map<string, AnnotationEntry[]>();
   for (const [questionId, ans] of answerMap) {
@@ -217,7 +217,7 @@ export default async function StudentTestDetailPage({
     testStatus,
   );
 
-  const testFeedbackService = await getTestFeedbackService();
+  const testFeedbackService = await getTestFeedbackService(session.schoolId);
   const overallFeedback = await testFeedbackService.getTestFeedback(
     testId,
     session.studentId,

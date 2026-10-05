@@ -1,4 +1,5 @@
 import { withTestDb } from "src/tests/create-test-db";
+import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
 import { createAlice, makeAssembler } from "./results-report-assembler.helpers";
 
@@ -8,6 +9,7 @@ describe("ResultsReportAssembler.buildReport — per-question breakdown", () => 
   dbIt(
     "breaks down a free-text question with its title, resolved answer text, score, and feedback",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given a selected test with an ordered free-text question the student
       // answered, graded 8 with feedback "Good".
       const {
@@ -61,6 +63,7 @@ describe("ResultsReportAssembler.buildReport — per-question breakdown", () => 
   dbIt(
     "resolves a multiple-choice answer to the selected option labels, not raw ids",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given a selected test with a single-select MC question whose options
       // are labeled, and the student selected the "Paris" option.
       const {
@@ -121,6 +124,7 @@ describe("ResultsReportAssembler.buildReport — per-question breakdown", () => 
   dbIt(
     "lists the breakdown questions in the test's defined question order",
     async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
       // Given a selected test with three questions added in a defined order.
       const { assembler, studentService, testService, questionService } =
         makeAssembler(db);

@@ -1,6 +1,6 @@
 import { CourseService } from "src/lib/course-service";
 import { EnrollmentService } from "src/lib/enrollment-service";
-import { TestService } from "src/lib/test-service";
+import { buildTestService } from "src/tests/build-test-service";
 import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
 import { insertRawStudents } from "src/tests/raw-enrollment-seeds";
 import { describe, expect, it } from "vitest";
@@ -146,7 +146,7 @@ describe("Feature: Admin Course Management Flow", () => {
   describe("Scenario: Admin manages tests", () => {
     dbIt("should create a test associated with a course", async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
       const course = await courseService.createCourse({
         title: "Algorithms",
         description: "",
@@ -166,7 +166,7 @@ describe("Feature: Admin Course Management Flow", () => {
 
     dbIt("should list only tests for the specified course", async ({ db }) => {
       const courseService = new CourseService(db, TEST_SCHOOL_ID);
-      const testService = new TestService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
       const courseA = await courseService.createCourse({
         title: "A",
         description: "",

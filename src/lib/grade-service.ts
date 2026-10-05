@@ -6,6 +6,7 @@ import type {
   QuestionService,
   SingleSelectQuestion,
 } from "src/lib/question-service";
+import type { TestService } from "src/lib/test-service";
 import type { TestStatus } from "src/lib/test-status-service";
 
 /**
@@ -61,11 +62,19 @@ export interface GradeQuestionInput {
 export class GradeService {
   private readonly grades: Collection<GradeDocument>;
 
+  /**
+   * @param db - The database.
+   * @param questionService - The same school's questions.
+   * @param answerService - The same school's answers.
+   * @param gradeVisibility - The same school's grade reveal rules.
+   * @param testService - The same school's tests, where every write looks up its test.
+   */
   constructor(
     db: Db,
     private readonly questionService: QuestionService,
     private readonly answerService: AnswerService,
     private readonly gradeVisibility: GradeVisibilityService,
+    private readonly testService: TestService,
   ) {
     this.grades = db.collection<GradeDocument>("grade");
   }
@@ -73,8 +82,11 @@ export class GradeService {
   /**
    * Auto-grades a student's answers for an entire test.
    * Only applicable to single_select and multi_select questions.
+   * @throws "Test not found" when the test isn't this school's.
    */
   async autoGradeTest(testId: string, studentId: string): Promise<Grade[]> {
+    // One lookup for the whole test; every grade below is written under it.
+    await this.testService.requireTest(testId);
     const grades: Grade[] = [];
     const questions = await this.questionService.listQuestions(testId);
     const answers = await this.answerService.getLatestAnswers(
@@ -99,7 +111,7 @@ export class GradeService {
         studentAnswer.answer.selectedIds,
       );
 
-      const grade = await this.gradeQuestion({
+      const grade = await this.writeGrade({
         testId,
         questionId: question.id,
         studentId,
@@ -174,8 +186,17 @@ export class GradeService {
   /**
    * Grades (or re-grades) a student's answer for a question.
    * Uses upsert: creates if not exists, updates if already graded.
+   * @throws "Test not found" when the test isn't this school's.
    */
   async gradeQuestion(input: GradeQuestionInput): Promise<Grade> {
+    await this.testService.requireTest(input.testId);
+    return this.writeGrade(input);
+  }
+
+  /**
+   * Upserts one grade row. Callers have already checked the test is this school's.
+   */
+  private async writeGrade(input: GradeQuestionInput): Promise<Grade> {
     const now = new Date();
     const filter = {
       testId: input.testId,

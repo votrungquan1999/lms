@@ -63,7 +63,7 @@ export async function GET(
     getAnswerService(schoolId),
     getGradeService(schoolId),
     getTestStatusService(schoolId),
-    getTestFeedbackService(),
+    getTestFeedbackService(schoolId),
   ]);
 
   // School checks first, so another school's ids get the same 404 whether or

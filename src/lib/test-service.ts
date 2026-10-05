@@ -1,4 +1,5 @@
-import type { Collection, Db } from "mongodb";
+import type { Collection, Db, UpdateFilter } from "mongodb";
+import type { CourseService } from "./course-service";
 
 /**
  * How a student sees their free-text answer once it's revealed: lined up
@@ -89,9 +90,15 @@ export interface UpdateTestSettingsInput {
 export class TestService {
   private readonly tests: Collection<TestDocument>;
 
+  /**
+   * @param db - The database.
+   * @param schoolId - The school every query is bound to.
+   * @param courseService - The same school's courses, where a new test's course is looked up.
+   */
   constructor(
     db: Db,
     private readonly schoolId: string,
+    private readonly courseService: CourseService,
   ) {
     // Fail closed: a missing school would query `{ schoolId: null }`, which
     // matches exactly the tests no school owns yet.
@@ -101,9 +108,19 @@ export class TestService {
     this.tests = db.collection<TestDocument>("test");
   }
 
+  /**
+   * Creates a test under one of this school's courses.
+   * @param courseId - The course the test belongs to.
+   * @param input - The test's title, description and settings.
+   * @throws "Course not found" when the course isn't this school's.
+   */
   async createTest(courseId: string, input: CreateTestInput): Promise<Test> {
     if (input.isPractice && input.timeLimitMinutes != null) {
       throw new Error("A practice test cannot have a time limit.");
+    }
+    // Found through this school's courses, so the school stamped below is the course's own.
+    if (!(await this.courseService.getCourse(courseId))) {
+      throw new Error("Course not found");
     }
 
     const doc: TestDocument = {
@@ -141,6 +158,19 @@ export class TestService {
       schoolId: this.schoolId,
     });
     return doc ? this.toTest(doc) : null;
+  }
+
+  /**
+   * Returns the school's live test for a write that hangs off it.
+   * @param testId - The test a child write names.
+   * @throws "Test not found" when the test is missing, deleted, or another school's.
+   */
+  async requireTest(testId: string): Promise<Test> {
+    const test = await this.getTest(testId);
+    if (!test) {
+      throw new Error("Test not found");
+    }
+    return test;
   }
 
   async listTests(courseId: string): Promise<Test[]> {
@@ -188,6 +218,7 @@ export class TestService {
    * Overwrites a test's visibility flags and stamps audit fields.
    * Does NOT touch `gradesReleasedAt` or `correctAnswersReleasedAt` — those are
    * owned by the dedicated release mutators (`releaseGrades`, `releaseCorrectAnswers`).
+   * @throws "Test not found" when the test is missing or another school's.
    */
   async updateTestSettings(
     testId: string,
@@ -197,62 +228,87 @@ export class TestService {
       throw new Error("A practice test cannot have a time limit.");
     }
 
-    await this.tests.updateOne(
-      { id: testId },
-      {
-        $set: {
-          showGradeAfterSubmit: input.showGradeAfterSubmit,
-          showCorrectAnswerAfterSubmit: input.showCorrectAnswerAfterSubmit,
-          timeLimitMinutes: input.timeLimitMinutes,
-          isPractice: input.isPractice,
-          answerRevealMode: input.answerRevealMode,
-          updatedAt: new Date(),
-          updatedBy: input.updatedBy,
-        },
+    await this.updateOwnTest(testId, {
+      $set: {
+        showGradeAfterSubmit: input.showGradeAfterSubmit,
+        showCorrectAnswerAfterSubmit: input.showCorrectAnswerAfterSubmit,
+        timeLimitMinutes: input.timeLimitMinutes,
+        isPractice: input.isPractice,
+        answerRevealMode: input.answerRevealMode,
+        updatedAt: new Date(),
+        updatedBy: input.updatedBy,
       },
-    );
+    });
   }
 
+  /**
+   * Releases a test's grades to every student.
+   * @param testId - The test to release.
+   * @param updatedBy - The admin releasing.
+   * @throws "Test not found" when the test is missing or another school's.
+   */
   async releaseGrades(testId: string, updatedBy: string): Promise<void> {
-    await this.tests.updateOne(
-      { id: testId },
-      {
-        $set: {
-          gradesReleasedAt: new Date(),
-          updatedBy,
-          updatedAt: new Date(),
-        },
+    await this.updateOwnTest(testId, {
+      $set: {
+        gradesReleasedAt: new Date(),
+        updatedBy,
+        updatedAt: new Date(),
       },
-    );
+    });
   }
 
+  /**
+   * Releases a test's correct answers to every student.
+   * @param testId - The test to release.
+   * @param updatedBy - The admin releasing.
+   * @throws "Test not found" when the test is missing or another school's.
+   */
   async releaseCorrectAnswers(
     testId: string,
     updatedBy: string,
   ): Promise<void> {
-    await this.tests.updateOne(
-      { id: testId },
-      {
-        $set: {
-          correctAnswersReleasedAt: new Date(),
-          updatedBy,
-          updatedAt: new Date(),
-        },
+    await this.updateOwnTest(testId, {
+      $set: {
+        correctAnswersReleasedAt: new Date(),
+        updatedBy,
+        updatedAt: new Date(),
       },
-    );
+    });
   }
 
+  /**
+   * Soft-deletes a test so it no longer appears in lists or lookups.
+   * @param testId - The test to delete.
+   * @param deletedBy - The admin deleting.
+   * @throws "Test not found" when the test is missing or another school's.
+   */
   async deleteTest(testId: string, deletedBy: string): Promise<void> {
-    await this.tests.updateOne(
-      { id: testId },
-      {
-        $set: {
-          deletedAt: new Date(),
-          deletedBy,
-          updatedAt: new Date(),
-          updatedBy: deletedBy,
-        },
+    await this.updateOwnTest(testId, {
+      $set: {
+        deletedAt: new Date(),
+        deletedBy,
+        updatedAt: new Date(),
+        updatedBy: deletedBy,
       },
+    });
+  }
+
+  /**
+   * Applies `update` to one of this school's tests.
+   * @param testId - The test to change.
+   * @param update - The Mongo update to apply.
+   * @throws "Test not found" when the test is missing or another school's.
+   */
+  private async updateOwnTest(
+    testId: string,
+    update: UpdateFilter<TestDocument>,
+  ): Promise<void> {
+    const result = await this.tests.updateOne(
+      { id: testId, schoolId: this.schoolId },
+      update,
     );
+    if (result.matchedCount === 0) {
+      throw new Error("Test not found");
+    }
   }
 }

@@ -66,10 +66,7 @@ export class TestSubmissionService {
   async submitTest(testId: string, studentId: string): Promise<void> {
     // Resolve the test before anything else — a missing test must never
     // fall through to "no time limit, not practice" and accept the write.
-    const test = await this.testService.getTest(testId);
-    if (!test) {
-      throw new Error("Test not found");
-    }
+    const test = await this.testService.requireTest(testId);
 
     const existing = await this.testSubmissions.findOne({
       testId,
@@ -149,13 +146,15 @@ export class TestSubmissionService {
    * Stamps `releasedAt` and `releasedBy` on the active submission for this
    * student, so the per-student release tier of the visibility gate opens.
    * Re-calling refreshes both fields (matches `releaseGrades` semantics).
-   * Soft-deleted rows are not touched. Throws if no active submission exists.
+   * Soft-deleted rows are not touched. Throws "Test not found" when the test
+   * isn't this school's, and throws when no active submission exists.
    */
   async releaseGradeToStudent(
     testId: string,
     studentId: string,
     userId: string,
   ): Promise<void> {
+    await this.testService.requireTest(testId);
     const result = await this.testSubmissions.updateOne(
       { testId, studentId, deletedAt: null },
       { $set: { releasedAt: new Date(), releasedBy: userId } },
@@ -169,8 +168,10 @@ export class TestSubmissionService {
    * Soft-deletes the active submission (used in the redo flow). The row stays
    * in the collection with `deletedAt` set so audit data on it is preserved;
    * subsequent reads via `isTestSubmitted` / `submitTest` ignore it.
+   * @throws "Test not found" when the test isn't this school's.
    */
   async deleteSubmission(testId: string, studentId: string): Promise<void> {
+    await this.testService.requireTest(testId);
     await this.testSubmissions.updateMany(
       { testId, studentId, deletedAt: null },
       { $set: { deletedAt: new Date() } },

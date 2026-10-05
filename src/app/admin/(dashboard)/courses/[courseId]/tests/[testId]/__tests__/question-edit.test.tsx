@@ -1028,16 +1028,16 @@ describe("Feature: Question edit panel — answer options", () => {
       within(dialog).getByRole("button", { name: /save anyway/i }),
     );
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+    // Waits on the stored title: the first save's "updated" status is still on screen.
+    let afterSecondSave: SingleSelectQuestion | undefined;
+    await waitFor(async () => {
+      [afterSecondSave] = (await services.questionService.listQuestions(
+        test.id,
+      )) as SingleSelectQuestion[];
+      expect(afterSecondSave?.title).toBe("Pick the capital (revised)");
     });
-
-    const [afterSecondSave] = (await services.questionService.listQuestions(
-      test.id,
-    )) as SingleSelectQuestion[];
-    expect(afterSecondSave.title).toBe("Pick the capital (revised)");
     // The added option's id is unchanged — a second save never re-mints it.
-    expect(afterSecondSave.options.find((o) => o.text === "Berlin")?.id).toBe(
+    expect(afterSecondSave?.options.find((o) => o.text === "Berlin")?.id).toBe(
       newOption.id,
     );
 
@@ -1051,7 +1051,7 @@ describe("Feature: Question edit panel — answer options", () => {
       type: "mc",
       selectedIds: [newOption.id],
     });
-    expect(afterSecondSave.options.map((o) => o.id)).toContain(newOption.id);
+    expect(afterSecondSave?.options.map((o) => o.id)).toContain(newOption.id);
   });
 
   it("still shows the save confirmation and the added option once the saved question comes back", async () => {

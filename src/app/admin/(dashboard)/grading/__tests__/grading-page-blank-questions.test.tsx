@@ -377,7 +377,7 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
       feedback: "Nice",
       gradedBy: "admin",
     });
-    await services.questionService.deleteQuestion(q2.id, "admin");
+    await services.questionService.deleteQuestion(q2.testId, q2.id, "admin");
 
     // When: the admin grading page renders focused on that student.
     const ui = await GradingPage({
@@ -451,7 +451,11 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
         gradedBy: "admin",
       });
     }
-    await services.questionService.deleteQuestion(questionIds[1], "admin");
+    await services.questionService.deleteQuestion(
+      test.id,
+      questionIds[1],
+      "admin",
+    );
 
     // When: the admin grading page renders focused on that student.
     const ui = await GradingPage({
