@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+const googleMock = vi.fn((_modelId: string) => "stub-model");
 vi.mock("@ai-sdk/google", () => ({
-  google: () => "stub-model",
+  google: (modelId: string) => googleMock(modelId),
 }));
 
 const generateTextMock = vi.fn();
@@ -11,6 +12,124 @@ vi.mock("ai", () => ({
 }));
 
 import { GeminiAiClient } from "../ai-client";
+
+describe("GeminiAiClient model choice", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("calls the model named in GEMINI_MODEL_ID, so a run can move off an overloaded default", async () => {
+    vi.stubEnv("GEMINI_MODEL_ID", "gemini-2.5-flash");
+    generateTextMock.mockResolvedValueOnce({
+      usage: {},
+      output: { questions: [] },
+    });
+
+    await new GeminiAiClient().parseQuestionsFromText("1. What is 2+2?");
+
+    expect(googleMock).toHaveBeenCalledWith("gemini-2.5-flash");
+  });
+});
+
+describe("GeminiAiClient.parseQuestionsFromText", () => {
+  it("closes a list the model left open, so the question's last line doesn't render inside its final bullet", async () => {
+    generateTextMock.mockResolvedValueOnce({
+      usage: {},
+      output: {
+        questions: [
+          {
+            title: "Câu 4",
+            content:
+              "Các bước:\n- Lấy mẫu\n- Cấy mẫu\nQuy trình trên thuộc phương pháp",
+            type: "free_text",
+          },
+        ],
+      },
+    });
+
+    const [question] = await new GeminiAiClient().parseQuestionsFromText(
+      "Câu 4 …",
+    );
+
+    expect(question?.content).toBe(
+      "Các bước:\n- Lấy mẫu\n- Cấy mẫu\n\nQuy trình trên thuộc phương pháp",
+    );
+  });
+});
+
+describe("GeminiAiClient.parseQuestionsFromText pictures", () => {
+  it("keeps the picture numbers the model assigned to each question", async () => {
+    generateTextMock.mockResolvedValueOnce({
+      usage: {},
+      output: {
+        questions: [
+          {
+            title: "Câu 14",
+            content: "Quan sát hình bên",
+            type: "free_text",
+            imageNumbers: [10],
+          },
+        ],
+      },
+    });
+
+    const [question] = await new GeminiAiClient().parseQuestionsFromText(
+      "[image 10]Câu 14: Quan sát hình bên",
+    );
+
+    expect(question?.imageNumbers).toEqual([10]);
+  });
+});
+
+describe("GeminiAiClient.retryQuestion", () => {
+  it("closes a list the model left open in the re-read question too", async () => {
+    generateTextMock.mockResolvedValueOnce({
+      usage: {},
+      output: {
+        question: {
+          title: "Câu 4",
+          content:
+            "Các bước:\n- Lấy mẫu\n- Cấy mẫu\nQuy trình trên thuộc phương pháp",
+          type: "free_text",
+        },
+      },
+    });
+
+    const question = await new GeminiAiClient().retryQuestion(
+      "Câu 4 …",
+      { title: "Câu 4", content: "Các bước: …", type: "free_text" },
+      "Keep each step on its own line",
+    );
+
+    expect(question.content).toBe(
+      "Các bước:\n- Lấy mẫu\n- Cấy mẫu\n\nQuy trình trên thuộc phương pháp",
+    );
+  });
+});
+
+describe("GeminiAiClient.retryQuestion pictures", () => {
+  it("keeps the picture numbers the model assigned to the re-read question", async () => {
+    generateTextMock.mockResolvedValueOnce({
+      usage: {},
+      output: {
+        question: {
+          title: "Câu 14",
+          content: "Quan sát hình bên",
+          type: "free_text",
+          imageNumbers: [10],
+        },
+      },
+    });
+
+    const question = await new GeminiAiClient().retryQuestion(
+      "[image 10]Câu 14: Quan sát hình bên",
+      { title: "Câu 14", content: "Quan sát hình bên", type: "free_text" },
+      "The picture is missing",
+    );
+
+    expect(question.imageNumbers).toEqual([10]);
+  });
+});
 
 describe("GeminiAiClient.gradeFreeTextBatch", () => {
   it("forwards the model's per-item solution into each batch output row", async () => {

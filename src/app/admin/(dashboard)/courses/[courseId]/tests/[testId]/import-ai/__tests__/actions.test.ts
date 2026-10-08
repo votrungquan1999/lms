@@ -1,10 +1,11 @@
 import type { Db } from "mongodb";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
 import type { QuestionChangeLogDocument } from "src/lib/question-change-log-service";
-import type {
-  MultiSelectQuestion,
-  QuestionDocument,
-  SingleSelectQuestion,
+import {
+  MediaContentType,
+  type MultiSelectQuestion,
+  type QuestionDocument,
+  type SingleSelectQuestion,
 } from "src/lib/question-service";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
@@ -14,7 +15,7 @@ import {
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { importAiQuestionsAction } from "../actions";
+import { importAiQuestionsAction, type ReviewedQuestion } from "../actions";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -221,6 +222,92 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
     const questions =
       await getTestServices().questionService.listQuestions(testId);
     expect(questions).toHaveLength(0);
+  });
+});
+
+describe("Feature: importing the pictures the document had", () => {
+  it("saves each question's uploaded pictures with it, for every question type", async () => {
+    const { courseId, testId } = await createTest();
+    const picture = (key: string, order: number) => ({
+      fileName: `${key}.png`,
+      contentType: MediaContentType.PNG,
+      size: 1000,
+      key: `media/questions/${key}.png`,
+      order,
+    });
+    const reviewed: ReviewedQuestion[] = [
+      {
+        title: "TL1",
+        content: "Read the graph.",
+        type: "free_text",
+        media: [picture("graph", 0)],
+      },
+      {
+        title: "Câu 14",
+        content: "Which part is the receptor?",
+        type: "single_select",
+        options: [
+          { text: "(1)", isCorrect: false },
+          { text: "(4)", isCorrect: true },
+        ],
+        media: [picture("virus", 0)],
+      },
+      {
+        title: "Sơ cua",
+        content: "Pick every dish with separate colonies.",
+        type: "multi_select",
+        options: [
+          { text: "Dish 1", isCorrect: true },
+          { text: "Dish 2", isCorrect: false },
+        ],
+        media: [picture("dish-1", 0), picture("dish-2", 1)],
+      },
+    ];
+
+    const result = await importAiQuestionsAction(testId, courseId, reviewed);
+
+    expect(result.success).toBe(true);
+    const questions =
+      await getTestServices().questionService.listQuestions(testId);
+    expect(questions.map((q) => q.media.map((m) => m.key))).toEqual([
+      ["media/questions/graph.png"],
+      ["media/questions/virus.png"],
+      ["media/questions/dish-1.png", "media/questions/dish-2.png"],
+    ]);
+  });
+
+  it("rejects a question with more pictures than a question can hold, naming it and importing nothing", async () => {
+    const reviewed: ReviewedQuestion[] = [
+      { title: "Q1", content: "Explain it.", type: "free_text" },
+      {
+        title: "Q2: four pictures",
+        content: "Compare the pictures.",
+        type: "free_text",
+        media: [0, 1, 2, 3].map((order) => ({
+          fileName: `p${order}.png`,
+          contentType: MediaContentType.PNG,
+          size: 1000,
+          key: `media/questions/p${order}.png`,
+          order,
+        })),
+      },
+    ];
+
+    const result = await importAiQuestionsAction(
+      "test-1",
+      "course-1",
+      reviewed,
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      invalidQuestionIndex: 1,
+      message:
+        'Question 2 ("Q2: four pictures"): A question can have at most 3 media files',
+    });
+    expect(
+      await getTestServices().questionService.listQuestions("test-1"),
+    ).toHaveLength(0);
   });
 });
 

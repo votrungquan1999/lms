@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // An e2e `next dev` sets its own dir — sharing `.next` with a running dev server fails on its lock.
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   reactCompiler: true,
   allowedDevOrigins: ["local.lms.me"],
   // @react-pdf/renderer must stay un-bundled so its Node font/stream stack and

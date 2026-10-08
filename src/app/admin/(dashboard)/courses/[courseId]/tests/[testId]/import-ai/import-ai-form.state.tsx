@@ -2,13 +2,21 @@
 
 import { createContext, useContext, useReducer } from "react";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
+import type { MediaContentType } from "src/lib/question-service";
+import type { SubmittedMedia } from "../question-media.schema";
+import { requestUploadSlotsAction } from "../question-media-actions";
 import {
   type ImportMode,
   importAiQuestionsAction,
   parseQuestionsAction,
+  type ReviewedQuestion,
   retryQuestionAction,
 } from "./actions";
-import { extractTextFromDocx, extractTextFromPdf } from "./document-extract";
+import {
+  type DocumentPicture,
+  extractDocx,
+  extractTextFromPdf,
+} from "./document-extract";
 import {
   DocumentFileType,
   DocumentReadFailure,
@@ -31,8 +39,17 @@ export interface ImportQuestionDraft extends ParsedQuestion {
   importError: string | null;
 }
 
+/** A document picture, previewed on the review screen and uploaded on import. */
+export interface ReviewPicture {
+  number: number;
+  file: File;
+  previewUrl: string;
+}
+
 interface ImportAiState {
   documentText: string;
+  /** Every picture the document had, keyed by its `[image N]` number. */
+  pictures: ReviewPicture[];
   questions: ImportQuestionDraft[];
   error: string | null;
   isBusy: boolean;
@@ -48,6 +65,7 @@ type ImportAiAction =
   | {
       type: "PARSED_READY";
       documentText: string;
+      pictures: ReviewPicture[];
       questions: ImportQuestionDraft[];
     }
   | { type: "RESET" }
@@ -62,6 +80,7 @@ type ImportAiAction =
 
 const initialState: ImportAiState = {
   documentText: "",
+  pictures: [],
   questions: [],
   error: null,
   isBusy: false,
@@ -90,6 +109,7 @@ function importAiReducer(
         ...state,
         isBusy: false,
         documentText: action.documentText,
+        pictures: action.pictures,
         questions: action.questions,
       };
     case "RESET":
@@ -144,18 +164,74 @@ interface ImportAiContextValue extends ImportAiState {
 
 /**
  * Strips the review-list-only fields (`id`, `edited`, `retryError`,
- * `importError`), leaving exactly the shape the server action accepts, in
- * the same order the teacher left the list — that order is what the write
- * loop uses for `order` (Step 17).
+ * `importError`, `imageNumbers`), leaving exactly the shape the server action
+ * accepts, with the question's pictures already uploaded.
+ * @param draft - One reviewed draft.
+ * @param media - Its uploaded pictures.
+ * @returns The question as the import action takes it.
  */
-function toReviewedQuestions(drafts: ImportQuestionDraft[]): ParsedQuestion[] {
-  return drafts.map((draft) => ({
+function toReviewedQuestion(
+  draft: ImportQuestionDraft,
+  media: SubmittedMedia,
+): ReviewedQuestion {
+  return {
     title: draft.title,
     content: draft.content,
     type: draft.type,
     options: draft.options,
     referenceAnswer: draft.referenceAnswer,
     explanation: draft.explanation,
+    media,
+  };
+}
+
+/**
+ * Releases the browser memory behind each picture's preview.
+ * @param pictures - Pictures whose previews are no longer shown.
+ */
+function revokePreviews(pictures: ReviewPicture[]): void {
+  for (const picture of pictures) URL.revokeObjectURL(picture.previewUrl);
+}
+
+/**
+ * Uploads one question's pictures straight to storage, the same way the
+ * add-question form uploads media, and returns the entries to save with it.
+ * @param files - The question's pictures, in document order.
+ * @returns The uploaded media entries, in order.
+ */
+async function uploadPictures(files: File[]): Promise<SubmittedMedia> {
+  if (files.length === 0) return [];
+
+  const slotResult = await requestUploadSlotsAction(
+    files.map((file) => ({
+      fileName: file.name,
+      contentType: file.type,
+      size: file.size,
+    })),
+  );
+  if (!slotResult.success || !slotResult.slots) {
+    throw new Error(slotResult.message);
+  }
+
+  const { slots } = slotResult;
+  await Promise.all(
+    slots.map((slot, i) =>
+      fetch(slot.url, {
+        method: "PUT",
+        headers: { "Content-Type": files[i].type },
+        body: files[i],
+      }).then((res) => {
+        if (!res.ok) throw new Error(`Upload failed for ${files[i].name}`);
+      }),
+    ),
+  );
+
+  return slots.map((slot, i) => ({
+    fileName: files[i].name,
+    contentType: files[i].type as MediaContentType,
+    size: files[i].size,
+    key: slot.key,
+    order: slot.order,
   }));
 }
 
@@ -191,13 +267,21 @@ export function ImportAiProvider({
    * extracted text ever crosses the wire — the file itself never does.
    */
   async function selectFile(file: File): Promise<void> {
+    // The current cards stay on screen while this file is read, so their
+    // previews are freed only when this file's outcome replaces them.
+    const previousPictures = state.pictures;
+    function settle(action: ImportAiAction): void {
+      revokePreviews(previousPictures);
+      dispatch(action);
+    }
+
     const extension = file.name.split(".").pop()?.toLowerCase();
     if (extension !== "docx" && extension !== "pdf") {
-      dispatch({ type: "ERROR", message: "Upload a .docx or .pdf file." });
+      settle({ type: "ERROR", message: "Upload a .docx or .pdf file." });
       return;
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      dispatch({
+      settle({
         type: "ERROR",
         message: "The file must be 10 MB or smaller.",
       });
@@ -211,13 +295,14 @@ export function ImportAiProvider({
     // Boundary: a damaged or locked file throws inside the parser library,
     // which would otherwise leave the picker stuck on busy.
     let text: string;
+    let pictures: DocumentPicture[];
     try {
-      text =
+      ({ text, pictures } =
         extension === "docx"
-          ? await extractTextFromDocx(file)
-          : await extractTextFromPdf(file);
+          ? await extractDocx(file)
+          : { text: await extractTextFromPdf(file), pictures: [] });
     } catch (error) {
-      dispatch({
+      settle({
         type: "ERROR",
         message:
           "This document could not be read. It may be damaged or password-protected. Try a different file.",
@@ -234,7 +319,7 @@ export function ImportAiProvider({
     // Nothing is sent to Google when no text was read — this short-circuit
     // is what makes that true by construction, not a server-side check.
     if (text.trim().length === 0) {
-      dispatch({
+      settle({
         type: "ERROR",
         message:
           "No text could be read from this document. Try a different file.",
@@ -249,7 +334,7 @@ export function ImportAiProvider({
 
     const result = await parseQuestionsAction(text);
     if (!result.success || !result.questions) {
-      dispatch({ type: "ERROR", message: result.message });
+      settle({ type: "ERROR", message: result.message });
       return;
     }
 
@@ -257,7 +342,7 @@ export function ImportAiProvider({
     // caught by the check above, so it needs its own branch or the teacher
     // sees the bare picker again with no distinguishing feedback at all.
     if (result.questions.length === 0) {
-      dispatch({
+      settle({
         type: "ERROR",
         message:
           "No questions were found in this document. Try a different file.",
@@ -265,9 +350,13 @@ export function ImportAiProvider({
       return;
     }
 
-    dispatch({
+    settle({
       type: "PARSED_READY",
       documentText: text,
+      pictures: pictures.map((picture) => ({
+        ...picture,
+        previewUrl: URL.createObjectURL(picture.file),
+      })),
       questions: result.questions.map((q) => ({
         id: crypto.randomUUID(),
         edited: false,
@@ -322,6 +411,7 @@ export function ImportAiProvider({
         options: question.options,
         referenceAnswer: question.referenceAnswer,
         explanation: question.explanation,
+        imageNumbers: question.imageNumbers,
         edited: false,
         retryError: null,
         importError: null,
@@ -342,10 +432,29 @@ export function ImportAiProvider({
   ): Promise<boolean> {
     dispatch({ type: "IMPORT_START" });
 
+    // Kept in review order — the write loop numbers the questions by it (Step 17).
+    const reviewed: ReviewedQuestion[] = [];
+    for (const draft of state.questions) {
+      const files = state.pictures
+        .filter((picture) => draft.imageNumbers?.includes(picture.number))
+        .map((picture) => picture.file);
+      // Boundary: a failed upload lands on its own question, and nothing is imported.
+      try {
+        reviewed.push(toReviewedQuestion(draft, await uploadPictures(files)));
+      } catch (error) {
+        dispatch({
+          type: "IMPORT_FAILED",
+          message: `This question's pictures could not be uploaded: ${error instanceof Error ? error.message : "unknown error"}`,
+          questionId: draft.id,
+        });
+        return false;
+      }
+    }
+
     const result = await importAiQuestionsAction(
       testId,
       courseId,
-      toReviewedQuestions(state.questions),
+      reviewed,
       state.mode,
     );
     if (!result.success) {
@@ -361,6 +470,7 @@ export function ImportAiProvider({
       return false;
     }
 
+    revokePreviews(state.pictures);
     dispatch({ type: "RESET" });
     return true;
   }

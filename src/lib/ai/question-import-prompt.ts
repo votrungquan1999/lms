@@ -3,9 +3,15 @@ import type { QuestionImportItem } from "./question-import-schema";
 const SYSTEM_RULES = [
   "You are an assistant that converts a teacher's exam document into structured test questions for a learning-management system.",
   "Split the document into individual questions, in the order they appear.",
+  "A passage followed by lettered sub-parts (a, b, c, d) is one question. Never split it into one question per sub-part, never repeat the passage, and never add a lead-in of your own. Sub-parts the student answers in writing stay in that question's content; true/false statements the student ticks become that question's options (\"multi_select\", each true statement marked correct).",
   'For each question, classify its "type" as exactly one of: "free_text" (the student writes a free-form answer), "single_select" (the student picks exactly one option), or "multi_select" (the student may pick several options).',
   'For single_select and multi_select questions, extract every option\'s text and whether it is marked correct (look for markers such as a checkmark, bold text, underline, or a line like "Answer: B").',
+  'Text the teacher highlighted appears wrapped in <mark color="…">…</mark>. Teachers usually mark the answer key by highlighting each correct option (or each true statement) in one consistent colour across the whole document — treat an option highlighted in that consistent colour as correct. A colour used only here and there, or on words inside a question, is emphasis, not an answer.',
+  "Never copy the <mark> tags into any title, content, option text, referenceAnswer, or explanation — output only the plain text inside them.",
+  'Pictures appear as [image N] at the spot they sit in the document. For each question, list in "imageNumbers" the N of every picture it shows or refers to ("the picture", "hình bên", a diagram or graph its text describes), including pictures inside its table or options. A picture often sits just before its question\'s label rather than after it, so match each picture by what the question says, not by position alone. Leave out a picture no question uses, and omit "imageNumbers" for a question with no picture.',
+  "Never copy the [image N] tags into any title, content, option text, referenceAnswer, or explanation. Never create a question just for a picture: a picture with no question text of its own goes into the question that uses it, or nowhere. Never leave a title, content, or option text empty where a tag was removed.",
   "Preserve each question's original wording; do not rephrase or summarize it.",
+  'Each question\'s "content" is shown to students as Markdown: keep the document\'s line breaks (one step, statement, or list item per line, never merged into one paragraph), and write any table as a Markdown table — a header row, a "| --- |" separator row, then one row per line. Put a blank line before and after every list and table, or the line after it is swallowed into the last bullet or table row.',
   "Never translate a question into another language — keep it in the exact language the document is written in, even if that language is not English.",
   'If a question has a model answer or explanation written in the document, extract it into "referenceAnswer" or "explanation". If the document does not give one, omit that field — leave it blank rather than guessing.',
   "Never invent, fabricate, or make up a referenceAnswer or explanation that is not actually present in the document.",
@@ -22,7 +28,7 @@ export function buildQuestionImportPrompt(documentText: string): string {
     SYSTEM_RULES,
     "Document text:",
     documentText,
-    'Respond with JSON of the form { "questions": [{ "title": string, "content": string, "type": "free_text" | "single_select" | "multi_select", "options"?: [{ "text": string, "isCorrect": boolean }], "referenceAnswer"?: string, "explanation"?: string }, ...] }. Omit "referenceAnswer"/"explanation" entirely when the document gives none — never return an empty string for either.',
+    'Respond with JSON of the form { "questions": [{ "title": string, "content": string, "type": "free_text" | "single_select" | "multi_select", "options"?: [{ "text": string, "isCorrect": boolean }], "referenceAnswer"?: string, "explanation"?: string, "imageNumbers"?: number[] }, ...] }. Omit "referenceAnswer"/"explanation" entirely when the document gives none — never return an empty string for either.',
   ].join("\n\n");
 }
 
@@ -47,6 +53,6 @@ export function buildQuestionRetryPrompt(
     "This question was already extracted once. The teacher reviewed it and found a problem, so it needs to be re-read — the rest of the document's questions are unaffected.",
     `Current extraction of this one question: ${JSON.stringify(currentQuestion)}`,
     `Teacher's correction note — what was wrong: ${correctionNote}`,
-    'Re-read the document and produce a corrected version of this ONE question that addresses the correction note. Respond with JSON of the form { "question": { "title": string, "content": string, "type": "free_text" | "single_select" | "multi_select", "options"?: [{ "text": string, "isCorrect": boolean }], "referenceAnswer"?: string, "explanation"?: string } }. Omit "referenceAnswer"/"explanation" entirely when the document gives none — never return an empty string for either.',
+    'Re-read the document and produce a corrected version of this ONE question that addresses the correction note. Respond with JSON of the form { "question": { "title": string, "content": string, "type": "free_text" | "single_select" | "multi_select", "options"?: [{ "text": string, "isCorrect": boolean }], "referenceAnswer"?: string, "explanation"?: string, "imageNumbers"?: number[] } }. Omit "referenceAnswer"/"explanation" entirely when the document gives none — never return an empty string for either.',
   ].join("\n\n");
 }

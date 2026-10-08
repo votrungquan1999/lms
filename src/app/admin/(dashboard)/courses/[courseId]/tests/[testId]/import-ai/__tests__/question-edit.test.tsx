@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../document-extract", () => ({
-  extractTextFromDocx: vi.fn(),
+  extractDocx: vi.fn(),
   extractTextFromPdf: vi.fn(),
 }));
 vi.mock("../actions", () => ({
@@ -21,7 +21,7 @@ vi.mock("next/navigation", () => ({
 
 import { questionImportItemSchema } from "src/lib/ai/question-import-schema";
 import { parseQuestionsAction, retryQuestionAction } from "../actions";
-import { extractTextFromDocx } from "../document-extract";
+import { extractDocx } from "../document-extract";
 import { ImportAiProvider } from "../import-ai-form.state";
 import {
   ImportAiFilePicker,
@@ -41,9 +41,10 @@ function makeDocxFile(): File {
 describe("Feature: AI document import — a teacher corrects a reviewed question by hand", () => {
   it("updates only the edited question's title, leaving the rest of the review list untouched", async () => {
     const user = userEvent.setup();
-    vi.mocked(extractTextFromDocx).mockResolvedValue(
-      "1. Explain photosynthesis.\n2. Pick the prime number.",
-    );
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "1. Explain photosynthesis.\n2. Pick the prime number.",
+      pictures: [],
+    });
     vi.mocked(parseQuestionsAction).mockResolvedValue({
       success: true,
       message: "Extracted 2 question(s)",
@@ -95,9 +96,10 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
 
   it("saves a cleared model answer as a draft the AI-import schema still accepts", async () => {
     const user = userEvent.setup();
-    vi.mocked(extractTextFromDocx).mockResolvedValue(
-      "1. Explain photosynthesis.\n2. Pick the prime number.",
-    );
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "1. Explain photosynthesis.\n2. Pick the prime number.",
+      pictures: [],
+    });
     vi.mocked(parseQuestionsAction).mockResolvedValue({
       success: true,
       message: "Extracted 2 question(s)",
@@ -169,9 +171,10 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
 
   it("scopes edit-field ids per question, so two open editors don't share a label target", async () => {
     const user = userEvent.setup();
-    vi.mocked(extractTextFromDocx).mockResolvedValue(
-      "1. Explain photosynthesis.\n2. Pick the prime number.",
-    );
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "1. Explain photosynthesis.\n2. Pick the prime number.",
+      pictures: [],
+    });
     vi.mocked(parseQuestionsAction).mockResolvedValue({
       success: true,
       message: "Extracted 2 question(s)",

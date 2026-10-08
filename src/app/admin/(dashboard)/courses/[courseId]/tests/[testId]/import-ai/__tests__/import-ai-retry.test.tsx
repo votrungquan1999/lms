@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../document-extract", () => ({
-  extractTextFromDocx: vi.fn(),
+  extractDocx: vi.fn(),
   extractTextFromPdf: vi.fn(),
 }));
 vi.mock("../actions", () => ({
@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { parseQuestionsAction, retryQuestionAction } from "../actions";
-import { extractTextFromDocx } from "../document-extract";
+import { extractDocx } from "../document-extract";
 import { ImportAiProvider } from "../import-ai-form.state";
 import {
   ImportAiFilePicker,
@@ -38,9 +38,10 @@ function makeDocxFile(): File {
 }
 
 async function uploadTwoQuestions(user: ReturnType<typeof userEvent.setup>) {
-  vi.mocked(extractTextFromDocx).mockResolvedValue(
-    "1. Explain photosynthesis.\n2. Pick the prime number.",
-  );
+  vi.mocked(extractDocx).mockResolvedValue({
+    text: "1. Explain photosynthesis.\n2. Pick the prime number.",
+    pictures: [],
+  });
   vi.mocked(parseQuestionsAction).mockResolvedValue({
     success: true,
     message: "Extracted 2 question(s)",
@@ -168,9 +169,10 @@ describe("Feature: AI document import — a teacher re-asks the AI about one que
 
   it("clears a stale options array when a retry response omits it (e.g. a type correction to free_text)", async () => {
     const user = userEvent.setup();
-    vi.mocked(extractTextFromDocx).mockResolvedValue(
-      "1. Explain photosynthesis.\n2. Name a prime number.",
-    );
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "1. Explain photosynthesis.\n2. Name a prime number.",
+      pictures: [],
+    });
     vi.mocked(parseQuestionsAction).mockResolvedValue({
       success: true,
       message: "Extracted 2 question(s)",

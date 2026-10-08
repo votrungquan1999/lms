@@ -28,7 +28,9 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    "tmp/next-e2e-real-ai/types/**/*.ts",
+    "tmp/next-e2e-real-ai/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules", "scripts", "tmp"]
 }

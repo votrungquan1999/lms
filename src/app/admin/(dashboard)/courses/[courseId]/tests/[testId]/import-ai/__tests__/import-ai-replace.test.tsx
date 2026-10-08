@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../document-extract", () => ({
-  extractTextFromDocx: vi.fn(),
+  extractDocx: vi.fn(),
   extractTextFromPdf: vi.fn(),
 }));
 vi.mock("../actions", () => ({
@@ -22,7 +22,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { importAiQuestionsAction, parseQuestionsAction } from "../actions";
-import { extractTextFromDocx } from "../document-extract";
+import { extractDocx } from "../document-extract";
 import { ImportAiProvider } from "../import-ai-form.state";
 import {
   ImportAiFilePicker,
@@ -38,9 +38,10 @@ function makeDocxFile(): File {
 describe("Feature: AI document import — replacing a test's questions warns and requires typed confirmation", () => {
   it('keeps Replace disabled until the teacher types "override", names the CORRECTED consequence, and sends mode: replace on confirm', async () => {
     const user = userEvent.setup();
-    vi.mocked(extractTextFromDocx).mockResolvedValue(
-      "1. Explain photosynthesis.",
-    );
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "1. Explain photosynthesis.",
+      pictures: [],
+    });
     vi.mocked(parseQuestionsAction).mockResolvedValue({
       success: true,
       message: "Extracted 1 question(s)",

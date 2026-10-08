@@ -215,8 +215,9 @@ function toAttributes(summary: AiCallSummary): Attributes {
 
 /**
  * Runs one AI call and writes its summary onto `span` exactly once — the
- * call's own summary on success, one derived from the error on failure. A
- * record-and-rethrow boundary: the original error always propagates.
+ * call's own summary on success, one derived from the error on failure (also
+ * logged, never with reply text). A record-and-rethrow boundary: the original
+ * error always propagates.
  * @param span - The call's span.
  * @param run - The call itself, returning its value and summary.
  * @returns The call's value.
@@ -229,7 +230,10 @@ export async function recordAiCall<T>(
   try {
     outcome = await run();
   } catch (error) {
-    span.setAttributes(toAttributes(summarizeFailure(error)));
+    const summary = summarizeFailure(error);
+    span.setAttributes(toAttributes(summary));
+    // Not every run exports traces (local and e2e runs don't), so the log says why too.
+    console.error(`AI call failed: ${JSON.stringify(summary)}`);
     throw error;
   }
   span.setAttributes(toAttributes(outcome.summary));

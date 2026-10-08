@@ -1,8 +1,14 @@
 "use client";
 
-import ReactMarkdown, { type ExtraProps } from "react-markdown";
+import ReactMarkdown, { type ExtraProps, type Options } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
+
+/** How question content is parsed — shared so tests render exactly what students see. */
+export const MARKDOWN_REMARK_PLUGINS: Options["remarkPlugins"] = [
+  remarkGfm,
+  remarkBreaks,
+];
 
 interface MarkdownContentProps {
   content: string;
@@ -45,7 +51,7 @@ export function MarkdownContent({
   return (
     <div className={`prose prose-neutral ${sizeClass} max-w-none ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
+        remarkPlugins={MARKDOWN_REMARK_PLUGINS}
         components={{ table: MarkdownTable }}
       >
         {content}

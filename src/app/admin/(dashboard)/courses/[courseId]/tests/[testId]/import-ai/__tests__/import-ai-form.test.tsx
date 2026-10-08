@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../document-extract", () => ({
-  extractTextFromDocx: vi.fn(),
+  extractDocx: vi.fn(),
   extractTextFromPdf: vi.fn(),
 }));
 vi.mock("../actions", () => ({
@@ -27,7 +27,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { importAiQuestionsAction, parseQuestionsAction } from "../actions";
-import { extractTextFromDocx, extractTextFromPdf } from "../document-extract";
+import { extractDocx, extractTextFromPdf } from "../document-extract";
 import { ImportAiProvider } from "../import-ai-form.state";
 import {
   ImportAiFilePicker,
@@ -57,9 +57,10 @@ function makePdfFile(): File {
 describe("Feature: AI document import — a teacher uploads a Word document of questions for review", () => {
   it("lists each parsed question, identifying free-text and multiple-choice questions", async () => {
     const user = userEvent.setup();
-    vi.mocked(extractTextFromDocx).mockResolvedValue(
-      "1. Explain photosynthesis.\n2. Pick the prime number.",
-    );
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "1. Explain photosynthesis.\n2. Pick the prime number.",
+      pictures: [],
+    });
     vi.mocked(parseQuestionsAction).mockResolvedValue({
       success: true,
       message: "Extracted 2 question(s)",
@@ -258,9 +259,10 @@ describe("Feature: AI document import — a document the browser cannot read say
 describe("Feature: AI document import — a document with no questions in it says so", () => {
   it("tells the teacher no questions were found and offers nothing to import, instead of silently returning to the bare picker", async () => {
     const user = userEvent.setup();
-    vi.mocked(extractTextFromDocx).mockResolvedValue(
-      "Just a cover page, no questions here.",
-    );
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "Just a cover page, no questions here.",
+      pictures: [],
+    });
     vi.mocked(parseQuestionsAction).mockResolvedValue({
       success: true,
       message: "Extracted 0 question(s)",
@@ -291,9 +293,10 @@ describe("Feature: AI document import — a document with no questions in it say
 describe("Feature: AI document import — a teacher imports the reviewed questions onto the test", () => {
   it("writes the reviewed questions onto the test and returns to the test's admin page", async () => {
     const user = userEvent.setup();
-    vi.mocked(extractTextFromDocx).mockResolvedValue(
-      "1. Explain photosynthesis.",
-    );
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "1. Explain photosynthesis.",
+      pictures: [],
+    });
     vi.mocked(parseQuestionsAction).mockResolvedValue({
       success: true,
       message: "Extracted 1 question(s)",
@@ -337,9 +340,10 @@ describe("Feature: AI document import — a teacher imports the reviewed questio
 
   it("routes a named rejection onto the offending question's card, not a page-level banner", async () => {
     const user = userEvent.setup();
-    vi.mocked(extractTextFromDocx).mockResolvedValue(
-      "1. Explain photosynthesis.\n2. Pick the prime number.",
-    );
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "1. Explain photosynthesis.\n2. Pick the prime number.",
+      pictures: [],
+    });
     vi.mocked(parseQuestionsAction).mockResolvedValue({
       success: true,
       message: "Extracted 2 question(s)",

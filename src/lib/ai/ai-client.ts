@@ -7,6 +7,7 @@ import {
 } from "src/lib/ai/ai-call-telemetry";
 import { buildGradingPrompt } from "src/lib/ai/grading-prompt";
 import { aiGradeBatchSchema } from "src/lib/ai/grading-schema";
+import { separateMarkdownBlocks } from "src/lib/ai/markdown-blocks";
 import {
   buildQuestionImportPrompt,
   buildQuestionRetryPrompt,
@@ -97,6 +98,7 @@ export interface ParsedQuestionOption {
  * `options` is present only for `single_select` / `multi_select`.
  * `referenceAnswer` / `explanation` are populated only when the source
  * document actually contained them — the model never invents either.
+ * `imageNumbers` names the document's `[image N]` pictures this question uses.
  */
 export interface ParsedQuestion {
   title: string;
@@ -105,6 +107,7 @@ export interface ParsedQuestion {
   options?: ParsedQuestionOption[];
   referenceAnswer?: string;
   explanation?: string;
+  imageNumbers?: number[];
 }
 
 /**
@@ -135,11 +138,24 @@ export interface QuestionParseClient {
   ): Promise<ParsedQuestion>;
 }
 
-/** Gemini model id used for the live grading path. */
-const GEMINI_MODEL_ID = "gemini-3.5-flash";
+/** Gemini model id used for every live call unless `GEMINI_MODEL_ID` overrides it. */
+const DEFAULT_GEMINI_MODEL_ID = "gemini-3.5-flash";
 
-/** Total limit per call, retries included — must stay under the platform's function limit so the failure is recorded. */
-const GEMINI_TIMEOUT_MS = 120_000;
+/**
+ * The Gemini model to call — read per call so a run can move off an
+ * overloaded default via `GEMINI_MODEL_ID` without a code change.
+ * @returns The model id to send to Gemini.
+ */
+function geminiModelId(): string {
+  return process.env.GEMINI_MODEL_ID || DEFAULT_GEMINI_MODEL_ID;
+}
+
+/**
+ * Total limit per call, retries included. A 31-question exam took ~2 minutes
+ * to read; it must stay under Vercel's 300s function limit (Hobby, Fluid
+ * compute) so the failure is still recorded.
+ */
+const GEMINI_TIMEOUT_MS = 240_000;
 
 /**
  * Live Gemini-backed `AiClient` implementation.
@@ -168,7 +184,7 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
     return withSpan(
       "gemini.gradeFreeTextBatch",
       {
-        "gen_ai.request.model": GEMINI_MODEL_ID,
+        "gen_ai.request.model": geminiModelId(),
         "gen_ai.operation.name": "generate_content",
         "lms.ai.batch_size": items.length,
         "lms.ai.regenerate": opts !== undefined,
@@ -176,7 +192,7 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
       (span) =>
         recordAiCall(span, async () => {
           const result = await generateText({
-            model: google(GEMINI_MODEL_ID),
+            model: google(geminiModelId()),
             timeout: GEMINI_TIMEOUT_MS,
             output: Output.object({ schema: aiGradeBatchSchema }),
             prompt: buildGradingPrompt(items, opts),
@@ -217,14 +233,14 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
     return withSpan(
       "gemini.parseQuestionsFromText",
       {
-        "gen_ai.request.model": GEMINI_MODEL_ID,
+        "gen_ai.request.model": geminiModelId(),
         "gen_ai.operation.name": "generate_content",
         "lms.ai.document_text_length": documentText.length,
       },
       (span) =>
         recordAiCall(span, async () => {
           const result = await generateText({
-            model: google(GEMINI_MODEL_ID),
+            model: google(geminiModelId()),
             timeout: GEMINI_TIMEOUT_MS,
             output: Output.object({ schema: questionImportBatchSchema }),
             prompt: buildQuestionImportPrompt(documentText),
@@ -237,11 +253,12 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
           return {
             value: parsed.questions.map((q) => ({
               title: q.title,
-              content: q.content,
+              content: separateMarkdownBlocks(q.content),
               type: q.type,
               options: q.options,
               referenceAnswer: q.referenceAnswer,
               explanation: q.explanation,
+              imageNumbers: q.imageNumbers,
             })),
             summary: {
               ...summarizeResult(result),
@@ -268,14 +285,14 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
     return withSpan(
       "gemini.retryQuestion",
       {
-        "gen_ai.request.model": GEMINI_MODEL_ID,
+        "gen_ai.request.model": geminiModelId(),
         "gen_ai.operation.name": "generate_content",
         "lms.ai.document_text_length": documentText.length,
       },
       (span) =>
         recordAiCall(span, async () => {
           const result = await generateText({
-            model: google(GEMINI_MODEL_ID),
+            model: google(geminiModelId()),
             timeout: GEMINI_TIMEOUT_MS,
             output: Output.object({ schema: questionRetryResultSchema }),
             prompt: buildQuestionRetryPrompt(
@@ -292,11 +309,12 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
           return {
             value: {
               title: parsed.question.title,
-              content: parsed.question.content,
+              content: separateMarkdownBlocks(parsed.question.content),
               type: parsed.question.type,
               options: parsed.question.options,
               referenceAnswer: parsed.question.referenceAnswer,
               explanation: parsed.question.explanation,
+              imageNumbers: parsed.question.imageNumbers,
             },
             summary: summarizeResult(result),
           };

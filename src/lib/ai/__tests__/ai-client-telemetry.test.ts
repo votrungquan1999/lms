@@ -26,6 +26,7 @@ vi.mock("ai", async (importOriginal) => ({
 
 import { GeminiAiClient } from "../ai-client";
 import { aiGradeBatchSchema } from "../grading-schema";
+import { questionImportBatchSchema } from "../question-import-schema";
 
 let exporter: InMemorySpanExporter;
 
@@ -57,7 +58,7 @@ const parsedQuestion = {
 };
 
 describe("GeminiAiClient telemetry", () => {
-  it("gives every Gemini call a 120-second total limit so a hung call ends as a recorded error", async () => {
+  it("gives every Gemini call a 240-second total limit — room for a long exam read, still inside Vercel's 300s — so a hung call ends as a recorded error", async () => {
     generateTextMock.mockResolvedValue({
       usage: {},
       output: {
@@ -74,7 +75,7 @@ describe("GeminiAiClient telemetry", () => {
 
     expect(generateTextMock).toHaveBeenCalledTimes(3);
     for (const [options] of generateTextMock.mock.calls) {
-      expect(options).toMatchObject({ timeout: 120_000 });
+      expect(options).toMatchObject({ timeout: 240_000 });
     }
   });
 
@@ -289,5 +290,48 @@ describe("GeminiAiClient telemetry", () => {
     const [span] = exporter.getFinishedSpans();
     expect(span?.attributes["lms.ai.questions_returned"]).toBe(0);
     expect(span?.attributes["lms.ai.finish_reason"]).toBe("stop");
+  });
+
+  it("also logs why a document read's reply failed the format check, so the server log alone names the field — still without any reply text", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const reply = {
+      questions: [{ title: "PRIVATE-MARKER", content: "", type: "free_text" }],
+    };
+    const zodError = questionImportBatchSchema.safeParse(reply).error;
+    generateTextMock.mockRejectedValue(
+      new NoObjectGeneratedError({
+        message: "No object generated: response did not match schema.",
+        cause: new TypeValidationError({ value: reply, cause: zodError }),
+        text: JSON.stringify(reply),
+        response: {
+          id: "r1",
+          timestamp: new Date(0),
+          modelId: "gemini-2.5-flash",
+        },
+        usage: {
+          inputTokens: 900,
+          inputTokenDetails: {
+            noCacheTokens: 900,
+            cacheReadTokens: undefined,
+            cacheWriteTokens: undefined,
+          },
+          outputTokens: 4000,
+          outputTokenDetails: { textTokens: 4000, reasoningTokens: undefined },
+          totalTokens: 4900,
+        },
+        finishReason: "stop",
+      }),
+    );
+
+    await expect(
+      new GeminiAiClient().parseQuestionsFromText("doc text"),
+    ).rejects.toThrow(NoObjectGeneratedError);
+
+    const logged = consoleError.mock.calls.flat().map(String).join("\n");
+    expect(logged).toContain("questions.0.content: ");
+    expect(logged).not.toContain("PRIVATE-MARKER");
+    consoleError.mockRestore();
   });
 });

@@ -19,6 +19,8 @@ export const questionImportItemSchema = z.object({
   // model must OMIT the key when the source has nothing, never emit "".
   referenceAnswer: z.string().min(1).max(4000).optional(),
   explanation: z.string().min(1).max(4000).optional(),
+  // The `[image N]` tags this question's pictures carry in the document text.
+  imageNumbers: z.array(z.number().int()).optional(),
 });
 
 /**

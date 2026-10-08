@@ -19,6 +19,10 @@ import {
   getTestService,
 } from "src/lib/services-singleton";
 import { z } from "zod";
+import {
+  type SubmittedMedia,
+  submittedMediaSchema,
+} from "../question-media.schema";
 import { resolveOwnedTest } from "../test-parent-check";
 
 /** Caps the text sent to Gemini — see D41 (a long exam paper stays affordable). */
@@ -169,6 +173,11 @@ export async function retryQuestionAction(
   }
 }
 
+/** One question as the teacher imports it: the reviewed AI fields plus its already-uploaded pictures. */
+export interface ReviewedQuestion extends Omit<ParsedQuestion, "imageNumbers"> {
+  media?: SubmittedMedia;
+}
+
 export interface ImportAiQuestionsState {
   success: boolean;
   message: string;
@@ -192,7 +201,7 @@ export interface ImportAiQuestionsState {
 async function addReviewedQuestion(
   questionService: QuestionService,
   testId: string,
-  question: ParsedQuestion,
+  question: ReviewedQuestion,
   createdBy: string,
 ): Promise<void> {
   if (question.type === "single_select") {
@@ -204,6 +213,7 @@ async function addReviewedQuestion(
         content: question.content,
         options: question.options ?? [],
         explanation: question.explanation,
+        media: question.media,
         createdBy,
       },
       // D32: matches the relaxation findFirstQuestionError already validated with.
@@ -221,6 +231,7 @@ async function addReviewedQuestion(
         options: question.options ?? [],
         mcGradingStrategy: "all_or_nothing",
         explanation: question.explanation,
+        media: question.media,
         createdBy,
       },
       // D32: matches the relaxation findFirstQuestionError already validated with.
@@ -234,6 +245,7 @@ async function addReviewedQuestion(
     content: question.content,
     referenceAnswer: question.referenceAnswer,
     explanation: question.explanation,
+    media: question.media,
     createdBy,
   });
 }
@@ -247,9 +259,9 @@ async function addReviewedQuestion(
  * running to completion before any `insertOne` fires is the only mechanism
  * this codebase can support for "reject the batch, write nothing."
  *
- * Checks both layers per question — schema-level field validity, then the MC
- * option-count rule — so a batch cannot pass one layer, start writing, and
- * fail on the other. `allowMissingAnswerKey: true` (D32) is scoped to this
+ * Checks every layer per question — schema-level field validity, its
+ * pictures, then the MC option-count rule — so a batch cannot pass one layer,
+ * start writing, and fail on another. `allowMissingAnswerKey: true` (D32) is scoped to this
  * one call site: an AI-imported MC question with no correct option marked is
  * importable (flagged for the teacher, not rejected); every other write path
  * (manual add, JSON import, pool compose) is untouched and keeps today's
@@ -264,7 +276,7 @@ async function addReviewedQuestion(
  * @returns The first offender's index (0-based) and message, or null when every question passes.
  */
 function findFirstQuestionError(
-  questions: ParsedQuestion[],
+  questions: ReviewedQuestion[],
 ): { index: number; message: string } | null {
   for (let i = 0; i < questions.length; i++) {
     const parsed = questionImportItemSchema.safeParse(questions[i]);
@@ -273,6 +285,17 @@ function findFirstQuestionError(
       return {
         index: i,
         message: `Question ${i + 1} ("${title}"): ${parsed.error.issues[0].message}`,
+      };
+    }
+
+    // The browser built this list, so its pictures get the same check as the manual add form's.
+    const media = submittedMediaSchema
+      .optional()
+      .safeParse(questions[i]?.media);
+    if (!media.success) {
+      return {
+        index: i,
+        message: `Question ${i + 1} ("${parsed.data.title}"): ${media.error.issues[0].message}`,
       };
     }
 
@@ -316,7 +339,7 @@ export type ImportMode = "append" | "replace";
 export async function importAiQuestionsAction(
   testId: string,
   courseId: string,
-  questions: ParsedQuestion[],
+  questions: ReviewedQuestion[],
   mode: ImportMode = "append",
 ): Promise<ImportAiQuestionsState> {
   const requestHeaders = await headers();

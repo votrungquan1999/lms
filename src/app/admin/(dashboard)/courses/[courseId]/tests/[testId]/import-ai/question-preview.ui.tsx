@@ -392,6 +392,10 @@ function QuestionCard({
       </CardHeader>
       <CardContent className="space-y-2">
         <p className="text-sm">{question.content}</p>
+        <QuestionPictures
+          questionId={question.id}
+          numbers={question.imageNumbers ?? []}
+        />
         {question.options && (
           <ul className="space-y-1 text-sm">
             {question.options.map((option) => (
@@ -420,6 +424,52 @@ function QuestionCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The document pictures the AI matched to one question, so the teacher can
+ * check them before import and remove a wrong one. A number with no picture
+ * behind it is skipped.
+ */
+function QuestionPictures({
+  questionId,
+  numbers,
+}: {
+  questionId: string;
+  numbers: number[];
+}): React.ReactNode {
+  const { pictures, updateQuestion } = useImportAi();
+  const shown = pictures.filter((picture) => numbers.includes(picture.number));
+  if (shown.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {shown.map((picture) => (
+        <div key={picture.number} className="grid gap-1">
+          {/* A local blob preview — next/image can't optimize it. */}
+          {/* biome-ignore lint/performance/noImgElement: local blob preview url */}
+          <img
+            src={picture.previewUrl}
+            alt={`Figure ${picture.number}`}
+            className="max-h-48 w-full rounded-md border border-border object-contain"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label={`Remove picture ${picture.number}`}
+            onClick={() =>
+              updateQuestion(questionId, {
+                imageNumbers: numbers.filter((n) => n !== picture.number),
+              })
+            }
+          >
+            Remove
+          </Button>
+        </div>
+      ))}
+    </div>
   );
 }
 
