@@ -86,15 +86,19 @@ export function TestQuestionsSection({
             ? (revealMap.get(question.id) ?? false)
             : correctAnswersVisible;
 
-          // For MC questions, build the option list that's safe to ship to
-          // the client. When the gate is closed, every option's `isCorrect`
-          // becomes `false` so the answer key never reaches the browser via
-          // AnswerForm's props. Chip colouring is gated by `colorPicks`.
-          const safeOptions = isMcQuestion(question)
-            ? mcRevealOpen
-              ? question.options
-              : question.options.map((o) => ({ ...o, isCorrect: false }))
+          // The answer-editing form never draws correctness, so it always gets
+          // the key-free options — the gate only governs answered views.
+          const editOptions = isMcQuestion(question)
+            ? question.options.map((o) => ({ ...o, isCorrect: false }))
             : [];
+
+          // Option list safe to ship to the client: with the gate closed it is
+          // the key-free list, so the key never reaches the browser. Chip
+          // colouring is gated separately by `colorPicks`.
+          const safeOptions =
+            isMcQuestion(question) && mcRevealOpen
+              ? question.options
+              : editOptions;
 
           // Practice-only MC reveal: `revealMap` already encodes
           // isPractice && answered, so no separate isPractice check needed
@@ -156,7 +160,7 @@ export function TestQuestionsSection({
                     schoolId={schoolId}
                     questionId={question.id}
                     questionType={question.type}
-                    options={safeOptions}
+                    options={editOptions}
                     existingSelectedIds={
                       studentAnswer?.type === "mc"
                         ? studentAnswer.selectedIds
