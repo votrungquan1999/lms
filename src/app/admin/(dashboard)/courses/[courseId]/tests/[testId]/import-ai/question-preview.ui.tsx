@@ -95,11 +95,14 @@ export function QuestionPreviewList({
   courseId,
   existingQuestionCount,
   answeredStudentCount,
+  highestExistingQuestionNumber = 0,
 }: {
   testId: string;
   courseId: string;
   existingQuestionCount: number;
   answeredStudentCount: number;
+  /** Number of the test's last live question (0 when none); Student view continues after it. */
+  highestExistingQuestionNumber?: number;
 }): React.ReactNode {
   const { questions } = useImportAi();
 
@@ -116,6 +119,7 @@ export function QuestionPreviewList({
       courseId={courseId}
       existingQuestionCount={existingQuestionCount}
       answeredStudentCount={answeredStudentCount}
+      highestExistingQuestionNumber={highestExistingQuestionNumber}
     />
   );
 }
@@ -126,16 +130,20 @@ function ReviewScreen({
   courseId,
   existingQuestionCount,
   answeredStudentCount,
+  highestExistingQuestionNumber,
 }: {
   testId: string;
   courseId: string;
   existingQuestionCount: number;
   answeredStudentCount: number;
+  highestExistingQuestionNumber: number;
 }): React.ReactNode {
-  const { questions, pictures } = useImportAi();
+  const { questions, pictures, mode } = useImportAi();
+  // The server numbers new questions after the highest live one, not the
+  // count; replacing removes them all first, so numbering restarts at 1.
+  const firstQuestionNumber =
+    mode === "replace" ? 1 : highestExistingQuestionNumber + 1;
   const [view, setView] = useState<QuestionListView>("teacher");
-  // Student view cards are numbered from 1
-  const firstQuestionNumber = 1;
 
   return (
     <div className="space-y-3">
@@ -149,7 +157,9 @@ function ReviewScreen({
           <QuestionCard key={question.id} question={question} index={index} />
         ))}
         studentView={
-          <StudentViewList questions={toStudentCards(questions, pictures)} />
+          <StudentViewList
+            questions={toStudentCards(questions, pictures, firstQuestionNumber)}
+          />
         }
       />
       <ImportModeSelector />
@@ -170,15 +180,17 @@ function ReviewScreen({
  * marks, model answer, explanation) is left out on purpose.
  * @param drafts - The reviewed drafts, in review order.
  * @param pictures - The document's pictures, to attach to the drafts that use them.
- * @returns One card per draft, numbered from 1 in review order.
+ * @param firstQuestionNumber - Number the first draft will have once saved.
+ * @returns One card per draft, numbered in review order.
  */
 function toStudentCards(
   drafts: ImportQuestionDraft[],
   pictures: ReviewPicture[],
+  firstQuestionNumber: number,
 ): StudentCardQuestion[] {
   return drafts.map((draft, index) => ({
     id: draft.id,
-    order: index + 1,
+    order: firstQuestionNumber + index,
     title: draft.title,
     content: draft.content,
     type: draft.type,

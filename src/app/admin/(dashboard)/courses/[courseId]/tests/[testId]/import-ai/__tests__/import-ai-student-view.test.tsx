@@ -45,7 +45,9 @@ afterEach(() => {
  * free-text question with a table and a picture, a multiple-choice question
  * with an explanation, and a free-text question with a model answer.
  */
-async function uploadDocument(): Promise<void> {
+async function uploadDocument(
+  existing: { count: number; highest: number } = { count: 0, highest: 0 },
+): Promise<void> {
   const user = userEvent.setup();
   vi.mocked(extractDocx).mockResolvedValue({
     text: "[image 1]Câu 14 ...",
@@ -93,8 +95,9 @@ async function uploadDocument(): Promise<void> {
       <QuestionPreviewList
         testId="test-1"
         courseId="course-1"
-        existingQuestionCount={0}
+        existingQuestionCount={existing.count}
         answeredStudentCount={0}
+        highestExistingQuestionNumber={existing.highest}
       />
     </ImportAiProvider>,
   );
@@ -319,8 +322,8 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
 
   it("keeps Student view and shows the rejection reason under the Import button, led by the card's own label", async () => {
     const user = userEvent.setup();
-    // Student view cards are numbered from 1, so Capital (review position 2) is Question 2
-    await uploadDocument();
+    // Live questions end at #3, so Capital (review position 2) is Question 5 in Student view
+    await uploadDocument({ count: 2, highest: 3 });
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response(null, { status: 200 })),
@@ -350,17 +353,27 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
 
     // The reason leads with the Student view label, not the server's review-position text
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Question 2: Capital — Exactly one option must be marked correct.",
+      "Question 5: Capital — Exactly one option must be marked correct.",
     );
-    expect(screen.getByRole("alert")).not.toHaveTextContent('("Capital")');
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/Question 2/);
     expect(
       screen.getByRole("button", { name: "Student view" }),
     ).toHaveAttribute("aria-pressed", "true");
+
+    // The label follows the mode: replacing restarts numbering at 1
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Replace the test's existing questions",
+      }),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Question 2: Capital — Exactly one option must be marked correct.",
+    );
   });
 
   it("keeps the server's own text on the question's card in Teacher view", async () => {
     const user = userEvent.setup();
-    await uploadDocument();
+    await uploadDocument({ count: 2, highest: 3 });
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response(null, { status: 200 })),
@@ -394,7 +407,7 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
 
   it("also names the card when a picture upload fails under the Import button in Student view", async () => {
     const user = userEvent.setup();
-    await uploadDocument();
+    await uploadDocument({ count: 2, highest: 3 });
     vi.mocked(requestUploadSlotsAction).mockResolvedValue({
       success: false,
       message: "Each media file must be 10 MB or smaller",
@@ -404,8 +417,49 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
     await user.click(screen.getByRole("button", { name: "Import questions" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Question 1: Câu 14 — Its pictures could not be uploaded: Each media file must be 10 MB or smaller",
+      "Question 4: Câu 14 — Its pictures could not be uploaded: Each media file must be 10 MB or smaller",
     );
     expect(importAiQuestionsAction).not.toHaveBeenCalled();
+  });
+
+  it("numbers drafts after the test's last question when adding, even with gaps from deleted ones", async () => {
+    const user = userEvent.setup();
+    // Live questions are #1 and #3 (the second was deleted): two questions, highest number 3
+    await uploadDocument({ count: 2, highest: 3 });
+
+    await user.click(screen.getByRole("button", { name: "Student view" }));
+    const student = within(
+      screen.getByRole("region", { name: "Student view" }),
+    );
+
+    expect(student.getByText("Question 4: Câu 14")).toBeInTheDocument();
+    expect(student.getByText("Question 5: Capital")).toBeInTheDocument();
+    expect(student.getByText("Question 6: Explain")).toBeInTheDocument();
+  });
+
+  it("renumbers from 1 when the teacher chooses to replace the test's questions", async () => {
+    const user = userEvent.setup();
+    await uploadDocument({ count: 2, highest: 3 });
+    await user.click(screen.getByRole("button", { name: "Student view" }));
+
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Replace the test's existing questions",
+      }),
+    );
+
+    const student = within(
+      screen.getByRole("region", { name: "Student view" }),
+    );
+    expect(student.getByText("Question 1: Câu 14")).toBeInTheDocument();
+    expect(student.getByText("Question 3: Explain")).toBeInTheDocument();
+
+    // And back to adding continues after the last question again
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Add to the test's existing questions",
+      }),
+    );
+    expect(student.getByText("Question 4: Câu 14")).toBeInTheDocument();
   });
 });

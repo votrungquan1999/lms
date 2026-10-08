@@ -62,6 +62,10 @@ export default async function ImportAiPage({
             courseId={courseId}
             existingQuestionCount={existingQuestions.length}
             answeredStudentCount={answeredStudentCount}
+            highestExistingQuestionNumber={Math.max(
+              0,
+              ...existingQuestions.map((q) => q.order),
+            )}
           />
         </section>
       </ImportAiProvider>
