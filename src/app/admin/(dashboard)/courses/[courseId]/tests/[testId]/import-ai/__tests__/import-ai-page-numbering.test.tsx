@@ -67,7 +67,7 @@ describe("Feature: Student view numbers drafts as the page's real test would sav
         }),
       );
     }
-    await services.questionService.deleteQuestion(added[1].id, "admin");
+    await services.questionService.deleteQuestion(test.id, added[1].id, "admin");
 
     vi.mocked(extractDocx).mockResolvedValue({ text: "Câu 1", pictures: [] });
     vi.mocked(parseQuestionsAction).mockResolvedValue({

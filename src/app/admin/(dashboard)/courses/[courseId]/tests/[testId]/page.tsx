@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { StudentCardQuestion } from "src/components/student-question-card.ui";
 import { Button } from "src/components/ui/button";
 import { Separator } from "src/components/ui/separator";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
+import { isMcQuestion, type Question } from "src/lib/question-service";
 import {
   getAnswerService,
   getPageGuard,
@@ -20,12 +22,33 @@ import {
   needsAnswerOptions,
   QuestionList,
 } from "./question-list";
+import { TestQuestionsView } from "./test-questions-view";
 import { TestSettingsPanel } from "./test-settings-panel";
 
 export const metadata = {
   title: "Test Questions — LMS Admin",
   description: "Manage test questions",
 };
+
+// Typed return so an extra field fails to compile instead of reaching the client.
+function toStudentCard(question: Question): StudentCardQuestion {
+  return {
+    id: question.id,
+    order: question.order,
+    title: question.title,
+    content: question.content,
+    type: question.type,
+    // Every option is marked wrong so the key never reaches the client toggle.
+    options: isMcQuestion(question)
+      ? question.options.map((option) => ({
+          id: option.id,
+          text: option.text,
+          isCorrect: false,
+        }))
+      : [],
+    media: question.media,
+  };
+}
 
 // Presigned media URLs are short-lived, so render dynamically to mint fresh
 // ones on each request (mirrors the student test-taking page).
@@ -75,6 +98,14 @@ export default async function TestDetailPage({
       questionCount: (await poolQuestionService.listPoolQuestions(pool.id))
         .length,
     })),
+  );
+
+  const questionList = (
+    <QuestionList
+      questions={questions}
+      courseId={courseId}
+      answeredCounts={answeredCounts}
+    />
   );
 
   return (
@@ -148,11 +179,14 @@ export default async function TestDetailPage({
 
         <Separator />
 
-        <QuestionList
-          questions={questions}
-          courseId={courseId}
-          answeredCounts={answeredCounts}
-        />
+        {questions.length === 0 ? (
+          questionList
+        ) : (
+          <TestQuestionsView
+            teacherView={questionList}
+            studentQuestions={questions.map(toStudentCard)}
+          />
+        )}
       </section>
     </div>
   );
