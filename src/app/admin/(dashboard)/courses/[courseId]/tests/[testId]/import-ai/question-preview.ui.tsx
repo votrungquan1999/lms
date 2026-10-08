@@ -2,6 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { StudentCardQuestion } from "src/components/student-question-card.ui";
+import { StudentViewList } from "src/components/student-view-list.ui";
+import {
+  type QuestionListView,
+  StudentViewToggle,
+} from "src/components/student-view-toggle";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,8 +39,12 @@ import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
 import { QUESTION_TYPE_LABELS } from "src/lib/question-labels";
+import type { MediaContentType } from "src/lib/question-service";
 import type { ImportMode } from "./actions";
-import type { ImportQuestionDraft } from "./import-ai-form.state";
+import type {
+  ImportQuestionDraft,
+  ReviewPicture,
+} from "./import-ai-form.state";
 import { useImportAi } from "./import-ai-form.state";
 import {
   QuestionEditProvider,
@@ -98,22 +108,95 @@ export function QuestionPreviewList({
   }
 
   return (
+    // Each parse mints fresh draft ids, so a new file remounts the screen
+    // back on Teacher view.
+    <ReviewScreen
+      key={questions[0].id}
+      testId={testId}
+      courseId={courseId}
+      existingQuestionCount={existingQuestionCount}
+      answeredStudentCount={answeredStudentCount}
+    />
+  );
+}
+
+/** The review list, its Teacher/Student view switch, and the import controls. */
+function ReviewScreen({
+  testId,
+  courseId,
+  existingQuestionCount,
+  answeredStudentCount,
+}: {
+  testId: string;
+  courseId: string;
+  existingQuestionCount: number;
+  answeredStudentCount: number;
+}): React.ReactNode {
+  const { questions, pictures } = useImportAi();
+  const [view, setView] = useState<QuestionListView>("teacher");
+  // Student view cards are numbered from 1
+  const firstQuestionNumber = 1;
+
+  return (
     <div className="space-y-3">
       <h2 className="text-lg font-semibold">
         {questions.length} question{questions.length === 1 ? "" : "s"} found
       </h2>
-      {questions.map((question, index) => (
-        <QuestionCard key={question.id} question={question} index={index} />
-      ))}
+      <StudentViewToggle
+        view={view}
+        onViewChange={setView}
+        teacherView={questions.map((question, index) => (
+          <QuestionCard key={question.id} question={question} index={index} />
+        ))}
+        studentView={
+          <StudentViewList questions={toStudentCards(questions, pictures)} />
+        }
+      />
       <ImportModeSelector />
       <ImportQuestionsButton
         testId={testId}
         courseId={courseId}
         existingQuestionCount={existingQuestionCount}
         answeredStudentCount={answeredStudentCount}
+        showQuestionRejection={view === "student"}
+        firstQuestionNumber={firstQuestionNumber}
       />
     </div>
   );
+}
+
+/**
+ * Turns the reviewed drafts into student cards. The answer key (correct
+ * marks, model answer, explanation) is left out on purpose.
+ * @param drafts - The reviewed drafts, in review order.
+ * @param pictures - The document's pictures, to attach to the drafts that use them.
+ * @returns One card per draft, numbered from 1 in review order.
+ */
+function toStudentCards(
+  drafts: ImportQuestionDraft[],
+  pictures: ReviewPicture[],
+): StudentCardQuestion[] {
+  return drafts.map((draft, index) => ({
+    id: draft.id,
+    order: index + 1,
+    title: draft.title,
+    content: draft.content,
+    type: draft.type,
+    options: (draft.options ?? []).map((option, optionIndex) => ({
+      id: `${draft.id}-opt-${optionIndex}`,
+      text: option.text,
+      isCorrect: false,
+    })),
+    media: pictures
+      .filter((picture) => draft.imageNumbers?.includes(picture.number))
+      .map((picture, order) => ({
+        key: `draft-picture-${picture.number}`,
+        url: picture.previewUrl,
+        // Document pictures are only png/jpeg/webp (see document-extract).
+        contentType: picture.file.type as MediaContentType,
+        order,
+      })),
+  }));
 }
 
 /** D37: lets the teacher choose APPEND (default) or REPLACE before importing. */
@@ -149,21 +232,35 @@ function ImportModeSelector(): React.ReactNode {
  * test's admin page on success. In REPLACE mode, clicking opens
  * `ReplaceConfirmDialog` (D45) instead of writing immediately.
  * `importAiQuestionsAction`'s per-question rejection (Step 18) surfaces on
- * the offending `QuestionCard` via `question.importError` — not shown here
- * as a second, bare banner.
+ * the offending `QuestionCard` via `question.importError`; here it shows only
+ * in Student view, where that card is hidden.
  */
 function ImportQuestionsButton({
   testId,
   courseId,
   existingQuestionCount,
   answeredStudentCount,
+  showQuestionRejection,
+  firstQuestionNumber,
 }: {
   testId: string;
   courseId: string;
   existingQuestionCount: number;
   answeredStudentCount: number;
+  /** True while the question's own card is hidden, so its rejection needs showing here. */
+  showQuestionRejection: boolean;
+  /** Number the first draft will have once saved, so the reason can lead with the card's own label. */
+  firstQuestionNumber: number;
 }): React.ReactNode {
-  const { mode, importQuestions, isBusy, importFailureMessage } = useImportAi();
+  const { mode, importQuestions, isBusy, importFailureMessage, questions } =
+    useImportAi();
+  const rejectedIndex = questions.findIndex((question) => question.importError);
+  const rejected = questions[rejectedIndex];
+  // Student view leads with the card's own label; the server's review-position prefix would disagree in add mode.
+  const questionRejection =
+    showQuestionRejection && rejected
+      ? `Question ${firstQuestionNumber + rejectedIndex}${rejected.title?.trim() ? `: ${rejected.title.trim()}` : ""} — ${rejected.importReason ?? rejected.importError}`
+      : null;
   const router = useRouter();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
@@ -190,12 +287,12 @@ function ImportQuestionsButton({
             ? "Replace questions"
             : "Import questions"}
       </Button>
-      {importFailureMessage && (
+      {(importFailureMessage ?? questionRejection) && (
         <div
           role="alert"
           className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
         >
-          {importFailureMessage}
+          {importFailureMessage ?? questionRejection}
         </div>
       )}
       <ReplaceConfirmDialog

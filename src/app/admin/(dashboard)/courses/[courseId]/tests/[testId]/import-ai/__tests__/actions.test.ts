@@ -302,6 +302,7 @@ describe("Feature: importing the pictures the document had", () => {
     expect(result).toMatchObject({
       success: false,
       invalidQuestionIndex: 1,
+      invalidQuestionReason: "A question can have at most 3 media files",
       message:
         'Question 2 ("Q2: four pictures"): A question can have at most 3 media files',
     });

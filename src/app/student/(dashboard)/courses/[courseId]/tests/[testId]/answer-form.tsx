@@ -2,9 +2,12 @@
 
 import { useActionState, useState } from "react";
 import { ExpectedSchoolField } from "src/components/expected-school-field";
+import {
+  FreeTextAnswerControl,
+  ImageAnswerControl,
+  McAnswerControls,
+} from "src/components/student-answer-controls.ui";
 import { Button } from "src/components/ui/button";
-import { Input } from "src/components/ui/input";
-import { Textarea } from "src/components/ui/textarea";
 import type { McOption } from "src/lib/question-service";
 import { submitWithoutReset } from "src/lib/submit-without-reset";
 import { type SubmitAnswerState, submitAnswerAction } from "./actions";
@@ -207,96 +210,26 @@ function AnswerFormInner(props: AnswerFormProps) {
       <ExpectedSchoolField schoolId={schoolId} />
 
       {isMC ? (
-        // MC input: radio (single_select) or checkbox (multi_select)
-        <div className="space-y-2">
-          {props.options.map((opt) => {
-            const checked = selectedIds.includes(opt.id);
-            const inputType =
-              questionType === "single_select" ? "radio" : "checkbox";
-            return (
-              <label
-                key={opt.id}
-                htmlFor={`opt-${opt.id}`}
-                className="flex items-center gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-              >
-                <input
-                  id={`opt-${opt.id}`}
-                  type={inputType}
-                  name="mc-option"
-                  checked={checked}
-                  onChange={() => {
-                    if (questionType === "single_select") {
-                      setSelectedIds([opt.id]);
-                    } else {
-                      setSelectedIds((prev) =>
-                        checked
-                          ? prev.filter((id) => id !== opt.id)
-                          : [...prev, opt.id],
-                      );
-                    }
-                  }}
-                  className="shrink-0"
-                />
-                <span className="text-sm min-w-0 wrap-anywhere">
-                  {opt.text}
-                </span>
-              </label>
-            );
-          })}
-        </div>
-      ) : isImage ? (
-        // Image-answer input: photo picker
-        <div className="space-y-2">
-          <label htmlFor="answer-photos" className="text-sm font-medium">
-            Your photos
-          </label>
-          <Input
-            id="answer-photos"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            multiple
-            onChange={(event) => {
-              imageActions.addFiles(Array.from(event.target.files ?? []));
-              event.target.value = "";
-            }}
-          />
-          {imagePicker.selectedFiles.length > 0 && (
-            <ul className="grid gap-1" aria-label="Selected photos">
-              {imagePicker.selectedFiles.map((selected) => (
-                <li
-                  key={selected.id}
-                  className="flex items-center justify-between gap-2 text-sm"
-                >
-                  <span>{selected.file.name}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`Remove ${selected.file.name}`}
-                    onClick={() => imageActions.removeFile(selected.id)}
-                  >
-                    Remove
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {imagePicker.validationError && (
-            <p className="text-sm text-destructive">
-              {imagePicker.validationError}
-            </p>
-          )}
-        </div>
-      ) : (
-        // Free-text input
-        <Textarea
-          name="answer"
-          placeholder="Type your answer here..."
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          rows={5}
-          className="resize-y"
+        <McAnswerControls
+          questionId={questionId}
+          type={questionType}
+          options={props.options}
+          selectedIds={selectedIds}
+          onChange={setSelectedIds}
         />
+      ) : isImage ? (
+        <ImageAnswerControl
+          questionId={questionId}
+          photos={imagePicker.selectedFiles.map((selected) => ({
+            id: selected.id,
+            name: selected.file.name,
+          }))}
+          error={imagePicker.validationError}
+          onAddFiles={imageActions.addFiles}
+          onRemoveFile={imageActions.removeFile}
+        />
+      ) : (
+        <FreeTextAnswerControl value={text} onChange={setText} />
       )}
 
       <div className="flex items-center gap-3">

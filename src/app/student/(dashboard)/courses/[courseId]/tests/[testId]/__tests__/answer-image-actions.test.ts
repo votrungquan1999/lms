@@ -1,3 +1,4 @@
+import { AnswerImageContentType } from "src/lib/answer-photo-rules";
 import {
   servicesSingletonMockFactory,
   setupTestDb,
@@ -5,7 +6,6 @@ import {
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { requestAnswerImageUploadSlotsAction } from "../answer-image-actions";
-import { AnswerImageContentType } from "../answer-image-upload.schema";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));

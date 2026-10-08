@@ -2,13 +2,13 @@
 
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
+import type { AnswerImageContentType } from "src/lib/answer-photo-rules";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import { getS3StorageService } from "src/lib/services-singleton";
 import type { StudentSession } from "src/lib/session";
 import {
   ANSWER_IMAGE_EXTENSION_BY_CONTENT_TYPE,
-  type AnswerImageContentType,
   type RequestAnswerImageUploadSlotsInput,
   type RequestAnswerImageUploadSlotsState,
   requestAnswerImageUploadSlotsSchema,

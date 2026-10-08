@@ -1,13 +1,6 @@
 import Link from "next/link";
-import { MarkdownContent } from "src/components/markdown-content";
 import { McAnswerChips } from "src/components/mc-answer-chips";
-import { QuestionMedia } from "src/components/question-media.ui";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "src/components/ui/card";
+import { StudentQuestionCard } from "src/components/student-question-card.ui";
 import { Separator } from "src/components/ui/separator";
 import type { AnnotationEntry } from "src/lib/annotation-service";
 import type { AnswerImage } from "src/lib/answer-image-urls";
@@ -144,95 +137,95 @@ export function TestQuestionsSection({
           }
 
           return (
-            <Card key={question.id}>
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Question {question.order}: {question.title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <MarkdownContent content={question.content} />
-                <QuestionMedia media={question.media} />
+            <StudentQuestionCard
+              key={question.id}
+              // Only the card's fields, so the answer key never reaches it.
+              question={{
+                order: question.order,
+                title: question.title,
+                content: question.content,
+                media: question.media,
+              }}
+            >
+              {/* ── Answer input (when not submitted, or redo active) ── */}
+              {canAnswer &&
+                (isMC ? (
+                  <AnswerForm
+                    testId={testId}
+                    courseId={courseId}
+                    schoolId={schoolId}
+                    questionId={question.id}
+                    questionType={question.type}
+                    options={safeOptions}
+                    existingSelectedIds={
+                      studentAnswer?.type === "mc"
+                        ? studentAnswer.selectedIds
+                        : []
+                    }
+                  />
+                ) : question.type === "image_answer" ? (
+                  <AnswerForm
+                    testId={testId}
+                    courseId={courseId}
+                    schoolId={schoolId}
+                    questionId={question.id}
+                    questionType="image_answer"
+                    existingImageCount={
+                      studentAnswer?.type === "image"
+                        ? studentAnswer.mediaKeys.length
+                        : 0
+                    }
+                  />
+                ) : (
+                  <AnswerForm
+                    testId={testId}
+                    courseId={courseId}
+                    schoolId={schoolId}
+                    questionId={question.id}
+                    questionType="free_text"
+                    existingAnswer={
+                      studentAnswer?.type === "free_text"
+                        ? studentAnswer.text
+                        : ""
+                    }
+                  />
+                ))}
 
-                {/* ── Answer input (when not submitted, or redo active) ── */}
-                {canAnswer &&
-                  (isMC ? (
-                    <AnswerForm
-                      testId={testId}
-                      courseId={courseId}
-                      schoolId={schoolId}
-                      questionId={question.id}
-                      questionType={question.type}
+              {/* ── Submitted answer display ── */}
+              {isSubmitted && !hasActiveRedo && studentAnswer && (
+                <div className="rounded-md border bg-muted/50 p-3">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">
+                    Your Answer:
+                  </p>
+                  {studentAnswer.type === "mc" && isMC ? (
+                    <McAnswerChips
+                      selectedIds={studentAnswer.selectedIds}
                       options={safeOptions}
-                      existingSelectedIds={
-                        studentAnswer?.type === "mc"
-                          ? studentAnswer.selectedIds
-                          : []
-                      }
+                      colorPicks={mcRevealOpen}
+                      // Practice's own missed-correct chip is the
+                      // dedicated "Practice Reveal" block below
+                      // (hasMcReveal) — don't also show it here once the
+                      // test is finalized, or the chip doubles up.
+                      showMissedCorrect={!isPractice && mcRevealOpen}
                     />
-                  ) : question.type === "image_answer" ? (
-                    <AnswerForm
-                      testId={testId}
-                      courseId={courseId}
-                      schoolId={schoolId}
-                      questionId={question.id}
-                      questionType="image_answer"
-                      existingImageCount={
-                        studentAnswer?.type === "image"
-                          ? studentAnswer.mediaKeys.length
-                          : 0
-                      }
-                    />
-                  ) : (
-                    <AnswerForm
-                      testId={testId}
-                      courseId={courseId}
-                      schoolId={schoolId}
-                      questionId={question.id}
-                      questionType="free_text"
-                      existingAnswer={
-                        studentAnswer?.type === "free_text"
-                          ? studentAnswer.text
-                          : ""
-                      }
-                    />
-                  ))}
-
-                {/* ── Submitted answer display ── */}
-                {isSubmitted && !hasActiveRedo && studentAnswer && (
-                  <div className="rounded-md border bg-muted/50 p-3">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">
-                      Your Answer:
+                  ) : studentAnswer.type === "free_text" ? (
+                    <p className="whitespace-pre-wrap text-sm">
+                      {studentAnswer.text}
                     </p>
-                    {studentAnswer.type === "mc" && isMC ? (
-                      <McAnswerChips
-                        selectedIds={studentAnswer.selectedIds}
-                        options={safeOptions}
-                        colorPicks={mcRevealOpen}
-                        // Practice's own missed-correct chip is the
-                        // dedicated "Practice Reveal" block below
-                        // (hasMcReveal) — don't also show it here once the
-                        // test is finalized, or the chip doubles up.
-                        showMissedCorrect={!isPractice && mcRevealOpen}
-                      />
-                    ) : studentAnswer.type === "free_text" ? (
-                      <p className="whitespace-pre-wrap text-sm">
-                        {studentAnswer.text}
-                      </p>
-                    ) : null}
-                  </div>
-                )}
+                  ) : null}
+                </div>
+              )}
 
-                {/* ── Blank question, once grades are visible ──
-                    Mirrors the teacher's "No answer — counts as 0": the
-                    average already counts this as 0, so the student sees
-                    why instead of a silently missing answer. Withheld
-                    grades hide this 0 like every other score. */}
-                {!canAnswer && !studentAnswer && gradesVisible && (
-                  <p className="text-sm text-muted-foreground">No answer — 0</p>
-                )}
+              {/* ── Blank question, once grades are visible ──
+                  Mirrors the teacher's "No answer — counts as 0": the
+                  average already counts this as 0, so the student sees
+                  why instead of a silently missing answer. Withheld
+                  grades hide this 0 like every other score. */}
+              {!canAnswer && !studentAnswer && gradesVisible && (
+                <p className="text-sm text-muted-foreground">No answer — 0</p>
+              )}
 
-                {/* ── Practice-mode reveal (free_text and MC) ──
+              {/* ── Practice-mode reveal (free_text and MC) ──
                     free_text: `question.referenceAnswer`/`.explanation` only
                     survive the page-level scrub when the reveal gate is
                     open, so presence here already implies isPractice +
@@ -245,72 +238,71 @@ export function TestQuestionsSection({
                     whole-test `isSubmitted` flag, which stays false
                     throughout the practice pre-finalize loop, so they can't
                     serve as this reveal. */}
-                {(hasFreeTextReveal || hasMcReveal) && (
-                  <div className="rounded-md border bg-muted/40 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Practice Reveal
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Attempt {attemptCountMap.get(question.id) ?? 0}
-                      </p>
-                    </div>
-                    {hasFreeTextReveal && (
-                      <>
-                        {question.type === "free_text" &&
-                          question.referenceAnswer && (
-                            <div>
-                              <p className="mb-1 text-xs font-medium text-muted-foreground">
-                                Model Answer
-                              </p>
-                              {mode === "diff" &&
-                              studentAnswer?.type === "free_text" &&
-                              !isTextEquivalent(
-                                studentAnswer.text,
-                                question.referenceAnswer,
-                              ) ? (
-                                <DiffViewer
-                                  studentAnswer={studentAnswer.text}
-                                  solution={question.referenceAnswer}
-                                  rightTitle="Model Answer"
-                                />
-                              ) : (
-                                <p className="whitespace-pre-wrap text-sm">
-                                  {question.referenceAnswer}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        {question.type === "free_text" &&
-                          question.explanation && (
-                            <div>
-                              <p className="mb-1 text-xs font-medium text-muted-foreground">
-                                Explanation
-                              </p>
-                              <p className="whitespace-pre-wrap text-sm">
-                                {question.explanation}
-                              </p>
-                            </div>
-                          )}
-                      </>
-                    )}
-                    {hasMcReveal && studentAnswer?.type === "mc" && (
-                      <div>
-                        <p className="mb-1 text-xs font-medium text-muted-foreground">
-                          Result
-                        </p>
-                        <McAnswerChips
-                          selectedIds={studentAnswer.selectedIds}
-                          options={safeOptions}
-                          colorPicks={true}
-                          showMissedCorrect={true}
-                        />
-                      </div>
-                    )}
+              {(hasFreeTextReveal || hasMcReveal) && (
+                <div className="rounded-md border bg-muted/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Practice Reveal
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Attempt {attemptCountMap.get(question.id) ?? 0}
+                    </p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                  {hasFreeTextReveal && (
+                    <>
+                      {question.type === "free_text" &&
+                        question.referenceAnswer && (
+                          <div>
+                            <p className="mb-1 text-xs font-medium text-muted-foreground">
+                              Model Answer
+                            </p>
+                            {mode === "diff" &&
+                            studentAnswer?.type === "free_text" &&
+                            !isTextEquivalent(
+                              studentAnswer.text,
+                              question.referenceAnswer,
+                            ) ? (
+                              <DiffViewer
+                                studentAnswer={studentAnswer.text}
+                                solution={question.referenceAnswer}
+                                rightTitle="Model Answer"
+                              />
+                            ) : (
+                              <p className="whitespace-pre-wrap text-sm">
+                                {question.referenceAnswer}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      {question.type === "free_text" &&
+                        question.explanation && (
+                          <div>
+                            <p className="mb-1 text-xs font-medium text-muted-foreground">
+                              Explanation
+                            </p>
+                            <p className="whitespace-pre-wrap text-sm">
+                              {question.explanation}
+                            </p>
+                          </div>
+                        )}
+                    </>
+                  )}
+                  {hasMcReveal && studentAnswer?.type === "mc" && (
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-muted-foreground">
+                        Result
+                      </p>
+                      <McAnswerChips
+                        selectedIds={studentAnswer.selectedIds}
+                        options={safeOptions}
+                        colorPicks={true}
+                        showMissedCorrect={true}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </StudentQuestionCard>
           );
         })
       ) : (

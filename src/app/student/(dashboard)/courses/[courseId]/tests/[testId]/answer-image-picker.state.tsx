@@ -1,14 +1,8 @@
 "use client";
 
 import { createContext, useContext, useReducer } from "react";
+import { validateAnswerPhotos } from "src/lib/answer-photo-validation";
 import { requestAnswerImageUploadSlotsAction } from "./answer-image-actions";
-import {
-  AnswerImageContentType,
-  MAX_ANSWER_IMAGE_SIZE_BYTES,
-  MAX_ANSWER_IMAGES,
-} from "./answer-image-upload.schema";
-
-const ALLOWED_CONTENT_TYPES = Object.values(AnswerImageContentType) as string[];
 
 interface SelectedAnswerImage {
   id: string;
@@ -105,24 +99,14 @@ export function AnswerImagePickerProvider({
    * @param files - The browser File objects chosen by the student.
    */
   function addFiles(files: File[]): void {
-    const accepted: SelectedAnswerImage[] = [];
-    let error: string | null = null;
-
-    for (const file of files) {
-      if (!ALLOWED_CONTENT_TYPES.includes(file.type)) {
-        error = "Unsupported image type";
-        continue;
-      }
-      if (file.size > MAX_ANSWER_IMAGE_SIZE_BYTES) {
-        error = "Each photo must be 10 MB or smaller";
-        continue;
-      }
-      if (state.selectedFiles.length + accepted.length >= MAX_ANSWER_IMAGES) {
-        error = "You can attach at most 3 photos";
-        continue;
-      }
-      accepted.push({ id: crypto.randomUUID(), file });
-    }
+    const { accepted: acceptedFiles, error } = validateAnswerPhotos(
+      files,
+      state.selectedFiles.length,
+    );
+    const accepted: SelectedAnswerImage[] = acceptedFiles.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+    }));
 
     if (accepted.length > 0) dispatch({ type: "ADD_FILES", files: accepted });
     dispatch({ type: "SET_ERROR", error });

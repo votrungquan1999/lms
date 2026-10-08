@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
 import {
   AnswerImageContentType,
   MAX_ANSWER_IMAGES,
-  requestAnswerImageUploadSlotsSchema,
-} from "../answer-image-upload.schema";
+} from "src/lib/answer-photo-rules";
+import { describe, expect, it } from "vitest";
+import { requestAnswerImageUploadSlotsSchema } from "../answer-image-upload.schema";
 
 /** Builds N valid answer-image upload requests. */
 function buildPhotos(count: number) {

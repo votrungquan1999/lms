@@ -184,6 +184,8 @@ export interface ImportAiQuestionsState {
   importedCount?: number;
   /** 0-indexed position of the offender named in `message` — Step 33 surfaces it against that question, not a bare banner. */
   invalidQuestionIndex?: number;
+  /** The offender's rejection without the `Question N ("title"): ` prefix, so a view can label it by its own numbering. */
+  invalidQuestionReason?: string;
 }
 
 /**
@@ -273,11 +275,11 @@ async function addReviewedQuestion(
  * residual every bulk insert in this codebase already carries
  * (`importQuestions`/`composeFromPools` use plain `insertMany`).
  * @param questions - The reviewed list, in the order the teacher left it.
- * @returns The first offender's index (0-based) and message, or null when every question passes.
+ * @returns The first offender's index (0-based), message and bare reason, or null when every question passes.
  */
 function findFirstQuestionError(
   questions: ReviewedQuestion[],
-): { index: number; message: string } | null {
+): { index: number; message: string; reason: string } | null {
   for (let i = 0; i < questions.length; i++) {
     const parsed = questionImportItemSchema.safeParse(questions[i]);
     if (!parsed.success) {
@@ -285,6 +287,7 @@ function findFirstQuestionError(
       return {
         index: i,
         message: `Question ${i + 1} ("${title}"): ${parsed.error.issues[0].message}`,
+        reason: parsed.error.issues[0].message,
       };
     }
 
@@ -296,6 +299,7 @@ function findFirstQuestionError(
       return {
         index: i,
         message: `Question ${i + 1} ("${parsed.data.title}"): ${media.error.issues[0].message}`,
+        reason: media.error.issues[0].message,
       };
     }
 
@@ -309,6 +313,7 @@ function findFirstQuestionError(
         return {
           index: i,
           message: `Question ${i + 1} ("${parsed.data.title}"): ${mcError}`,
+          reason: mcError,
         };
       }
     }
@@ -361,6 +366,7 @@ export async function importAiQuestionsAction(
       success: false,
       message: invalidQuestion.message,
       invalidQuestionIndex: invalidQuestion.index,
+      invalidQuestionReason: invalidQuestion.reason,
     };
   }
 

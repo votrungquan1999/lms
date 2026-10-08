@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { MAX_ANSWER_IMAGES } from "src/lib/answer-photo-rules";
 import { getAuthService } from "src/lib/auth-singleton";
 import {
   assertExpectedSchool,
@@ -20,7 +21,6 @@ import {
 } from "src/lib/services-singleton";
 import type { StudentSession } from "src/lib/session";
 import { z } from "zod";
-import { MAX_ANSWER_IMAGES } from "./answer-image-upload.schema";
 
 // One wording for every refusal, so a caller can't tell a foreign or missing
 // test from a course they aren't in.

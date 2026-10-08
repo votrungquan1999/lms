@@ -37,6 +37,8 @@ export interface ImportQuestionDraft extends ParsedQuestion {
   edited: boolean;
   retryError: string | null;
   importError: string | null;
+  /** `importError` without its question prefix; Student view leads it with its own label. */
+  importReason: string | null;
 }
 
 /** A document picture, previewed on the review screen and uploaded on import. */
@@ -75,7 +77,13 @@ type ImportAiAction =
       patch: Partial<Omit<ImportQuestionDraft, "id">>;
     }
   | { type: "IMPORT_START" }
-  | { type: "IMPORT_FAILED"; message: string; questionId: string | null }
+  | {
+      type: "IMPORT_FAILED";
+      message: string;
+      /** The message without any question prefix, for views that label it themselves. */
+      reason: string;
+      questionId: string | null;
+    }
   | { type: "SET_MODE"; mode: ImportMode };
 
 const initialState: ImportAiState = {
@@ -127,7 +135,11 @@ function importAiReducer(
         ...state,
         isBusy: true,
         importFailureMessage: null,
-        questions: state.questions.map((q) => ({ ...q, importError: null })),
+        questions: state.questions.map((q) => ({
+          ...q,
+          importError: null,
+          importReason: null,
+        })),
       };
     case "IMPORT_FAILED":
       return {
@@ -137,7 +149,11 @@ function importAiReducer(
         questions: action.questionId
           ? state.questions.map((q) =>
               q.id === action.questionId
-                ? { ...q, importError: action.message }
+                ? {
+                    ...q,
+                    importError: action.message,
+                    importReason: action.reason,
+                  }
                 : q,
             )
           : state.questions,
@@ -362,6 +378,7 @@ export function ImportAiProvider({
         edited: false,
         retryError: null,
         importError: null,
+        importReason: null,
         ...q,
       })),
     });
@@ -415,6 +432,7 @@ export function ImportAiProvider({
         edited: false,
         retryError: null,
         importError: null,
+        importReason: null,
       },
     });
   }
@@ -442,9 +460,11 @@ export function ImportAiProvider({
       try {
         reviewed.push(toReviewedQuestion(draft, await uploadPictures(files)));
       } catch (error) {
+        const detail = error instanceof Error ? error.message : "unknown error";
         dispatch({
           type: "IMPORT_FAILED",
-          message: `This question's pictures could not be uploaded: ${error instanceof Error ? error.message : "unknown error"}`,
+          message: `This question's pictures could not be uploaded: ${detail}`,
+          reason: `Its pictures could not be uploaded: ${detail}`,
           questionId: draft.id,
         });
         return false;
@@ -465,6 +485,7 @@ export function ImportAiProvider({
       dispatch({
         type: "IMPORT_FAILED",
         message: result.message,
+        reason: result.invalidQuestionReason ?? result.message,
         questionId: offender?.id ?? null,
       });
       return false;
