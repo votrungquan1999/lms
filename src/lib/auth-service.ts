@@ -353,22 +353,26 @@ export class AuthService {
   }
 
   /**
+   * Looks up the raw better-auth session for the request headers.
+   */
+  private async lookupSession(headers: Headers) {
+    // In a running Next server better-auth sees no session through headers() itself — pass a plain copy.
+    return this.auth.api.getSession({
+      headers: new Headers(Object.fromEntries(headers.entries())),
+    });
+  }
+
+  /**
    * Retrieves the current session from request headers.
    * Returns a typed AdminSession or StudentSession, or null if not authenticated.
    */
   async getSession(headers: Headers): Promise<Session | null> {
-    // Next's `headers()` returns a read-only Headers subclass that better-auth's
-    // session lookup silently fails against (always resolves no session) —
-    // rebuilding a plain, writable Headers with the same entries fixes it.
-    const plainHeaders = new Headers(Object.fromEntries(headers.entries()));
-    const betterAuthSession = await this.auth.api.getSession({
-      headers: plainHeaders,
-    });
+    const betterAuthSession = await this.lookupSession(headers);
     if (!betterAuthSession) {
       return null;
     }
 
-    return this.classify(betterAuthSession.user, plainHeaders);
+    return this.classify(betterAuthSession.user, headers);
   }
 
   /**
@@ -380,10 +384,7 @@ export class AuthService {
    * exactly what let a dead cookie loop the caller back to a do-nothing form.
    */
   async resolveLoginEntryState(headers: Headers): Promise<LoginEntryState> {
-    // Next's read-only headers() makes the lookup see no session; see getSession.
-    const betterAuthSession = await this.auth.api.getSession({
-      headers: new Headers(Object.fromEntries(headers.entries())),
-    });
+    const betterAuthSession = await this.lookupSession(headers);
     if (!betterAuthSession) {
       return LoginEntryState.SignedOut;
     }
@@ -416,7 +417,7 @@ export class AuthService {
   async resolveUnclassifiedIdentity(
     headers: Headers,
   ): Promise<UnclassifiedIdentity | null> {
-    const betterAuthSession = await this.auth.api.getSession({ headers });
+    const betterAuthSession = await this.lookupSession(headers);
     if (!betterAuthSession) {
       return null;
     }
