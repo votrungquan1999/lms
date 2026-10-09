@@ -103,7 +103,8 @@ test.describe("Answer Reveal — plain mode", () => {
   test("student authenticates for the plain reveal scenario", async ({
     browser,
   }) => {
-    const ctx = await browser.newContext();
+    // storageState: undefined avoids inheriting the project's admin session
+    const ctx = await browser.newContext({ storageState: undefined });
     const studentPage = await ctx.newPage();
     await studentPage.goto(`${BASE_URL}/student/login`);
     await studentPage.getByLabel("Username").fill(STUDENT_USERNAME);
@@ -276,7 +277,8 @@ test.describe("Answer Reveal — diff mode", () => {
   test("student authenticates for the diff reveal scenario", async ({
     browser,
   }) => {
-    const ctx = await browser.newContext();
+    // storageState: undefined avoids inheriting the project's admin session
+    const ctx = await browser.newContext({ storageState: undefined });
     const studentPage = await ctx.newPage();
     await studentPage.goto(`${BASE_URL}/student/login`);
     await studentPage.getByLabel("Username").fill(STUDENT_USERNAME);

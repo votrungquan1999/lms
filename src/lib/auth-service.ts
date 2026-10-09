@@ -380,7 +380,10 @@ export class AuthService {
    * exactly what let a dead cookie loop the caller back to a do-nothing form.
    */
   async resolveLoginEntryState(headers: Headers): Promise<LoginEntryState> {
-    const betterAuthSession = await this.auth.api.getSession({ headers });
+    // Next's read-only headers() makes the lookup see no session; see getSession.
+    const betterAuthSession = await this.auth.api.getSession({
+      headers: new Headers(Object.fromEntries(headers.entries())),
+    });
     if (!betterAuthSession) {
       return LoginEntryState.SignedOut;
     }

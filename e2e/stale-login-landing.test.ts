@@ -107,3 +107,38 @@ test.describe("Landing with a stale login", () => {
     await context.close();
   });
 });
+
+test.describe("Login pages for a signed-in user with no role", () => {
+  test("a signed-in user with no teacher or student record sees Account Not Set Up on both login pages", async ({
+    browser,
+  }) => {
+    // Given a freshly signed-up user: valid session, no admin or student record
+    const context = await browser.newContext({ storageState: undefined });
+    const signUp = await context.request.post(
+      `${BASE_URL}/api/auth/sign-up/email`,
+      {
+        data: {
+          email: `e2e-no-role-${Date.now()}@example.com`,
+          password: "e2e-no-role-password",
+          name: "No Role",
+        },
+      },
+    );
+    expect(signUp.ok()).toBeTruthy();
+    const page = await context.newPage();
+
+    for (const loginPath of ["/student/login", "/admin/login"]) {
+      // test.step names the failing page in the report
+      await test.step(loginPath, async () => {
+        // When they open a login page
+        await page.goto(loginPath);
+
+        // Then they see the not-set-up notice, not the sign-in form
+        await expect(page.getByText("Account Not Set Up")).toBeVisible();
+        expect(new URL(page.url()).pathname).toBe(loginPath);
+      });
+    }
+
+    await context.close();
+  });
+});
