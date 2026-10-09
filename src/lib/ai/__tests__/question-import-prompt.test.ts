@@ -100,4 +100,12 @@ describe("buildQuestionImportPrompt", () => {
     );
     expect(prompt).toMatch(/never leave .{0,80}empty/i);
   });
+
+  it("asks for real line breaks, never the two characters backslash and n, or tables and lists collapse into one line", () => {
+    const prompt = buildQuestionImportPrompt("1. What is 2+2?\nA) 3 B) 4");
+
+    // A real reply wrote every line break as the text "\n", so tables showed raw pipes.
+    expect(prompt).toMatch(/real line break/i);
+    expect(prompt).toMatch(/never write the two characters backslash and "n"/i);
+  });
 });

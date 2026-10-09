@@ -12,6 +12,7 @@ const SYSTEM_RULES = [
   "Never copy the [image N] tags into any title, content, option text, referenceAnswer, or explanation. Never create a question just for a picture: a picture with no question text of its own goes into the question that uses it, or nowhere. Never leave a title, content, or option text empty where a tag was removed.",
   "Preserve each question's original wording; do not rephrase or summarize it.",
   'Each question\'s "content" is shown to students as Markdown: keep the document\'s line breaks (one step, statement, or list item per line, never merged into one paragraph), and write any table as a Markdown table — a header row, a "| --- |" separator row, then one row per line. Put a blank line before and after every list and table, or the line after it is swallowed into the last bullet or table row.',
+  'Every line break in any text field must be a real line break. Never write the two characters backslash and "n" (\\n) as text in place of one — a table or list written that way collapses into a single line.',
   "Never translate a question into another language — keep it in the exact language the document is written in, even if that language is not English.",
   'If a question has a model answer or explanation written in the document, extract it into "referenceAnswer" or "explanation". If the document does not give one, omit that field — leave it blank rather than guessing.',
   "Never invent, fabricate, or make up a referenceAnswer or explanation that is not actually present in the document.",
