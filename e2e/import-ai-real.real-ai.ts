@@ -385,6 +385,24 @@ test.describe("AI Document Import — real Gemini", () => {
     const testId = page.url().match(/\/tests\/([^/]+)\/import-ai/)?.[1];
     expect(testId, "test id in the import page URL").toBeTruthy();
 
+    // Keep the parse reply from the Node side: the browser drops a streamed body once the page moves on.
+    let parseReplyBody: string | undefined;
+    await page.route(
+      (url) => url.pathname.endsWith("/import-ai"),
+      async (route) => {
+        const request = route.request();
+        if (
+          request.method() !== "POST" ||
+          !(request.postData() ?? "").includes("Câu 1 NLC")
+        ) {
+          return route.continue();
+        }
+        const response = await route.fetch({ timeout: 270_000 });
+        parseReplyBody = await response.text();
+        return route.fulfill({ response, body: parseReplyBody });
+      },
+    );
+
     // The one paid call: the parse server action carrying the exam's text.
     const parseResponsePromise = page.waitForResponse(
       (response) =>
@@ -397,10 +415,7 @@ test.describe("AI Document Import — real Gemini", () => {
     await page.getByLabel(/document/i).setInputFiles(EXAM_DOCX);
     const parseResponse = await parseResponsePromise;
     run.parseRequestBody = parseResponse.request().postData() ?? "";
-    // Diagnostic only: on some failures the page navigates first and the body is gone.
-    run.parseResponseBody = await parseResponse
-      .text()
-      .catch((error: Error) => `<body unavailable: ${error.message}>`);
+    run.parseResponseBody = parseReplyBody ?? "<parse reply not captured>";
     saveRun(runFile, run);
 
     // The route announcer is also role=alert, but lives outside <main>.
