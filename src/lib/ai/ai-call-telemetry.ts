@@ -232,7 +232,7 @@ export async function recordAiCall<T>(
   } catch (error) {
     const summary = summarizeFailure(error);
     span.setAttributes(toAttributes(summary));
-    // Not every run exports traces (local and e2e runs don't), so the log says why too.
+    // Local `next dev` exports traces only when `.env.local` sets the OTLP endpoint, so the log says why too.
     console.error(`AI call failed: ${JSON.stringify(summary)}`);
     throw error;
   }

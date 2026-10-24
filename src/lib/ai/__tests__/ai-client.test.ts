@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const googleMock = vi.fn((_modelId: string) => "stub-model");
 vi.mock("@ai-sdk/google", () => ({
-  google: (modelId: string) => googleMock(modelId),
+  createGoogleGenerativeAI: () => (modelId: string) => googleMock(modelId),
 }));
 
 const generateTextMock = vi.fn();

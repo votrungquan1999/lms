@@ -14,7 +14,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@ai-sdk/google", () => ({
-  google: () => "stub-model",
+  createGoogleGenerativeAI: () => () => "stub-model",
 }));
 
 // Keep the SDK's real error classes; only the network call is stubbed.

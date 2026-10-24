@@ -1,10 +1,15 @@
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import type { Span } from "@opentelemetry/api";
 import { generateText, Output } from "ai";
 import {
   recordAiCall,
   summarizeIdMatch,
   summarizeResult,
 } from "src/lib/ai/ai-call-telemetry";
+import {
+  AiProviderName,
+  createAiRequestRecorder,
+} from "src/lib/ai/ai-request-recorder";
 import { buildGradingPrompt } from "src/lib/ai/grading-prompt";
 import { aiGradeBatchSchema } from "src/lib/ai/grading-schema";
 import { separateMarkdownBlocks } from "src/lib/ai/markdown-blocks";
@@ -151,6 +156,22 @@ function geminiModelId(): string {
 }
 
 /**
+ * Builds the Gemini model for one operation, routed through the request
+ * recorder so every HTTP request it sends is traced.
+ * @param span - The operation's span, parent of the request spans.
+ * @param operation - The operation name stamped on each record.
+ * @returns The language model to hand to `generateText`.
+ */
+function geminiModel(span: Span, operation: string) {
+  const recorder = createAiRequestRecorder({
+    span,
+    provider: AiProviderName.Gemini,
+    operation,
+  });
+  return createGoogleGenerativeAI({ fetch: recorder.fetch })(geminiModelId());
+}
+
+/**
  * Total limit per call, retries included. A 31-question exam took ~2 minutes
  * to read; it must stay under Vercel's 300s function limit (Hobby, Fluid
  * compute) so the failure is still recorded.
@@ -192,7 +213,7 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
       (span) =>
         recordAiCall(span, async () => {
           const result = await generateText({
-            model: google(geminiModelId()),
+            model: geminiModel(span, "gemini.gradeFreeTextBatch"),
             timeout: GEMINI_TIMEOUT_MS,
             output: Output.object({ schema: aiGradeBatchSchema }),
             prompt: buildGradingPrompt(items, opts),
@@ -240,7 +261,7 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
       (span) =>
         recordAiCall(span, async () => {
           const result = await generateText({
-            model: google(geminiModelId()),
+            model: geminiModel(span, "gemini.parseQuestionsFromText"),
             timeout: GEMINI_TIMEOUT_MS,
             output: Output.object({ schema: questionImportBatchSchema }),
             prompt: buildQuestionImportPrompt(documentText),
@@ -292,7 +313,7 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
       (span) =>
         recordAiCall(span, async () => {
           const result = await generateText({
-            model: google(geminiModelId()),
+            model: geminiModel(span, "gemini.retryQuestion"),
             timeout: GEMINI_TIMEOUT_MS,
             output: Output.object({ schema: questionRetryResultSchema }),
             prompt: buildQuestionRetryPrompt(
