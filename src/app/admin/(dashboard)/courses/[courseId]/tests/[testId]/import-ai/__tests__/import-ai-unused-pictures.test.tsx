@@ -237,6 +237,46 @@ describe("Feature: AI document import — pictures no question uses", () => {
     expect(retryQuestionAction).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a hand-added picture in Unused pictures again when the re-read does not keep it", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(2, [
+      { title: "Câu 14", imageNumbers: [1] },
+      { title: "Câu 15" },
+    ]);
+    // The re-read marks only picture 1 in Câu 15's text.
+    vi.mocked(retryQuestionAction).mockResolvedValue({
+      success: true,
+      message: "Question re-read",
+      question: {
+        title: "Câu 15",
+        content: "Re-read content",
+        type: "free_text",
+        imageNumbers: [1],
+      },
+    });
+    await user.selectOptions(
+      screen.getByLabelText("Question for picture 2"),
+      "#2 Câu 15",
+    );
+    await user.click(screen.getByRole("button", { name: "Add picture 2" }));
+
+    await user.click(
+      within(questionCard("Câu 15")).getByRole("button", {
+        name: /retry with ai/i,
+      }),
+    );
+    await user.type(screen.getByLabelText(/what was wrong/i), "Wrong focus.");
+    await user.click(screen.getByRole("button", { name: /^retry$/i }));
+
+    const card = questionCard("Câu 15");
+    expect(
+      await within(card).findByRole("img", { name: "Figure 1" }),
+    ).toBeInTheDocument();
+    expect(within(card).queryByRole("img", { name: "Figure 2" })).toBeNull();
+    const unused = screen.getByRole("region", { name: "Unused pictures" });
+    expect(within(unused).getByAltText("Unused picture 2")).toBeInTheDocument();
+  });
+
   it("uploads a picture the teacher added with its question on import, in document order", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(

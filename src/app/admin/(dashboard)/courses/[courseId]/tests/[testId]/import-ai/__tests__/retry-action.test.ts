@@ -56,6 +56,22 @@ describe("Feature: retryQuestionAction re-reads one question, addressing a teach
     });
   });
 
+  it("hands the draft's current pictures to the parse client intact", async () => {
+    retryQuestion.mockResolvedValueOnce({ ...currentQuestion });
+
+    await retryQuestionAction(
+      "[image 1]1. Explain photosynthesis.",
+      { ...currentQuestion, imageNumbers: [1] },
+      "Keep the picture.",
+    );
+
+    expect(retryQuestion).toHaveBeenCalledWith(
+      "[image 1]1. Explain photosynthesis.",
+      expect.objectContaining({ imageNumbers: [1] }),
+      "Keep the picture.",
+    );
+  });
+
   it.each([
     ["title", { ...currentQuestion, title: "" }, "Question: title is empty"],
     [

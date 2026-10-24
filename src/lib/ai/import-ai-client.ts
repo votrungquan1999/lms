@@ -35,6 +35,7 @@ import {
   buildQuestionRetryPrompt,
 } from "src/lib/ai/question-import-prompt";
 import {
+  type QuestionImportItem,
   questionImportBatchSchema,
   questionRetryResultSchema,
 } from "src/lib/ai/question-import-schema";
@@ -252,6 +253,30 @@ function refusalCategory(result: {
 }
 
 /**
+ * Turns one question of a model reply into a draft: pictures come from the
+ * markers the model left in its text, then the Markdown is tidied.
+ * @param reply - The question as the model wrote it.
+ * @param documentPictures - The picture numbers the document really has.
+ * @returns The draft question.
+ */
+function toDraft(
+  reply: QuestionImportItem,
+  documentPictures: readonly number[],
+): ParsedQuestion {
+  // Markers must go before the Markdown clean-up, which would treat them as text.
+  const read = readPictureMarkers(reply, documentPictures);
+  return {
+    title: read.title,
+    content: separateMarkdownBlocks(read.content),
+    type: read.type,
+    options: read.options,
+    referenceAnswer: read.referenceAnswer,
+    explanation: read.explanation,
+    imageNumbers: read.imageNumbers,
+  };
+}
+
+/**
  * Reads exam documents into draft questions through the import model.
  *
  * Errors from the SDK surface uncaught so the action's outer try/catch can
@@ -291,18 +316,7 @@ export class ImportAiClient implements QuestionParseClient {
           // The browser's own list: a marker typed into the text is not a picture.
           const documentPictures = [...new Set(pictureNumbers)];
           return {
-            value: parsed.questions.map((q) => {
-              const read = readPictureMarkers(q, documentPictures);
-              return {
-                title: read.title,
-                content: separateMarkdownBlocks(read.content),
-                type: read.type,
-                options: read.options,
-                referenceAnswer: read.referenceAnswer,
-                explanation: read.explanation,
-                imageNumbers: read.imageNumbers,
-              };
-            }),
+            value: parsed.questions.map((q) => toDraft(q, documentPictures)),
             summary: {
               ...summarizeResults(results),
               questionsReturned: parsed.questions.length,
@@ -349,15 +363,10 @@ export class ImportAiClient implements QuestionParseClient {
 
           const parsed = result.output;
           return {
-            value: {
-              title: parsed.question.title,
-              content: separateMarkdownBlocks(parsed.question.content),
-              type: parsed.question.type,
-              options: parsed.question.options,
-              referenceAnswer: parsed.question.referenceAnswer,
-              explanation: parsed.question.explanation,
-              imageNumbers: parsed.question.imageNumbers,
-            },
+            value: toDraft(
+              parsed.question,
+              documentPictureNumbers(documentText),
+            ),
             summary: summarizeResults(results),
           };
         }),

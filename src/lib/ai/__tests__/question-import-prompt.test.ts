@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildQuestionImportPrompt } from "../question-import-prompt";
+import {
+  buildQuestionImportPrompt,
+  buildQuestionRetryPrompt,
+} from "../question-import-prompt";
 
 describe("buildQuestionImportPrompt", () => {
   it("instructs the model to classify each question by type and extract options for multiple-choice questions", () => {
@@ -113,5 +116,43 @@ describe("buildQuestionImportPrompt", () => {
     // A real reply wrote every line break as the text "\n", so tables showed raw pipes.
     expect(prompt).toMatch(/real line break/i);
     expect(prompt).toMatch(/never write the two characters backslash and "n"/i);
+  });
+});
+
+describe("buildQuestionRetryPrompt pictures", () => {
+  const draft = {
+    title: "Câu 14",
+    content: "Quan sát hình bên",
+    type: "free_text" as const,
+  };
+
+  it("names the draft's current pictures as markers and prints the draft without a picture list", () => {
+    const prompt = buildQuestionRetryPrompt(
+      "Câu 14 …",
+      { ...draft, imageNumbers: [3, 4] },
+      "The picture is missing",
+    );
+
+    expect(prompt).toMatch(/current pictures: \[image 3\], \[image 4\]/);
+    expect(prompt).not.toMatch(/imageNumbers/);
+  });
+
+  it("tells the model to copy only the markers that sit in this question's own text", () => {
+    const prompt = buildQuestionRetryPrompt(
+      "Câu 14 …",
+      { ...draft, imageNumbers: [3] },
+      "The picture is missing",
+    );
+
+    expect(prompt).toMatch(
+      /copy only the markers that sit in this question's own text/i,
+    );
+  });
+
+  it("adds no picture line for a draft without pictures", () => {
+    const prompt = buildQuestionRetryPrompt("Câu 14 …", draft, "Fix it");
+
+    expect(prompt).not.toMatch(/current pictures/i);
+    expect(prompt).not.toMatch(/imageNumbers/);
   });
 });

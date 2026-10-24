@@ -305,25 +305,33 @@ describe("ImportAiClient.retryQuestion", () => {
 });
 
 describe("ImportAiClient.retryQuestion pictures", () => {
-  it("keeps the picture numbers the model assigned to the re-read question", async () => {
+  it("replaces the question's pictures with the ones the re-read marks in its text, and takes the markers out", async () => {
+    // Given a re-read reply with no picture list, marking picture 3 and not picture 10
     generateTextMock.mockResolvedValueOnce({
       usage: {},
       output: {
         question: {
           title: "Câu 14",
-          content: "Quan sát hình bên",
+          content: "[image 3]Quan sát hình bên",
           type: "free_text",
-          imageNumbers: [10],
         },
       },
     });
 
+    // When a draft that held picture 10 is re-read
     const question = await new ImportAiClient().retryQuestion(
-      "[image 10]Câu 14: Quan sát hình bên",
-      { title: "Câu 14", content: "Quan sát hình bên", type: "free_text" },
+      "[image 10]Câu 14: [image 3]Quan sát hình bên",
+      {
+        title: "Câu 14",
+        content: "Quan sát hình bên",
+        type: "free_text",
+        imageNumbers: [10],
+      },
       "The picture is missing",
     );
 
-    expect(question.imageNumbers).toEqual([10]);
+    // Then only the marked picture remains, and the tag is gone
+    expect(question.imageNumbers).toEqual([3]);
+    expect(question.content).toBe("Quan sát hình bên");
   });
 });

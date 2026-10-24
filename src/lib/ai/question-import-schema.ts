@@ -37,7 +37,8 @@ export const draftQuestionSchema = questionImportItemSchema.extend({
   imageNumbers: z.array(z.number().int()).optional(),
 });
 
-export type QuestionImportItem = z.infer<typeof draftQuestionSchema>;
+export type QuestionImportItem = z.infer<typeof questionImportItemSchema>;
+export type DraftQuestion = z.infer<typeof draftQuestionSchema>;
 
 /**
  * Zod schema for a single-question retry result. Wrapped in a
@@ -45,5 +46,5 @@ export type QuestionImportItem = z.infer<typeof draftQuestionSchema>;
  * `questionImportBatchSchema`'s `{ questions: [...] }`.
  */
 export const questionRetryResultSchema = z.object({
-  question: draftQuestionSchema,
+  question: questionImportItemSchema,
 });
