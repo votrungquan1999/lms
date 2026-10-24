@@ -27,6 +27,10 @@ import {
 } from "src/lib/ai/ai-request-recorder";
 import { separateMarkdownBlocks } from "src/lib/ai/markdown-blocks";
 import {
+  documentPictureNumbers,
+  readPictureMarkers,
+} from "src/lib/ai/picture-markers";
+import {
   buildQuestionImportPrompt,
   buildQuestionRetryPrompt,
 } from "src/lib/ai/question-import-prompt";
@@ -257,10 +261,13 @@ export class ImportAiClient implements QuestionParseClient {
   /**
    * Extracts structured questions from a document's plain text.
    * @param documentText - The full text extracted client-side from the upload.
+   * @param pictureNumbers - The numbers of the pictures the browser really
+   *   extracted; none for a PDF.
    * @returns The parsed questions, in document order.
    */
   async parseQuestionsFromText(
     documentText: string,
+    pictureNumbers: readonly number[] = [],
   ): Promise<ParsedQuestion[]> {
     const target = importTarget();
     return withSpan(
@@ -281,16 +288,21 @@ export class ImportAiClient implements QuestionParseClient {
           });
 
           const parsed = result.output;
+          // The browser's own list: a marker typed into the text is not a picture.
+          const documentPictures = [...new Set(pictureNumbers)];
           return {
-            value: parsed.questions.map((q) => ({
-              title: q.title,
-              content: separateMarkdownBlocks(q.content),
-              type: q.type,
-              options: q.options,
-              referenceAnswer: q.referenceAnswer,
-              explanation: q.explanation,
-              imageNumbers: q.imageNumbers,
-            })),
+            value: parsed.questions.map((q) => {
+              const read = readPictureMarkers(q, documentPictures);
+              return {
+                title: read.title,
+                content: separateMarkdownBlocks(read.content),
+                type: read.type,
+                options: read.options,
+                referenceAnswer: read.referenceAnswer,
+                explanation: read.explanation,
+                imageNumbers: read.imageNumbers,
+              };
+            }),
             summary: {
               ...summarizeResults(results),
               questionsReturned: parsed.questions.length,

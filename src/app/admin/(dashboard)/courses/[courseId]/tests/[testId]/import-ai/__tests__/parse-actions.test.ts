@@ -60,6 +60,24 @@ describe("Feature: parseQuestionsAction turns extracted document text into a rev
     ]);
   });
 
+  it("hands the parse client the picture numbers the browser sent", async () => {
+    parseQuestionsFromText.mockResolvedValueOnce([]);
+
+    await parseQuestionsAction("1. Look at [image 2]", [2, 5]);
+
+    expect(parseQuestionsFromText).toHaveBeenCalledWith(
+      "1. Look at [image 2]",
+      [2, 5],
+    );
+  });
+
+  it("refuses picture numbers that are not positive whole numbers, without calling the parse client", async () => {
+    const state = await parseQuestionsAction("some document text", [1, -2]);
+
+    expect(state.success).toBe(false);
+    expect(parseQuestionsFromText).not.toHaveBeenCalled();
+  });
+
   it("refuses an unauthenticated caller and never calls the parse client", async () => {
     requireAdminSession.mockRejectedValueOnce(new Error("no session"));
 

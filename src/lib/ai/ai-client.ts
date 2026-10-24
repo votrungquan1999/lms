@@ -94,7 +94,8 @@ export interface ParsedQuestionOption {
  * `options` is present only for `single_select` / `multi_select`.
  * `referenceAnswer` / `explanation` are populated only when the source
  * document actually contained them — the model never invents either.
- * `imageNumbers` names the document's `[image N]` pictures this question uses.
+ * `imageNumbers` names the document's pictures this question uses; the import
+ * client fills it from the `[image N]` markers the model left in the question's text.
  */
 export interface ParsedQuestion {
   title: string;
@@ -115,9 +116,14 @@ export interface QuestionParseClient {
   /**
    * Extracts structured questions from a document's plain text.
    * @param documentText - The full text extracted client-side from the upload.
+   * @param pictureNumbers - The numbers of the pictures the browser really
+   *   extracted from the document; none for a PDF.
    * @returns One entry per question found, in document order.
    */
-  parseQuestionsFromText(documentText: string): Promise<ParsedQuestion[]>;
+  parseQuestionsFromText(
+    documentText: string,
+    pictureNumbers?: readonly number[],
+  ): Promise<ParsedQuestion[]>;
 
   /**
    * Re-reads ONE already-extracted question, addressing a teacher's

@@ -188,26 +188,38 @@ describe("ImportAiClient.parseQuestionsFromText", () => {
 });
 
 describe("ImportAiClient.parseQuestionsFromText pictures", () => {
-  it("keeps the picture numbers the model assigned to each question", async () => {
+  it("attaches the pictures marked inside a question's text and takes the markers out of it", async () => {
+    // Given a reply with no picture list, whose texts keep the document's markers
     generateTextMock.mockResolvedValueOnce({
       usage: {},
       output: {
         questions: [
           {
             title: "Câu 14",
-            content: "Quan sát hình bên",
-            type: "free_text",
-            imageNumbers: [10],
+            content: "[image 2]Quan sát hình bên",
+            type: "single_select",
+            options: [
+              { text: "Tế bào", isCorrect: true },
+              { text: "[image 3]Mô", isCorrect: false },
+            ],
           },
         ],
       },
     });
 
+    // When the document that holds both pictures is read
     const [question] = await new ImportAiClient().parseQuestionsFromText(
-      "[image 10]Câu 14: Quan sát hình bên",
+      "[image 2]Câu 14: Quan sát hình bên\nA. Tế bào\nB. [image 3]Mô",
+      [2, 3],
     );
 
-    expect(question?.imageNumbers).toEqual([10]);
+    // Then both pictures are attached and no marker is left in the texts
+    expect(question?.imageNumbers).toEqual([2, 3]);
+    expect(question?.content).toBe("Quan sát hình bên");
+    expect(question?.options?.map((option) => option.text)).toEqual([
+      "Tế bào",
+      "Mô",
+    ]);
   });
 });
 

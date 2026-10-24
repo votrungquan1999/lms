@@ -385,7 +385,10 @@ export function ImportAiProvider({
       return;
     }
 
-    const result = await parseQuestionsAction(text);
+    const result = await parseQuestionsAction(
+      text,
+      pictures.map((picture) => picture.number),
+    );
     if (!result.success || !result.questions) {
       settle({ type: "ERROR", message: result.message });
       return;

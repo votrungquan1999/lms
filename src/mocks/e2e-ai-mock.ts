@@ -21,6 +21,9 @@ const PDF_TEXT_MARKER = "Explain photosynthesis";
 /** Content confirming the real extracted PDF text reached this handler. */
 export const PDF_TEXT_RECEIVED_MARKER = "Extracted PDF text reached the mock";
 
+/** A phrase only the pictures `.docx` fixture's first question holds, so no other prompt takes this branch. */
+const PICTURES_DOCX_MARKER = "Quan sát hình bên";
+
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 
 // Matches `.../v1beta/models/<any-model-id>:generateContent` — a colon, not
@@ -36,7 +39,20 @@ const GEMINI_GENERATE_CONTENT_URL =
  * @returns The JSON text of a batch matching `questionImportBatchSchema`.
  */
 async function cannedBatchText(request: Request): Promise<string> {
-  const sawExtractedPdfText = (await request.text()).includes(PDF_TEXT_MARKER);
+  const body = await request.text();
+  if (body.includes(PICTURES_DOCX_MARKER)) {
+    // Keeps picture 1's marker in the text and never mentions picture 2.
+    return JSON.stringify({
+      questions: [
+        {
+          title: "Câu 1",
+          content: "[image 1]Quan sát hình bên.",
+          type: "free_text",
+        },
+      ],
+    });
+  }
+  const sawExtractedPdfText = body.includes(PDF_TEXT_MARKER);
   return JSON.stringify({
     questions: [
       {

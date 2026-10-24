@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { questionImportBatchSchema } from "../question-import-schema";
+import {
+  draftQuestionSchema,
+  questionImportBatchSchema,
+} from "../question-import-schema";
 
 describe("questionImportBatchSchema", () => {
   it("accepts free-text and multiple-choice questions but rejects an image_answer type", () => {
@@ -89,5 +92,26 @@ describe("questionImportBatchSchema", () => {
       );
       expect(issue?.code).toBe("too_small");
     }
+  });
+});
+
+describe("picture numbers", () => {
+  const withPictures = {
+    title: "Q1",
+    content: "Look at the figure.",
+    type: "free_text",
+    imageNumbers: [1],
+  };
+
+  it("drops a picture list from the model's reply, because pictures come from the markers in the text", () => {
+    const parsed = questionImportBatchSchema.parse({
+      questions: [withPictures],
+    });
+
+    expect(parsed.questions[0]).not.toHaveProperty("imageNumbers");
+  });
+
+  it("keeps the picture list on a draft the app holds", () => {
+    expect(draftQuestionSchema.parse(withPictures).imageNumbers).toEqual([1]);
   });
 });

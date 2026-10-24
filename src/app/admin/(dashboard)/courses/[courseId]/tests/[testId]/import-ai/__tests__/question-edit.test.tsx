@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
   unstable_rethrow: vi.fn(),
 }));
 
-import { questionImportItemSchema } from "src/lib/ai/question-import-schema";
+import { draftQuestionSchema } from "src/lib/ai/question-import-schema";
 import { parseQuestionsAction, retryQuestionAction } from "../actions";
 import { extractDocx } from "../document-extract";
 import { ImportAiProvider } from "../import-ai-form.state";
@@ -166,7 +166,7 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     await user.click(screen.getByRole("button", { name: /^retry$/i }));
 
     const [, savedDraft] = vi.mocked(retryQuestionAction).mock.calls[0];
-    expect(questionImportItemSchema.safeParse(savedDraft).success).toBe(true);
+    expect(draftQuestionSchema.safeParse(savedDraft).success).toBe(true);
   });
 
   it("scopes edit-field ids per question, so two open editors don't share a label target", async () => {

@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
-import { questionImportItemSchema } from "src/lib/ai/question-import-schema";
+import {
+  draftQuestionSchema,
+  questionImportItemSchema,
+} from "src/lib/ai/question-import-schema";
 import { getAuthService } from "src/lib/auth-singleton";
 import { logError } from "src/lib/observability/log-error";
 import { withSpan } from "src/lib/observability/with-span";
@@ -37,6 +40,9 @@ const parseQuestionsSchema = z
     "The document is too long to import in one go",
   );
 
+/** The picture numbers the browser extracted; a PDF sends none. */
+const pictureNumbersSchema = z.array(z.number().int().positive()).max(1000);
+
 export interface ParseQuestionsState {
   success: boolean;
   message: string;
@@ -48,9 +54,12 @@ export interface ParseQuestionsState {
  * returns the structured questions for review. Makes no database write —
  * nothing is imported until Step 17's separate import action runs.
  * @param documentText - The full text extracted client-side from the upload.
+ * @param pictureNumbers - The numbers of the pictures extracted client-side;
+ *   none for a PDF.
  */
 export async function parseQuestionsAction(
   documentText: string,
+  pictureNumbers: number[] = [],
 ): Promise<ParseQuestionsState> {
   const requestHeaders = await headers();
   const authService = await getAuthService();
@@ -65,6 +74,13 @@ export async function parseQuestionsAction(
   if (!parsed.success) {
     return { success: false, message: parsed.error.issues[0].message };
   }
+  const numbers = pictureNumbersSchema.safeParse(pictureNumbers);
+  if (!numbers.success) {
+    return {
+      success: false,
+      message: "The document's pictures could not be read",
+    };
+  }
 
   try {
     return await withSpan(
@@ -75,7 +91,10 @@ export async function parseQuestionsAction(
       },
       async () => {
         const parseClient = await getQuestionParseClient();
-        const questions = await parseClient.parseQuestionsFromText(parsed.data);
+        const questions = await parseClient.parseQuestionsFromText(
+          parsed.data,
+          numbers.data,
+        );
 
         return {
           success: true,
@@ -93,9 +112,31 @@ export async function parseQuestionsAction(
   }
 }
 
+/**
+ * Words a failed question check so the teacher can find the field: an emptied
+ * text is named, anything else keeps the schema's own message.
+ * @param issue - The first issue the question schema reported.
+ * @returns The reason, without any question prefix.
+ */
+function describeQuestionIssue(issue: z.core.$ZodIssue): string {
+  if (issue.code !== "too_small" || issue.origin !== "string") {
+    return issue.message;
+  }
+  const [field, index, optionField] = issue.path;
+  if (field === "title" || field === "content") return `${field} is empty`;
+  if (
+    field === "options" &&
+    typeof index === "number" &&
+    optionField === "text"
+  ) {
+    return `option ${index + 1} is empty`;
+  }
+  return issue.message;
+}
+
 const retryQuestionSchema = z.object({
   documentText: parseQuestionsSchema,
-  currentQuestion: questionImportItemSchema,
+  currentQuestion: draftQuestionSchema,
   correctionNote: z
     .string()
     .trim()
@@ -139,7 +180,13 @@ export async function retryQuestionAction(
     correctionNote,
   });
   if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0].message };
+    const [issue] = parsed.error.issues;
+    // Only the question draft's own fields are named after the question.
+    const message =
+      issue.path[0] === "currentQuestion"
+        ? `Question: ${describeQuestionIssue({ ...issue, path: issue.path.slice(1) })}`
+        : issue.message;
+    return { success: false, message };
   }
 
   try {
@@ -286,8 +333,8 @@ function findFirstQuestionError(
       const title = questions[i]?.title ?? "";
       return {
         index: i,
-        message: `Question ${i + 1} ("${title}"): ${parsed.error.issues[0].message}`,
-        reason: parsed.error.issues[0].message,
+        message: `Question ${i + 1} ("${title}"): ${describeQuestionIssue(parsed.error.issues[0])}`,
+        reason: describeQuestionIssue(parsed.error.issues[0]),
       };
     }
 

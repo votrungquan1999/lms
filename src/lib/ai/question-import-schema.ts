@@ -19,8 +19,6 @@ export const questionImportItemSchema = z.object({
   // model must OMIT the key when the source has nothing, never emit "".
   referenceAnswer: z.string().min(1).max(4000).optional(),
   explanation: z.string().min(1).max(4000).optional(),
-  // The `[image N]` tags this question's pictures carry in the document text.
-  imageNumbers: z.array(z.number().int()).optional(),
 });
 
 /**
@@ -31,7 +29,15 @@ export const questionImportBatchSchema = z.object({
   questions: z.array(questionImportItemSchema),
 });
 
-export type QuestionImportItem = z.infer<typeof questionImportItemSchema>;
+/**
+ * A draft question the app holds: the reply item plus the document pictures
+ * attached to it, which the app derives from the `[image N]` markers in the text.
+ */
+export const draftQuestionSchema = questionImportItemSchema.extend({
+  imageNumbers: z.array(z.number().int()).optional(),
+});
+
+export type QuestionImportItem = z.infer<typeof draftQuestionSchema>;
 
 /**
  * Zod schema for a single-question retry result. Wrapped in a
@@ -39,5 +45,5 @@ export type QuestionImportItem = z.infer<typeof questionImportItemSchema>;
  * `questionImportBatchSchema`'s `{ questions: [...] }`.
  */
 export const questionRetryResultSchema = z.object({
-  question: questionImportItemSchema,
+  question: draftQuestionSchema,
 });

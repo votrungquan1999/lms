@@ -26,7 +26,7 @@ import {
   parseQuestionsAction,
   retryQuestionAction,
 } from "../actions";
-import { extractDocx } from "../document-extract";
+import { extractDocx, extractTextFromPdf } from "../document-extract";
 import { ImportAiProvider } from "../import-ai-form.state";
 import {
   ImportAiFilePicker,
@@ -110,6 +110,47 @@ function questionCard(title: string): HTMLElement {
 }
 
 describe("Feature: AI document import — the document's pictures come along with their questions", () => {
+  it("sends the parse request the numbers of the pictures it extracted, not the markers in the text", async () => {
+    await uploadDocumentWithPictures();
+
+    expect(parseQuestionsAction).toHaveBeenCalledWith(
+      "[image 1]Câu 14: Quan sát hình bên.\n\nCâu 15: Virus là",
+      [1],
+    );
+  });
+
+  it("sends no picture numbers for a PDF, even when its text holds a marker", async () => {
+    const user = userEvent.setup();
+    vi.mocked(extractTextFromPdf).mockResolvedValue("Câu 1: gõ [image 2] ra");
+    vi.mocked(parseQuestionsAction).mockResolvedValue({
+      success: true,
+      message: "Extracted 1 question(s)",
+      questions: [{ title: "Câu 1", content: "gõ ra", type: "free_text" }],
+    });
+    render(
+      <ImportAiProvider>
+        <ImportAiFilePicker />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
+      </ImportAiProvider>,
+    );
+
+    await user.upload(
+      screen.getByLabelText(/document/i),
+      new File(["pdf"], "exam.pdf", { type: "application/pdf" }),
+    );
+    await screen.findByText("Câu 1");
+
+    expect(parseQuestionsAction).toHaveBeenCalledWith(
+      "Câu 1: gõ [image 2] ra",
+      [],
+    );
+  });
+
   it("shows each question's pictures on its review card, so the teacher can check the AI matched them", async () => {
     await uploadDocumentWithPictures();
 

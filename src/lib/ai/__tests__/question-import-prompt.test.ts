@@ -81,17 +81,23 @@ describe("buildQuestionImportPrompt", () => {
     expect(prompt).toMatch(/true\/false statements.{0,60}options/i);
   });
 
-  it("explains the [image N] picture tags: each question lists its pictures in imageNumbers, matched by meaning, and the tags never reach the text", () => {
+  it("asks the model to keep every [image N] marker where it sits and not to list pictures itself", () => {
     const prompt = buildQuestionImportPrompt("1. What is 2+2?\nA) 3 B) 4");
 
-    expect(prompt).toMatch(/\[image N\]/);
-    expect(prompt).toMatch(/"imageNumbers"/);
-    // In the real exam a picture often sits just before its question's label, so position alone misassigns it.
-    expect(prompt).toMatch(/before its question.{0,80}not by position/i);
-    expect(prompt).toMatch(/never (copy|include|keep).{0,60}\[image N\]/i);
+    expect(prompt).toMatch(/keep each \[image N\].{0,80}where it appears/i);
+    // In the real exam a picture often sits just before its question's label.
+    expect(prompt).toMatch(
+      /just before a question's label belongs to that question/i,
+    );
+    expect(prompt).toMatch(/copy every marker/i);
+    // A text that is only a picture would otherwise end up empty once the marker is read out.
+    expect(prompt).toMatch(/only a picture keeps a short label/i);
+    // The app reads pictures from the markers, so a list would only add a second, disagreeing source.
+    expect(prompt).not.toMatch(/imageNumbers/);
+    expect(prompt).not.toMatch(/never copy the \[image N\]/i);
   });
 
-  it("never turns a lone picture into a question, or leaves a field empty where a picture tag was", () => {
+  it("never turns a lone picture into a question, or leaves a field empty", () => {
     const prompt = buildQuestionImportPrompt("1. What is 2+2?\nA) 3 B) 4");
 
     // A real run's reply failed the schema after the tags were added; the exam has a stray screenshot.

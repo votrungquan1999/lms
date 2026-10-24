@@ -8,8 +8,8 @@ const SYSTEM_RULES = [
   'For single_select and multi_select questions, extract every option\'s text and whether it is marked correct (look for markers such as a checkmark, bold text, underline, or a line like "Answer: B").',
   'Text the teacher highlighted appears wrapped in <mark color="…">…</mark>. Teachers usually mark the answer key by highlighting each correct option (or each true statement) in one consistent colour across the whole document — treat an option highlighted in that consistent colour as correct. A colour used only here and there, or on words inside a question, is emphasis, not an answer.',
   "Never copy the <mark> tags into any title, content, option text, referenceAnswer, or explanation — output only the plain text inside them.",
-  'Pictures appear as [image N] at the spot they sit in the document. For each question, list in "imageNumbers" the N of every picture it shows or refers to ("the picture", "hình bên", a diagram or graph its text describes), including pictures inside its table or options. A picture often sits just before its question\'s label rather than after it, so match each picture by what the question says, not by position alone. Leave out a picture no question uses, and omit "imageNumbers" for a question with no picture.',
-  "Never copy the [image N] tags into any title, content, option text, referenceAnswer, or explanation. Never create a question just for a picture: a picture with no question text of its own goes into the question that uses it, or nowhere. Never leave a title, content, or option text empty where a tag was removed.",
+  "Pictures appear as [image N] at the spot they sit in the document. Keep each [image N] exactly where it appears in any text you copy (title, content, option text, referenceAnswer, explanation); never move, renumber, or drop one. A marker just before a question's label belongs to that question, so copy it into that question's text. Copy every marker, even one no question seems to use. A text that is only a picture keeps a short label beside its marker, such as the option letter or \"Hình 1\".",
+  "Never create a question just for a picture: a picture with no question text of its own goes into the question that uses it, or nowhere. Never leave a title, content, or option text empty.",
   "Preserve each question's original wording; do not rephrase or summarize it.",
   'Each question\'s "content" is shown to students as Markdown: keep the document\'s line breaks (one step, statement, or list item per line, never merged into one paragraph), and write any table as a Markdown table — a header row, a "| --- |" separator row, then one row per line. Put a blank line before and after every list and table, or the line after it is swallowed into the last bullet or table row.',
   'Every line break in any text field must be a real line break. Never write the two characters backslash and "n" (\\n) as text in place of one — a table or list written that way collapses into a single line.',
@@ -29,7 +29,7 @@ export function buildQuestionImportPrompt(documentText: string): string {
     SYSTEM_RULES,
     "Document text:",
     documentText,
-    'Respond with JSON of the form { "questions": [{ "title": string, "content": string, "type": "free_text" | "single_select" | "multi_select", "options"?: [{ "text": string, "isCorrect": boolean }], "referenceAnswer"?: string, "explanation"?: string, "imageNumbers"?: number[] }, ...] }. Omit "referenceAnswer"/"explanation" entirely when the document gives none — never return an empty string for either.',
+    'Respond with JSON of the form { "questions": [{ "title": string, "content": string, "type": "free_text" | "single_select" | "multi_select", "options"?: [{ "text": string, "isCorrect": boolean }], "referenceAnswer"?: string, "explanation"?: string }, ...] }. Omit "referenceAnswer"/"explanation" entirely when the document gives none — never return an empty string for either.',
   ].join("\n\n");
 }
 

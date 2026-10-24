@@ -56,6 +56,39 @@ describe("Feature: retryQuestionAction re-reads one question, addressing a teach
     });
   });
 
+  it.each([
+    ["title", { ...currentQuestion, title: "" }, "Question: title is empty"],
+    [
+      "content",
+      { ...currentQuestion, content: "" },
+      "Question: content is empty",
+    ],
+    [
+      "an option",
+      {
+        ...currentQuestion,
+        type: "single_select" as const,
+        options: [
+          { text: "Light", isCorrect: true },
+          { text: "", isCorrect: false },
+        ],
+      },
+      "Question: option 2 is empty",
+    ],
+  ])(
+    "names the field when the draft's %s is empty, and never calls the parse client",
+    async (_field, draft, message) => {
+      const state = await retryQuestionAction(
+        "1. Explain photosynthesis.",
+        draft,
+        "Fix it.",
+      );
+
+      expect(state).toEqual({ success: false, message });
+      expect(retryQuestion).not.toHaveBeenCalled();
+    },
+  );
+
   it("refuses an unauthenticated caller and never calls the parse client", async () => {
     requireAdminSession.mockRejectedValueOnce(new Error("no session"));
 
