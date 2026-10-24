@@ -1,10 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Overridable because a dev server on the default port would be silently
-// REUSED (`reuseExistingServer` below), running the suite against whatever
-// branch that server is serving instead of this one.
+// Overridable so the suite's own server can run beside a dev server on the
+// default port; the suite never reuses a server it did not start.
 const PORT = process.env.E2E_PORT ?? "3001";
 const BASE_URL = `http://localhost:${PORT}`;
+
+// Lets the usage file's records from this run be told apart from earlier runs.
+process.env.AI_USAGE_RUN_ID ??= new Date().toISOString();
 
 export default defineConfig({
   testDir: "./e2e",
@@ -33,7 +35,8 @@ export default defineConfig({
   webServer: {
     command: "pnpm dev:e2e",
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
+    env: { AI_USAGE_RUN_ID: process.env.AI_USAGE_RUN_ID },
     stdout: "pipe",
     stderr: "pipe",
   },

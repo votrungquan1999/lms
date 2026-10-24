@@ -17,7 +17,7 @@
  * `course-materials-flow.test.ts` intercepts its browser→S3 PUT. Instead,
  * `dev:e2e` starts an in-process MSW server (from `instrumentation.ts`,
  * gated on `E2E_MOCK_AI`) that intercepts Gemini's `generateContent` call
- * — see `src/mocks/e2e-gemini-mock.ts` (D60). No live API key is needed.
+ * — see `src/mocks/e2e-ai-mock.ts` (D60). No live API key is needed.
  *
  * The review-list assertions below check for that mock's canned content
  * (`MOCK_QUESTION_TITLE`, `PDF_TEXT_RECEIVED_MARKER`), not the PDF's own
@@ -36,7 +36,7 @@ const COURSE_TITLE = "Import AI E2E Course";
 const TEST_TITLE = "Import AI E2E Test";
 const QUESTION_TEXT = "Explain photosynthesis in one sentence.";
 
-// Mirrors `src/mocks/e2e-gemini-mock.ts`'s exported sentinels — duplicated
+// Mirrors `src/mocks/e2e-ai-mock.ts`'s exported sentinels — duplicated
 // here (not imported) to keep this spec self-contained, matching every
 // other e2e spec's style in this file's directory.
 const MOCK_QUESTION_TITLE = "MSW mock: Gemini call intercepted";

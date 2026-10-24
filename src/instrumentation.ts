@@ -27,7 +27,7 @@ export async function register() {
     process.env.E2E_MOCK_AI === "1" &&
     process.env.NEXT_RUNTIME === "nodejs"
   ) {
-    const { startE2eGeminiMock } = await import("src/mocks/e2e-gemini-mock");
-    startE2eGeminiMock();
+    const { startE2eAiMock } = await import("src/mocks/e2e-ai-mock");
+    startE2eAiMock();
   }
 }

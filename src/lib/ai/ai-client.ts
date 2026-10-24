@@ -188,8 +188,8 @@ const GEMINI_TIMEOUT_MS = 240_000;
  * pinned user-facing message. No defensive try/catch lives in this wrapper.
  *
  * Reads `GOOGLE_GENERATIVE_AI_API_KEY` from the environment automatically via
- * `@ai-sdk/google`. Tests inject a deterministic stub through `buildCoreServices`
- * so this implementation is never invoked in the test suite.
+ * `@ai-sdk/google`. Tests inject a deterministic stub through `buildCoreServices`.
+ * In Vitest, the setup's fetch guard blocks its requests unless a test stubs fetch.
  */
 export class GeminiAiClient implements AiClient, QuestionParseClient {
   /**
