@@ -40,12 +40,13 @@ import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
 import { QUESTION_TYPE_LABELS } from "src/lib/question-labels";
 import type { MediaContentType } from "src/lib/question-service";
+import { MAX_MEDIA_PER_QUESTION } from "../question-media.schema";
 import type { ImportMode } from "./actions";
 import type {
   ImportQuestionDraft,
   ReviewPicture,
 } from "./import-ai-form.state";
-import { useImportAi } from "./import-ai-form.state";
+import { picturesOf, useImportAi } from "./import-ai-form.state";
 import {
   QuestionEditProvider,
   useQuestionEditActions,
@@ -209,15 +210,13 @@ function toStudentCards(
       text: option.text,
       isCorrect: false,
     })),
-    media: pictures
-      .filter((picture) => draft.imageNumbers?.includes(picture.number))
-      .map((picture, order) => ({
-        key: `draft-picture-${picture.number}`,
-        url: picture.previewUrl,
-        // Document pictures are only png/jpeg/webp (see document-extract).
-        contentType: picture.file.type as MediaContentType,
-        order,
-      })),
+    media: picturesOf(draft, pictures).map((picture, order) => ({
+      key: `draft-picture-${picture.number}`,
+      url: picture.previewUrl,
+      // Document pictures are only png/jpeg/webp (see document-extract).
+      contentType: picture.file.type as MediaContentType,
+      order,
+    })),
   }));
 }
 
@@ -461,7 +460,7 @@ function QuestionCard({
   question: ImportQuestionDraft;
   index: number;
 }): React.ReactNode {
-  const { updateQuestion } = useImportAi();
+  const { updateQuestion, pictures } = useImportAi();
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing) {
@@ -521,10 +520,14 @@ function QuestionCard({
       </CardHeader>
       <CardContent className="space-y-2">
         <p className="text-sm">{question.content}</p>
-        <QuestionPictures
-          questionId={question.id}
-          numbers={question.imageNumbers ?? []}
-        />
+        <QuestionPictures question={question} />
+        {/* Counts the pictures the card shows; Import rejects a question over the limit. */}
+        {picturesOf(question, pictures).length > MAX_MEDIA_PER_QUESTION && (
+          <p className="text-sm text-destructive">
+            A question can have at most {MAX_MEDIA_PER_QUESTION} pictures.
+            Remove one to import it.
+          </p>
+        )}
         {question.options && (
           <ul className="space-y-1 text-sm">
             {question.options.map((option) => (
@@ -562,14 +565,12 @@ function QuestionCard({
  * behind it is skipped.
  */
 function QuestionPictures({
-  questionId,
-  numbers,
+  question,
 }: {
-  questionId: string;
-  numbers: number[];
+  question: ImportQuestionDraft;
 }): React.ReactNode {
   const { pictures, updateQuestion, isBusy } = useImportAi();
-  const shown = pictures.filter((picture) => numbers.includes(picture.number));
+  const shown = picturesOf(question, pictures);
   if (shown.length === 0) return null;
 
   return (
@@ -590,8 +591,10 @@ function QuestionPictures({
             aria-label={`Remove picture ${picture.number}`}
             disabled={isBusy}
             onClick={() =>
-              updateQuestion(questionId, {
-                imageNumbers: numbers.filter((n) => n !== picture.number),
+              updateQuestion(question.id, {
+                imageNumbers: (question.imageNumbers ?? []).filter(
+                  (n) => n !== picture.number,
+                ),
               })
             }
           >

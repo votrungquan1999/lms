@@ -299,37 +299,6 @@ describe("Feature: AI document import — pictures no question uses", () => {
     );
   });
 
-  it("keeps Retry with AI disabled while the import uploads, and enables it again after a failed upload", async () => {
-    const user = userEvent.setup();
-    let failUpload: () => void = () => {};
-    vi.mocked(requestUploadSlotsAction).mockReturnValue(
-      new Promise((resolve) => {
-        failUpload = () =>
-          resolve({ success: false, message: "Upload refused" });
-      }),
-    );
-    await uploadDocument(2, [
-      { title: "Câu 14", imageNumbers: [1] },
-      { title: "Câu 15" },
-    ]);
-
-    await user.click(screen.getByRole("button", { name: /import questions/i }));
-
-    for (const retry of screen.getAllByRole("button", {
-      name: /retry with ai/i,
-    })) {
-      expect(retry).toBeDisabled();
-    }
-
-    failUpload();
-
-    await waitFor(() =>
-      expect(
-        screen.getAllByRole("button", { name: /retry with ai/i })[0],
-      ).toBeEnabled(),
-    );
-  });
-
   it("keeps a picture added while a question's edit form was open when the teacher saves the edit", async () => {
     const user = userEvent.setup();
     await uploadDocument(3, [
@@ -391,5 +360,105 @@ describe("Feature: AI document import — pictures no question uses", () => {
     expect(
       screen.getByRole("button", { name: "Remove picture 1" }),
     ).toBeEnabled();
+  });
+
+  it("keeps Retry with AI disabled while the import uploads, and enables it again after a failed upload", async () => {
+    const user = userEvent.setup();
+    let failUpload: () => void = () => {};
+    vi.mocked(requestUploadSlotsAction).mockReturnValue(
+      new Promise((resolve) => {
+        failUpload = () =>
+          resolve({ success: false, message: "Upload refused" });
+      }),
+    );
+    await uploadDocument(2, [
+      { title: "Câu 14", imageNumbers: [1] },
+      { title: "Câu 15" },
+    ]);
+
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+
+    for (const retry of screen.getAllByRole("button", {
+      name: /retry with ai/i,
+    })) {
+      expect(retry).toBeDisabled();
+    }
+
+    failUpload();
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: /retry with ai/i })[0],
+      ).toBeEnabled(),
+    );
+  });
+
+  it("blocks a fourth picture on a question and says why", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(4, [
+      { title: "Câu 14", imageNumbers: [1, 2, 3] },
+      { title: "Câu 15" },
+    ]);
+
+    await user.selectOptions(
+      screen.getByLabelText("Question for picture 4"),
+      "#1 Câu 14",
+    );
+    await user.click(screen.getByRole("button", { name: "Add picture 4" }));
+
+    expect(within(questionCard("Câu 14")).getAllByRole("img")).toHaveLength(3);
+    const unused = screen.getByRole("region", { name: "Unused pictures" });
+    expect(within(unused).getByAltText("Unused picture 4")).toBeInTheDocument();
+    expect(
+      within(unused).getByText("A question can have at most 3 pictures."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Add picture 4" }),
+    ).toBeDisabled();
+    // The select is what keyboard users can reach, so it carries the reason too.
+    expect(
+      screen.getByLabelText("Question for picture 4"),
+    ).toHaveAccessibleDescription("A question can have at most 3 pictures.");
+  });
+
+  it("still adds the fourth picture to a question that has room", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(4, [
+      { title: "Câu 14", imageNumbers: [1, 2, 3] },
+      { title: "Câu 15" },
+    ]);
+
+    await user.selectOptions(
+      screen.getByLabelText("Question for picture 4"),
+      "#2 Câu 15",
+    );
+    await user.click(screen.getByRole("button", { name: "Add picture 4" }));
+
+    expect(
+      within(questionCard("Câu 15")).getByRole("img", { name: "Figure 4" }),
+    ).toBeInTheDocument();
+  });
+
+  it("warns on the card of a draft the AI made with more than 3 pictures, and a removed picture goes back to Unused pictures", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(4, [
+      { title: "Câu 14", imageNumbers: [1, 2, 3, 4] },
+      { title: "Câu 15" },
+    ]);
+
+    expect(
+      within(questionCard("Câu 14")).getByText(/at most 3 pictures/),
+    ).toBeVisible();
+    await user.click(
+      within(questionCard("Câu 14")).getByRole("button", {
+        name: "Remove picture 4",
+      }),
+    );
+
+    expect(
+      within(questionCard("Câu 14")).queryByText(/at most 3 pictures/),
+    ).toBeNull();
+    const unused = screen.getByRole("region", { name: "Unused pictures" });
+    expect(within(unused).getByAltText("Unused picture 4")).toBeInTheDocument();
   });
 });

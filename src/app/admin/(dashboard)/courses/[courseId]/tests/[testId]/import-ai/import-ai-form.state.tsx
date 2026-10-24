@@ -48,6 +48,22 @@ export interface ReviewPicture {
   previewUrl: string;
 }
 
+/**
+ * The document pictures one draft uses, in document order. A number with no
+ * picture behind it is skipped.
+ * @param draft - The draft whose pictures to find.
+ * @param pictures - Every picture the document had.
+ * @returns The draft's pictures.
+ */
+export function picturesOf(
+  draft: Pick<ImportQuestionDraft, "imageNumbers">,
+  pictures: ReviewPicture[],
+): ReviewPicture[] {
+  return pictures.filter((picture) =>
+    draft.imageNumbers?.includes(picture.number),
+  );
+}
+
 interface ImportAiState {
   documentText: string;
   /** Every picture the document had, keyed by its `[image N]` number. */
@@ -491,9 +507,9 @@ export function ImportAiProvider({
     // Kept in review order — the write loop numbers the questions by it (Step 17).
     const reviewed: ReviewedQuestion[] = [];
     for (const draft of state.questions) {
-      const files = state.pictures
-        .filter((picture) => draft.imageNumbers?.includes(picture.number))
-        .map((picture) => picture.file);
+      const files = picturesOf(draft, state.pictures).map(
+        (picture) => picture.file,
+      );
       // Boundary: a failed upload lands on its own question, and nothing is imported.
       try {
         reviewed.push(toReviewedQuestion(draft, await uploadPictures(files)));

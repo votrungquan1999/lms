@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "src/components/ui/button";
+import { MAX_MEDIA_PER_QUESTION } from "../question-media.schema";
 import type { ReviewPicture } from "./import-ai-form.state";
-import { useImportAi } from "./import-ai-form.state";
+import { picturesOf, useImportAi } from "./import-ai-form.state";
 
 /**
  * The document pictures no question uses yet, shown above the review list so
@@ -50,43 +51,55 @@ function AddPictureControl({
 }: {
   picture: ReviewPicture;
 }): React.ReactNode {
-  const { questions, updateQuestion, isBusy } = useImportAi();
+  const { questions, pictures, updateQuestion, isBusy } = useImportAi();
   const [questionId, setQuestionId] = useState("");
+  const target = questions.find((question) => question.id === questionId);
+  // Counts the pictures the card actually shows, not numbers with no picture behind them.
+  const targetIsFull =
+    target !== undefined &&
+    picturesOf(target, pictures).length >= MAX_MEDIA_PER_QUESTION;
+  const reasonId = `add-picture-${picture.number}-reason`;
 
   return (
-    <div className="flex gap-2">
-      <select
-        aria-label={`Question for picture ${picture.number}`}
-        value={questionId}
-        onChange={(event) => setQuestionId(event.target.value)}
-        className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm"
-      >
-        <option value="">Choose a question</option>
-        {questions.map((question, index) => (
-          <option key={question.id} value={question.id}>
-            #{index + 1} {question.title}
-          </option>
-        ))}
-      </select>
-      <Button
-        type="button"
-        size="sm"
-        aria-label={`Add picture ${picture.number}`}
-        // Locked while a read or import runs: an import uploads these pictures, and a read replaces the list.
-        disabled={!questionId || isBusy}
-        onClick={() => {
-          const target = questions.find(
-            (question) => question.id === questionId,
-          );
-          if (!target) return;
-          // Patches only the picture list, so the draft isn't marked hand-edited.
-          updateQuestion(target.id, {
-            imageNumbers: [...(target.imageNumbers ?? []), picture.number],
-          });
-        }}
-      >
-        Add
-      </Button>
+    <div className="grid gap-1">
+      <div className="flex gap-2">
+        <select
+          aria-label={`Question for picture ${picture.number}`}
+          value={questionId}
+          onChange={(event) => setQuestionId(event.target.value)}
+          aria-describedby={targetIsFull ? reasonId : undefined}
+          className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm"
+        >
+          <option value="">Choose a question</option>
+          {questions.map((question, index) => (
+            <option key={question.id} value={question.id}>
+              #{index + 1} {question.title}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          size="sm"
+          aria-label={`Add picture ${picture.number}`}
+          // Locked while a read or import runs: an import uploads these pictures, and a read replaces the list.
+          disabled={!target || targetIsFull || isBusy}
+          aria-describedby={targetIsFull ? reasonId : undefined}
+          onClick={() => {
+            if (!target) return;
+            // Patches only the picture list, so the draft isn't marked hand-edited.
+            updateQuestion(target.id, {
+              imageNumbers: [...(target.imageNumbers ?? []), picture.number],
+            });
+          }}
+        >
+          Add
+        </Button>
+      </div>
+      {targetIsFull && (
+        <p id={reasonId} className="text-xs text-muted-foreground">
+          A question can have at most {MAX_MEDIA_PER_QUESTION} pictures.
+        </p>
+      )}
     </div>
   );
 }
