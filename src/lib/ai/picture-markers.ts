@@ -3,6 +3,8 @@ export interface MarkedQuestion {
   title: string;
   content: string;
   options?: { text: string; isCorrect: boolean }[];
+  referenceAnswer?: string;
+  explanation?: string;
 }
 
 /** `[image N]` in any letter case and spacing (never a line break), with the blanks that follow it. */
@@ -110,6 +112,14 @@ export function readPictureMarkers<Q extends MarkedQuestion>(
     ...option,
     text: read(option.text),
   }));
+  // An answer-key picture must never reach students, so these never attach.
+  const answerKey = (text: string | undefined) => {
+    if (text === undefined) return undefined;
+    // Blank once its marker is gone: omit it rather than fail the import on it.
+    return stripMarkers(text).text || undefined;
+  };
+  const referenceAnswer = answerKey(question.referenceAnswer);
+  const explanation = answerKey(question.explanation);
   const imageNumbers = [...new Set(found)].filter((number) =>
     documentNumbers.includes(number),
   );
@@ -118,6 +128,8 @@ export function readPictureMarkers<Q extends MarkedQuestion>(
     title,
     content,
     ...(options && { options }),
+    referenceAnswer,
+    explanation,
     imageNumbers,
   };
 }

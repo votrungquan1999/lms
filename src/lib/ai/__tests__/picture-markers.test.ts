@@ -143,3 +143,42 @@ describe("documentPictureNumbers", () => {
     expect(documentPictureNumbers("Câu 1: không có hình")).toEqual([]);
   });
 });
+
+describe("readPictureMarkers answer-key fields", () => {
+  it("removes markers from the model answer and explanation without attaching their pictures", () => {
+    const read = readPictureMarkers(
+      question("Đề", {
+        referenceAnswer: "[image 4]\n\n[image 4]\nĐáp án [image 5]",
+        explanation: "Vì sao [image 6] vậy",
+      }),
+      [4, 5, 6],
+    );
+
+    expect(read.imageNumbers).toEqual([]);
+    expect(read.referenceAnswer).toBe("Đáp án");
+    expect(read.explanation).toBe("Vì sao vậy");
+  });
+
+  it("still attaches a picture the question's own text marks when its answer marks it too", () => {
+    const read = readPictureMarkers(
+      question("[image 4]Đề", { referenceAnswer: "Đáp án [image 4]" }),
+      [4],
+    );
+
+    expect(read.imageNumbers).toEqual([4]);
+    expect(read.referenceAnswer).toBe("Đáp án");
+  });
+
+  it("leaves out a model answer or explanation that was only a marker, so the import is not stopped on a field the question card does not show", () => {
+    const read = readPictureMarkers(
+      question("Đề", {
+        referenceAnswer: "[image 4]",
+        explanation: " [image 5] ",
+      }),
+      [4, 5],
+    );
+
+    expect(read.referenceAnswer).toBeUndefined();
+    expect(read.explanation).toBeUndefined();
+  });
+});

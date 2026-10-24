@@ -223,6 +223,61 @@ describe("ImportAiClient.parseQuestionsFromText pictures", () => {
   });
 });
 
+describe("ImportAiClient.parseQuestionsFromText answer-key pictures", () => {
+  it("never attaches a picture placed in a model answer or explanation, and takes its marker out of that text", async () => {
+    // Given a reply whose model answer and explanation carry markers
+    generateTextMock.mockResolvedValueOnce({
+      usage: {},
+      output: {
+        questions: [
+          {
+            title: "Câu 5",
+            content: "[image 1]Giải thích sự quang hợp",
+            type: "free_text",
+            referenceAnswer: "Ánh sáng tạo ra đường [image 4]",
+            explanation: "[image 5]Vì lá có diệp lục",
+          },
+        ],
+      },
+    });
+
+    // When the document that holds all three pictures is read
+    const [question] = await new ImportAiClient().parseQuestionsFromText(
+      "[image 1]Câu 5: Giải thích sự quang hợp\nĐáp án: Ánh sáng tạo ra đường [image 4]\nGiải thích: [image 5]Vì lá có diệp lục",
+      [1, 4, 5],
+    );
+
+    // Then only the picture in the question's own text is attached
+    expect(question?.imageNumbers).toEqual([1]);
+    expect(question?.referenceAnswer).toBe("Ánh sáng tạo ra đường");
+    expect(question?.explanation).toBe("Vì lá có diệp lục");
+  });
+});
+
+describe("ImportAiClient.parseQuestionsFromText answer-key markers only", () => {
+  it("leaves out a model answer that was only a picture marker, so the import is not stopped on it", async () => {
+    generateTextMock.mockResolvedValueOnce({
+      usage: {},
+      output: {
+        questions: [
+          {
+            title: "Câu 5",
+            content: "Giải thích",
+            type: "free_text",
+            referenceAnswer: "[image 4]",
+          },
+        ],
+      },
+    });
+
+    const [question] = await new ImportAiClient().parseQuestionsFromText(
+      "Câu 5: Giải thích\nĐáp án: [image 4]",
+    );
+
+    expect(question?.referenceAnswer).toBeUndefined();
+  });
+});
+
 describe("ImportAiClient.retryQuestion", () => {
   it("closes a list the model left open in the re-read question too", async () => {
     generateTextMock.mockResolvedValueOnce({
