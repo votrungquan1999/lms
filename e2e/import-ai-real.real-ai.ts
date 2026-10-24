@@ -1,29 +1,40 @@
 /**
- * Feature: AI document import against the REAL Gemini API (opt-in, billed)
+ * Feature: AI document import against the REAL AI provider (opt-in, billed)
  *
  * Run with `pnpm test:e2e:real-ai` — see `playwright.real-ai.config.ts` for
  * its two gitignored prerequisites. Uploads a real Vietnamese Grade-10
  * Biology exam and checks what a teacher needs from the import: every
  * question (spares included) arrives, each highlighted answer key comes
  * through ticked, each picture lands on its own question, and the upload's
- * highlight and picture markers never reach saved text.
+ * highlight and picture markers never reach saved text. The run record
+ * also carries the provider, model, read time, the pictures left in Unused
+ * and the run's own token totals from the usage file.
  *
  * Cost rules:
- * - ONE Gemini call per run — a single upload feeds both review and import.
+ * - ONE import read per run — a single upload feeds both review and import
+ *   (a refused read may be re-read once, and the SDK may retry; the usage
+ *   records count every request).
  * - Soft assertions, so one paid run reports every failure, not just the first.
  * - The raw parse exchange and saved questions land in `tmp/real-ai-runs/`
  *   BEFORE any assertion: diagnose from that file, change code, then rerun.
  *   A full-page screenshot of the review screen sits next to it.
  */
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { parseEnv } from "node:util";
 import { expect, test } from "@playwright/test";
 import { MongoClient } from "mongodb";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown from "react-markdown";
 import { MARKDOWN_REMARK_PLUGINS } from "../src/components/markdown-content";
+import {
+  type RunUsageTotals,
+  readRunUsageTotals,
+} from "../src/lib/ai/ai-usage-file";
 import { E2E_MONGODB_URI } from "./mongodb-uri";
+import { recordReadSeconds } from "./real-ai-read-timing";
 
 interface SavedOptionDocument {
   text: string;
@@ -69,17 +80,32 @@ interface ExpectedQuestion {
 /** Everything one paid run produced, written to disk as it arrives. */
 interface RealAiRun {
   documentPath: string;
-  /** Which Gemini model answered — `GEMINI_MODEL_ID` can override the app default. */
+  /** The import provider setting; unset means Claude. */
+  provider: string;
+  /** The model asked for — the provider's setting, or its app default. */
   model: string;
+  /** Seconds the parse action took, retries and any re-read included. */
+  readSeconds?: number;
+  /** Alt texts of the pictures left in Unused pictures before Import. */
+  unusedPictures?: string[];
+  /** This run's usage records, totalled per served model. */
+  usage?: RunUsageTotals;
+  /** Fingerprint of the key file's key; the records must carry it. */
+  keyFingerprint?: string;
+  /** Pictures no question carries, split by whether they wait in Unused. */
+  pictureMisses?: string[];
   parseRequestBody?: string;
   parseResponseBody?: string;
   importAlerts?: string[];
   savedQuestions?: SavedQuestionDocument[];
 }
 
+const KEY_FILE = path.join(__dirname, "../.env.e2e-real.local");
 const EXAM_DOCX = path.join(__dirname, "fixtures/private/sinh-10-hk1.docx");
+// One attempt may take 240s and the SDK retries twice; a refused read adds its re-read on top.
+const PARSE_TIMEOUT_MS = 750_000;
 const RUNS_DIR = path.join(__dirname, "../tmp/real-ai-runs");
-// A screenshot of another quiz left beside Câu 8 — no question clearly owns it, so it may land anywhere or nowhere.
+// A screenshot of another quiz left beside Câu 8 — no question clearly owns it, so it may land on a question, in Unused pictures, or nowhere.
 const STRAY_PICTURES = [5];
 const COURSE_TITLE = "Real AI Import Course";
 const TEST_TITLE = "Sinh 10 HK1 (real AI import)";
@@ -326,7 +352,7 @@ function saveRun(runFile: string, run: RealAiRun): void {
   fs.writeFileSync(runFile, JSON.stringify(run, null, 2));
 }
 
-test.describe("AI Document Import — real Gemini", () => {
+test.describe("AI Document Import — real AI", () => {
   test.describe.configure({ mode: "serial" });
 
   test("setup: admin creates a course and a test", async ({ page }) => {
@@ -352,15 +378,22 @@ test.describe("AI Document Import — real Gemini", () => {
   test("the real exam imports with every question, its highlighted answer keys ticked, its pictures attached, and no leaked markers", async ({
     page,
   }) => {
-    const runFile = path.join(
-      RUNS_DIR,
-      `${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
-    );
+    // The run id is the config's timestamp, so the record and the usage records share it.
+    const runId = process.env.AI_USAGE_RUN_ID;
+    expect(runId, "AI_USAGE_RUN_ID set by the config").toBeTruthy();
+    const runFile = path.join(RUNS_DIR, `${runId}.json`);
+    const provider = process.env.AI_IMPORT_PROVIDER || "anthropic";
     const run: RealAiRun = {
       documentPath: EXAM_DOCX,
-      model: process.env.GEMINI_MODEL_ID || "app default (gemini-3.5-flash)",
+      provider,
+      model:
+        provider === "gemini"
+          ? process.env.GEMINI_MODEL_ID || "app default (gemini-3.5-flash)"
+          : process.env.CLAUDE_MODEL_ID || "app default (claude-sonnet-5-5)",
     };
-    console.log(`[real-ai] model: ${run.model} — output: ${runFile}`);
+    console.log(
+      `[real-ai] provider: ${run.provider}, model: ${run.model} — output: ${runFile}`,
+    );
 
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
@@ -397,20 +430,28 @@ test.describe("AI Document Import — real Gemini", () => {
         ) {
           return route.continue();
         }
-        const response = await route.fetch({ timeout: 270_000 });
-        parseReplyBody = await response.text();
-        return route.fulfill({ response, body: parseReplyBody });
+        const startedAt = Date.now();
+        const response = await route.fetch({ timeout: PARSE_TIMEOUT_MS });
+        const body = await response.text();
+        // The import's save request matches too; the first reply is the parse.
+        parseReplyBody ??= body;
+        run.readSeconds = recordReadSeconds(
+          run.readSeconds,
+          startedAt,
+          Date.now(),
+        );
+        return route.fulfill({ response, body });
       },
     );
 
-    // The one paid call: the parse server action carrying the exam's text.
+    // The paid read: the parse server action carrying the exam's text.
     const parseResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
         "next-action" in response.request().headers() &&
         (response.request().postData() ?? "").includes("Câu 1 NLC"),
-      // Past the client's own 240s limit, so a timeout surfaces as the app's error, not ours.
-      { timeout: 270_000 },
+      // Past the client's own limits, so a timeout surfaces as the app's error, not ours.
+      { timeout: PARSE_TIMEOUT_MS },
     );
     await page.getByLabel(/document/i).setInputFiles(EXAM_DOCX);
     const parseResponse = await parseResponsePromise;
@@ -428,6 +469,13 @@ test.describe("AI Document Import — real Gemini", () => {
       importButton,
       `parse failed: ${(await alerts.allInnerTexts()).join(" | ")}`,
     ).toBeVisible();
+    // Pictures the AI left unmarked wait here; the demo reports them, never adds them.
+    run.unusedPictures = await page
+      .getByAltText(/^Unused picture \d+$/)
+      .evaluateAll((images) =>
+        images.map((image) => (image as HTMLImageElement).alt),
+      );
+    saveRun(runFile, run);
     // For a human check of which picture landed on which question.
     await page.screenshot({
       path: runFile.replace(/\.json$/, "-review.png"),
@@ -474,7 +522,41 @@ test.describe("AI Document Import — real Gemini", () => {
     }
     saveRun(runFile, run);
 
+    // Totalled after the Mongo step: an SDK retry may still have been in flight at the parse reply.
+    const usageFile =
+      process.env.AI_USAGE_FILE ??
+      path.join(__dirname, "../tmp/ai-usage.jsonl");
+    run.usage = readRunUsageTotals(usageFile, runId ?? "");
+    const keyVariable =
+      provider === "gemini"
+        ? "GOOGLE_GENERATIVE_AI_API_KEY"
+        : "ANTHROPIC_API_KEY";
+    const keyValue = parseEnv(fs.readFileSync(KEY_FILE, "utf8"))[keyVariable];
+    run.keyFingerprint = createHash("sha256")
+      .update(keyValue ?? "")
+      .digest("hex")
+      .slice(0, 8);
+    saveRun(runFile, run);
+
     const saved = run.savedQuestions;
+    expect
+      .soft(run.usage.requests, "usage records for this run")
+      .toBeGreaterThan(0);
+    expect
+      .soft(run.usage.environments, "every record is from the demo")
+      .toEqual(["demo"]);
+    expect
+      .soft(run.usage.fingerprints, "every record used the key file's key")
+      .toEqual([run.keyFingerprint]);
+    if (provider !== "gemini" && !process.env.CLAUDE_MODEL_ID) {
+      expect
+        .soft(
+          run.usage.perModel.map((row) => row.modelServed),
+          "the first read was served by Sonnet 5.5",
+        )
+        .toContain("claude-sonnet-5-5");
+    }
+
     expect(saved.length, "no questions were saved").toBeGreaterThan(0);
     expect
       .soft(
@@ -519,7 +601,7 @@ test.describe("AI Document Import — real Gemini", () => {
           .toMatch(new RegExp(`(^|\\D)${expected.referenceAnswer}(\\D|$)`));
       }
 
-      // Content renders as Markdown with line breaks kept, so layout survives only if Gemini keeps it.
+      // Content renders as Markdown with line breaks kept, so layout survives only if the AI keeps it.
       if (expected.minLines !== undefined) {
         const lines = (question?.content ?? "")
           .split("\n")
@@ -559,9 +641,20 @@ test.describe("AI Document Import — real Gemini", () => {
         .map((media) => Number(media.fileName.match(/^picture-(\d+)\./)?.[1]))
         .filter((number) => !STRAY_PICTURES.includes(number))
         .sort((a, b) => a - b);
+      const expectedPictures = expected.pictures ?? [];
       expect
         .soft(pictures, `${expected.label}: carries exactly its own pictures`)
-        .toEqual(expected.pictures ?? []);
+        .toEqual(expectedPictures);
+      for (const number of expectedPictures) {
+        if (pictures.includes(number)) continue;
+        const waiting = (run.unusedPictures ?? []).includes(
+          `Unused picture ${number}`,
+        );
+        run.pictureMisses = [
+          ...(run.pictureMisses ?? []),
+          `${expected.label}: picture ${number} ${waiting ? "waiting in Unused" : "wrong question / missing"}`,
+        ];
+      }
 
       if (expected.trueStatements !== undefined) {
         const ticked = (question?.options ?? [])
@@ -585,6 +678,11 @@ test.describe("AI Document Import — real Gemini", () => {
           .toBe("multi_select");
       }
     }
+
+    saveRun(runFile, run);
+    console.log(
+      `[real-ai] read ${run.readSeconds}s, ${run.usage.requests} requests, unused pictures: ${run.unusedPictures?.length ?? 0}`,
+    );
 
     const leakedMarkers = saved
       .flatMap((question) => [

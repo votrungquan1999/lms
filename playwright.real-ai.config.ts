@@ -1,11 +1,14 @@
 import fs from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+import { buildDemoServerEnv } from "./e2e/real-ai-env";
 
 /**
- * Opt-in run against the REAL Gemini API — every run is billed. It doubles as
- * a demo: the imported test stays in its DB for the owner to look at.
+ * Opt-in run against the REAL import AI provider (Claude unless
+ * `AI_IMPORT_PROVIDER=gemini`) — every run is billed. It doubles as a demo:
+ * the imported test stays in its DB for the owner to look at.
  * `pnpm test:e2e:real-ai`. Needs two gitignored files:
- * - `.env.e2e-real.local` with `GOOGLE_GENERATIVE_AI_API_KEY=...`
+ * - `.env.e2e-real.local` with `ANTHROPIC_API_KEY=...` (or
+ *   `GOOGLE_GENERATIVE_AI_API_KEY=...` for the Gemini provider)
  * - `e2e/fixtures/private/sinh-10-hk1.docx` (a real teacher's exam; this repo is public)
  * Optional: `.env.e2e-real-s3.local` (E2E_S3_BUCKET_NAME, E2E_AWS_REGION,
  * E2E_AWS_ACCESS_KEY_ID, E2E_AWS_SECRET_ACCESS_KEY — Pulumi's LMS local-dev
@@ -17,17 +20,8 @@ const KEY_FILE = ".env.e2e-real.local";
 const EXAM_DOCX = "e2e/fixtures/private/sinh-10-hk1.docx";
 const REAL_S3_FILE = ".env.e2e-real-s3.local";
 
-// Fail before booting a server — a missing prerequisite would otherwise
-// surface minutes later as an unrelated-looking UI timeout.
-if (!fs.existsSync(KEY_FILE)) {
-  throw new Error(
-    `${KEY_FILE} is missing — create it with GOOGLE_GENERATIVE_AI_API_KEY=<real key>.`,
-  );
-}
-process.loadEnvFile(KEY_FILE);
-if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-  throw new Error(`${KEY_FILE} has no GOOGLE_GENERATIVE_AI_API_KEY value.`);
-}
+// The server gets the key file's key explicitly; see buildDemoServerEnv.
+const SERVER_ENV = buildDemoServerEnv(KEY_FILE, process.env, __dirname);
 if (!fs.existsSync(EXAM_DOCX)) {
   throw new Error(`${EXAM_DOCX} is missing — copy the exam .docx there.`);
 }
@@ -49,11 +43,12 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
 
-  // Never retry: a retry is a second paid Gemini call with no code change.
+  // Never retry: a retry is another paid call with no code change.
   retries: 0,
   reporter: "list",
-  // Covers the Gemini call itself (the client's own limit is 240s) plus the import.
-  timeout: 420_000,
+  // One attempt may take 240s and the SDK retries twice, so a retried read
+  // outlasts a single attempt; the rest covers the import itself.
+  timeout: 780_000,
 
   use: {
     baseURL: BASE_URL,
@@ -64,8 +59,9 @@ export default defineConfig({
     command: "pnpm dev:e2e:real-ai",
     url: BASE_URL,
     // Reusing a server could mean reusing the MOCKED one — the run would
-    // pass or fail without ever calling Gemini.
+    // pass or fail without ever calling the real provider.
     reuseExistingServer: false,
+    env: SERVER_ENV,
     timeout: 180_000,
     stdout: "pipe",
     stderr: "pipe",
