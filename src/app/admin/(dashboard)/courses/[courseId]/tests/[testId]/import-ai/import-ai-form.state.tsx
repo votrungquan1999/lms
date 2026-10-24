@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useReducer } from "react";
+import { createContext, useContext, useReducer, useRef } from "react";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
 import type { MediaContentType } from "src/lib/question-service";
 import type { SubmittedMedia } from "../question-media.schema";
@@ -59,6 +59,8 @@ interface ImportAiState {
   importFailureMessage: string | null;
   /** D37: APPEND (default) or REPLACE (Step 34) — chosen before Import runs. */
   mode: ImportMode;
+  /** Questions whose "Retry with AI" is still running; Import waits for them. */
+  retryingIds: string[];
 }
 
 type ImportAiAction =
@@ -84,7 +86,9 @@ type ImportAiAction =
       reason: string;
       questionId: string | null;
     }
-  | { type: "SET_MODE"; mode: ImportMode };
+  | { type: "SET_MODE"; mode: ImportMode }
+  | { type: "RETRY_START"; id: string }
+  | { type: "RETRY_END"; id: string };
 
 const initialState: ImportAiState = {
   documentText: "",
@@ -94,6 +98,7 @@ const initialState: ImportAiState = {
   isBusy: false,
   importFailureMessage: null,
   mode: "append",
+  retryingIds: [],
 };
 
 /** D41 — matches the existing course-material upload limit. */
@@ -160,6 +165,19 @@ function importAiReducer(
       };
     case "SET_MODE":
       return { ...state, mode: action.mode };
+    case "RETRY_START":
+      return {
+        ...state,
+        retryingIds: [
+          ...state.retryingIds.filter((id) => id !== action.id),
+          action.id,
+        ],
+      };
+    case "RETRY_END":
+      return {
+        ...state,
+        retryingIds: state.retryingIds.filter((id) => id !== action.id),
+      };
     default:
       return state;
   }
@@ -172,6 +190,7 @@ interface ImportAiContextValue extends ImportAiState {
     patch: Partial<Omit<ImportQuestionDraft, "id">>,
   ) => void;
   retryOneQuestion: (id: string, correctionNote: string) => Promise<void>;
+  cancelRetry: (id: string) => void;
   /** Writes the reviewed list onto the test in the current `mode`. Resolves true on success. */
   importQuestions: (testId: string, courseId: string) => Promise<boolean>;
   setMode: (mode: ImportMode) => void;
@@ -276,6 +295,8 @@ export function ImportAiProvider({
   children: React.ReactNode;
 }): React.ReactNode {
   const [state, dispatch] = useReducer(importAiReducer, initialState);
+  // The running retry of each question; a retry whose entry is gone was cancelled.
+  const runningRetries = useRef(new Map<string, object>());
 
   /**
    * Extracts the selected document's text in the browser, then asks the
@@ -397,11 +418,18 @@ export function ImportAiProvider({
     const current = state.questions.find((q) => q.id === id);
     if (!current) return;
 
+    const retry = {};
+    runningRetries.current.set(id, retry);
+    dispatch({ type: "RETRY_START", id });
     const result = await retryQuestionAction(
       state.documentText,
       current,
       correctionNote,
     );
+    // Cancelled (or replaced) while the AI was reading: its answer is dropped.
+    if (runningRetries.current.get(id) !== retry) return;
+    runningRetries.current.delete(id);
+    dispatch({ type: "RETRY_END", id });
     if (!result.success || !result.question) {
       dispatch({
         type: "UPDATE_QUESTION",
@@ -435,6 +463,16 @@ export function ImportAiProvider({
         importReason: null,
       },
     });
+  }
+
+  /**
+   * Gives up on a question's running retry: its answer is discarded when it
+   * arrives and Import unlocks now. The AI request already sent still
+   * completes server-side (and is recorded); only its result is dropped.
+   */
+  function cancelRetry(id: string): void {
+    runningRetries.current.delete(id);
+    dispatch({ type: "RETRY_END", id });
   }
 
   /**
@@ -502,9 +540,13 @@ export function ImportAiProvider({
     updateQuestion: (id, patch) =>
       dispatch({ type: "UPDATE_QUESTION", id, patch }),
     retryOneQuestion,
+    cancelRetry,
     importQuestions,
     setMode: (mode) => dispatch({ type: "SET_MODE", mode }),
-    reset: () => dispatch({ type: "RESET" }),
+    reset: () => {
+      runningRetries.current.clear();
+      dispatch({ type: "RESET" });
+    },
   };
 
   return (

@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { Button } from "src/components/ui/button";
+import type { ReviewPicture } from "./import-ai-form.state";
 import { useImportAi } from "./import-ai-form.state";
 
 /**
@@ -30,9 +33,60 @@ export function UnusedPictures(): React.ReactNode {
               alt={`Unused picture ${picture.number}`}
               className="max-h-48 w-full rounded-md border border-border object-contain"
             />
+            <AddPictureControl picture={picture} />
           </div>
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * Picks the question an unused picture should join and adds it there.
+ * @param picture - The unused picture.
+ */
+function AddPictureControl({
+  picture,
+}: {
+  picture: ReviewPicture;
+}): React.ReactNode {
+  const { questions, updateQuestion, isBusy } = useImportAi();
+  const [questionId, setQuestionId] = useState("");
+
+  return (
+    <div className="flex gap-2">
+      <select
+        aria-label={`Question for picture ${picture.number}`}
+        value={questionId}
+        onChange={(event) => setQuestionId(event.target.value)}
+        className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm"
+      >
+        <option value="">Choose a question</option>
+        {questions.map((question, index) => (
+          <option key={question.id} value={question.id}>
+            #{index + 1} {question.title}
+          </option>
+        ))}
+      </select>
+      <Button
+        type="button"
+        size="sm"
+        aria-label={`Add picture ${picture.number}`}
+        // Locked while a read or import runs: an import uploads these pictures, and a read replaces the list.
+        disabled={!questionId || isBusy}
+        onClick={() => {
+          const target = questions.find(
+            (question) => question.id === questionId,
+          );
+          if (!target) return;
+          // Patches only the picture list, so the draft isn't marked hand-edited.
+          updateQuestion(target.id, {
+            imageNumbers: [...(target.imageNumbers ?? []), picture.number],
+          });
+        }}
+      >
+        Add
+      </Button>
+    </div>
   );
 }

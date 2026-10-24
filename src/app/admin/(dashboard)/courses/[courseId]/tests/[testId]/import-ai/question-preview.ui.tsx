@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { StudentCardQuestion } from "src/components/student-question-card.ui";
 import { StudentViewList } from "src/components/student-view-list.ui";
 import {
@@ -274,8 +274,16 @@ function ImportQuestionsButton({
   /** Number the first draft will have once saved, so the reason can lead with the card's own label. */
   firstQuestionNumber: number;
 }): React.ReactNode {
-  const { mode, importQuestions, isBusy, importFailureMessage, questions } =
-    useImportAi();
+  const {
+    mode,
+    importQuestions,
+    isBusy,
+    importFailureMessage,
+    questions,
+    retryingIds,
+  } = useImportAi();
+  // A running retry can still change a draft, so Import waits for it.
+  const isRetrying = retryingIds.length > 0;
   const rejectedIndex = questions.findIndex((question) => question.importError);
   const rejected = questions[rejectedIndex];
   // Student view leads with the card's own label; the server's review-position prefix would disagree in add mode.
@@ -298,7 +306,7 @@ function ImportQuestionsButton({
     <div className="space-y-2">
       <Button
         type="button"
-        disabled={isBusy}
+        disabled={isBusy || isRetrying}
         onClick={() =>
           mode === "replace" ? setIsConfirmOpen(true) : runImport()
         }
@@ -463,8 +471,10 @@ function QuestionCard({
           <QuestionEditProvider initial={question}>
             <QuestionEditFields
               questionId={question.id}
-              onSave={(draft) => {
-                // A manual save is what "hand-edited" (D40) means. Empty
+              onSave={({ imageNumbers: _openedWith, ...draft }) => {
+                // The pictures are left out: the list may have changed since
+                // the form opened, and saving would undo that.
+                // A manual save is what "hand-edited" means. Empty
                 // optional fields become `undefined`, not "" — a cleared
                 // model answer must stay retryable and importable, and the
                 // controlled textarea (which needs "" to be clearable) never
@@ -558,7 +568,7 @@ function QuestionPictures({
   questionId: string;
   numbers: number[];
 }): React.ReactNode {
-  const { pictures, updateQuestion } = useImportAi();
+  const { pictures, updateQuestion, isBusy } = useImportAi();
   const shown = pictures.filter((picture) => numbers.includes(picture.number));
   if (shown.length === 0) return null;
 
@@ -578,6 +588,7 @@ function QuestionPictures({
             variant="ghost"
             size="sm"
             aria-label={`Remove picture ${picture.number}`}
+            disabled={isBusy}
             onClick={() =>
               updateQuestion(questionId, {
                 imageNumbers: numbers.filter((n) => n !== picture.number),
@@ -604,19 +615,30 @@ function RetryQuestionDialog({
 }: {
   question: ImportQuestionDraft;
 }): React.ReactNode {
-  const { retryOneQuestion } = useImportAi();
+  const { retryOneQuestion, cancelRetry, isBusy, retryingIds } = useImportAi();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [confirmedDiscard, setConfirmedDiscard] = useState(false);
-  const [isPending, setIsPending] = useState(false);
+  // Counts this dialog's retries, so a cancelled one cannot close a later dialog.
+  const attempt = useRef(0);
+  const isPending = retryingIds.includes(question.id);
 
   const needsDiscardConfirmation = question.edited && !confirmedDiscard;
   const noteId = `retry-question-note-${question.id}`;
 
   async function handleRetry(): Promise<void> {
-    setIsPending(true);
+    attempt.current += 1;
+    const mine = attempt.current;
     await retryOneQuestion(question.id, note);
-    setIsPending(false);
+    if (attempt.current !== mine) return;
+    setOpen(false);
+    setNote("");
+    setConfirmedDiscard(false);
+  }
+
+  function handleCancel(): void {
+    attempt.current += 1;
+    cancelRetry(question.id);
     setOpen(false);
     setNote("");
     setConfirmedDiscard(false);
@@ -626,12 +648,18 @@ function RetryQuestionDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
+        // Closing a dialog with a retry running gives that retry up.
+        if (!next && isPending) {
+          handleCancel();
+          return;
+        }
         setOpen(next);
         if (!next) setConfirmedDiscard(false);
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
+        {/* Locked while a read or import runs: an import uploads this draft's pictures, and a retry can change them. */}
+        <Button type="button" variant="outline" size="sm" disabled={isBusy}>
           Retry with AI
         </Button>
       </DialogTrigger>
@@ -675,6 +703,16 @@ function RetryQuestionDialog({
             onClick={handleRetry}
           >
             {isPending ? "Retrying…" : "Retry"}
+          </Button>
+        )}
+        {isPending && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleCancel}
+          >
+            Cancel retry
           </Button>
         )}
       </DialogContent>

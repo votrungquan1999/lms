@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -19,7 +19,11 @@ vi.mock("next/navigation", () => ({
   unstable_rethrow: vi.fn(),
 }));
 
-import { parseQuestionsAction, retryQuestionAction } from "../actions";
+import {
+  parseQuestionsAction,
+  type RetryQuestionState,
+  retryQuestionAction,
+} from "../actions";
 import { extractDocx } from "../document-extract";
 import { ImportAiProvider } from "../import-ai-form.state";
 import {
@@ -265,5 +269,101 @@ describe("Feature: AI document import — a teacher re-asks the AI about one que
     expect(screen.getByRole("alert")).toHaveTextContent(
       "AI retry failed. Please try again.",
     );
+  });
+
+  /** Starts a retry of the first question whose AI answer the test resolves later. */
+  async function startPendingRetry(user: ReturnType<typeof userEvent.setup>) {
+    await uploadTwoQuestions(user);
+    let resolveRetry: (state: RetryQuestionState) => void = () => {};
+    vi.mocked(retryQuestionAction).mockReturnValue(
+      new Promise((resolve) => {
+        resolveRetry = resolve;
+      }),
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: /retry with ai/i })[0],
+    );
+    await user.type(screen.getByLabelText(/what was wrong/i), "Wrong focus.");
+    await user.click(screen.getByRole("button", { name: /^retry$/i }));
+    return resolveRetry;
+  }
+
+  const LATE_ANSWER: RetryQuestionState = {
+    success: true,
+    message: "Question re-read",
+    question: {
+      title: "Q1",
+      content: "A late answer that must not appear.",
+      type: "free_text",
+    },
+  };
+
+  it("keeps Import disabled while a retry is running, then enables it when the answer arrives", async () => {
+    const user = userEvent.setup();
+    const resolveRetry = await startPendingRetry(user);
+
+    // While the AI is still reading the question
+    expect(
+      screen.getByRole("button", {
+        name: /import questions/i,
+        hidden: true,
+      }),
+    ).toBeDisabled();
+
+    // Once it answers
+    resolveRetry({
+      success: true,
+      message: "Question re-read",
+      question: { title: "Q1", content: "Re-read.", type: "free_text" },
+    });
+    expect(await screen.findByText("Re-read.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /import questions/i,
+        hidden: true,
+      }),
+    ).toBeEnabled();
+  });
+
+  it("lets the teacher cancel a running retry: Import unlocks at once and the late answer changes nothing", async () => {
+    const user = userEvent.setup();
+    const resolveRetry = await startPendingRetry(user);
+
+    await user.click(screen.getByRole("button", { name: /cancel retry/i }));
+
+    expect(
+      screen.getByRole("button", {
+        name: /import questions/i,
+        hidden: true,
+      }),
+    ).toBeEnabled();
+
+    // The AI answers after the cancel
+    resolveRetry(LATE_ANSWER);
+    await waitFor(() => expect(retryQuestionAction).toHaveBeenCalledTimes(1));
+    await new Promise((done) => setTimeout(done, 0));
+    expect(
+      screen.queryByText("A late answer that must not appear."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Explain photosynthesis.")).toBeInTheDocument();
+  });
+
+  it("treats closing the dialog while a retry runs as a cancel", async () => {
+    const user = userEvent.setup();
+    const resolveRetry = await startPendingRetry(user);
+
+    await user.keyboard("{Escape}");
+
+    expect(
+      screen.getByRole("button", {
+        name: /import questions/i,
+        hidden: true,
+      }),
+    ).toBeEnabled();
+    resolveRetry(LATE_ANSWER);
+    await new Promise((done) => setTimeout(done, 0));
+    expect(
+      screen.queryByText("A late answer that must not appear."),
+    ).not.toBeInTheDocument();
   });
 });
