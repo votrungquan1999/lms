@@ -357,6 +357,133 @@ describe("GeminiAiClient telemetry", () => {
     expect(span?.attributes["lms.ai.finish_reason"]).toBe("stop");
   });
 
+  it("records how many of the document's pictures were attached and how many were left unused, counted from the final drafts and without any text", async () => {
+    // Given a document with two pictures and a reply that uses only picture 1
+    generateTextMock.mockResolvedValue({
+      finishReason: "stop",
+      usage: {},
+      output: {
+        questions: [
+          { title: "Q1", content: "[image 1]PRIVATE-TEXT", type: "free_text" },
+        ],
+      },
+    });
+
+    // When the document is read
+    await new ImportAiClient().parseQuestionsFromText(
+      "[image 1]Q1 PRIVATE-TEXT\n[image 2]",
+      [1, 2],
+    );
+
+    // Then the span carries the three counts, and no attribute holds document text
+    const [span] = exporter.getFinishedSpans();
+    expect(span?.attributes).toMatchObject({
+      "lms.ai.pictures_in_document": 2,
+      "lms.ai.pictures_attached": 1,
+      "lms.ai.pictures_unused": 1,
+    });
+    expect(JSON.stringify(span?.attributes)).not.toContain("PRIVATE-TEXT");
+  });
+
+  it.each([
+    [
+      "a document without pictures records zeros, not nothing",
+      "Q1",
+      [],
+      "Q1",
+      [0, 0, 0],
+    ],
+    [
+      "a picture the model invented counts as nothing attached",
+      "[image 1]Q1",
+      [1],
+      "[image 9]Q1",
+      [1, 0, 1],
+    ],
+    [
+      "two questions marking the same picture count it as attached once",
+      "[image 1]Q1 [image 2]",
+      [1, 2],
+      "[image 1]Q1",
+      [2, 1, 1],
+      2,
+    ],
+    [
+      "a marker typed in the text with no real picture behind it is not counted",
+      "[image 1]Q1 [image 2]",
+      [1],
+      "[image 2]Q1",
+      [1, 0, 1],
+    ],
+    [
+      "a document read without pictures, like a PDF, counts none even when its text holds markers",
+      "[image 1]Q1",
+      [],
+      "[image 1]Q1",
+      [0, 0, 0],
+    ],
+  ])(
+    "%s",
+    async (
+      _name,
+      documentText,
+      pictureNumbers,
+      replyContent,
+      [inDocument, attached, unused],
+      questionCount = 1,
+    ) => {
+      generateTextMock.mockResolvedValue({
+        finishReason: "stop",
+        usage: {},
+        output: {
+          questions: Array.from({ length: questionCount }, (_, index) => ({
+            title: `Q${index + 1}`,
+            content: replyContent,
+            type: "free_text",
+          })),
+        },
+      });
+
+      await new ImportAiClient().parseQuestionsFromText(
+        documentText,
+        pictureNumbers,
+      );
+
+      const [span] = exporter.getFinishedSpans();
+      expect(span?.attributes).toMatchObject({
+        "lms.ai.pictures_in_document": inDocument,
+        "lms.ai.pictures_attached": attached,
+        "lms.ai.pictures_unused": unused,
+      });
+    },
+  );
+
+  it("records no picture counts for a re-read of one question", async () => {
+    generateTextMock.mockResolvedValue({
+      finishReason: "stop",
+      usage: {},
+      output: {
+        question: { title: "Q1", content: "[image 1]Q1", type: "free_text" },
+      },
+    });
+
+    await new ImportAiClient().retryQuestion(
+      "[image 1]Q1",
+      { title: "Q1", content: "Q1", type: "free_text" },
+      "Fix it",
+    );
+
+    const [span] = exporter.getFinishedSpans();
+    expect(span?.name).toBe("import.retryQuestion");
+    for (const name of [
+      "lms.ai.pictures_in_document",
+      "lms.ai.pictures_attached",
+      "lms.ai.pictures_unused",
+    ]) {
+      expect(span?.attributes).not.toHaveProperty(name);
+    }
+  });
+
   it("also logs why a document read's reply failed the format check, so the server log alone names the field — still without any reply text", async () => {
     const consoleError = vi
       .spyOn(console, "error")

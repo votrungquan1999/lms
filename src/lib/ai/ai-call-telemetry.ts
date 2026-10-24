@@ -102,6 +102,12 @@ export interface AiCallSummary {
   duplicateIds?: number;
   /** Document reads only: questions found; 0 means the teacher got nothing. */
   questionsReturned?: number;
+  /** Full document reads only: distinct pictures the document marks. */
+  picturesInDocument?: number;
+  /** Full document reads only: of those, pictures a draft uses. */
+  picturesAttached?: number;
+  /** Full document reads only: of those, pictures no draft uses. */
+  picturesUnused?: number;
 }
 
 /** The parts of a `generateText` result the summary reads. */
@@ -136,6 +142,9 @@ const ATTRIBUTE_NAMES: Record<keyof AiCallSummary, string> = {
   unknownIds: "lms.ai.unknown_ids",
   duplicateIds: "lms.ai.duplicate_ids",
   questionsReturned: "lms.ai.questions_returned",
+  picturesInDocument: "lms.ai.pictures_in_document",
+  picturesAttached: "lms.ai.pictures_attached",
+  picturesUnused: "lms.ai.pictures_unused",
 };
 
 /** Keeps a span readable when a reply fails on every item. */

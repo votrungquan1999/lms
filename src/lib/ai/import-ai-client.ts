@@ -315,11 +315,19 @@ export class ImportAiClient implements QuestionParseClient {
           const parsed = result.output;
           // The browser's own list: a marker typed into the text is not a picture.
           const documentPictures = [...new Set(pictureNumbers)];
+          const drafts = parsed.questions.map((q) =>
+            toDraft(q, documentPictures),
+          );
+          // Counted from the final drafts, so a re-read after a refusal is included.
+          const attached = new Set(drafts.flatMap((d) => d.imageNumbers ?? []));
           return {
-            value: parsed.questions.map((q) => toDraft(q, documentPictures)),
+            value: drafts,
             summary: {
               ...summarizeResults(results),
               questionsReturned: parsed.questions.length,
+              picturesInDocument: documentPictures.length,
+              picturesAttached: attached.size,
+              picturesUnused: documentPictures.length - attached.size,
             },
           };
         }),
