@@ -1,5 +1,7 @@
 # ADR: AI-Assisted Question Import from Documents
 
+> Superseded by [import-ai-provider-and-usage-records.md](import-ai-provider-and-usage-records.md) for the choice of AI provider and for how AI requests are recorded.
+
 **Date:** 2026-04-12
 **Status:** Accepted — **implemented** (as of 2026-09-07, branch `feat/answer-reveal-and-doc-import`; both `.docx` and `.pdf` AI import shipped, in one pass rather than the two phases this ADR proposed). The overall approach below — client-side extraction, an LLM parse into structured questions, a teacher review step, then import — is what shipped. Several specifics changed between this ADR and delivery; see "Implementation notes" at the bottom.
 **Deciders:** Project Owner

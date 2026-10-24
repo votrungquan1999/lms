@@ -3,11 +3,11 @@ import { type SetupServer, setupServer } from "msw/node";
 
 /**
  * Text this mock returns as a question title. Distinct from anything a real
- * document or a real Gemini reply would contain, so a passing assertion on
+ * document or a real AI reply would contain, so a passing assertion on
  * it in `e2e/import-ai-flow.test.ts` can only mean this mock answered the
- * call — not a real (or accidentally successful) Gemini request.
+ * call — not a real (or accidentally successful) AI request.
  */
-export const MOCK_QUESTION_TITLE = "MSW mock: Gemini call intercepted";
+export const MOCK_QUESTION_TITLE = "MSW mock: AI call intercepted";
 
 /** Hosts of the AI providers the LMS calls. */
 const AI_PROVIDER_HOSTS = new Set([
@@ -21,6 +21,8 @@ const PDF_TEXT_MARKER = "Explain photosynthesis";
 /** Content confirming the real extracted PDF text reached this handler. */
 export const PDF_TEXT_RECEIVED_MARKER = "Extracted PDF text reached the mock";
 
+const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+
 // Matches `.../v1beta/models/<any-model-id>:generateContent` — a colon, not
 // a `/`, separates the model id from the method, so this can't be a plain
 // path-to-regexp param pattern; match it as a regex instead.
@@ -28,11 +30,30 @@ const GEMINI_GENERATE_CONTENT_URL =
   /^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/[^/]+:generateContent$/;
 
 /**
- * Starts an in-process MSW server that intercepts Gemini's
- * `generateContent` call so `dev:e2e` never needs a live API key. Returns a
- * canned response shaped exactly like `@ai-sdk/google`'s `generateText` +
- * `Output.object` expect: `candidates[0].content.parts[0].text` holding a
- * JSON string that itself matches `questionImportBatchSchema`.
+ * Builds the canned question batch both providers' replies carry.
+ * @param request - The intercepted request; its body says whether the
+ *   extracted PDF text arrived.
+ * @returns The JSON text of a batch matching `questionImportBatchSchema`.
+ */
+async function cannedBatchText(request: Request): Promise<string> {
+  const sawExtractedPdfText = (await request.text()).includes(PDF_TEXT_MARKER);
+  return JSON.stringify({
+    questions: [
+      {
+        title: MOCK_QUESTION_TITLE,
+        content: `${PDF_TEXT_RECEIVED_MARKER}: ${sawExtractedPdfText ? "yes" : "no"}`,
+        type: "free_text",
+      },
+    ],
+  });
+}
+
+/**
+ * Starts an in-process MSW server that answers the AI providers' import
+ * calls so `dev:e2e` never needs a live API key. Gemini's reply is shaped as
+ * `@ai-sdk/google`'s `generateText` + `Output.object` expect it; Claude's as
+ * the Messages API returns it. Both carry a JSON batch matching
+ * `questionImportBatchSchema`.
  *
  * Only the e2e harness starts this — see `instrumentation.ts`'s
  * `E2E_MOCK_AI` gate.
@@ -40,24 +61,13 @@ const GEMINI_GENERATE_CONTENT_URL =
  */
 export function startE2eAiMock(): SetupServer {
   const server = setupServer(
-    http.post(GEMINI_GENERATE_CONTENT_URL, async ({ request }) => {
-      const rawBody = await request.text();
-      const sawExtractedPdfText = rawBody.includes(PDF_TEXT_MARKER);
-
-      const cannedBatch = {
-        questions: [
-          {
-            title: MOCK_QUESTION_TITLE,
-            content: `${PDF_TEXT_RECEIVED_MARKER}: ${sawExtractedPdfText ? "yes" : "no"}`,
-            type: "free_text",
-          },
-        ],
-      };
-
-      return HttpResponse.json({
+    http.post(GEMINI_GENERATE_CONTENT_URL, async ({ request }) =>
+      HttpResponse.json({
         candidates: [
           {
-            content: { parts: [{ text: JSON.stringify(cannedBatch) }] },
+            content: {
+              parts: [{ text: await cannedBatchText(request) }],
+            },
             finishReason: "STOP",
           },
         ],
@@ -66,8 +76,22 @@ export function startE2eAiMock(): SetupServer {
           candidatesTokenCount: 1,
           totalTokenCount: 2,
         },
-      });
-    }),
+      }),
+    ),
+    http.post(ANTHROPIC_MESSAGES_URL, async ({ request }) =>
+      HttpResponse.json(
+        {
+          id: "msg_e2e_mock",
+          type: "message",
+          role: "assistant",
+          model: "claude-e2e-mock",
+          content: [{ type: "text", text: await cannedBatchText(request) }],
+          stop_reason: "end_turn",
+          usage: { input_tokens: 1, output_tokens: 1 },
+        },
+        { headers: { "request-id": "req_e2e_mock" } },
+      ),
+    ),
   );
 
   // An AI provider request the handlers don't answer must fail, not reach the

@@ -12,15 +12,6 @@ import {
 } from "src/lib/ai/ai-request-recorder";
 import { buildGradingPrompt } from "src/lib/ai/grading-prompt";
 import { aiGradeBatchSchema } from "src/lib/ai/grading-schema";
-import { separateMarkdownBlocks } from "src/lib/ai/markdown-blocks";
-import {
-  buildQuestionImportPrompt,
-  buildQuestionRetryPrompt,
-} from "src/lib/ai/question-import-prompt";
-import {
-  questionImportBatchSchema,
-  questionRetryResultSchema,
-} from "src/lib/ai/question-import-schema";
 import { withSpan } from "src/lib/observability/with-span";
 
 /**
@@ -151,7 +142,7 @@ const DEFAULT_GEMINI_MODEL_ID = "gemini-3.5-flash";
  * overloaded default via `GEMINI_MODEL_ID` without a code change.
  * @returns The model id to send to Gemini.
  */
-function geminiModelId(): string {
+export function geminiModelId(): string {
   return process.env.GEMINI_MODEL_ID || DEFAULT_GEMINI_MODEL_ID;
 }
 
@@ -162,7 +153,7 @@ function geminiModelId(): string {
  * @param operation - The operation name stamped on each record.
  * @returns The language model to hand to `generateText`.
  */
-function geminiModel(span: Span, operation: string) {
+export function geminiModel(span: Span, operation: string) {
   const recorder = createAiRequestRecorder({
     span,
     provider: AiProviderName.Gemini,
@@ -176,7 +167,7 @@ function geminiModel(span: Span, operation: string) {
  * to read; it must stay under Vercel's 300s function limit (Hobby, Fluid
  * compute) so the failure is still recorded.
  */
-const GEMINI_TIMEOUT_MS = 240_000;
+export const GEMINI_TIMEOUT_MS = 240_000;
 
 /**
  * Live Gemini-backed `AiClient` implementation.
@@ -191,7 +182,7 @@ const GEMINI_TIMEOUT_MS = 240_000;
  * `@ai-sdk/google`. Tests inject a deterministic stub through `buildCoreServices`.
  * In Vitest, the setup's fetch guard blocks its requests unless a test stubs fetch.
  */
-export class GeminiAiClient implements AiClient, QuestionParseClient {
+export class GeminiAiClient implements AiClient {
   /**
    * Grades one batch of free-text answers via the Gemini API.
    * @param items - One entry per candidate question.
@@ -238,106 +229,6 @@ export class GeminiAiClient implements AiClient, QuestionParseClient {
                 grades.map((grade) => grade.questionId),
               ),
             },
-          };
-        }),
-    );
-  }
-
-  /**
-   * Extracts structured questions from a document's plain text via Gemini.
-   * @param documentText - The full text extracted client-side from the upload.
-   * @returns The parsed questions, in document order.
-   */
-  async parseQuestionsFromText(
-    documentText: string,
-  ): Promise<ParsedQuestion[]> {
-    return withSpan(
-      "gemini.parseQuestionsFromText",
-      {
-        "gen_ai.request.model": geminiModelId(),
-        "gen_ai.operation.name": "generate_content",
-        "lms.ai.document_text_length": documentText.length,
-      },
-      (span) =>
-        recordAiCall(span, async () => {
-          const result = await generateText({
-            model: geminiModel(span, "gemini.parseQuestionsFromText"),
-            timeout: GEMINI_TIMEOUT_MS,
-            output: Output.object({ schema: questionImportBatchSchema }),
-            prompt: buildQuestionImportPrompt(documentText),
-          });
-
-          const parsed = result.output;
-          if (!parsed) {
-            throw new Error("Gemini returned no parsed output");
-          }
-          return {
-            value: parsed.questions.map((q) => ({
-              title: q.title,
-              content: separateMarkdownBlocks(q.content),
-              type: q.type,
-              options: q.options,
-              referenceAnswer: q.referenceAnswer,
-              explanation: q.explanation,
-              imageNumbers: q.imageNumbers,
-            })),
-            summary: {
-              ...summarizeResult(result),
-              questionsReturned: parsed.questions.length,
-            },
-          };
-        }),
-    );
-  }
-
-  /**
-   * Re-reads one already-extracted question via Gemini, addressing a
-   * teacher's correction note.
-   * @param documentText - The full text extracted client-side from the upload.
-   * @param currentQuestion - The question's current (possibly hand-edited) draft.
-   * @param correctionNote - What the teacher says was wrong with it.
-   * @returns The corrected question.
-   */
-  async retryQuestion(
-    documentText: string,
-    currentQuestion: ParsedQuestion,
-    correctionNote: string,
-  ): Promise<ParsedQuestion> {
-    return withSpan(
-      "gemini.retryQuestion",
-      {
-        "gen_ai.request.model": geminiModelId(),
-        "gen_ai.operation.name": "generate_content",
-        "lms.ai.document_text_length": documentText.length,
-      },
-      (span) =>
-        recordAiCall(span, async () => {
-          const result = await generateText({
-            model: geminiModel(span, "gemini.retryQuestion"),
-            timeout: GEMINI_TIMEOUT_MS,
-            output: Output.object({ schema: questionRetryResultSchema }),
-            prompt: buildQuestionRetryPrompt(
-              documentText,
-              currentQuestion,
-              correctionNote,
-            ),
-          });
-
-          const parsed = result.output;
-          if (!parsed) {
-            throw new Error("Gemini returned no parsed output");
-          }
-          return {
-            value: {
-              title: parsed.question.title,
-              content: separateMarkdownBlocks(parsed.question.content),
-              type: parsed.question.type,
-              options: parsed.question.options,
-              referenceAnswer: parsed.question.referenceAnswer,
-              explanation: parsed.question.explanation,
-              imageNumbers: parsed.question.imageNumbers,
-            },
-            summary: summarizeResult(result),
           };
         }),
     );

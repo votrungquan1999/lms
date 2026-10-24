@@ -3,8 +3,8 @@
  *
  * An admin uploads a PDF of exam questions to a test's "Import Questions
  * with AI" page. Text extraction runs in the REAL browser via pdf.js's
- * Worker; the extracted text is sent to Gemini, which returns structured
- * questions for the admin to review.
+ * Worker; the extracted text is sent to the import AI (Claude by
+ * default), which returns structured questions for the admin to review.
  *
  * This is the ONLY test layer that proves the real browser Worker ran and
  * that Turbopack correctly bundled/served pdf.js's worker asset — the
@@ -12,16 +12,16 @@
  * pdf.js's worker force-disabled by pdf.js itself, so it cannot exercise
  * this path at all.
  *
- * The Gemini call happens SERVER-SIDE inside the Server Action, so
+ * The AI call happens SERVER-SIDE inside the Server Action, so
  * Playwright's browser-level `page.route` can't intercept it the way
  * `course-materials-flow.test.ts` intercepts its browser→S3 PUT. Instead,
  * `dev:e2e` starts an in-process MSW server (from `instrumentation.ts`,
- * gated on `E2E_MOCK_AI`) that intercepts Gemini's `generateContent` call
- * — see `src/mocks/e2e-ai-mock.ts` (D60). No live API key is needed.
+ * gated on `E2E_MOCK_AI`) that answers the AI providers' import calls — see
+ * `src/mocks/e2e-ai-mock.ts`. No live API key is needed.
  *
  * The review-list assertions below check for that mock's canned content
  * (`MOCK_QUESTION_TITLE`, `PDF_TEXT_RECEIVED_MARKER`), not the PDF's own
- * text — text a real (or accidentally successful) Gemini call could never
+ * text — text a real (or accidentally successful) AI call could never
  * produce, so a pass proves the mock actually intercepted the call, and the
  * "yes" marker proves the real extracted PDF text reached it.
  */
@@ -39,7 +39,7 @@ const QUESTION_TEXT = "Explain photosynthesis in one sentence.";
 // Mirrors `src/mocks/e2e-ai-mock.ts`'s exported sentinels — duplicated
 // here (not imported) to keep this spec self-contained, matching every
 // other e2e spec's style in this file's directory.
-const MOCK_QUESTION_TITLE = "MSW mock: Gemini call intercepted";
+const MOCK_QUESTION_TITLE = "MSW mock: AI call intercepted";
 const PDF_TEXT_RECEIVED_MARKER = "Extracted PDF text reached the mock: yes";
 
 let pdfPath: string;

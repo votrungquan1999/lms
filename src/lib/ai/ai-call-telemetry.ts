@@ -20,6 +20,38 @@ export enum AiErrorType {
 }
 
 /**
+ * The model answered but stopped before finishing (output cap, filter), so
+ * there is no output to read. Carries what the span should still record.
+ */
+export class UnfinishedReplyError extends Error {
+  readonly finishReason: string;
+  readonly responseModel?: string;
+  readonly usage?: LanguageModelUsage;
+
+  /**
+   * @param result - The resolved `generateText` result that did not finish.
+   */
+  constructor(result: AiCallResult) {
+    super(`AI reply did not finish (${result.finishReason})`);
+    this.name = "UnfinishedReplyError";
+    this.finishReason = result.finishReason;
+    this.responseModel = result.response?.modelId;
+    this.usage = result.usage;
+  }
+}
+
+/**
+ * Throws when a resolved result stopped for any reason other than finishing.
+ * Must run before `result.output` is read, which throws without the reason.
+ * @param result - What `generateText` resolved to.
+ */
+export function assertReplyFinished(result: AiCallResult): void {
+  if (result.finishReason && result.finishReason !== "stop") {
+    throw new UnfinishedReplyError(result);
+  }
+}
+
+/**
  * Everything recorded about one AI call, built once and written onto its span
  * in a single place. Never holds prompt or reply text (no-PII policy).
  */
@@ -181,6 +213,14 @@ function summarizeFailure(error: unknown): AiCallSummary {
     return {
       errorType: classifyAiError(error.lastError),
       attempts: error.errors.length,
+    };
+  }
+  if (error instanceof UnfinishedReplyError) {
+    return {
+      errorType: AiErrorType.BadReply,
+      finishReason: error.finishReason,
+      responseModel: error.responseModel,
+      ...summarizeUsage(error.usage),
     };
   }
   if (NoObjectGeneratedError.isInstance(error)) {

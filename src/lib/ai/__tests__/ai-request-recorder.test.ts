@@ -14,6 +14,7 @@ import {
   AiProviderName,
   createAiRequestRecorder,
 } from "../ai-request-recorder";
+import { ImportAiClient } from "../import-ai-client";
 
 const FAKE_KEY = "recorder-test-secret-key";
 const DOCUMENT_TEXT = "1. Exam text that must never be recorded";
@@ -34,6 +35,7 @@ beforeEach(async () => {
     await mkdtemp(path.join(tmpdir(), "ai-usage-")),
     "usage.jsonl",
   );
+  vi.stubEnv("AI_IMPORT_PROVIDER", "gemini");
   vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", FAKE_KEY);
   vi.stubEnv("AI_USAGE_FILE", usageFile);
   logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -89,12 +91,12 @@ describe("AI request recording", () => {
     stubGeminiReply();
 
     // When the owner's import runs
-    await new GeminiAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
+    await new ImportAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
 
     // Then a request span is a child of the import span
     const spans = exporter.getFinishedSpans();
     const importSpan = spans.find(
-      (s) => s.name === "gemini.parseQuestionsFromText",
+      (s) => s.name === "import.parseQuestionsFromText",
     );
     const requestSpans = spans.filter((s) => s.name === "ai.provider.request");
     expect(requestSpans).toHaveLength(1);
@@ -163,7 +165,7 @@ describe("AI request recording", () => {
     );
 
     // When the import runs
-    const read = new GeminiAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
+    const read = new ImportAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
 
     // Then the read still fails
     await expect(read).rejects.toThrow();
@@ -190,7 +192,7 @@ describe("AI request recording", () => {
     );
 
     // When the import runs
-    const read = new GeminiAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
+    const read = new ImportAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
 
     // Then the original error surfaces
     await expect(read).rejects.toThrow("socket closed");
@@ -259,7 +261,7 @@ describe("AI request recording", () => {
     stubGeminiReply();
 
     // When the import runs
-    await new GeminiAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
+    await new ImportAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
 
     // Then the log line is written but no file
     expect(
@@ -279,7 +281,7 @@ describe("AI request recording", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     // When the import runs
-    const questions = await new GeminiAiClient().parseQuestionsFromText(
+    const questions = await new ImportAiClient().parseQuestionsFromText(
       DOCUMENT_TEXT,
     );
 
@@ -308,7 +310,7 @@ describe("AI request recording", () => {
       stubGeminiReply();
 
       // When the import runs
-      await new GeminiAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
+      await new ImportAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
 
       // Then the record names the environment, the mock flag and the run
       const [line] = (await readFile(usageFile, "utf8")).trim().split("\n");
@@ -331,7 +333,7 @@ describe("AI request recording", () => {
       stubGeminiReply();
 
       // When the import runs
-      await new GeminiAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
+      await new ImportAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
 
       // Then the record is a test record and not a mock or real one
       const [line] = (await readFile(usageFile, "utf8")).trim().split("\n");
@@ -385,6 +387,73 @@ describe("AI request recording", () => {
       operation: "gemini.gradeFreeTextBatch",
       provider: "gcp.gemini",
     });
+  });
+
+  it("records a Claude import read with its served model, request id and thinking tokens, and never the key", async () => {
+    // Given Claude is the import provider and answers a Messages request
+    vi.stubEnv("AI_IMPORT_PROVIDER", "");
+    vi.stubEnv("ANTHROPIC_API_KEY", FAKE_KEY);
+    const sent = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        sent(init.body);
+        return Response.json(
+          {
+            id: "msg_1",
+            type: "message",
+            role: "assistant",
+            model: "claude-served",
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  questions: [
+                    { title: "Q1", content: REPLY_TEXT, type: "free_text" },
+                  ],
+                }),
+              },
+            ],
+            stop_reason: "end_turn",
+            usage: {
+              input_tokens: 30,
+              output_tokens: 8,
+              output_tokens_details: { thinking_tokens: 4 },
+            },
+          },
+          { headers: { "request-id": "req_xyz" } },
+        );
+      }),
+    );
+
+    // When the import runs
+    await new ImportAiClient().parseQuestionsFromText(DOCUMENT_TEXT);
+
+    // Then one Anthropic record carries the call's facts
+    const lines = (await readFile(usageFile, "utf8")).trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0])).toMatchObject({
+      provider: "anthropic",
+      host: "api.anthropic.com",
+      model_requested: "claude-sonnet-5-5",
+      model_served: "claude-served",
+      request_id: "req_xyz",
+      input_tokens: 30,
+      output_tokens: 8,
+      thinking_tokens: 4,
+      finish_reason: "end_turn",
+      key_fingerprint: createHash("sha256")
+        .update(FAKE_KEY)
+        .digest("hex")
+        .slice(0, 8),
+    });
+    expect(lines[0]).not.toContain(FAKE_KEY);
+
+    // And the request asks for neither thinking, effort nor server-side fallbacks
+    const body = String(sent.mock.calls[0][0]);
+    expect(body).not.toContain('"thinking"');
+    expect(body).not.toContain('"effort"');
+    expect(body).not.toContain('"fallbacks"');
   });
 });
 

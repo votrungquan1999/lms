@@ -8,6 +8,7 @@ import {
   APICallError,
   JSONParseError,
   NoObjectGeneratedError,
+  NoOutputGeneratedError,
   RetryError,
   TypeValidationError,
 } from "ai";
@@ -26,6 +27,7 @@ vi.mock("ai", async (importOriginal) => ({
 
 import { GeminiAiClient } from "../ai-client";
 import { aiGradeBatchSchema } from "../grading-schema";
+import { ImportAiClient } from "../import-ai-client";
 import { questionImportBatchSchema } from "../question-import-schema";
 
 let exporter: InMemorySpanExporter;
@@ -38,9 +40,11 @@ beforeEach(() => {
     }),
   );
   generateTextMock.mockReset();
+  vi.stubEnv("AI_IMPORT_PROVIDER", "gemini");
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   exporter.reset();
   trace.disable();
 });
@@ -68,15 +72,76 @@ describe("GeminiAiClient telemetry", () => {
       },
     });
     const client = new GeminiAiClient();
+    const importClient = new ImportAiClient();
 
     await client.gradeFreeTextBatch([gradeItem]);
-    await client.parseQuestionsFromText("doc text");
-    await client.retryQuestion("doc text", parsedQuestion, "wrong answer");
+    await importClient.parseQuestionsFromText("doc text");
+    await importClient.retryQuestion(
+      "doc text",
+      parsedQuestion,
+      "wrong answer",
+    );
 
     expect(generateTextMock).toHaveBeenCalledTimes(3);
     for (const [options] of generateTextMock.mock.calls) {
       expect(options).toMatchObject({ timeout: 240_000 });
     }
+  });
+
+  it.each([
+    ["", "anthropic", "claude-sonnet-5-5"],
+    ["gemini", "gcp.gemini", "gemini-3.5-flash"],
+  ])(
+    "names the provider and model on an import read's span when AI_IMPORT_PROVIDER is %j",
+    async (setting, provider, model) => {
+      vi.stubEnv("AI_IMPORT_PROVIDER", setting);
+      generateTextMock.mockResolvedValue({
+        usage: {},
+        output: { questions: [parsedQuestion], question: parsedQuestion },
+      });
+      const client = new ImportAiClient();
+
+      await client.parseQuestionsFromText("doc text");
+      await client.retryQuestion("doc text", parsedQuestion, "wrong answer");
+
+      const spans = exporter.getFinishedSpans();
+      for (const name of [
+        "import.parseQuestionsFromText",
+        "import.retryQuestion",
+      ]) {
+        const span = spans.find((s) => s.name === name);
+        expect(span?.attributes).toMatchObject({
+          "gen_ai.provider.name": provider,
+          "gen_ai.request.model": model,
+        });
+      }
+    },
+  );
+
+  it("records why a read stopped before finishing, instead of an unknown error", async () => {
+    // Given the model hit its output cap: the SDK resolves, but reading the output throws
+    generateTextMock.mockResolvedValue({
+      finishReason: "length",
+      response: { modelId: "claude-served" },
+      usage: { inputTokens: 900, outputTokens: 32_000 },
+      get output(): never {
+        throw new NoOutputGeneratedError();
+      },
+    });
+
+    // When a document is read
+    const read = new ImportAiClient().parseQuestionsFromText("doc text");
+
+    // Then the read fails and the span says why, with the tokens spent
+    await expect(read).rejects.toThrow();
+    const span = exporter
+      .getFinishedSpans()
+      .find((s) => s.name === "import.parseQuestionsFromText");
+    expect(span?.attributes).toMatchObject({
+      "lms.ai.finish_reason": "length",
+      "gen_ai.response.model": "claude-served",
+      "gen_ai.usage.output_tokens": 32_000,
+    });
   });
 
   it("labels a call cut off by the time limit as a timeout and still throws", async () => {
@@ -215,7 +280,7 @@ describe("GeminiAiClient telemetry", () => {
     generateTextMock.mockRejectedValue(error);
 
     await expect(
-      new GeminiAiClient().parseQuestionsFromText("doc text"),
+      new ImportAiClient().parseQuestionsFromText("doc text"),
     ).rejects.toBe(error);
 
     const [span] = exporter.getFinishedSpans();
@@ -282,7 +347,7 @@ describe("GeminiAiClient telemetry", () => {
       output: { questions: [] },
     });
 
-    const questions = await new GeminiAiClient().parseQuestionsFromText(
+    const questions = await new ImportAiClient().parseQuestionsFromText(
       "doc text",
     );
 
@@ -326,7 +391,7 @@ describe("GeminiAiClient telemetry", () => {
     );
 
     await expect(
-      new GeminiAiClient().parseQuestionsFromText("doc text"),
+      new ImportAiClient().parseQuestionsFromText("doc text"),
     ).rejects.toThrow(NoObjectGeneratedError);
 
     const logged = consoleError.mock.calls.flat().map(String).join("\n");

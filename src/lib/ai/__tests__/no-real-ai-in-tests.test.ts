@@ -3,6 +3,7 @@ import { readFile, rm } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hardenAiEnvironment } from "../../../tests/harden-ai-environment";
 import { GeminiAiClient } from "../ai-client";
+import { ImportAiClient } from "../import-ai-client";
 
 const FAKE_KEY_FINGERPRINT = createHash("sha256")
   .update("vitest-fake-key")
@@ -65,6 +66,31 @@ describe("AI providers in test runs", () => {
       host: "generativelanguage.googleapis.com",
       outcome: "network_error",
       environment: "test",
+      key_fingerprint: FAKE_KEY_FINGERPRINT,
+    });
+  });
+
+  it("blocks the Claude import read too, whatever base URL the shell sets", async () => {
+    // Given a shell that points the Anthropic SDK at another host
+    vi.stubEnv("ANTHROPIC_BASE_URL", "http://127.0.0.1:9/v1");
+
+    // And the test run's environment hardening runs
+    hardenAiEnvironment();
+
+    // When the real import client reads a document
+    const read = new ImportAiClient().parseQuestionsFromText("1. An exam");
+
+    // Then the request is blocked at the Anthropic host
+    await expect(read).rejects.toThrow(
+      "Blocked request to AI provider api.anthropic.com",
+    );
+
+    // And exactly one usage record shows that host and the fake key
+    const records = await readRecords();
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      host: "api.anthropic.com",
+      outcome: "network_error",
       key_fingerprint: FAKE_KEY_FINGERPRINT,
     });
   });

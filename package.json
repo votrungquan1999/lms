@@ -12,10 +12,11 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:real-ai": "playwright test --config playwright.real-ai.config.ts",
-    "dev:e2e": "P=${E2E_PORT:-3001}; MONGODB_URI=mongodb://localhost:27017/${E2E_DB_NAME:-lms_e2e} AUTH_ALLOWED_HOSTS=localhost:$P TRUSTED_ORIGINS=http://localhost:$P ALLOW_PUBLIC_SIGNUP=true E2E_MOCK_AI=1 GOOGLE_GENERATIVE_AI_API_KEY=e2e-mock-key S3_BUCKET_NAME=e2e-mock-bucket AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=e2e-mock-key-id AWS_SECRET_ACCESS_KEY=e2e-mock-secret OTEL_LOG_LEVEL=warn next dev --port $P",
+    "dev:e2e": "P=${E2E_PORT:-3001}; MONGODB_URI=mongodb://localhost:27017/${E2E_DB_NAME:-lms_e2e} AUTH_ALLOWED_HOSTS=localhost:$P TRUSTED_ORIGINS=http://localhost:$P ALLOW_PUBLIC_SIGNUP=true E2E_MOCK_AI=1 GOOGLE_GENERATIVE_AI_API_KEY=e2e-mock-key ANTHROPIC_API_KEY=e2e-mock-key ANTHROPIC_BASE_URL=https://api.anthropic.com/v1 S3_BUCKET_NAME=e2e-mock-bucket AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=e2e-mock-key-id AWS_SECRET_ACCESS_KEY=e2e-mock-secret OTEL_LOG_LEVEL=warn next dev --port $P",
     "dev:e2e:real-ai": "P=${E2E_PORT:-3005}; MONGODB_URI=mongodb://localhost:27017/${E2E_DB_NAME:-lms_e2e_real_ai} AUTH_ALLOWED_HOSTS=localhost:$P TRUSTED_ORIGINS=http://localhost:$P ALLOW_PUBLIC_SIGNUP=true E2E_MOCK_AI=0 NEXT_DIST_DIR=tmp/next-e2e-real-ai S3_BUCKET_NAME=${E2E_S3_BUCKET_NAME:-e2e-mock-bucket} AWS_REGION=${E2E_AWS_REGION:-us-east-1} AWS_ACCESS_KEY_ID=${E2E_AWS_ACCESS_KEY_ID:-e2e-mock-key-id} AWS_SECRET_ACCESS_KEY=${E2E_AWS_SECRET_ACCESS_KEY:-e2e-mock-secret} OTEL_LOG_LEVEL=warn next dev --port $P"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.135",
     "@ai-sdk/google": "^3.0.95",
     "@aws-sdk/client-s3": "^3.1060.0",
     "@aws-sdk/cloudfront-signer": "^3.1064.0",

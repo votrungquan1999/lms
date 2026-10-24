@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { GeminiAiClient, type QuestionParseClient } from "./ai/ai-client";
+import { ImportAiClient } from "./ai/import-ai-client";
 import { AiGradeService } from "./ai-grade-service";
 import { AnnotationService } from "./annotation-service";
 import { AnswerService } from "./answer-service";
@@ -376,13 +377,14 @@ export async function getQuestionChangeLogService(): Promise<QuestionChangeLogSe
 }
 
 /**
- * Returns the singleton `QuestionParseClient` wired against the live Gemini
- * client. No database state, so unlike `getAiGradeService` there is no
- * intervening domain service — the action layer calls this directly.
+ * Returns the singleton `QuestionParseClient`: the import client, which reads
+ * with the provider `AI_IMPORT_PROVIDER` names (Claude by default). No
+ * database state, so unlike `getAiGradeService` there is no intervening
+ * domain service — the action layer calls this directly.
  */
 export async function getQuestionParseClient(): Promise<QuestionParseClient> {
   if (!questionParseClient) {
-    questionParseClient = new GeminiAiClient();
+    questionParseClient = new ImportAiClient();
   }
   return questionParseClient;
 }
