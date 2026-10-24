@@ -16,6 +16,7 @@ export enum AiErrorType {
   Auth = "auth",
   ProviderError = "provider_error",
   BadReply = "bad_reply",
+  Refusal = "refusal",
   Unknown = "unknown",
 }
 
@@ -24,19 +25,37 @@ export enum AiErrorType {
  * there is no output to read. Carries what the span should still record.
  */
 export class UnfinishedReplyError extends Error {
-  readonly finishReason: string;
-  readonly responseModel?: string;
-  readonly usage?: LanguageModelUsage;
+  readonly summary: AiCallSummary;
 
   /**
-   * @param result - The resolved `generateText` result that did not finish.
+   * @param results - Every result the read produced, in order; the last one
+   *   did not finish.
    */
-  constructor(result: AiCallResult) {
-    super(`AI reply did not finish (${result.finishReason})`);
+  constructor(results: AiCallResult[]) {
+    const last = results[results.length - 1];
+    super(`AI reply did not finish (${last.finishReason})`);
     this.name = "UnfinishedReplyError";
-    this.finishReason = result.finishReason;
-    this.responseModel = result.response?.modelId;
-    this.usage = result.usage;
+    this.summary = summarizeResults(results);
+  }
+}
+
+/**
+ * Claude declined to answer, and no re-read could (or did) get an answer.
+ * Carries what the span should still record.
+ */
+export class RefusalError extends Error {
+  readonly category?: string;
+  readonly summary: AiCallSummary;
+
+  /**
+   * @param category - The refusal category Claude reported, if any.
+   * @param results - Every result the read produced, in order.
+   */
+  constructor(category: string | undefined, results: AiCallResult[]) {
+    super(`AI refused to answer${category ? ` (${category})` : ""}`);
+    this.name = "RefusalError";
+    this.category = category;
+    this.summary = summarizeResults(results);
   }
 }
 
@@ -44,10 +63,15 @@ export class UnfinishedReplyError extends Error {
  * Throws when a resolved result stopped for any reason other than finishing.
  * Must run before `result.output` is read, which throws without the reason.
  * @param result - What `generateText` resolved to.
+ * @param earlier - Results of earlier requests in the same read, so their
+ *   tokens still count when this one fails.
  */
-export function assertReplyFinished(result: AiCallResult): void {
+export function assertReplyFinished(
+  result: AiCallResult,
+  earlier: AiCallResult[] = [],
+): void {
   if (result.finishReason && result.finishReason !== "stop") {
-    throw new UnfinishedReplyError(result);
+    throw new UnfinishedReplyError([...earlier, result]);
   }
 }
 
@@ -60,6 +84,8 @@ export interface AiCallSummary {
   /** Network attempts the SDK made; only known when its retries gave up. */
   attempts?: number;
   finishReason?: string;
+  /** Why Claude declined to answer, when it did. */
+  refusalCategory?: string;
   responseModel?: string;
   replyLength?: number;
   /** `path: message` per failed field — never the offending value. */
@@ -96,6 +122,7 @@ const ATTRIBUTE_NAMES: Record<keyof AiCallSummary, string> = {
   errorType: "error.type",
   attempts: "lms.ai.attempts",
   finishReason: "lms.ai.finish_reason",
+  refusalCategory: "lms.ai.refusal_category",
   responseModel: "gen_ai.response.model",
   replyLength: "lms.ai.reply_length",
   validationIssues: "lms.ai.validation_issues",
@@ -170,6 +197,30 @@ function summarizeUsage(usage: LanguageModelUsage | undefined): AiCallSummary {
 }
 
 /**
+ * Summarizes a call that took several requests (a refused read and its
+ * re-read): stop reason and model of the last, token totals of all.
+ * @param results - Every result the call produced, in order.
+ * @returns The last result's summary with summed token fields.
+ */
+export function summarizeResults(results: AiCallResult[]): AiCallSummary {
+  const last = results[results.length - 1];
+  const parts = results.map((result) => summarizeUsage(result.usage));
+  const total = (field: keyof AiCallSummary) =>
+    parts.reduce<number | undefined>((sum, part) => {
+      const value = part[field];
+      return typeof value === "number" ? (sum ?? 0) + value : sum;
+    }, undefined);
+  return {
+    ...summarizeResult(last),
+    inputTokens: total("inputTokens"),
+    outputTokens: total("outputTokens"),
+    reasoningTokens: total("reasoningTokens"),
+    cachedInputTokens: total("cachedInputTokens"),
+    totalTokens: total("totalTokens"),
+  };
+}
+
+/**
  * Summarizes a successful call from the SDK's result.
  * @param result - What `generateText` resolved to.
  * @returns The stop reason, model and token fields of the summary.
@@ -202,25 +253,91 @@ export function summarizeIdMatch(
   };
 }
 
+/** Results of earlier requests, keyed by the error a later request threw. */
+const earlierResultsByError = new WeakMap<object, AiCallResult[]>();
+
+/**
+ * Remembers earlier requests of a read on the error a later request threw, so
+ * the span still counts their tokens. The error itself is not changed.
+ * @param error - What the later request threw.
+ * @param earlier - Results of the requests that came before it.
+ * @returns The same error, to rethrow.
+ */
+export function keepEarlierResults(
+  error: unknown,
+  earlier: AiCallResult[],
+): unknown {
+  if (typeof error === "object" && error !== null) {
+    earlierResultsByError.set(error, earlier);
+  }
+  return error;
+}
+
+/**
+ * Adds the token counts of earlier requests to a failure's summary.
+ * @param summary - The failure's own summary.
+ * @param earlier - Results of requests made before the failing one.
+ * @returns The summary with summed token fields.
+ */
+function addEarlierTokens(
+  summary: AiCallSummary,
+  earlier: AiCallResult[],
+): AiCallSummary {
+  const before = summarizeResults(earlier);
+  const sum = (field: keyof AiCallSummary) => {
+    const a = summary[field];
+    const b = before[field];
+    if (typeof a === "number" && typeof b === "number") return a + b;
+    return typeof a === "number" ? a : b;
+  };
+  return {
+    ...summary,
+    inputTokens: sum("inputTokens") as number | undefined,
+    outputTokens: sum("outputTokens") as number | undefined,
+    reasoningTokens: sum("reasoningTokens") as number | undefined,
+    cachedInputTokens: sum("cachedInputTokens") as number | undefined,
+    totalTokens: sum("totalTokens") as number | undefined,
+  };
+}
+
+/**
+ * Summarizes a failed call, counting the tokens of requests made before it.
+ * @param error - Whatever the call threw.
+ * @returns The failure's summary.
+ */
+function summarizeFailure(error: unknown): AiCallSummary {
+  const summary = summarizeOwnFailure(error);
+  const earlier =
+    typeof error === "object" && error !== null
+      ? earlierResultsByError.get(error)
+      : undefined;
+  return earlier ? addEarlierTokens(summary, earlier) : summary;
+}
+
 /**
  * Summarizes a failed call. A `RetryError` is unwrapped to its last attempt's
  * cause, since the wrapper itself says nothing about what went wrong.
  * @param error - Whatever the call threw.
  * @returns The failure's summary.
  */
-function summarizeFailure(error: unknown): AiCallSummary {
+function summarizeOwnFailure(error: unknown): AiCallSummary {
   if (RetryError.isInstance(error)) {
     return {
       errorType: classifyAiError(error.lastError),
       attempts: error.errors.length,
     };
   }
+  if (error instanceof RefusalError) {
+    return {
+      ...error.summary,
+      errorType: AiErrorType.Refusal,
+      refusalCategory: error.category,
+    };
+  }
   if (error instanceof UnfinishedReplyError) {
     return {
+      ...error.summary,
       errorType: AiErrorType.BadReply,
-      finishReason: error.finishReason,
-      responseModel: error.responseModel,
-      ...summarizeUsage(error.usage),
     };
   }
   if (NoObjectGeneratedError.isInstance(error)) {

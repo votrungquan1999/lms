@@ -17,6 +17,7 @@ Gemini misread document pictures often enough that teachers had to re-attach the
 - `AI_IMPORT_PROVIDER` is `claude` (default when unset or empty) or `gemini`; any other value fails the read with an error naming the setting.
 - The Claude model is `claude-sonnet-5-5` unless `CLAUDE_MODEL_ID` overrides it. Reads get a 240 s limit and a 32K output cap, with no thinking or effort options.
 - Grading stays on Gemini.
+- When Claude declines a read (a safety refusal, any category), the same prompt is sent once to `claude-haiku-4-5` within what is left of the read's 240 s budget; no re-read starts with under 10 s left, when Haiku was already the model, or on Gemini. A second refusal fails the read with the usual message. Anthropic's server-side fallback is never requested. The teacher is not told Haiku read the document; the usage records show it.
 
 ### Every provider request is recorded
 

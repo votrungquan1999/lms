@@ -95,6 +95,54 @@ describe("ImportAiClient provider setting", () => {
   });
 });
 
+describe("ImportAiClient refusal time budget", () => {
+  const refused = {
+    finishReason: "content-filter",
+    providerMetadata: { anthropic: { stopDetails: { category: "bio" } } },
+    usage: {},
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+    generateTextMock.mockReset();
+  });
+
+  it.each([
+    [100_000, 140_000],
+    [235_000, undefined],
+  ])(
+    "after a refusal that took %i ms, re-reads with the %s ms left of the 240 s budget (none when too little is left)",
+    async (elapsedMs, expectedTimeout) => {
+      // Given the first request refuses after taking elapsedMs
+      vi.stubEnv("AI_IMPORT_PROVIDER", "");
+      vi.useFakeTimers({ toFake: ["Date"] });
+      generateTextMock.mockImplementationOnce(async () => {
+        vi.setSystemTime(Date.now() + elapsedMs);
+        return refused;
+      });
+      generateTextMock.mockResolvedValueOnce({
+        finishReason: "stop",
+        usage: {},
+        output: { questions: [] },
+      });
+
+      // When a document is read
+      const read = new ImportAiClient().parseQuestionsFromText("1. An exam");
+
+      // Then the re-read gets only the remaining time, or the read fails with no re-read
+      if (expectedTimeout === undefined) {
+        await expect(read).rejects.toThrow("AI refused to answer");
+        expect(generateTextMock).toHaveBeenCalledTimes(1);
+      } else {
+        await read;
+        expect(generateTextMock.mock.calls[1][0]).toMatchObject({
+          timeout: expectedTimeout,
+        });
+      }
+    },
+  );
+});
+
 describe("ImportAiClient model choice", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

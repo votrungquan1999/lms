@@ -147,19 +147,28 @@ export function geminiModelId(): string {
 }
 
 /**
+ * Builds the Gemini model around a given `fetch`, so its requests are recorded.
+ * @param recordingFetch - The recorder's `fetch`.
+ * @returns The language model to hand to `generateText`.
+ */
+export function geminiModelFor(recordingFetch: typeof fetch) {
+  return createGoogleGenerativeAI({ fetch: recordingFetch })(geminiModelId());
+}
+
+/**
  * Builds the Gemini model for one operation, routed through the request
  * recorder so every HTTP request it sends is traced.
  * @param span - The operation's span, parent of the request spans.
  * @param operation - The operation name stamped on each record.
  * @returns The language model to hand to `generateText`.
  */
-export function geminiModel(span: Span, operation: string) {
+function geminiModel(span: Span, operation: string) {
   const recorder = createAiRequestRecorder({
     span,
     provider: AiProviderName.Gemini,
     operation,
   });
-  return createGoogleGenerativeAI({ fetch: recorder.fetch })(geminiModelId());
+  return geminiModelFor(recorder.fetch);
 }
 
 /**
@@ -167,7 +176,7 @@ export function geminiModel(span: Span, operation: string) {
  * to read; it must stay under Vercel's 300s function limit (Hobby, Fluid
  * compute) so the failure is still recorded.
  */
-export const GEMINI_TIMEOUT_MS = 240_000;
+export const AI_CALL_TIMEOUT_MS = 240_000;
 
 /**
  * Live Gemini-backed `AiClient` implementation.
@@ -205,7 +214,7 @@ export class GeminiAiClient implements AiClient {
         recordAiCall(span, async () => {
           const result = await generateText({
             model: geminiModel(span, "gemini.gradeFreeTextBatch"),
-            timeout: GEMINI_TIMEOUT_MS,
+            timeout: AI_CALL_TIMEOUT_MS,
             output: Output.object({ schema: aiGradeBatchSchema }),
             prompt: buildGradingPrompt(items, opts),
           });

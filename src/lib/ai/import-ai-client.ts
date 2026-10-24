@@ -1,20 +1,28 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { Span } from "@opentelemetry/api";
-import { type FlexibleSchema, generateText, Output } from "ai";
+import {
+  type FlexibleSchema,
+  generateText,
+  Output,
+  type ProviderMetadata,
+} from "ai";
 import {
   assertReplyFinished,
+  keepEarlierResults,
+  RefusalError,
   recordAiCall,
-  summarizeResult,
+  summarizeResults,
 } from "src/lib/ai/ai-call-telemetry";
 import {
-  GEMINI_TIMEOUT_MS,
-  geminiModel,
+  AI_CALL_TIMEOUT_MS,
+  geminiModelFor,
   geminiModelId,
   type ParsedQuestion,
   type QuestionParseClient,
 } from "src/lib/ai/ai-client";
 import {
   AiProviderName,
+  type AiRequestRecorder,
   createAiRequestRecorder,
 } from "src/lib/ai/ai-request-recorder";
 import { separateMarkdownBlocks } from "src/lib/ai/markdown-blocks";
@@ -40,6 +48,15 @@ const DEFAULT_CLAUDE_MODEL_ID = "claude-sonnet-5-5";
 
 /** Output cap that fits a 31-question exam reply with room to spare. */
 const CLAUDE_MAX_OUTPUT_TOKENS = 32_000;
+
+/** Claude model that re-reads a document Sonnet refused. */
+const REREAD_MODEL_ID = "claude-haiku-4-5";
+
+/** Total time one read may take, a refusal's re-read included. */
+const READ_TIME_BUDGET_MS = AI_CALL_TIMEOUT_MS;
+
+/** Below this much remaining budget a re-read cannot finish, so none starts. */
+const MIN_REREAD_MS = 10_000;
 
 /** The `AI_IMPORT_PROVIDER` setting; unset or empty means Claude. */
 const importProviderSchema = z.preprocess(
@@ -108,8 +125,43 @@ function targetAttributes(target: ImportTarget) {
   };
 }
 
-/** What one model call needs: where it traces, what it asks, how it must answer. */
+/** What one model request needs: where it goes, what it asks, how it must answer. */
 interface CallModelOptions<OUTPUT> {
+  provider: ImportProvider;
+  modelId: string;
+  recorder: AiRequestRecorder;
+  timeoutMs: number;
+  schema: FlexibleSchema<OUTPUT>;
+  prompt: string;
+}
+
+/**
+ * Sends one prompt to a model and returns the SDK result untouched, so
+ * post-processing runs once on whatever result is finally accepted.
+ * @param options - The target, recorder, time limit, answer schema and prompt.
+ * @returns The `generateText` result.
+ */
+function callModel<OUTPUT>(options: CallModelOptions<OUTPUT>) {
+  const common = {
+    timeout: options.timeoutMs,
+    output: Output.object({ schema: options.schema }),
+    prompt: options.prompt,
+  };
+  if (options.provider === ImportProvider.Gemini) {
+    return generateText({
+      ...common,
+      model: geminiModelFor(options.recorder.fetch),
+    });
+  }
+  return generateText({
+    ...common,
+    model: createAnthropic({ fetch: options.recorder.fetch })(options.modelId),
+    maxOutputTokens: CLAUDE_MAX_OUTPUT_TOKENS,
+  });
+}
+
+/** What one document read needs, before a model is chosen for each attempt. */
+interface ReadModelOptions<OUTPUT> {
   target: ImportTarget;
   span: Span;
   operation: string;
@@ -117,34 +169,82 @@ interface CallModelOptions<OUTPUT> {
   prompt: string;
 }
 
+/** The accepted result of a read and every result the read produced. */
+interface ModelRead<RESULT> {
+  result: RESULT;
+  results: RESULT[];
+}
+
 /**
- * Sends one prompt to the import model and returns the SDK result untouched,
- * so post-processing runs once on whatever result is finally accepted.
- * @param options - The span, operation, answer schema and prompt.
- * @returns The `generateText` result.
+ * Reads with the chosen model; a Claude refusal is read once more on Haiku
+ * within what is left of the read's time budget.
+ * @param options - The target, span, operation, answer schema and prompt.
+ * @returns The accepted result plus every result, for token totals.
+ * @throws RefusalError when the model refuses and no re-read can follow.
  */
-function callModel<OUTPUT>(options: CallModelOptions<OUTPUT>) {
-  const common = {
-    timeout: GEMINI_TIMEOUT_MS,
-    output: Output.object({ schema: options.schema }),
-    prompt: options.prompt,
-  };
-  if (options.target.provider === ImportProvider.Gemini) {
-    return generateText({
-      ...common,
-      model: geminiModel(options.span, options.operation),
-    });
-  }
+async function readModel<OUTPUT>(options: ReadModelOptions<OUTPUT>) {
+  const { target } = options;
+  const startedAt = Date.now();
   const recorder = createAiRequestRecorder({
     span: options.span,
-    provider: AiProviderName.Anthropic,
+    provider: target.providerName,
     operation: options.operation,
   });
-  return generateText({
-    ...common,
-    model: createAnthropic({ fetch: recorder.fetch })(options.target.modelId),
-    maxOutputTokens: CLAUDE_MAX_OUTPUT_TOKENS,
+  const request = {
+    schema: options.schema,
+    prompt: options.prompt,
+  };
+  const first = await callModel({
+    ...request,
+    provider: target.provider,
+    modelId: target.modelId,
+    recorder,
+    timeoutMs: READ_TIME_BUDGET_MS,
   });
+  const isClaude = target.provider === ImportProvider.Claude;
+  if (!isClaude || first.finishReason !== "content-filter") {
+    assertReplyFinished(first);
+    return { result: first, results: [first] } satisfies ModelRead<
+      typeof first
+    >;
+  }
+
+  // Claude refused: one re-read on another model, if time and model allow.
+  const remainingMs = READ_TIME_BUDGET_MS - (Date.now() - startedAt);
+  if (target.modelId === REREAD_MODEL_ID || remainingMs < MIN_REREAD_MS) {
+    throw new RefusalError(refusalCategory(first), [first]);
+  }
+  const second = await callModel({
+    ...request,
+    provider: target.provider,
+    modelId: REREAD_MODEL_ID,
+    recorder: recorder.withReason("refusal_retry"),
+    timeoutMs: remainingMs,
+  }).catch((error: unknown) => {
+    // The refused request was paid for, so the span keeps its tokens.
+    throw keepEarlierResults(error, [first]);
+  });
+  if (second.finishReason === "content-filter") {
+    throw new RefusalError(refusalCategory(second), [first, second]);
+  }
+  assertReplyFinished(second, [first]);
+  return {
+    result: second,
+    results: [first, second],
+  } satisfies ModelRead<typeof second>;
+}
+
+/**
+ * Reads the refusal category Claude reported on a refused result.
+ * @param result - A result that finished with `content-filter`.
+ * @returns The category, when Claude named one.
+ */
+function refusalCategory(result: {
+  providerMetadata?: ProviderMetadata;
+}): string | undefined {
+  const details = result.providerMetadata?.anthropic?.stopDetails;
+  const category = (details as { category?: unknown } | undefined)?.category;
+  return typeof category === "string" ? category : undefined;
 }
 
 /**
@@ -172,7 +272,7 @@ export class ImportAiClient implements QuestionParseClient {
       },
       (span) =>
         recordAiCall(span, async () => {
-          const result = await callModel({
+          const { result, results } = await readModel({
             span,
             target,
             operation: "import.parseQuestionsFromText",
@@ -180,7 +280,6 @@ export class ImportAiClient implements QuestionParseClient {
             prompt: buildQuestionImportPrompt(documentText),
           });
 
-          assertReplyFinished(result);
           const parsed = result.output;
           return {
             value: parsed.questions.map((q) => ({
@@ -193,7 +292,7 @@ export class ImportAiClient implements QuestionParseClient {
               imageNumbers: q.imageNumbers,
             })),
             summary: {
-              ...summarizeResult(result),
+              ...summarizeResults(results),
               questionsReturned: parsed.questions.length,
             },
           };
@@ -224,7 +323,7 @@ export class ImportAiClient implements QuestionParseClient {
       },
       (span) =>
         recordAiCall(span, async () => {
-          const result = await callModel({
+          const { result, results } = await readModel({
             span,
             target,
             operation: "import.retryQuestion",
@@ -236,7 +335,6 @@ export class ImportAiClient implements QuestionParseClient {
             ),
           });
 
-          assertReplyFinished(result);
           const parsed = result.output;
           return {
             value: {
@@ -248,7 +346,7 @@ export class ImportAiClient implements QuestionParseClient {
               explanation: parsed.question.explanation,
               imageNumbers: parsed.question.imageNumbers,
             },
-            summary: summarizeResult(result),
+            summary: summarizeResults(results),
           };
         }),
     );
