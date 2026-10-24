@@ -51,6 +51,7 @@ import {
   useQuestionEditActions,
   useQuestionEditState,
 } from "./question-edit.state";
+import { UnusedPictures } from "./unused-pictures.ui";
 
 /**
  * File picker for the document to import; shows an error if unusable.
@@ -153,9 +154,18 @@ function ReviewScreen({
       <StudentViewToggle
         view={view}
         onViewChange={setView}
-        teacherView={questions.map((question, index) => (
-          <QuestionCard key={question.id} question={question} index={index} />
-        ))}
+        teacherView={
+          <>
+            <UnusedPictures />
+            {questions.map((question, index) => (
+              <QuestionCard
+                key={question.id}
+                question={question}
+                index={index}
+              />
+            ))}
+          </>
+        }
         studentView={
           <StudentViewList
             questions={toStudentCards(questions, pictures, firstQuestionNumber)}
