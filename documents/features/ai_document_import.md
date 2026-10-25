@@ -47,7 +47,7 @@ This feature lets a teacher upload a `.docx` or `.pdf`, have an AI extract the q
 - [x] Append adds the reviewed questions after the existing ones, in review order, leaving existing questions untouched
 - [x] Replace deletes the test's current questions first, then inserts the reviewed set; validation still completes before any delete
 - [x] Replace requires the teacher to **type** a confirmation word before proceeding — a click alone is not enough
-- [x] The replace warning states the real consequences: a student who explicitly submitted **stays Graded**; a student who was implicitly submitted **may** return to In Progress, and only when the replacement set is longer than the number of questions they had answered; every previously graded student's average **reads 0%** until the new questions are answered and graded, because the average scores an ungraded question as zero
+- [x] The replace warning is short: it says how many questions it deletes (left out when the test has none) and how many reviewed questions it adds; when students have already answered it says their answers to the old questions won't count, their scores show 0% until the new questions are graded, and some may show as In Progress again; and, only then, it suggests creating a new test to keep existing scores
 
 ## Known Limitations
 

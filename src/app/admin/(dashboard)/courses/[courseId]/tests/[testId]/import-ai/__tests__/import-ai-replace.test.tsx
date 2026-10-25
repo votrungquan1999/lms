@@ -35,58 +35,67 @@ function makeDocxFile(): File {
   });
 }
 
+/**
+ * Reviews the given number of questions in Replace mode and opens the confirmation.
+ * @param counts - What the page knows about the test: its questions and answering students.
+ * @param reviewed - How many questions the AI returns.
+ */
+async function openReplaceDialog(
+  user: ReturnType<typeof userEvent.setup>,
+  counts: { existing: number; answered: number },
+  reviewed: number,
+): Promise<void> {
+  vi.mocked(extractDocx).mockResolvedValue({ text: "doc", pictures: [] });
+  vi.mocked(parseQuestionsAction).mockResolvedValue({
+    success: true,
+    message: `Extracted ${reviewed} question(s)`,
+    questions: Array.from({ length: reviewed }, (_, i) => ({
+      title: `Q${i + 1}`,
+      content: "Explain photosynthesis.",
+      type: "free_text" as const,
+    })),
+  });
+  render(
+    <ImportAiProvider>
+      <ImportAiFilePicker />
+      <QuestionPreviewList
+        testId="test-1"
+        courseId="course-1"
+        existingQuestionCount={counts.existing}
+        answeredStudentCount={counts.answered}
+      />
+    </ImportAiProvider>,
+  );
+  await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
+  await screen.findByText("Q1");
+  await user.click(screen.getByRole("radio", { name: /replace/i }));
+  await user.click(
+    screen.getByRole("button", { name: /^replace questions$/i }),
+  );
+}
+
 describe("Feature: AI document import — replacing a test's questions warns and requires typed confirmation", () => {
-  it('keeps Replace disabled until the teacher types "override", names the CORRECTED consequence, and sends mode: replace on confirm', async () => {
+  it('keeps Replace disabled until the teacher types "override", states what it deletes and adds and what happens to students who answered, and sends mode: replace on confirm', async () => {
     const user = userEvent.setup();
-    vi.mocked(extractDocx).mockResolvedValue({
-      text: "1. Explain photosynthesis.",
-      pictures: [],
-    });
-    vi.mocked(parseQuestionsAction).mockResolvedValue({
-      success: true,
-      message: "Extracted 1 question(s)",
-      questions: [
-        { title: "Q1", content: "Explain photosynthesis.", type: "free_text" },
-      ],
-    });
     vi.mocked(importAiQuestionsAction).mockResolvedValue({
       success: true,
-      message: "Imported 1 question(s)",
-      importedCount: 1,
+      message: "Imported 2 question(s)",
+      importedCount: 2,
     });
-
-    render(
-      <ImportAiProvider>
-        <ImportAiFilePicker />
-        <QuestionPreviewList
-          testId="test-1"
-          courseId="course-1"
-          existingQuestionCount={3}
-          answeredStudentCount={2}
-        />
-      </ImportAiProvider>,
-    );
-
-    await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("radio", { name: /replace/i }));
-    await user.click(
-      screen.getByRole("button", { name: /^replace questions$/i }),
-    );
-    // Opening the confirm dialog must not itself fire the import — a
-    // double-fire mutant here was previously caught only incidentally.
+    await openReplaceDialog(user, { existing: 3, answered: 2 }, 2);
+    // Opening the confirm dialog must not itself fire the import.
     expect(importAiQuestionsAction).not.toHaveBeenCalled();
 
-    // D43's CORRECTED wording — an explicitly-submitted student stays
-    // Graded; only an implicitly-submitted one may drop to In Progress.
-    expect(await screen.findByText(/stays graded/i)).toBeInTheDocument();
+    // The counts come from props and the live list, so different numbers prove each is used.
+    expect(
+      await screen.findByText(
+        /deletes the test's 3 questions and adds the 2 reviewed questions/i,
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText(/in progress/i)).toBeInTheDocument();
     expect(screen.getByText(/0%/)).toBeInTheDocument();
-    // D71's "At least" qualifier and the existing-question count are
-    // passed-through props — assert them so dropping either is visible.
     expect(screen.getByText(/at least 2 students/i)).toBeInTheDocument();
-    expect(screen.getByText(/3 questions/i)).toBeInTheDocument();
+    expect(screen.getByText(/create a new test/i)).toBeInTheDocument();
 
     const confirmInput = screen.getByLabelText(/type.*override.*to confirm/i);
     const confirmButton = screen.getByRole("button", {
@@ -109,11 +118,61 @@ describe("Feature: AI document import — replacing a test's questions warns and
     expect(importAiQuestionsAction).toHaveBeenCalledWith(
       "test-1",
       "course-1",
-      expect.arrayContaining([
-        expect.objectContaining({ title: "Q1", type: "free_text" }),
-      ]),
+      expect.anything(),
       "replace",
     );
+    const [, , drafts] = vi.mocked(importAiQuestionsAction).mock.calls[0];
+    expect(drafts).toHaveLength(2);
     expect(push).toHaveBeenCalledWith("/admin/courses/course-1/tests/test-1");
+  });
+
+  it("accepts the phrase with surrounding spaces and any capitalisation", async () => {
+    const user = userEvent.setup();
+    await openReplaceDialog(user, { existing: 3, answered: 0 }, 2);
+
+    await user.type(
+      await screen.findByLabelText(/type.*override.*to confirm/i),
+      " Override ",
+    );
+
+    expect(
+      screen.getByRole("button", { name: /^yes, replace$/i }),
+    ).toBeEnabled();
+  });
+
+  it("leaves out the student sentence and the new-test suggestion when nobody has answered yet", async () => {
+    const user = userEvent.setup();
+    await openReplaceDialog(user, { existing: 3, answered: 0 }, 2);
+
+    expect(
+      await screen.findByText(/deletes the test's 3 questions/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/already answered/i)).toBeNull();
+    expect(screen.queryByText(/create a new test/i)).toBeNull();
+  });
+
+  it("drops the deletes clause when the test has no questions", async () => {
+    const user = userEvent.setup();
+    await openReplaceDialog(user, { existing: 0, answered: 0 }, 2);
+
+    expect(
+      await screen.findByText("This adds the 2 reviewed questions."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/deletes/i)).toBeNull();
+    expect(screen.queryByText(/create a new test/i)).toBeNull();
+  });
+
+  it("uses singular wording for one question and one student", async () => {
+    const user = userEvent.setup();
+    await openReplaceDialog(user, { existing: 1, answered: 1 }, 1);
+
+    expect(
+      await screen.findByText(
+        "This deletes the test's 1 question and adds the 1 reviewed question.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/at least 1 student already answered/i),
+    ).toBeInTheDocument();
   });
 });

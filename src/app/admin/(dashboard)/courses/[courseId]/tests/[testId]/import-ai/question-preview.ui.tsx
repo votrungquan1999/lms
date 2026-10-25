@@ -520,8 +520,8 @@ function ImportModeSelector(): React.ReactNode {
 /**
  * Writes the reviewed list onto the test and returns the teacher to the
  * test's admin page on success. In REPLACE mode, clicking opens
- * `ReplaceConfirmDialog` (D45) instead of writing immediately.
- * `importAiQuestionsAction`'s per-question rejection (Step 18) surfaces on
+ * `ReplaceConfirmDialog` instead of writing immediately.
+ * `importAiQuestionsAction`'s per-question rejection surfaces on
  * the offending `QuestionCard` via `question.importError`; here it shows only
  * in Student view, where that card is hidden.
  */
@@ -617,6 +617,7 @@ function ImportQuestionsButton({
         open={isConfirmOpen}
         onOpenChange={setIsConfirmOpen}
         existingQuestionCount={existingQuestionCount}
+        reviewedCount={questions.length}
         answeredStudentCount={answeredStudentCount}
         isPending={isImporting}
         onConfirm={async () => {
@@ -631,16 +632,10 @@ function ImportQuestionsButton({
 }
 
 /**
- * D45's REPLACE confirmation: names what will be stranded, suggests a
- * separate test instead, and requires TYPING "override" — a click alone is
- * not enough, the friction is the point. D33/D43: when the test's current
- * questions have already been answered, the wording states the CORRECTED
- * consequence — an explicitly-submitted student stays Graded; only a
- * student who reached Submitted implicitly (by answering every question)
- * MAY show as In Progress again (orphaned answers still count toward
- * `totalQuestions`, so a shorter replacement list can still leave them at
- * Submitted) — and `getAverageScore` reads every ungraded live question as
- * 0, so their score reads 0% until the new questions are graded.
+ * The REPLACE confirmation: says what the import deletes and adds, what
+ * happens to students who already answered, and — only when some have —
+ * that a new test keeps existing scores. The teacher must TYPE "override" —
+ * a click alone is not enough, the friction is the point.
  * `AlertDialogAction` auto-closes on click (it wraps Radix's `Dialog.Close`),
  * so `handleConfirm` below calls `preventDefault()` before awaiting the
  * import — without it the dialog closes before `isPending` ever renders.
@@ -649,6 +644,7 @@ function ReplaceConfirmDialog({
   open,
   onOpenChange,
   existingQuestionCount,
+  reviewedCount,
   answeredStudentCount,
   isPending,
   onConfirm,
@@ -656,12 +652,15 @@ function ReplaceConfirmDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   existingQuestionCount: number;
+  /** How many reviewed questions the import adds. */
+  reviewedCount: number;
   answeredStudentCount: number;
   isPending: boolean;
   onConfirm: () => Promise<void>;
 }): React.ReactNode {
   const [confirmText, setConfirmText] = useState("");
   const canConfirm = confirmText.trim().toLowerCase() === "override";
+  const reviewedPhrase = `${reviewedCount} reviewed question${reviewedCount === 1 ? "" : "s"}`;
 
   async function handleConfirm(
     event: React.MouseEvent<HTMLButtonElement>,
@@ -686,27 +685,19 @@ function ReplaceConfirmDialog({
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">
-              {existingQuestionCount > 0 && (
-                <p>
-                  This permanently removes the {existingQuestionCount} question
-                  {existingQuestionCount === 1 ? "" : "s"} currently on this
-                  test before adding the reviewed ones. Consider creating a
-                  separate test instead so existing scores are not lost.
-                </p>
-              )}
+              <p>
+                {existingQuestionCount > 0
+                  ? `This deletes the test's ${existingQuestionCount} question${existingQuestionCount === 1 ? "" : "s"} and adds the ${reviewedPhrase}.`
+                  : `This adds the ${reviewedPhrase}.`}
+              </p>
               {answeredStudentCount > 0 && (
                 <p>
                   At least {answeredStudentCount} student
-                  {answeredStudentCount === 1 ? " has" : "s have"} already
-                  answered questions on this test. Removing those questions
-                  strands their answers — the change log keeps only the removed
-                  question&rsquo;s own content and how many students answered
-                  it, not what any student actually submitted — and changes
-                  affected students&rsquo; overall scores: their scores will
-                  read 0% until the new questions are answered and graded. A
-                  student who reached Submitted only by answering every question
-                  may show as In Progress again; a student who explicitly
-                  submitted the test stays Graded.
+                  {answeredStudentCount === 1 ? "" : "s"} already answered:
+                  their answers to the old questions won&rsquo;t count, their
+                  scores show 0% until the new questions are graded, and some
+                  may show as In Progress again. To keep existing scores, create
+                  a new test instead.
                 </p>
               )}
             </div>
