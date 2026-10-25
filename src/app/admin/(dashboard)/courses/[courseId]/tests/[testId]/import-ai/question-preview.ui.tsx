@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import type { StudentCardQuestion } from "src/components/student-question-card.ui";
@@ -58,7 +59,8 @@ import { UnusedPictures } from "./unused-pictures.ui";
  * File picker for the document to import; shows an error if unusable.
  */
 export function ImportAiFilePicker(): React.ReactNode {
-  const { selectFile, error, isBusy } = useImportAi();
+  const { selectFile, error, isBusy, isReading, readingFileName, questions } =
+    useImportAi();
 
   return (
     <div className="space-y-3">
@@ -73,6 +75,14 @@ export function ImportAiFilePicker(): React.ReactNode {
           if (file) selectFile(file);
         }}
       />
+      {isReading && (
+        <output className="flex items-center gap-2 text-sm">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Reading {readingFileName}…
+          {questions.length > 0 &&
+            " The list below is from your previous file."}
+        </output>
+      )}
       {error && (
         <div
           className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
@@ -140,7 +150,7 @@ function ReviewScreen({
   answeredStudentCount: number;
   highestExistingQuestionNumber: number;
 }): React.ReactNode {
-  const { questions, pictures, mode } = useImportAi();
+  const { questions, pictures, mode, isReading } = useImportAi();
   // The server numbers new questions after the highest live one, not the
   // count; replacing removes them all first, so numbering restarts at 1.
   const firstQuestionNumber =
@@ -156,7 +166,11 @@ function ReviewScreen({
         view={view}
         onViewChange={setView}
         teacherView={
-          <>
+          // Dimmed while a new file is read, since its answer replaces this list.
+          <div
+            aria-busy={isReading}
+            className={isReading ? "space-y-3 opacity-50" : "space-y-3"}
+          >
             <UnusedPictures />
             {questions.map((question, index) => (
               <QuestionCard
@@ -165,12 +179,21 @@ function ReviewScreen({
                 index={index}
               />
             ))}
-          </>
+          </div>
         }
         studentView={
-          <StudentViewList
-            questions={toStudentCards(questions, pictures, firstQuestionNumber)}
-          />
+          <div
+            aria-busy={isReading}
+            className={isReading ? "opacity-50" : undefined}
+          >
+            <StudentViewList
+              questions={toStudentCards(
+                questions,
+                pictures,
+                firstQuestionNumber,
+              )}
+            />
+          </div>
         }
       />
       <ImportModeSelector />
@@ -222,13 +245,14 @@ function toStudentCards(
 
 /** D37: lets the teacher choose APPEND (default) or REPLACE before importing. */
 function ImportModeSelector(): React.ReactNode {
-  const { mode, setMode } = useImportAi();
+  const { mode, setMode, isBusy } = useImportAi();
 
   return (
     <div className="space-y-1">
       <Label>When importing</Label>
       <RadioGroup
         value={mode}
+        disabled={isBusy}
         onValueChange={(value) => setMode(value as ImportMode)}
       >
         <div className="flex items-center gap-2">
@@ -277,6 +301,7 @@ function ImportQuestionsButton({
     mode,
     importQuestions,
     isBusy,
+    isImporting,
     importFailureMessage,
     questions,
     retryingIds,
@@ -310,7 +335,7 @@ function ImportQuestionsButton({
           mode === "replace" ? setIsConfirmOpen(true) : runImport()
         }
       >
-        {isBusy
+        {isImporting
           ? "Importing…"
           : mode === "replace"
             ? "Replace questions"
@@ -329,7 +354,7 @@ function ImportQuestionsButton({
         onOpenChange={setIsConfirmOpen}
         existingQuestionCount={existingQuestionCount}
         answeredStudentCount={answeredStudentCount}
-        isPending={isBusy}
+        isPending={isImporting}
         onConfirm={async () => {
           // Closes only after the import resolves — see the dialog's own
           // preventDefault note for why closing early made isPending dead.
@@ -460,7 +485,7 @@ function QuestionCard({
   question: ImportQuestionDraft;
   index: number;
 }): React.ReactNode {
-  const { updateQuestion, pictures } = useImportAi();
+  const { updateQuestion, pictures, isReading } = useImportAi();
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing) {
@@ -511,6 +536,7 @@ function QuestionCard({
               type="button"
               variant="outline"
               size="sm"
+              disabled={isReading}
               onClick={() => setIsEditing(true)}
             >
               Edit
@@ -739,6 +765,8 @@ function QuestionEditFields({
   onCancel: () => void;
 }): React.ReactNode {
   const draft = useQuestionEditState();
+  // Locked while a new file is read, since its answer replaces this card; the typed text stays.
+  const { isReading } = useImportAi();
   const {
     setTitle,
     setContent,
@@ -763,6 +791,7 @@ function QuestionEditFields({
         <Input
           id={titleId}
           value={draft.title}
+          disabled={isReading}
           onChange={(e) => setTitle(e.target.value)}
         />
       </div>
@@ -771,6 +800,7 @@ function QuestionEditFields({
         <Textarea
           id={contentId}
           value={draft.content}
+          disabled={isReading}
           onChange={(e) => setContent(e.target.value)}
         />
       </div>
@@ -784,6 +814,7 @@ function QuestionEditFields({
             <Textarea
               id={referenceAnswerId}
               value={draft.referenceAnswer ?? ""}
+              disabled={isReading}
               onChange={(e) => setReferenceAnswer(e.target.value)}
             />
           </div>
@@ -795,6 +826,7 @@ function QuestionEditFields({
             <Textarea
               id={explanationId}
               value={draft.explanation ?? ""}
+              disabled={isReading}
               onChange={(e) => setExplanation(e.target.value)}
             />
           </div>
@@ -809,11 +841,13 @@ function QuestionEditFields({
               <input
                 type={draft.type === "single_select" ? "radio" : "checkbox"}
                 checked={option.isCorrect}
+                disabled={isReading}
                 onChange={() => toggleOptionCorrect(idx)}
                 aria-label={`Mark option ${idx + 1} correct`}
               />
               <Input
                 value={option.text}
+                disabled={isReading}
                 onChange={(e) => setOptionText(idx, e.target.value)}
                 aria-label={`Option ${idx + 1} text`}
                 className="flex-1"
@@ -826,7 +860,12 @@ function QuestionEditFields({
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="button" size="sm" onClick={() => onSave(draft)}>
+        <Button
+          type="button"
+          size="sm"
+          disabled={isReading}
+          onClick={() => onSave(draft)}
+        >
           Save
         </Button>
       </div>

@@ -64,13 +64,18 @@ export function picturesOf(
   );
 }
 
+/** What the screen is waiting on: nothing, the AI reading a file, or the import writing. */
+type ImportPhase = "idle" | "reading" | "importing";
+
 interface ImportAiState {
   documentText: string;
   /** Every picture the document had, keyed by its `[image N]` number. */
   pictures: ReviewPicture[];
   questions: ImportQuestionDraft[];
   error: string | null;
-  isBusy: boolean;
+  phase: ImportPhase;
+  /** The file being read, since the file input is cleared on every pick. */
+  readingFileName: string | null;
   /** An import rejection with no specific offending question to attach to (e.g. an auth failure). */
   importFailureMessage: string | null;
   /** D37: APPEND (default) or REPLACE (Step 34) — chosen before Import runs. */
@@ -80,7 +85,7 @@ interface ImportAiState {
 }
 
 type ImportAiAction =
-  | { type: "BUSY" }
+  | { type: "READ_START"; fileName: string }
   | { type: "ERROR"; message: string }
   | {
       type: "PARSED_READY";
@@ -111,7 +116,8 @@ const initialState: ImportAiState = {
   pictures: [],
   questions: [],
   error: null,
-  isBusy: false,
+  phase: "idle",
+  readingFileName: null,
   importFailureMessage: null,
   mode: "append",
   retryingIds: [],
@@ -129,14 +135,19 @@ function importAiReducer(
   action: ImportAiAction,
 ): ImportAiState {
   switch (action.type) {
-    case "BUSY":
-      return { ...state, isBusy: true, error: null };
+    case "READ_START":
+      return {
+        ...state,
+        phase: "reading",
+        readingFileName: action.fileName,
+        error: null,
+      };
     case "ERROR":
       return { ...initialState, error: action.message };
     case "PARSED_READY":
       return {
         ...state,
-        isBusy: false,
+        phase: "idle",
         documentText: action.documentText,
         pictures: action.pictures,
         questions: action.questions,
@@ -154,7 +165,7 @@ function importAiReducer(
       // Clears any stale rejection from a prior attempt before this one runs.
       return {
         ...state,
-        isBusy: true,
+        phase: "importing",
         importFailureMessage: null,
         questions: state.questions.map((q) => ({
           ...q,
@@ -165,7 +176,7 @@ function importAiReducer(
     case "IMPORT_FAILED":
       return {
         ...state,
-        isBusy: false,
+        phase: "idle",
         importFailureMessage: action.questionId ? null : action.message,
         questions: action.questionId
           ? state.questions.map((q) =>
@@ -200,6 +211,10 @@ function importAiReducer(
 }
 
 interface ImportAiContextValue extends ImportAiState {
+  /** A file is being read or the import is writing. */
+  isBusy: boolean;
+  isReading: boolean;
+  isImporting: boolean;
   selectFile: (file: File) => Promise<void>;
   updateQuestion: (
     id: string,
@@ -341,7 +356,7 @@ export function ImportAiProvider({
       return;
     }
 
-    dispatch({ type: "BUSY" });
+    dispatch({ type: "READ_START", fileName: file.name });
     const fileType =
       extension === "docx" ? DocumentFileType.Docx : DocumentFileType.Pdf;
 
@@ -555,6 +570,9 @@ export function ImportAiProvider({
 
   const value: ImportAiContextValue = {
     ...state,
+    isBusy: state.phase !== "idle",
+    isReading: state.phase === "reading",
+    isImporting: state.phase === "importing",
     selectFile,
     updateQuestion: (id, patch) =>
       dispatch({ type: "UPDATE_QUESTION", id, patch }),
