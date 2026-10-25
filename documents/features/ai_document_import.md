@@ -34,6 +34,7 @@ This feature lets a teacher upload a `.docx` or `.pdf`, have an AI extract the q
 - [x] A multiple-choice question can arrive with **no correct option marked**; it still imports, flagged "Needs an answer key" in the admin question list until the teacher fixes it
 - [x] A multiple-choice question that arrives with **fewer than two options** gets its own "Needs answer options" flag instead
 - [x] The two flags are mutually exclusive — a question with no options cannot meaningfully be missing its answer key
+- [x] Before import, a multiple-choice card warns "No correct answer marked" or "Needs at least 2 choices" (never both), and the question can still be imported
 
 ### Admin — Importing
 

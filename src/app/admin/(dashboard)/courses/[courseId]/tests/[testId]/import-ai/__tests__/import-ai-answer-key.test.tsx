@@ -195,3 +195,99 @@ describe("Feature: AI document import — a card shows the model answer and expl
     expect(drafts[0].explanation).toBe("Only 1 and 7 divide seven.");
   });
 });
+
+describe("Feature: AI document import — a multiple-choice card warns when its answer key is incomplete", () => {
+  const NONE_CORRECT = [
+    { text: "4", isCorrect: false },
+    { text: "7", isCorrect: false },
+  ];
+
+  it("shows 'No correct answer marked' on a single-select card with no correct choice, as a plain badge", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ ...MULTIPLE_CHOICE, options: NONE_CORRECT }]);
+
+    const card = within(questionCard("Prime"));
+
+    expect(card.getByText("No correct answer marked")).toBeInTheDocument();
+    expect(card.queryByRole("alert")).toBeNull();
+  });
+
+  it("shows only 'Needs at least 2 choices' on a card with a single choice, even when none is correct", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [
+      { ...MULTIPLE_CHOICE, options: [{ text: "7", isCorrect: false }] },
+    ]);
+
+    const card = within(questionCard("Prime"));
+
+    expect(card.getByText("Needs at least 2 choices")).toBeInTheDocument();
+    expect(card.queryByText("No correct answer marked")).toBeNull();
+  });
+
+  it("shows no warning on a card with a correct choice", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [MULTIPLE_CHOICE]);
+
+    const card = within(questionCard("Prime"));
+
+    expect(card.queryByText("No correct answer marked")).toBeNull();
+    expect(card.queryByText("Needs at least 2 choices")).toBeNull();
+  });
+
+  it("shows 'No correct answer marked' on a multi-select card with no correct choice", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [
+      { ...MULTIPLE_CHOICE, type: "multi_select", options: NONE_CORRECT },
+    ]);
+
+    expect(
+      within(questionCard("Prime")).getByText("No correct answer marked"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows 'Needs at least 2 choices' on a card the AI returned without any choices", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ ...MULTIPLE_CHOICE, options: undefined }]);
+
+    const card = within(questionCard("Prime"));
+
+    expect(card.getByText("Needs at least 2 choices")).toBeInTheDocument();
+    expect(card.queryByText("No correct answer marked")).toBeNull();
+  });
+
+  it("shows no warning on a free-text card", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [FREE_TEXT]);
+
+    const card = within(questionCard("Photosynthesis"));
+
+    expect(card.queryByText("No correct answer marked")).toBeNull();
+    expect(card.queryByText("Needs at least 2 choices")).toBeNull();
+  });
+
+  it("warns after the teacher removes the only correct choice and saves, and import still sends the question", async () => {
+    const user = userEvent.setup();
+    vi.mocked(importAiQuestionsAction).mockReturnValue(new Promise(() => {}));
+    await uploadDocument(user, [
+      {
+        ...MULTIPLE_CHOICE,
+        options: [
+          { text: "4", isCorrect: false },
+          { text: "7", isCorrect: true },
+          { text: "9", isCorrect: false },
+        ],
+      },
+    ]);
+    await user.click(screen.getByRole("button", { name: /^edit$/i }));
+    await user.click(screen.getByRole("button", { name: "Remove choice 2" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      within(questionCard("Prime")).getByText("No correct answer marked"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+    await waitFor(() => expect(importAiQuestionsAction).toHaveBeenCalled());
+    const [, , drafts] = vi.mocked(importAiQuestionsAction).mock.calls[0];
+    expect(drafts).toHaveLength(1);
+  });
+});

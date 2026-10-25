@@ -793,6 +793,8 @@ function QuestionCard({
     );
   }
 
+  const warning = answerKeyWarning(question);
+
   return (
     <Card id={cardDomId(question.id)} tabIndex={-1}>
       <CardHeader className="pb-2">
@@ -805,6 +807,7 @@ function QuestionCard({
             <Badge variant="outline">
               {QUESTION_TYPE_LABELS[question.type]}
             </Badge>
+            {warning && <Badge variant="destructive">{warning}</Badge>}
             <RetryQuestionDialog question={question} />
             <Button
               type="button"
@@ -883,6 +886,23 @@ function QuestionCard({
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * The warning a multiple-choice card shows when its answer key is incomplete,
+ * following the saved-test list's rules (`question-list.tsx`); the question can
+ * still be imported.
+ * @param question - The draft to check.
+ */
+function answerKeyWarning(question: ImportQuestionDraft): string | null {
+  if (question.type === "free_text") return null;
+  const options = question.options ?? [];
+  // Too few choices wins, since marking an answer cannot fix it.
+  if (options.length < 2) return "Needs at least 2 choices";
+  if (options.every((option) => !option.isCorrect)) {
+    return "No correct answer marked";
+  }
+  return null;
 }
 
 /**
