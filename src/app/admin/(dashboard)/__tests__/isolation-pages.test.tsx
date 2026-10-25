@@ -31,6 +31,8 @@ import PoolDetailPage from "../pools/[poolId]/page";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/navigation", () => ({
+  // The import breadcrumb's leave-guarded link reads the router.
+  useRouter: vi.fn(() => ({ push: vi.fn() })),
   notFound: vi.fn(() => {
     throw new Error("not found called");
   }),

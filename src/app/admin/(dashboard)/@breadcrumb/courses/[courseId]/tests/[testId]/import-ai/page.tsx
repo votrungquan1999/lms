@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { GuardedLink } from "src/app/admin/(dashboard)/guarded-link";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -33,23 +33,23 @@ export default async function ImportAiBreadcrumb({
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link href="/admin/courses">Courses</Link>
+            <GuardedLink href="/admin/courses">Courses</GuardedLink>
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link href={`/admin/courses/${courseId}`}>
+            <GuardedLink href={`/admin/courses/${courseId}`}>
               {course?.title ?? "Course"}
-            </Link>
+            </GuardedLink>
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link href={`/admin/courses/${courseId}/tests/${testId}`}>
+            <GuardedLink href={`/admin/courses/${courseId}/tests/${testId}`}>
               {test?.title ?? "Test"}
-            </Link>
+            </GuardedLink>
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />

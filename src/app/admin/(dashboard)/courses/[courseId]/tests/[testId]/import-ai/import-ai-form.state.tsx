@@ -8,6 +8,7 @@ import {
   useReducer,
   useRef,
 } from "react";
+import { useLeaveGuard } from "src/app/admin/(dashboard)/leave-guard.state";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
 import {
   AI_FAILURE_MESSAGES,
@@ -671,6 +672,13 @@ export function ImportAiProvider({
 
   const hasWorkOnScreen =
     state.phase === "reading" || state.questions.length > 0;
+
+  // Lets the admin layout's links and Sign Out ask before leaving.
+  const { setHasWork } = useLeaveGuard();
+  useEffect(() => {
+    setHasWork(hasWorkOnScreen, state.phase);
+    return () => setHasWork(false);
+  }, [hasWorkOnScreen, state.phase, setHasWork]);
 
   // Keyed on the boolean so the listener isn't re-added on every edit.
   useEffect(() => {

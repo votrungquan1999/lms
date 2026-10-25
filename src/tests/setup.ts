@@ -12,6 +12,21 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
+// jsdom has no matchMedia; the sidebar's mobile hook reads it on mount.
+if (typeof window !== "undefined" && !window.matchMedia) {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList;
+}
+
 // Test runs never reach a real AI provider: the environment is hardened and a
 // fetch guard rejects provider hosts.
 hardenAiEnvironment();

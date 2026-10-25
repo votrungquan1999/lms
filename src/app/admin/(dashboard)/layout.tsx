@@ -9,6 +9,7 @@ import { TooltipProvider } from "src/components/ui/tooltip";
 import { getAuthService } from "src/lib/auth-singleton";
 import { getPageGuard, getSchoolService } from "src/lib/services-singleton";
 import { AdminSidebar } from "./admin-sidebar";
+import { LeaveGuardProvider } from "./leave-guard.state";
 
 export default async function AdminDashboardLayout({
   children,
@@ -35,25 +36,27 @@ export default async function AdminDashboardLayout({
   );
 
   return (
-    <TooltipProvider>
-      <SidebarProvider>
-        <AdminSidebar
-          email={adminSession.email}
-          isOwner={isOwner}
-          school={adminSession.school}
-          schools={schools}
-        />
-        <SidebarInset>
-          <header className="flex min-h-12 shrink-0 items-center gap-2 border-b px-4 py-2">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" />
-            <SchoolBadge school={adminSession.school} />
-            {adminSession.school && <Separator orientation="vertical" />}
-            <div className="min-w-0 flex-1">{breadcrumb}</div>
-          </header>
-          {children}
-        </SidebarInset>
-      </SidebarProvider>
-    </TooltipProvider>
+    <LeaveGuardProvider>
+      <TooltipProvider>
+        <SidebarProvider>
+          <AdminSidebar
+            email={adminSession.email}
+            isOwner={isOwner}
+            school={adminSession.school}
+            schools={schools}
+          />
+          <SidebarInset>
+            <header className="flex min-h-12 shrink-0 items-center gap-2 border-b px-4 py-2">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" />
+              <SchoolBadge school={adminSession.school} />
+              {adminSession.school && <Separator orientation="vertical" />}
+              <div className="min-w-0 flex-1">{breadcrumb}</div>
+            </header>
+            {children}
+          </SidebarInset>
+        </SidebarProvider>
+      </TooltipProvider>
+    </LeaveGuardProvider>
   );
 }

@@ -2,22 +2,8 @@
 import { render, screen } from "@testing-library/react";
 import { SidebarProvider } from "src/components/ui/sidebar";
 import { TooltipProvider } from "src/components/ui/tooltip";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AdminSidebar } from "../admin-sidebar";
-
-beforeAll(() => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
-  });
-});
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/dashboard",

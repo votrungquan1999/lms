@@ -11,7 +11,6 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { SchoolSwitcher } from "src/components/school-switcher";
 import {
@@ -29,6 +28,8 @@ import {
 } from "src/components/ui/sidebar";
 import { authClient } from "src/lib/auth-client";
 import type { UserSchool } from "src/lib/school-service";
+import { GuardedLink } from "./guarded-link";
+import { useLeaveGuard } from "./leave-guard.state";
 import { switchSchoolAction } from "./switch-school-actions";
 
 const navItems = [
@@ -56,8 +57,9 @@ export function AdminSidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { requestLeave } = useLeaveGuard();
 
-  async function handleLogout() {
+  async function logout() {
     await authClient.signOut();
     router.push("/");
     router.refresh();
@@ -69,7 +71,7 @@ export function AdminSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/admin/dashboard">
+              <GuardedLink href="/admin/dashboard">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <BookOpen className="size-4" />
                 </div>
@@ -79,7 +81,7 @@ export function AdminSidebar({
                     Management
                   </span>
                 </div>
-              </Link>
+              </GuardedLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
           {school &&
@@ -117,10 +119,10 @@ export function AdminSidebar({
                     isActive={pathname.startsWith(item.href)}
                     tooltip={item.title}
                   >
-                    <Link href={item.href}>
+                    <GuardedLink href={item.href}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </Link>
+                    </GuardedLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -139,10 +141,10 @@ export function AdminSidebar({
                     isActive={pathname.startsWith(item.href)}
                     tooltip={item.title}
                   >
-                    <Link href={item.href}>
+                    <GuardedLink href={item.href}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </Link>
+                    </GuardedLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -161,10 +163,10 @@ export function AdminSidebar({
                     isActive={pathname.startsWith("/admin/schools")}
                     tooltip="Schools"
                   >
-                    <Link href="/admin/schools">
+                    <GuardedLink href="/admin/schools">
                       <Landmark />
                       <span>Schools</span>
-                    </Link>
+                    </GuardedLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -173,10 +175,10 @@ export function AdminSidebar({
                     isActive={pathname.startsWith("/admin/user-roles")}
                     tooltip="User Roles"
                   >
-                    <Link href="/admin/user-roles">
+                    <GuardedLink href="/admin/user-roles">
                       <ShieldCheck />
                       <span>User Roles</span>
-                    </Link>
+                    </GuardedLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -208,7 +210,10 @@ export function AdminSidebar({
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleLogout} tooltip="Sign Out">
+            <SidebarMenuButton
+              onClick={() => requestLeave(logout)}
+              tooltip="Sign Out"
+            >
               <LogOut />
               <span>Sign Out</span>
             </SidebarMenuButton>

@@ -391,9 +391,18 @@ function ImportQuestionsButton({
   const router = useRouter();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
+  // Leaving mid-import lets it finish; the page is gone, so it must not redirect.
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   async function runImport(): Promise<void> {
     const success = await importQuestions(testId, courseId);
-    if (success) {
+    if (success && isMounted.current) {
       router.push(`/admin/courses/${courseId}/tests/${testId}`);
       router.refresh();
     }
