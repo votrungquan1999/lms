@@ -122,11 +122,11 @@ type BetterAuthSessionUser = NonNullable<
 >["user"];
 
 /**
- * The active-school chain: the only membership; else the cookie's school
- * if the admin still belongs to it; else the first school by name. Mongo's
+ * The active-school chain: the user's only school; else the cookie's school
+ * if the user still belongs to it; else the first school by name. Mongo's
  * default sort is case-sensitive, so the name sort runs here in app code
- * instead of a query-level `.sort()` — the admin's own membership list is
- * always small enough for this to be cheap.
+ * instead of a query-level `.sort()` — a user's own school list is always
+ * small enough for this to be cheap.
  */
 function resolveActiveSchool(
   schools: UserSchool[],
@@ -139,9 +139,9 @@ function resolveActiveSchool(
     return null;
   }
 
-  // The cookie value is only ever compared against the admin's own
-  // memberships, never used in a query — a tampered or revoked id just
-  // fails to match and falls through to the name-sorted default below.
+  // The cookie value is only ever compared against the user's own schools,
+  // never used in a query — a tampered or revoked id just fails to match and
+  // falls through to the name-sorted default below.
   const cookieMatch = cookieSchoolId
     ? schools.find((school) => school.id === cookieSchoolId)
     : undefined;
@@ -329,17 +329,27 @@ export class AuthService {
     }
 
     const student = await this.schoolDirectory.findByAuthUserId(user.id);
-    // A student not yet assigned to a school gets no session (fail closed).
-    if (student && student.schoolIds.length > 0) {
-      return new StudentSession({
-        userId: user.id,
-        username: student.username,
-        studentId: student.id,
-        schoolId: student.schoolIds[0],
-      });
+    // No student profile for this sign-in account.
+    if (!student) {
+      return null;
     }
-
-    return null;
+    // Only schools that still exist count; none left fails closed.
+    const schools = await this.schoolService.listSchoolsForStudent(
+      student.schoolIds,
+    );
+    const school = resolveActiveSchool(
+      schools,
+      readActiveSchoolCookie(headers),
+    );
+    if (!school) {
+      return null;
+    }
+    return new StudentSession({
+      userId: user.id,
+      username: student.username,
+      studentId: student.id,
+      schoolId: school.id,
+    });
   }
 
   /**

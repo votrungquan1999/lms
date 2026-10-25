@@ -1,6 +1,6 @@
 # Multiple Schools (Multi-Tenant) — Living Spec
 
-The LMS used to serve one implicit school: any admin saw and changed every course, student, question pool and join request. Now one deployment and one MongoDB database serve many isolated **schools**. The platform owner creates schools and picks each school's admins; a teacher works inside one school at a time and can switch between the schools they belong to; a student belongs to exactly one school; existing data moves into a `default` school through an operator-run backfill. The same work closes four older id-trust gaps — admin actions that trusted ids, the student test/course binding, question media keys, and username uniqueness (D12). The architecture and its binding rules for future code are in [the ADR](../../../documents/adr/multi-tenant-schools.md).
+The LMS used to serve one implicit school: any admin saw and changed every course, student, question pool and join request. Now one deployment and one MongoDB database serve many isolated **schools**. The platform owner creates schools and picks each school's admins; a teacher works inside one school at a time and can switch between the schools they belong to; a student can belong to several schools and works in one at a time; existing data moves into a `default` school through an operator-run backfill. The same work closes four older id-trust gaps — admin actions that trusted ids, the student test/course binding, question media keys, and username uniqueness (D12). The architecture and its binding rules for future code are in [the ADR](../../../documents/adr/multi-tenant-schools.md).
 
 ## Schools and the Owner Console
 
@@ -119,7 +119,7 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 
 ## Students
 
-**A student belongs to exactly one school, taken from their student record** (D6).
+**A student's schools are taken from their student record; one is active at a time** (D6, MS-D7). The active school is chosen like a teacher's: the school in the active-school cookie if the student belongs to it, else the first by name. A student with no cookie can land in a newly gained school that sorts first (MS-D33). "The school used last" is per browser and not cleared on sign-out (MS-D34). A student whose schools no longer exist gets no session.
 
 - The student session carries the school, and every student page and action works inside it. The dashboard shows the school's name next to only that school's courses (D13).
 - A student can only start, answer and submit a test of a course they are enrolled in, inside their school. Pairing their course with another course's or school's test, or with a question from another test, is refused; the test page answers not found.

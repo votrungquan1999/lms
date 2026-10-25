@@ -50,6 +50,18 @@ export class SchoolService {
     this.listSchoolsForUser(userId),
   );
 
+  // Keyed by a joined string: `cache` compares arguments by identity, so an
+  // array would never hit.
+  private readonly schoolsForStudent = cache(async (key: string) => {
+    if (key === "") {
+      return [];
+    }
+    const docs = await this.schools
+      .find({ id: { $in: key.split(",") } })
+      .toArray();
+    return docs.map((doc) => ({ id: doc.id, name: doc.name }));
+  });
+
   constructor(private readonly db: Db) {
     this.schools = db.collection<SchoolDocument>("school");
     this.memberships =
@@ -199,6 +211,15 @@ export class SchoolService {
     const schoolIds = memberships.map((m) => m.schoolId);
     const docs = await this.schools.find({ id: { $in: schoolIds } }).toArray();
     return docs.map((doc) => ({ id: doc.id, name: doc.name }));
+  }
+
+  /**
+   * Lists the given schools by id, `{id, name}` only. A deleted school is
+   * simply absent from the result.
+   * @param schoolIds - The school ids from a student's record.
+   */
+  async listSchoolsForStudent(schoolIds: string[]): Promise<UserSchool[]> {
+    return this.schoolsForStudent([...schoolIds].sort().join(","));
   }
 
   /**

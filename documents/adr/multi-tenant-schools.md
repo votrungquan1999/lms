@@ -38,7 +38,7 @@ A school owns its admins (through memberships), its students, its courses and ev
 
 - `AdminSession.school: UserSchool | null` — the active school, or none.
 - `SchoolAdminSession` — an `AdminSession` whose `school` is non-null, narrowed by a type guard. `AuthService.requireAdminSession` (every school action) and `PageGuard.requireSchoolAdmin()` (every school page and breadcrumb slot) return it and fail closed without a school.
-- `StudentSession.schoolId: string` — from the student record.
+- `StudentSession.schoolId: string` — the resolved active one of the student's schools (MS-D7).
 - `AuthService.requireOwnerSession` is a separate check that needs no school, because the owner must create the first school before belonging to any.
 
 **Alternatives considered:**
@@ -50,7 +50,7 @@ A school owns its admins (through memberships), its students, its courses and ev
 
 ### The active-school cookie is a compare-only hint (D23, D59, D79, D130)
 
-The active school is: the only membership; else the school in the `lms_active_school` cookie if the admin still belongs to it; else their first school by name (case-insensitive, sorted in app code, ties by id). The cookie is httpOnly, `lax`, secure in production, unsigned and long-lived. Its value is **only ever compared** against the admin's own membership list. It never reaches a query, a cache key or a service constructor. Memberships are read once per server render (a per-instance `React.cache` memo) and fresh on the next request; the switch action re-reads them uncached.
+The active school is: the only membership; else the school in the `lms_active_school` cookie if the admin (or student) still belongs to it; else their first school by name (case-insensitive, sorted in app code, ties by id). The cookie is httpOnly, `lax`, secure in production, unsigned and long-lived. Its value is **only ever compared** against the admin's own membership list, or the student's own schools. It never reaches a query, a cache key or a service constructor. Memberships are read once per server render (a per-instance `React.cache` memo) and fresh on the next request; the switch action re-reads them uncached.
 
 **Alternatives considered:**
 - **A forced picker page** for admins with two or more schools and no choice.

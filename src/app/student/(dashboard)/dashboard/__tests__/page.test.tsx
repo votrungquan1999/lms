@@ -74,6 +74,62 @@ describe("Feature: Student dashboard shows the student's school name", () => {
 });
 
 /**
+ * Feature: A student in several schools sees only the active school's courses
+ * As a student who belongs to two schools
+ * I want the dashboard to list only the school I'm working in
+ * So that another school's courses never leak into this one
+ */
+describe("Feature: Student dashboard shows only the active school's courses", () => {
+  it("lists the active school's course and not the student's other school's", async () => {
+    const schoolB = await addTestSchool("School B");
+    const inDefault = getTestServices();
+    const inB = getTestServices(schoolB.id);
+    const student = await inDefault.studentService.createStudentDocument({
+      authUserId: "auth-1",
+      username: "student-1",
+      name: "Student One",
+      createdBy: "self-signup",
+    });
+    await inB.studentService.addToSchool(student.id);
+    const defaultCourse = await inDefault.courseService.createCourse({
+      title: "Default School Algebra",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const bCourse = await inB.courseService.createCourse({
+      title: "School B Geometry",
+      description: "",
+      createdBy: "admin-b",
+    });
+    await inDefault.enrollmentService.enrollStudent(
+      defaultCourse.id,
+      student.id,
+      "admin-1",
+    );
+    await inB.enrollmentService.enrollStudent(
+      bCourse.id,
+      student.id,
+      "admin-b",
+    );
+    signInAs(
+      new StudentSession({
+        userId: "auth-1",
+        username: "student-1",
+        studentId: student.id,
+        schoolId: schoolB.id,
+      }),
+    );
+
+    render(await StudentDashboardPage());
+
+    expect(screen.getByText("School B Geometry")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Default School Algebra"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+/**
  * Feature: Student dashboard shows a pending join request
  * As a student waiting on admin approval to join a course
  * I want to be told my request is still pending

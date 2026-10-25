@@ -7,7 +7,12 @@ import {
   OwnerRequiredError,
 } from "src/lib/auth-service";
 import { type School, SchoolService } from "src/lib/school-service";
-import { isAdminSession, type Session } from "src/lib/session";
+import {
+  isAdminSession,
+  isStudentSession,
+  type Session,
+} from "src/lib/session";
+import { StudentService } from "src/lib/student-service";
 import { realAuthServiceDeps } from "src/tests/auth-service-deps";
 import { signedInHeaders, testConfig } from "src/tests/auth-test-helpers";
 import { withTestDb } from "src/tests/create-test-db";
@@ -689,6 +694,161 @@ describe("Feature: a school-less student is never treated as a fresh identity", 
       const identity = await authService.resolveUnclassifiedIdentity(headers);
 
       expect(identity).toBeNull();
+    },
+  );
+});
+
+/** Narrows a session to its school id, failing loudly on the wrong role. */
+function studentSchoolOf(session: Session | null): string {
+  if (!session || !isStudentSession(session)) {
+    throw new Error("expected a student session");
+  }
+  return session.schoolId;
+}
+
+/**
+ * Signs up a student account whose profile is created in the first school
+ * and then added to each later one.
+ */
+async function createStudentInSchools(
+  db: Db,
+  authService: AuthService,
+  email: string,
+  schools: Pick<School, "id">[],
+): Promise<{ headers: Headers }> {
+  const { user } = await authService.auth.api.signUpEmail({
+    body: { email, password: "password-123", name: "Student" },
+  });
+  const [first, ...rest] = schools;
+  const student = await new StudentService(db, first.id).createStudentDocument({
+    authUserId: user.id,
+    username: email.split("@")[0],
+    name: "Student",
+    createdBy: "admin-1",
+  });
+  for (const school of rest) {
+    await new StudentService(db, school.id).addToSchool(student.id);
+  }
+  const headers = await signedInHeaders(authService, email, "password-123");
+  return { headers };
+}
+
+describe("Feature: a student in several schools signs in to the school they chose", () => {
+  dbIt(
+    "with no active-school cookie, resolves the first school by name",
+    async ({ db }) => {
+      const authService = realAuthService(db, []);
+      const schoolService = new SchoolService(db);
+      const alpha = await schoolService.createSchool({
+        name: "Alpha School",
+        slug: "alpha",
+        createdBy: "owner-1",
+      });
+      const beta = await schoolService.createSchool({
+        name: "Beta School",
+        slug: "beta",
+        createdBy: "owner-1",
+      });
+      // Created in Beta first, so array order and name order disagree.
+      const { headers } = await createStudentInSchools(
+        db,
+        authService,
+        "kid@example.com",
+        [beta, alpha],
+      );
+
+      const session = await authService.getSession(headers);
+
+      expect(studentSchoolOf(session)).toBe(alpha.id);
+    },
+  );
+
+  dbIt(
+    "a cookie naming one of the student's schools resolves that school, even when it isn't first by name",
+    async ({ db }) => {
+      const authService = realAuthService(db, []);
+      const schoolService = new SchoolService(db);
+      const alpha = await schoolService.createSchool({
+        name: "Alpha School",
+        slug: "alpha",
+        createdBy: "owner-1",
+      });
+      const beta = await schoolService.createSchool({
+        name: "Beta School",
+        slug: "beta",
+        createdBy: "owner-1",
+      });
+      const { headers } = await createStudentInSchools(
+        db,
+        authService,
+        "kid@example.com",
+        [alpha, beta],
+      );
+
+      const session = await authService.getSession(
+        withActiveSchoolCookie(headers, beta.id),
+      );
+
+      expect(studentSchoolOf(session)).toBe(beta.id);
+    },
+  );
+
+  dbIt(
+    "a cookie naming a school the student doesn't belong to falls back to the first school by name",
+    async ({ db }) => {
+      const authService = realAuthService(db, []);
+      const schoolService = new SchoolService(db);
+      const alpha = await schoolService.createSchool({
+        name: "Alpha School",
+        slug: "alpha",
+        createdBy: "owner-1",
+      });
+      const beta = await schoolService.createSchool({
+        name: "Beta School",
+        slug: "beta",
+        createdBy: "owner-1",
+      });
+      const gamma = await schoolService.createSchool({
+        name: "Gamma School",
+        slug: "gamma",
+        createdBy: "owner-1",
+      });
+      const { headers } = await createStudentInSchools(
+        db,
+        authService,
+        "kid@example.com",
+        [beta, alpha],
+      );
+
+      const session = await authService.getSession(
+        withActiveSchoolCookie(headers, gamma.id),
+      );
+
+      expect(studentSchoolOf(session)).toBe(alpha.id);
+    },
+  );
+
+  dbIt(
+    "a student whose schools no longer exist gets no session",
+    async ({ db }) => {
+      const authService = realAuthService(db, []);
+      const schoolService = new SchoolService(db);
+      const alpha = await schoolService.createSchool({
+        name: "Alpha School",
+        slug: "alpha",
+        createdBy: "owner-1",
+      });
+      const { headers } = await createStudentInSchools(
+        db,
+        authService,
+        "kid@example.com",
+        [alpha],
+      );
+      await db.collection("school").deleteOne({ id: alpha.id });
+
+      const session = await authService.getSession(headers);
+
+      expect(session).toBeNull();
     },
   );
 });

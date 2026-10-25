@@ -4,7 +4,11 @@ import { Role } from "src/lib/session";
 import { StudentService } from "src/lib/student-service";
 import { realAuthServiceDeps } from "src/tests/auth-service-deps";
 import { signedInHeaders, testConfig } from "src/tests/auth-test-helpers";
-import { TEST_SCHOOL_ID, withTestDb } from "src/tests/create-test-db";
+import {
+  TEST_SCHOOL,
+  TEST_SCHOOL_ID,
+  withTestDb,
+} from "src/tests/create-test-db";
 import { describe, expect, it, vi } from "vitest";
 
 /**
@@ -369,7 +373,14 @@ describe("Feature: resolving what a login page should show for the current calle
       );
       expect(adminState).toBe(LoginEntryState.Admin);
 
-      // Recorded student
+      // Recorded student, in a school that exists
+      await db.collection("school").insertOne({
+        id: TEST_SCHOOL.id,
+        name: TEST_SCHOOL.name,
+        slug: "test-school",
+        createdAt: new Date(),
+        createdBy: "test",
+      });
       await authService.registerStudent({
         name: "Eve",
         username: "eve",
