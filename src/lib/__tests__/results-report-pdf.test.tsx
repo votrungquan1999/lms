@@ -39,7 +39,7 @@ function makeModel(): StudentResultsReport {
       id: "s-1",
       username: "alice",
       name: "Alice",
-      schoolId: TEST_SCHOOL_ID,
+      schoolIds: [TEST_SCHOOL_ID],
     },
     tests: [
       {
@@ -120,7 +120,7 @@ describe("renderResultsReportToBuffer", () => {
         id: "s-1",
         username: "alice",
         name: "Alice",
-        schoolId: TEST_SCHOOL_ID,
+        schoolIds: [TEST_SCHOOL_ID],
       },
       tests: [
         {

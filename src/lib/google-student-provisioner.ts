@@ -61,10 +61,10 @@ export function deriveUsername(email: string): string {
  * reported as waiting for approval here — no request exists for this school.
  */
 function outcomeForExistingProfile(
-  profile: { schoolId: string | null },
+  profile: { schoolIds: string[] },
   inviteSchoolId: string,
 ): GoogleProvisionOutcome {
-  return profile.schoolId === inviteSchoolId
+  return profile.schoolIds.includes(inviteSchoolId)
     ? GoogleProvisionOutcome.Provisioned
     : GoogleProvisionOutcome.WrongSchool;
 }

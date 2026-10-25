@@ -434,11 +434,11 @@ describe("Feature: a new student belongs to the admin's current school", () => {
     );
 
     const { schoolDirectory } = getTestServices();
-    expect((await schoolDirectory.findByUsername("solo"))?.schoolId).toBe(
+    expect((await schoolDirectory.findByUsername("solo"))?.schoolIds).toEqual([
       school.id,
-    );
-    expect((await schoolDirectory.findByUsername("batch"))?.schoolId).toBe(
+    ]);
+    expect((await schoolDirectory.findByUsername("batch"))?.schoolIds).toEqual([
       school.id,
-    );
+    ]);
   });
 });

@@ -14,19 +14,19 @@ export interface StudentDocument {
   createdBy: string;
   updatedAt: Date | null;
   updatedBy: string | null;
-  /** Owning school. Absent or `null` on records not yet assigned — no school can see those. */
-  schoolId: string | null;
+  /** Schools the student belongs to. Absent or empty on records not yet assigned — no school can see those. */
+  schoolIds: string[];
 }
 
 /**
- * Client-facing student interface. `schoolId` is `null` for a student not
+ * Client-facing student interface. `schoolIds` is empty for a student not
  * yet assigned to a school, who gets no session at all.
  */
 export interface Student {
   id: string;
   username: string;
   name: string;
-  schoolId: string | null;
+  schoolIds: string[];
 }
 
 /**
@@ -48,7 +48,7 @@ export function toStudent(doc: StudentDocument): Student {
     id: doc.id,
     username: doc.username,
     name: doc.name,
-    schoolId: doc.schoolId ?? null,
+    schoolIds: doc.schoolIds ?? [],
   };
 }
 
@@ -106,7 +106,7 @@ export class StudentService {
       createdBy: input.createdBy,
       updatedAt: null,
       updatedBy: null,
-      schoolId: this.schoolId,
+      schoolIds: [this.schoolId],
     };
 
     try {
@@ -130,13 +130,28 @@ export class StudentService {
   }
 
   /**
+   * Adds this school to an existing student's schools, matching the student
+   * by id alone. The caller proves eligibility (an approved join request for
+   * this school's course, or the admin's username lookup). Returns whether the
+   * student exists; a repeat call is a no-op that still returns `true`.
+   */
+  async addToSchool(studentId: string): Promise<boolean> {
+    // Matched by id alone: the student may belong to no school yet, or to others.
+    const result = await this.students.updateOne(
+      { id: studentId },
+      { $addToSet: { schoolIds: this.schoolId } },
+    );
+    return result.matchedCount > 0;
+  }
+
+  /**
    * Finds this school's students among the given domain IDs; another
    * school's id is skipped like a missing one.
    */
   async findByIds(ids: string[]): Promise<Student[]> {
     if (ids.length === 0) return [];
     const docs = await this.students
-      .find({ id: { $in: ids }, schoolId: this.schoolId })
+      .find({ id: { $in: ids }, schoolIds: this.schoolId })
       .sort({ createdAt: -1 })
       .toArray();
     return docs.map(toStudent);
@@ -147,7 +162,7 @@ export class StudentService {
    */
   async listStudents(): Promise<Student[]> {
     const docs = await this.students
-      .find({ schoolId: this.schoolId })
+      .find({ schoolIds: this.schoolId })
       .sort({ createdAt: -1 })
       .toArray();
 

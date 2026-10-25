@@ -127,11 +127,11 @@ describe("Feature: a username resolves to its student, whichever school they are
 
     expect(await schoolDirectory.findByUsername("ada")).toMatchObject({
       name: "Ada",
-      schoolId: TEST_SCHOOL_ID,
+      schoolIds: [TEST_SCHOOL_ID],
     });
     expect(await schoolDirectory.findByUsername("bea")).toMatchObject({
       name: "Bea",
-      schoolId: "school-b",
+      schoolIds: ["school-b"],
     });
   });
 });

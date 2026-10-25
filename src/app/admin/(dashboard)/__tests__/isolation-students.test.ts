@@ -348,6 +348,62 @@ describe("Feature: a school admin can never see or enrol another school's studen
     expect(await getTestServices().studentService.listStudents()).toEqual([]);
   });
 
+  it("a student added to a second school is listed and enrollable there, and still refused by a school they don't belong to", async () => {
+    const schoolB = await addTestSchool("School B");
+    const schoolC = await addTestSchool("School C");
+    const inB = getTestServices(schoolB.id);
+    const inC = getTestServices(schoolC.id);
+    const student =
+      await getTestServices().studentService.createStudentDocument({
+        authUserId: "auth-multi-school",
+        username: "multi.school",
+        name: "Multi School",
+        createdBy: "default-school-admin",
+      });
+    const courseB = await inB.courseService.createCourse({
+      title: "B Course",
+      description: "",
+      createdBy: "admin-b",
+    });
+    const courseC = await inC.courseService.createCourse({
+      title: "C Course",
+      description: "",
+      createdBy: "admin-c",
+    });
+    expect(await inB.studentService.addToSchool(student.id)).toBe(true);
+
+    signInAsSchool(schoolB);
+    const enrolInB = new FormData();
+    enrolInB.set("courseId", courseB.id);
+    enrolInB.append("studentIds", student.id);
+    const enrolledInB = await setEnrollmentsAction(null, enrolInB);
+    signInAsSchool(schoolC);
+    const enrolInC = new FormData();
+    enrolInC.set("courseId", courseC.id);
+    enrolInC.append("studentIds", student.id);
+    const refusedInC = await setEnrollmentsAction(null, enrolInC);
+
+    expect(
+      (await inB.studentService.listStudents()).map((s) => s.username),
+    ).toEqual(["multi.school"]);
+    expect(
+      (await getTestServices().studentService.listStudents()).map(
+        (s) => s.username,
+      ),
+    ).toEqual(["multi.school"]);
+    expect(await inC.studentService.listStudents()).toEqual([]);
+    expect(enrolledInB.success).toBe(true);
+    expect(refusedInC).toEqual({
+      success: false,
+      message: "One or more selected students were not found.",
+    });
+    expect(
+      await db
+        .collection("enrollment")
+        .countDocuments({ courseId: courseC.id }),
+    ).toBe(0);
+  });
+
   it("previewImportAction marks a username already taken in ANOTHER school as AlreadyExists", async () => {
     await getTestServices().studentService.createStudentDocument({
       authUserId: "auth-taken-elsewhere",

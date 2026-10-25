@@ -16,7 +16,7 @@ Decision ids (D#) below refer to the feature's planning log, which is not commit
 
 ### A school is resolved from the session; URLs stay unchanged (D4, D5)
 
-A school owns its admins (through memberships), its students, its courses and everything under them, and its question pools. A student's school comes from their student record; an admin's active school comes from their memberships on every request. No route names a school.
+A school owns its admins (through memberships), its students, its courses and everything under them, and its question pools. A student's schools come from their student record (a set); an admin's active school comes from their memberships on every request. No route names a school.
 
 **Alternatives considered:**
 - **A path prefix** (`/s/<slug>/…`) — moves every route and every `revalidatePath` call.
@@ -63,7 +63,9 @@ The active school is: the only membership; else the school in the `lms_active_sc
 
 Every school-owned service is constructed for one school (`new CourseService(db, schoolId)`), stamps that school on every record it creates, and filters every list and by-id query by it. Pages and actions get services through `getXService(session.school.id)`; one `forSchool` helper in `services-singleton.ts` refuses an empty school, caches one instance per school, and each service is built only from its own school's dependencies.
 
-`schoolId` is stored on six tables only: **course, test, student, question pool, pool question and join request**. These are the records looked up by their own id from a URL or form, or listed school-wide. Every other school-owned table — questions, answers, grades, annotations, feedback, AI suggestions, redos, test starts, submissions — is reached through a verified parent and keyed by that parent's id.
+`schoolId` is stored on five tables: **course, test, question pool, pool question and join request**; the **student** carries a `schoolIds` set matched by membership (MS-D5, MS-D6). These are the records looked up by their own id from a URL or form, or listed school-wide. Every other school-owned table — questions, answers, grades, annotations, feedback, AI suggestions, redos, test starts, submissions — is reached through a verified parent and keyed by that parent's id.
+
+`StudentService.addToSchool` is the one service write that matches outside its school (by student id alone); the caller proves eligibility (MS-D30).
 
 **Enrolment is the exception that proves the rule.** It is the only table joining two school-owned roots (course and student), so checking one side doesn't check the other. It stays unstamped, but `EnrollmentService` is school-bound: every read keeps only rows whose course **and** student are this school's, and every write refuses another school's course or student.
 
@@ -99,7 +101,7 @@ The rule now: **a school-bound service checks its own parents on every write.**
 
 ### Fail closed on a missing school (D14, D32, D50, D100)
 
-A record with no school is visible to no school. No code path treats a missing school as `default`. Every bound constructor (`assertSchoolId`) and every real per-school getter (`forSchool`) throws on an empty or undefined school, before any cache or database access. The harness's mocked getters route strictly by school and throw on an unknown one. `Student.schoolId` is typed `string | null`; a student with no school gets no session and is never provisioned a second profile; an invite to a course with no school is invalid.
+A record with no school is visible to no school. No code path treats a missing school as `default`. Every bound constructor (`assertSchoolId`) and every real per-school getter (`forSchool`) throws on an empty or undefined school, before any cache or database access. The harness's mocked getters route strictly by school and throw on an unknown one. `Student.schoolIds` is a `string[]`, and an empty set fails closed; a student with no school gets no session and is never provisioned a second profile; an invite to a course with no school is invalid.
 
 **Alternatives considered:**
 - **Treat a missing school as `default`.**
@@ -122,7 +124,7 @@ It is never used to list or change a school's records. The old unscoped methods 
 - **Keep scoped and unscoped twins** of each lookup on the services.
 - **App-level uniqueness checks only.**
 
-**Why:** one lookup path with no scoped/unscoped twin to confuse; and a student belonging to exactly one school (D6) needs an invariant the database enforces, because races and pre-backfill students would otherwise get a second profile.
+**Why:** one lookup path with no scoped/unscoped twin to confuse; and one profile per sign-in account across schools needs an invariant the database enforces, because races and pre-backfill students would otherwise get a second profile.
 
 ### Deploy, preview and rollback rules (D10, D41, D73, D75, D107, review finding 11)
 

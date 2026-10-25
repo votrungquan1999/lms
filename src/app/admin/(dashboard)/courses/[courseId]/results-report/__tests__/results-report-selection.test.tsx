@@ -23,9 +23,14 @@ function makeStudents(): Student[] {
       id: "stu-alice",
       username: "alice",
       name: "Alice",
-      schoolId: TEST_SCHOOL_ID,
+      schoolIds: [TEST_SCHOOL_ID],
     },
-    { id: "stu-bob", username: "bob", name: "Bob", schoolId: TEST_SCHOOL_ID },
+    {
+      id: "stu-bob",
+      username: "bob",
+      name: "Bob",
+      schoolIds: [TEST_SCHOOL_ID],
+    },
   ];
 }
 

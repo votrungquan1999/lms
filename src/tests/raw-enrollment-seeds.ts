@@ -54,7 +54,7 @@ export async function insertRawStudents(
       createdBy: "seed",
       updatedAt: null,
       updatedBy: null,
-      schoolId,
+      schoolIds: [schoolId],
     })),
   );
 }

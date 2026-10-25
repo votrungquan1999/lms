@@ -123,10 +123,10 @@ describe("Feature: Production database boot wires the safety indexes", () => {
         );
         expect(testSchoolIndex).toBeDefined();
 
-        // ...and a school-led index serves every school's student list
+        // ...and a multikey index serves every school's student list
         const studentIndexes = await listIndexesOrEmpty(db, "student");
         const studentSchoolIndex = studentIndexes.find(
-          (index) => index.key.schoolId === 1,
+          (index) => index.key.schoolIds === 1,
         );
         expect(studentSchoolIndex).toBeDefined();
 

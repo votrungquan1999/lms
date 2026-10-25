@@ -96,7 +96,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
       .collection("course")
       .createIndex({ schoolId: 1 }),
     db.collection("test").createIndex({ schoolId: 1 }),
-    db.collection("student").createIndex({ schoolId: 1 }),
+    db.collection("student").createIndex({ schoolIds: 1 }),
     db.collection("question_pool").createIndex({ schoolId: 1 }),
 
     // One student profile per Better Auth sign-in account, across every

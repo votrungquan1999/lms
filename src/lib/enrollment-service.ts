@@ -320,7 +320,7 @@ export class EnrollmentService {
     }
     const docs = await this.students
       .find(
-        { id: { $in: ids }, schoolId: this.schoolId },
+        { id: { $in: ids }, schoolIds: this.schoolId },
         { projection: { id: 1 } },
       )
       .toArray();

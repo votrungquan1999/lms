@@ -149,7 +149,7 @@ export async function insertStudent(
     createdBy: "seed",
     updatedAt: null,
     updatedBy: null,
-    schoolId: await e2eSchoolId(db),
+    schoolIds: [await e2eSchoolId(db)],
     ...overrides,
   };
   await db.collection<StudentDocument>("student").insertOne(doc);

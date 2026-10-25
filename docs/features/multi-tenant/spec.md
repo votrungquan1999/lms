@@ -71,7 +71,7 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 
 **A school admin sees and changes only their own school's courses, tests, questions, students, enrolments, grades, pools and join requests; another school's id behaves exactly like a missing one** (D18, D20, D66).
 
-- Six tables carry `schoolId`: course, test, student, question pool, pool question and join request. It is stamped on create and filtered in every list and by-id query.
+- Five tables carry `schoolId` (course, test, question pool, pool question and join request); the student carries a `schoolIds` set instead (MS-D5). It is stamped on create and filtered in every list and by-id query — a student by membership in the set.
 - Every other school-owned table — questions, answers, grades, annotations, feedback, AI suggestions, redo requests, test starts, submissions and enrolments — carries no `schoolId` and belongs to a school through its parent (D20).
 - Every school-owned service is **school-bound**: built for one school by `getXService(schoolId)` from the verified session's school, cached one instance per school, and built only from that same school's dependencies (D18).
 - A school-bound service or getter refuses to be built without a school (D32).
@@ -137,7 +137,7 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 
 **A record with no school is visible to no school, and nothing ever falls back to the default school** (D14, D32).
 
-- A course, student or pool whose `schoolId` is missing or `null` never shows in any school's lists or by-id lookups; children under it stay hidden with it.
+- A course or pool whose `schoolId` is missing or `null`, and a student whose `schoolIds` is missing or empty (MS-D6), never shows in any school's lists or by-id lookups; children under it stay hidden with it.
 - A service or getter built without a school throws before any query. The Mongo driver would turn `undefined` into `null`, which matches exactly these unassigned records.
 - A student with no school gets no session and lands on "Account Not Set Up". Google sign-up never creates a second profile for them (D40, D100).
 - An invite link to a course with no school doesn't work (D50).
@@ -196,4 +196,4 @@ The hard rules, restated:
 - **Global usernames reveal existence** across schools (D7).
 - **An enrol dialog rendered before the enrolment change** that still ticks an out-of-school student gets "One or more selected students were not found."; a reload fixes it (D118).
 - **Index changes apply at each environment's next boot.**
-- **Not built:** renaming or deleting a school, moving records or students between schools, students in several schools, email invites for admins, an owner "view all schools" mode, and branding beyond the school name (D6, D11, D13, D29).
+- **Not built:** renaming or deleting a school, moving records or students between schools, email invites for admins, an owner "view all schools" mode, and branding beyond the school name (D6, D11, D13, D29).

@@ -254,10 +254,13 @@ async function main() {
       if (existing) {
         // Rerun on data an older, school-less build left behind: stamp it
         // rather than skip it silently forever.
-        if (existing.schoolId == null) {
+        if (existing.schoolIds.length === 0) {
           await db
             .collection<StudentDocument>("student")
-            .updateOne({ id: existing.id }, { $set: { schoolId: school.id } });
+            .updateOne(
+              { id: existing.id },
+              { $set: { schoolIds: [school.id] } },
+            );
           console.log(
             `  • student ${existing.username} had no school — stamped ${schoolSlug}`,
           );

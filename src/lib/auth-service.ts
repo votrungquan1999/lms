@@ -330,12 +330,12 @@ export class AuthService {
 
     const student = await this.schoolDirectory.findByAuthUserId(user.id);
     // A student not yet assigned to a school gets no session (fail closed).
-    if (student?.schoolId) {
+    if (student && student.schoolIds.length > 0) {
       return new StudentSession({
         userId: user.id,
         username: student.username,
         studentId: student.id,
-        schoolId: student.schoolId,
+        schoolId: student.schoolIds[0],
       });
     }
 

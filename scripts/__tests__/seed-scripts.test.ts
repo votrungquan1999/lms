@@ -155,7 +155,7 @@ describe("seed-test-states script", () => {
         createdBy: "seed-script",
         updatedAt: null,
         updatedBy: null,
-        schoolId: null,
+        schoolIds: [],
       });
 
       // When: the script is run with --school
@@ -185,7 +185,7 @@ describe("seed-test-states script", () => {
       const student = await db
         .collection("student")
         .findOne({ username: "alice" });
-      expect(student?.schoolId).toBe(school.id);
+      expect(student?.schoolIds).toEqual([school.id]);
 
       // And: no row was duplicated by the rerun
       expect(
@@ -236,7 +236,7 @@ describe("seed-test-states script", () => {
       const student = await db
         .collection("student")
         .findOne({ username: "alice" });
-      expect(student?.schoolId).toBe(acme.id);
+      expect(student?.schoolIds).toEqual([acme.id]);
     },
     SEED_SCRIPT_TIMEOUT_MS,
   );
