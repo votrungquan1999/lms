@@ -115,7 +115,7 @@ A record with no school is visible to no school. No code path treats a missing s
 
 - **Invite token → course and its school** (`findCourseByInviteToken`, `findAssignedInviteCourse`): the join page and the three join actions, which have no session to take a school from.
 - **Student by username** (`findByUsername`): the registration pre-check, username sign-in, the Google provisioner and the seed scripts, because usernames are unique across schools.
-- **Student by sign-in account** (`findByAuthUserId`): session classification, the unclassified-identity check and the Google provisioner, because one sign-in account has one profile across schools.
+- **Student by sign-in account** (`findByAuthUserId`): session classification, the unclassified-identity check and the Google provisioner, the student layout and the student switch action, because one sign-in account has one profile across schools.
 - **Existing usernames** (`findExistingUsernames`): the bulk-import preview.
 
 It is never used to list or change a school's records. The old unscoped methods were deleted from `StudentService` and `CourseService` so the compiler found every caller. Uniqueness is enforced by unique `student.username` and `student.authUserId` indexes, not by find-then-insert checks; duplicate-key errors are told apart by `keyPattern` and surface as typed errors.

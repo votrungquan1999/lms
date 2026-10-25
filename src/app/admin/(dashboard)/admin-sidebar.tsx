@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { SchoolSwitcher } from "src/components/school-switcher";
 import {
   Sidebar,
   SidebarContent,
@@ -28,7 +29,7 @@ import {
 } from "src/components/ui/sidebar";
 import { authClient } from "src/lib/auth-client";
 import type { UserSchool } from "src/lib/school-service";
-import { SchoolSwitcher } from "./school-switcher";
+import { switchSchoolAction } from "./switch-school-actions";
 
 const navItems = [
   { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
@@ -87,6 +88,7 @@ export function AdminSidebar({
                 <SchoolSwitcher
                   activeSchoolName={school.name}
                   otherSchools={schools.filter((s) => s.id !== school.id)}
+                  switchAction={switchSchoolAction}
                 />
               </SidebarMenuItem>
             ) : (

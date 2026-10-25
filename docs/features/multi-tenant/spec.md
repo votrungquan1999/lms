@@ -43,9 +43,10 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 - Memberships are read once per server render — the session lookup, layout, page and breadcrumb slots share that read — and fresh on the next request, so a removed membership takes effect on the very next request (D130).
 - The sidebar header shows the active school's name (D13). With two or more schools it becomes a switcher listing the others; two schools with the same name look identical there (D63).
 - Switching re-checks membership on the server, sets the cookie, and redirects to the dashboard, because the open page's ids belong to the old school. A switch to a school the admin doesn't belong to throws to the error page.
+- A student in several schools gets the same switcher in the student sidebar (MS-D18). Its switch action re-checks the target against the student's own schools, sets the same cookie and redirects to the student dashboard.
 - Every school page and breadcrumb slot resolves its own school through `requireSchoolAdmin()`; the dashboard layout only requires a signed-in staff account (D24). School actions use `requireAdminSession`, which fails closed without a school (D22, D47).
 
-**Where it lives:** `src/lib/auth-service.ts` (`resolveActiveSchool`, `classify`, `requireAdminSession`); `src/lib/active-school-cookie.ts`; `SchoolService.listSchoolsForRequest`; `src/app/admin/(dashboard)/switch-school-actions.ts`, `school-switcher.tsx`, `admin-sidebar.tsx`, `layout.tsx`; `PageGuard.requireSchoolAdmin`.
+**Where it lives:** `src/lib/auth-service.ts` (`resolveActiveSchool`, `classify`, `requireAdminSession`); `src/lib/active-school-cookie.ts`; `SchoolService.listSchoolsForRequest`; `src/app/admin/(dashboard)/switch-school-actions.ts`, `admin-sidebar.tsx`, `layout.tsx`; `src/components/school-switcher.tsx`; `src/app/student/(dashboard)/switch-school-actions.ts`, `student-sidebar.tsx`, `layout.tsx`; `PageGuard.requireSchoolAdmin`.
 
 ## Admins With No School
 
@@ -188,6 +189,7 @@ The hard rules, restated:
 
 ## Known Limits and Out of Scope
 
+- **Course link from another school.** A link into a course of the student's other school gives the plain not found, as for admins until they switch (MS-D36).
 - **100-account picker.** An account beyond the first 100 can't be picked as a school admin from the console (D65). The roster itself has no cap.
 - **Child reads still rely on the parent check.** `listQuestions`, `getGrades`, `getLatestAnswers`, `getAnnotations`, `getTestFeedback` and `getSuggestionsForStudent` are keyed by the parent id and would return another school's rows if handed its test id. They are safe only because every entry point resolves the test first.
 - **Test starts are shared.** `TestStartService` is not school-bound; `recordStart` is guarded only by the student actions' course and enrolment check.

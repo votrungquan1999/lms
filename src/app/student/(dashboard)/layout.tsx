@@ -9,6 +9,8 @@ import {
   getCourseService,
   getEnrollmentService,
   getPageGuard,
+  getSchoolDirectory,
+  getSchoolService,
 } from "src/lib/services-singleton";
 import { StudentSidebar } from "./student-sidebar";
 
@@ -39,10 +41,24 @@ export default async function StudentDashboardLayout({
     title: course.title,
   }));
 
+  // The student's own schools feed the sidebar's name or switcher.
+  const schoolDirectory = await getSchoolDirectory();
+  const student = await schoolDirectory.findByAuthUserId(session.userId);
+  const schoolService = await getSchoolService();
+  const schools = await schoolService.listSchoolsForStudent(
+    student?.schoolIds ?? [],
+  );
+  const school = schools.find((s) => s.id === session.schoolId) ?? null;
+
   return (
     <TooltipProvider>
       <SidebarProvider>
-        <StudentSidebar username={session.username} courses={sidebarCourses} />
+        <StudentSidebar
+          username={session.username}
+          courses={sidebarCourses}
+          school={school}
+          schools={schools}
+        />
         <SidebarInset>
           <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
             <SidebarTrigger className="-ml-1" />

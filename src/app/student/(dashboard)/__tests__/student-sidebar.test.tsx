@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SidebarProvider } from "src/components/ui/sidebar";
 import { TooltipProvider } from "src/components/ui/tooltip";
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -44,5 +45,53 @@ describe("Feature: StudentSidebar My Courses group", () => {
     expect(screen.getByText("My Courses")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /Stem T-coding/ });
     expect(link.getAttribute("href")).toBe("/student/courses/course-1");
+  });
+});
+
+describe("Feature: StudentSidebar school header", () => {
+  it("should show the active school's name, with no switcher, when the student has one school", () => {
+    const school = { id: "school-a", name: "Alpha School" };
+
+    render(
+      <TooltipProvider>
+        <SidebarProvider>
+          <StudentSidebar
+            username="ken"
+            courses={[]}
+            school={school}
+            schools={[school]}
+          />
+        </SidebarProvider>
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Alpha School")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("school-switcher-trigger"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should show a school switcher listing the other schools when the student has two or more", async () => {
+    const alpha = { id: "school-a", name: "Alpha School" };
+    const beta = { id: "school-b", name: "Beta School" };
+
+    render(
+      <TooltipProvider>
+        <SidebarProvider>
+          <StudentSidebar
+            username="ken"
+            courses={[]}
+            school={alpha}
+            schools={[alpha, beta]}
+          />
+        </SidebarProvider>
+      </TooltipProvider>,
+    );
+    await userEvent.click(screen.getByTestId("school-switcher-trigger"));
+
+    expect(screen.getByText("Alpha School")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("menuitem", { name: "Beta School" }),
+    ).toBeInTheDocument();
   });
 });

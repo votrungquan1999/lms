@@ -3,6 +3,7 @@
 import { BookOpen, GraduationCap, LayoutDashboard, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { SchoolSwitcher } from "src/components/school-switcher";
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +18,8 @@ import {
   SidebarRail,
 } from "src/components/ui/sidebar";
 import { authClient } from "src/lib/auth-client";
+import type { UserSchool } from "src/lib/school-service";
+import { switchSchoolAction } from "./switch-school-actions";
 
 export interface StudentSidebarCourse {
   id: string;
@@ -29,13 +32,19 @@ export interface StudentSidebarCourse {
  * quick access, and a footer with the signed-in username and Sign Out control.
  * @param username - The signed-in student's display name.
  * @param courses - The student's enrolled courses for the quick-nav group.
+ * @param school - The student's active school.
+ * @param schools - Every school the student belongs to.
  */
 export function StudentSidebar({
   username,
   courses,
+  school = null,
+  schools = [],
 }: {
   username: string;
   courses: StudentSidebarCourse[];
+  school?: UserSchool | null;
+  schools?: UserSchool[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -66,6 +75,26 @@ export function StudentSidebar({
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {school &&
+            (schools.length > 1 ? (
+              <SidebarMenuItem>
+                <SchoolSwitcher
+                  activeSchoolName={school.name}
+                  otherSchools={schools.filter((s) => s.id !== school.id)}
+                  switchAction={switchSchoolAction}
+                />
+              </SidebarMenuItem>
+            ) : (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  size="sm"
+                  className="text-muted-foreground"
+                  tooltip={school.name}
+                >
+                  <span className="truncate">{school.name}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
         </SidebarMenu>
       </SidebarHeader>
 

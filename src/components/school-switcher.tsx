@@ -9,20 +9,21 @@ import {
 } from "src/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "src/components/ui/sidebar";
 import type { UserSchool } from "src/lib/school-service";
-import { switchSchoolAction } from "./switch-school-actions";
 
 /**
  * Sidebar header control: shows the active school's name and, via the
- * dropdown, every other school the admin belongs to. Each item is its own
- * tiny form posting straight to `switchSchoolAction`, which re-verifies
- * membership server-side before it ever sets the cookie.
+ * dropdown, every other school the user belongs to. Each item is its own
+ * tiny form posting straight to the caller's `switchAction`, which
+ * re-verifies membership server-side before it ever sets the cookie.
  */
 export function SchoolSwitcher({
   activeSchoolName,
   otherSchools,
+  switchAction,
 }: {
   activeSchoolName: string;
   otherSchools: UserSchool[];
+  switchAction: (formData: FormData) => Promise<void>;
 }) {
   return (
     <DropdownMenu>
@@ -40,7 +41,7 @@ export function SchoolSwitcher({
       <DropdownMenuContent align="start" className="min-w-56">
         {otherSchools.map((school) => (
           <DropdownMenuItem key={school.id} asChild>
-            <form action={switchSchoolAction} className="w-full">
+            <form action={switchAction} className="w-full">
               <input type="hidden" name="schoolId" value={school.id} />
               <button type="submit" className="w-full text-left">
                 {school.name}
