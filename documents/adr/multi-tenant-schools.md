@@ -117,8 +117,10 @@ A record with no school is visible to no school. No code path treats a missing s
 - **Student by username** (`findByUsername`): the registration pre-check, username sign-in, the Google provisioner and the seed scripts, because usernames are unique across schools.
 - **Student by sign-in account** (`findByAuthUserId`): session classification, the unclassified-identity check and the Google provisioner, the student layout and the student switch action, because one sign-in account has one profile across schools.
 - **Existing usernames** (`findExistingUsernames`): the bulk-import preview.
+- **Students by id** (`findStudentsByIds`): the join-request queue and approval, fed only one school's own request ids, because a requester may belong only to another school (MS-D14, MS-D30).
+- **Pending request count for one student** (`countPendingJoinRequestsForStudent`): the student dashboard notice, fed only the signed-in student's own id (MS-D37).
 
-It is never used to list or change a school's records. The old unscoped methods were deleted from `StudentService` and `CourseService` so the compiler found every caller. Uniqueness is enforced by unique `student.username` and `student.authUserId` indexes, not by find-then-insert checks; duplicate-key errors are told apart by `keyPattern` and surface as typed errors.
+Apart from those two reads it is never used to list or change a school's records. The old unscoped methods were deleted from `StudentService` and `CourseService` so the compiler found every caller. Uniqueness is enforced by unique `student.username` and `student.authUserId` indexes, not by find-then-insert checks; duplicate-key errors are told apart by `keyPattern` and surface as typed errors.
 
 **Alternatives considered:**
 - **Keep scoped and unscoped twins** of each lookup on the services.

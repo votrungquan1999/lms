@@ -265,23 +265,6 @@ export class CourseJoinRequestService {
     };
   }
 
-  /**
-   * Lists this student's Pending join requests across the bound school's
-   * courses — used to tell a waiting student their request hasn't been
-   * forgotten (Step 34), independent of whether they're already enrolled
-   * somewhere else.
-   */
-  async listByStudent(studentId: string): Promise<CourseJoinRequest[]> {
-    const docs = await this.joinRequests
-      .find({
-        schoolId: this.schoolId,
-        studentId,
-        status: JoinRequestStatus.Pending,
-      })
-      .toArray();
-    return docs.map((doc) => this.toCourseJoinRequest(doc));
-  }
-
   private toCourseJoinRequest(
     doc: CourseJoinRequestDocument,
   ): CourseJoinRequest {

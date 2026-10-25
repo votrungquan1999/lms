@@ -190,6 +190,44 @@ describe("Feature: Student dashboard shows a pending join request", () => {
     // Then the pending notice still appears
     expect(screen.getByText(/pending/i)).toBeInTheDocument();
   });
+
+  it("shows the pending notice when the waiting request is for another school's course", async () => {
+    // Given a student active in the default school
+    const { studentService } = getTestServices();
+    const student = await studentService.createStudentDocument({
+      authUserId: "auth-1",
+      username: "student-1",
+      name: "Student One",
+      createdBy: "self-signup",
+    });
+    signInAs(
+      new StudentSession({
+        userId: "auth-1",
+        username: "student-1",
+        studentId: student.id,
+        schoolId: TEST_SCHOOL_ID,
+      }),
+    );
+
+    // And a pending request for a course in School B
+    const schoolB = await addTestSchool("School B");
+    const schoolBServices = getTestServices(schoolB.id);
+    const course = await schoolBServices.courseService.createCourse({
+      title: "Geometry",
+      description: "",
+      createdBy: "admin-b",
+    });
+    await schoolBServices.courseJoinRequestService.createRequest({
+      courseId: course.id,
+      studentId: student.id,
+    });
+
+    // When the dashboard renders
+    render(await StudentDashboardPage());
+
+    // Then the pending notice appears
+    expect(screen.getByText(/pending/i)).toBeInTheDocument();
+  });
 });
 
 /**

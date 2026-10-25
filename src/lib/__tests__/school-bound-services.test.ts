@@ -487,20 +487,6 @@ describe("Feature: a school's join request service only ever lists that school's
     expect(queue).toEqual({ items: [], total: 0 });
   });
 
-  it("lists none of another school's requests among a student's own waiting requests", async () => {
-    const otherSchool = await addTestSchool("School B");
-    await getTestServices().courseJoinRequestService.createRequest({
-      courseId: "foreign-course",
-      studentId: "student-1",
-    });
-
-    const waiting = await getTestServices(
-      otherSchool.id,
-    ).courseJoinRequestService.listByStudent("student-1");
-
-    expect(waiting).toEqual([]);
-  });
-
   it.each([
     ["undefined", undefined],
     ["an empty string", ""],

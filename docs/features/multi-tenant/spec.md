@@ -82,7 +82,7 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 - That makes the dashboard counts, the grading hub, the grading headers, the Students page course count and the enrol dialog correct with no page-level filtering.
 - Saving the enrol dialog requires every ticked student to be this school's, else "One or more selected students were not found." (D118).
 - A bulk import naming another school's or an unknown course is refused before any student or sign-in account is created (D69).
-- Join requests: each school's queue and its count show only its own requests, and a student's "request waiting" notice counts only their own school's (D87).
+- Join requests: each school's queue and its count show only its own requests, including those from students who belong only to another school; a student's "request waiting" notice counts their pending requests in every school (D87, MS-D14, MS-D37).
 
 **Where it lives:** `src/lib/services-singleton.ts` (`forSchool` and every `getXService(schoolId)`); `src/lib/assert-school-id.ts`; `src/lib/enrollment-service.ts`; `src/lib/course-service.ts`, `test-service.ts`, `student-service.ts`, `question-pool-service.ts`, `pool-question-service.ts`, `course-join-request-service.ts`.
 
@@ -127,7 +127,7 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 - The student session carries the school, and every student page and action works inside it. The dashboard shows the school's name next to only that school's courses (D13).
 - A student can only start, answer and submit a test of a course they are enrolled in, inside their school. Pairing their course with another course's or school's test, or with a question from another test, is refused; the test page answers not found.
 - **Invite links:** the link's course decides the school. Username/password sign-up and Google sign-up both create the student in that school. An invite to a course with no school is an invalid invite (D50).
-- A signed-in student opening another school's invite still sees the request form, but the request is refused with "This join link is for a course in another school. You can only join courses in your own school." and nothing is written (D70).
+- A signed-in student opening another school's invite sees the request form, and the request is filed in the invite course's school queue for that school's admin to approve (MS-D14).
 - **Google sign-up:** one student profile per sign-in account, enforced by a unique index (D40). A second tab or reload finishing the same invite gets the same "waiting for approval" outcome (D72).
 - If the Google account already has a profile in another school — two invites from different schools finished in two tabs — the page shows the same cross-school refusal instead of a false "waiting for approval" (D113, D128).
 - **Usernames are unique across every school**, enforced by a unique index; lookups are case-sensitive exact matches and login is unchanged (D7). The accepted cost: "taken" reveals that the name exists in another school.
@@ -192,6 +192,8 @@ The hard rules, restated:
 ## Known Limits and Out of Scope
 
 - **Deadline auto-submit in a stale tab is refused.** The student switches back to submit; the server has no deadline enforcement of its own (pre-existing) (MS-D35).
+- **Reopen the invite after signing in.** An existing student who is signed out signs in first, then opens the invite link again (MS-D38).
+- **No pending-request list for students.** The dashboard shows only that a request is waiting (MS-D12).
 - **Course link from another school.** A link into a course of the student's other school gives the plain not found, as for admins until they switch (MS-D36).
 - **100-account picker.** An account beyond the first 100 can't be picked as a school admin from the console (D65). The roster itself has no cap.
 - **Child reads still rely on the parent check.** `listQuestions`, `getGrades`, `getLatestAnswers`, `getAnnotations`, `getTestFeedback` and `getSuggestionsForStudent` are keyed by the parent id and would return another school's rows if handed its test id. They are safe only because every entry point resolves the test first.

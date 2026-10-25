@@ -12,7 +12,6 @@ import {
 import { DuplicateUsernameError } from "src/lib/student-service";
 import { USERNAME_PATTERN } from "src/lib/username";
 import { z } from "zod";
-import { CROSS_SCHOOL_JOIN_MESSAGE } from "./join-messages";
 
 const joinSignupSchema = z.object({
   token: z.string().min(1, "Invalid invite link"),
@@ -281,11 +280,9 @@ export async function requestToJoinAction(
   const authService = await getAuthService();
 
   let studentId: string;
-  let studentSchoolId: string;
   try {
     const session = await authService.requireStudentSession(requestHeaders);
     studentId = session.studentId;
-    studentSchoolId = session.schoolId;
   } catch {
     return { success: false, message: "Unauthorized: student access required" };
   }
@@ -311,10 +308,6 @@ export async function requestToJoinAction(
           return { success: false, message: INVALID_INVITE_MESSAGE };
         }
         const { course, schoolId } = invite;
-
-        if (schoolId !== studentSchoolId) {
-          return { success: false, message: CROSS_SCHOOL_JOIN_MESSAGE };
-        }
 
         // Existence-equals-membership (enrollment-service.ts) — an enrolled
         // student is told so directly, never handed a second pending request.

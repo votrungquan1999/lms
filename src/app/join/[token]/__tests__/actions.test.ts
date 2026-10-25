@@ -1070,14 +1070,13 @@ describe("Feature: a student who is already in the course, or already waiting on
 });
 
 /**
- * Feature: a signed-in student can never ask to join a course in another
- * school
+ * Feature: a signed-in student can ask to join a course in another school
  * As a student who already belongs to one school
- * I want requestToJoinAction to refuse a DIFFERENT school's invite link
- * So that a student can never end up enrolled outside their own school
+ * I want requestToJoinAction to file my request with the invite's school
+ * So that its admin can bring me into that school and the course
  */
-describe("Feature: a signed-in student can never ask to join a course in another school", () => {
-  it("refuses requestToJoinAction for a course in a DIFFERENT school than the student's own, and writes no request", async () => {
+describe("Feature: a signed-in student can ask to join a course in another school", () => {
+  it("files the request in the invite course's school queue and none in the student's own school", async () => {
     // Given a live invite link for a course in another school
     const school = await addTestSchool("School B");
     const schoolServices = getTestServices(school.id);
@@ -1118,18 +1117,21 @@ describe("Feature: a signed-in student can never ask to join a course in another
     // When they submit the request-to-join action for the OTHER school's course
     const result = await requestToJoinAction(null, formData);
 
-    // Then they are refused with the cross-school message, and no request
-    // is filed in any school
+    // Then the request waits for approval in the invite's school only
     expect(result).toEqual({
-      success: false,
-      message:
-        "This join link is for a course in another school. You can only join courses in your own school.",
+      success: true,
+      message: `Your request to join "Geometry" is now waiting for admin approval.`,
     });
-    expect(
-      await db
-        .collection<CourseJoinRequestDocument>("course_join_request")
-        .countDocuments({}),
-    ).toBe(0);
+    const requests = await db
+      .collection<CourseJoinRequestDocument>("course_join_request")
+      .find({})
+      .toArray();
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      schoolId: school.id,
+      courseId: course.id,
+      studentId: student.id,
+    });
   });
 });
 

@@ -8,11 +8,11 @@ import {
 import Link from "next/link";
 import { getRequestContext } from "src/lib/request-context";
 import {
-  getCourseJoinRequestService,
   getCourseService,
   getEnrollmentService,
   getGradeVisibilityService,
   getPageGuard,
+  getSchoolDirectory,
   getSchoolService,
   getTestService,
   getTestStatusService,
@@ -51,11 +51,11 @@ export default async function StudentDashboardPage() {
     enrollments.map((e) => e.courseId),
   );
 
-  const courseJoinRequestService = await getCourseJoinRequestService(
-    session.schoolId,
-  );
-  const pendingRequests =
-    await courseJoinRequestService.listByStudent(studentId);
+  // Counted across every school: a request for another school's course
+  // still counts, whichever school the student is active in.
+  const schoolDirectory = await getSchoolDirectory();
+  const pendingRequestCount =
+    await schoolDirectory.countPendingJoinRequestsForStudent(studentId);
 
   const testService = await getTestService(session.schoolId);
   const testStatusService = await getTestStatusService(session.schoolId);
@@ -113,7 +113,7 @@ export default async function StudentDashboardPage() {
         }
       />
 
-      {pendingRequests.length > 0 && <PendingRequestNotice />}
+      {pendingRequestCount > 0 && <PendingRequestNotice />}
 
       {enrolledCourses.length > 0 && (
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">

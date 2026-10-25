@@ -1,3 +1,7 @@
+import {
+  CourseJoinRequestService,
+  JoinRequestStatus,
+} from "src/lib/course-join-request-service";
 import { CourseService } from "src/lib/course-service";
 import { SchoolDirectory } from "src/lib/school-directory";
 import { StudentService } from "src/lib/student-service";
@@ -134,6 +138,97 @@ describe("Feature: a username resolves to its student, whichever school they are
       schoolIds: ["school-b"],
     });
   });
+});
+
+/**
+ * Feature: students resolve by id, whichever school they are in
+ * As the join-request queue
+ * I want a school's requesters found even when they belong to another school
+ * So that a student asking to join a second school shows up by name
+ */
+describe("Feature: students resolve by id, whichever school they are in", () => {
+  dbIt(
+    "finds students of any school by id and skips unknown ids",
+    async ({ db }) => {
+      const ada = await new StudentService(
+        db,
+        TEST_SCHOOL_ID,
+      ).createStudentDocument({
+        authUserId: "auth-a",
+        username: "ada",
+        name: "Ada",
+        createdBy: "admin-a",
+      });
+      const bea = await new StudentService(
+        db,
+        "school-b",
+      ).createStudentDocument({
+        authUserId: "auth-b",
+        username: "bea",
+        name: "Bea",
+        createdBy: "admin-b",
+      });
+      const schoolDirectory = new SchoolDirectory(db);
+
+      const found = await schoolDirectory.findStudentsByIds([
+        ada.id,
+        bea.id,
+        "unknown-id",
+      ]);
+
+      expect(found.map((student) => student.name).sort()).toEqual([
+        "Ada",
+        "Bea",
+      ]);
+      expect(await schoolDirectory.findStudentsByIds([])).toEqual([]);
+    },
+  );
+});
+
+/**
+ * Feature: a student's waiting requests are counted in every school
+ * As a student who asked to join a course in another school
+ * I want my dashboard to know my request is waiting
+ * So that it is not forgotten just because I am active in a different school
+ */
+describe("Feature: a student's waiting requests are counted in every school", () => {
+  dbIt(
+    "counts only this student's Pending requests, across schools",
+    async ({ db }) => {
+      const schoolDirectory = new SchoolDirectory(db);
+      const requests = (schoolId: string) =>
+        new CourseJoinRequestService(db, schoolId);
+      await requests(TEST_SCHOOL_ID).createRequest({
+        courseId: "course-a",
+        studentId: "student-1",
+      });
+      await requests("school-b").createRequest({
+        courseId: "course-b",
+        studentId: "student-1",
+      });
+      await requests("school-b").createRequest({
+        courseId: "course-b",
+        studentId: "student-2",
+      });
+      await requests("school-c").createRequest({
+        courseId: "course-c",
+        studentId: "student-1",
+      });
+      await db
+        .collection("course_join_request")
+        .updateMany(
+          { courseId: "course-c" },
+          { $set: { status: JoinRequestStatus.Rejected } },
+        );
+
+      expect(
+        await schoolDirectory.countPendingJoinRequestsForStudent("student-1"),
+      ).toBe(2);
+      expect(
+        await schoolDirectory.countPendingJoinRequestsForStudent("nobody"),
+      ).toBe(0);
+    },
+  );
 });
 
 /**

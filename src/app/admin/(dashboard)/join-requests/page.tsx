@@ -7,7 +7,7 @@ import {
   getCourseJoinRequestService,
   getCourseService,
   getPageGuard,
-  getStudentService,
+  getSchoolDirectory,
 } from "src/lib/services-singleton";
 import { joinRequestsHref } from "./href";
 import {
@@ -70,10 +70,12 @@ async function toVisibleRows(
   const studentIds = [...new Set(requests.map((r) => r.studentId))];
   const courseIds = [...new Set(requests.map((r) => r.courseId))];
 
-  const studentService = await getStudentService(schoolId);
+  // Requesters may belong only to other schools until approved, so they are
+  // looked up across schools; the ids come from this school's own requests.
+  const schoolDirectory = await getSchoolDirectory();
   const courseService = await getCourseService(schoolId);
   const [students, courses] = await Promise.all([
-    studentService.findByIds(studentIds),
+    schoolDirectory.findStudentsByIds(studentIds),
     courseService.getCoursesByIds(courseIds),
   ]);
   const studentById = new Map(students.map((s) => [s.id, s]));

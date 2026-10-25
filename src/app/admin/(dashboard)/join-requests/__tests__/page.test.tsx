@@ -2,11 +2,14 @@
 import { render, screen } from "@testing-library/react";
 import type { Db } from "mongodb";
 import { JoinRequestStatus } from "src/lib/course-join-request-service";
+import { AdminSession } from "src/lib/session";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
+  addTestSchool,
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
+  signInAs,
   type TestServices,
   teardownTestDb,
 } from "src/tests/render-server-page";
@@ -466,6 +469,59 @@ describe("Feature: Admin Join Request Queue", () => {
     expect(screen.getByTestId("pagination-info").textContent).toBe(
       "Page 1 of 1 (3 total)",
     );
+  });
+
+  it("lists and counts a requester who belongs only to another school, in the school they asked to join and nowhere else", async () => {
+    // Given a student who belongs to the default school only
+    const defaultServices = getTestServices();
+    const student = await defaultServices.studentService.createStudentDocument({
+      authUserId: "auth-visitor",
+      username: "visitor",
+      name: "Visiting Student",
+      createdBy: "admin",
+    });
+
+    // And a course in School B that they have asked to join
+    const schoolB = await addTestSchool("School B");
+    const schoolBServices = getTestServices(schoolB.id);
+    const course = await schoolBServices.courseService.createCourse({
+      title: "Geometry",
+      description: "",
+      createdBy: "admin-b",
+    });
+    await schoolBServices.courseJoinRequestService.createRequest({
+      courseId: course.id,
+      studentId: student.id,
+    });
+
+    // When School B's admin opens the queue
+    signInAs(
+      new AdminSession({
+        userId: "0000000000000000000000b1",
+        email: "admin-b@example.com",
+        school: schoolB,
+      }),
+    );
+    const ui = await JoinRequestsPage({ searchParams: Promise.resolve({}) });
+    const { unmount } = render(ui);
+
+    // Then the request is listed with the requester's name and counted
+    expect(screen.getByText("Visiting Student")).toBeInTheDocument();
+    expect(screen.getByTestId("pagination-info").textContent).toBe(
+      "Page 1 of 1 (1 total)",
+    );
+    unmount();
+
+    // And the student's own school sees no such request
+    signInAs(
+      new AdminSession({
+        userId: "0000000000000000000000a1",
+        email: "test-admin@example.com",
+        school: { id: TEST_SCHOOL_ID, name: "Test School" },
+      }),
+    );
+    render(await JoinRequestsPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.queryByText("Visiting Student")).not.toBeInTheDocument();
   });
 
   it("clamps a page number beyond the real range down to the last valid page", async () => {

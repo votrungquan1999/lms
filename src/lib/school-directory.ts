@@ -1,4 +1,8 @@
 import type { Collection, Db } from "mongodb";
+import {
+  type CourseJoinRequestDocument,
+  JoinRequestStatus,
+} from "./course-join-request-service";
 import { type Course, type CourseDocument, toCourse } from "./course-service";
 import {
   type Student,
@@ -31,10 +35,14 @@ export interface AssignedInviteCourse {
 export class SchoolDirectory {
   private readonly courses: Collection<CourseDocument>;
   private readonly students: Collection<StudentDocument>;
+  private readonly joinRequests: Collection<CourseJoinRequestDocument>;
 
   constructor(db: Db) {
     this.courses = db.collection<CourseDocument>("course");
     this.students = db.collection<StudentDocument>("student");
+    this.joinRequests = db.collection<CourseJoinRequestDocument>(
+      "course_join_request",
+    );
   }
 
   /**
@@ -113,5 +121,30 @@ export class SchoolDirectory {
       .find({ username: { $in: usernames } })
       .toArray();
     return docs.map((doc) => doc.username);
+  }
+
+  /**
+   * Finds students by id, in any school. Safe only when fed one school's own
+   * request ids (the school-filtered `listByStatus` result): handed arbitrary
+   * ids it would return students of every school.
+   * @param ids - Student ids; empty input returns `[]` without a query.
+   * @returns The students found; unknown ids are simply absent.
+   */
+  async findStudentsByIds(ids: string[]): Promise<Student[]> {
+    if (ids.length === 0) return [];
+    const docs = await this.students.find({ id: { $in: ids } }).toArray();
+    return docs.map(toStudent);
+  }
+
+  /**
+   * Counts a student's Pending join requests in every school. Feed it only
+   * the signed-in student's own id.
+   * @param studentId - The student's domain id.
+   */
+  async countPendingJoinRequestsForStudent(studentId: string): Promise<number> {
+    return this.joinRequests.countDocuments({
+      studentId,
+      status: JoinRequestStatus.Pending,
+    });
   }
 }
