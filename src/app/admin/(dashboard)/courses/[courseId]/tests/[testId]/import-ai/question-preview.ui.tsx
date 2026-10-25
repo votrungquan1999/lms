@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { StudentCardQuestion } from "src/components/student-question-card.ui";
 import { StudentViewList } from "src/components/student-view-list.ui";
 import {
@@ -305,9 +305,12 @@ function ImportQuestionsButton({
     importFailureMessage,
     questions,
     retryingIds,
+    openEditIds,
   } = useImportAi();
   // A running retry can still change a draft, so Import waits for it.
   const isRetrying = retryingIds.length > 0;
+  // An unsaved edit would be left out of the import.
+  const hasOpenEdits = openEditIds.length > 0;
   const rejectedIndex = questions.findIndex((question) => question.importError);
   const rejected = questions[rejectedIndex];
   // Student view leads with the card's own label; the server's review-position prefix would disagree in add mode.
@@ -330,7 +333,7 @@ function ImportQuestionsButton({
     <div className="space-y-2">
       <Button
         type="button"
-        disabled={isBusy || isRetrying}
+        disabled={isBusy || isRetrying || hasOpenEdits}
         onClick={() =>
           mode === "replace" ? setIsConfirmOpen(true) : runImport()
         }
@@ -341,6 +344,11 @@ function ImportQuestionsButton({
             ? "Replace questions"
             : "Import questions"}
       </Button>
+      {hasOpenEdits && (
+        <p className="text-sm text-muted-foreground">
+          Save or cancel your open edits first
+        </p>
+      )}
       {(importFailureMessage ?? questionRejection) && (
         <div
           role="alert"
@@ -485,8 +493,15 @@ function QuestionCard({
   question: ImportQuestionDraft;
   index: number;
 }): React.ReactNode {
-  const { updateQuestion, pictures, isReading } = useImportAi();
+  const { updateQuestion, pictures, isBusy, setEditOpen } = useImportAi();
   const [isEditing, setIsEditing] = useState(false);
+
+  // Cleanup also runs when the card goes away mid-edit, so a removed card never blocks Import.
+  useEffect(() => {
+    if (!isEditing) return;
+    setEditOpen(question.id, true);
+    return () => setEditOpen(question.id, false);
+  }, [isEditing, question.id, setEditOpen]);
 
   if (isEditing) {
     return (
@@ -536,7 +551,7 @@ function QuestionCard({
               type="button"
               variant="outline"
               size="sm"
-              disabled={isReading}
+              disabled={isBusy}
               onClick={() => setIsEditing(true)}
             >
               Edit

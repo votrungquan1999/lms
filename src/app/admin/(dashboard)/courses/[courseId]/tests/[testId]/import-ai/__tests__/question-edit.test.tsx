@@ -10,6 +10,7 @@ vi.mock("../document-extract", () => ({
 vi.mock("../actions", () => ({
   parseQuestionsAction: vi.fn(),
   retryQuestionAction: vi.fn(),
+  importAiQuestionsAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -20,7 +21,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { draftQuestionSchema } from "src/lib/ai/question-import-schema";
-import { parseQuestionsAction, retryQuestionAction } from "../actions";
+import {
+  importAiQuestionsAction,
+  parseQuestionsAction,
+  retryQuestionAction,
+} from "../actions";
 import { extractDocx } from "../document-extract";
 import { ImportAiProvider } from "../import-ai-form.state";
 import {
@@ -217,5 +222,96 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     await user.click(titleLabels[1]);
 
     expect(document.activeElement).toHaveValue("Q2");
+  });
+});
+
+describe("Feature: AI document import — Import waits until every open edit is saved or cancelled", () => {
+  const OPEN_EDITS_NOTE = "Save or cancel your open edits first";
+
+  async function uploadTwoQuestions(user: ReturnType<typeof userEvent.setup>) {
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "1. Explain photosynthesis.\n2. Pick the prime number.",
+      pictures: [],
+    });
+    vi.mocked(parseQuestionsAction).mockResolvedValue({
+      success: true,
+      message: "Extracted 2 question(s)",
+      questions: [
+        { title: "Q1", content: "Explain photosynthesis.", type: "free_text" },
+        { title: "Q2", content: "Pick the prime number.", type: "free_text" },
+      ],
+    });
+    render(
+      <ImportAiProvider>
+        <ImportAiFilePicker />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
+      </ImportAiProvider>,
+    );
+    await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
+    expect(await screen.findByText("Q1")).toBeInTheDocument();
+  }
+
+  it("disables Import with a note while a question's edit form is open", async () => {
+    const user = userEvent.setup();
+    await uploadTwoQuestions(user);
+    expect(
+      screen.getByRole("button", { name: /import questions/i }),
+    ).toBeEnabled();
+
+    await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+
+    expect(
+      screen.getByRole("button", { name: /import questions/i }),
+    ).toBeDisabled();
+    expect(screen.getByText(OPEN_EDITS_NOTE)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it.each(["Save", "Cancel"])(
+    "enables Import again once the open edit is closed with %s",
+    async (closeWith) => {
+      const user = userEvent.setup();
+      await uploadTwoQuestions(user);
+      await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+
+      await user.click(screen.getByRole("button", { name: closeWith }));
+
+      expect(
+        screen.getByRole("button", { name: /import questions/i }),
+      ).toBeEnabled();
+      expect(screen.queryByText(OPEN_EDITS_NOTE)).not.toBeInTheDocument();
+    },
+  );
+
+  it("keeps Import disabled while any one of two open edit forms remains open", async () => {
+    const user = userEvent.setup();
+    await uploadTwoQuestions(user);
+    await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+    await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+
+    await user.click(screen.getAllByRole("button", { name: "Cancel" })[0]);
+
+    expect(
+      screen.getByRole("button", { name: /import questions/i }),
+    ).toBeDisabled();
+    expect(screen.getByText(OPEN_EDITS_NOTE)).toBeInTheDocument();
+  });
+
+  it("keeps Edit disabled while the import is running", async () => {
+    const user = userEvent.setup();
+    await uploadTwoQuestions(user);
+    vi.mocked(importAiQuestionsAction).mockReturnValue(new Promise(() => {}));
+
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+
+    expect(await screen.findByText("Importing…")).toBeInTheDocument();
+    for (const edit of screen.getAllByRole("button", { name: /^edit$/i })) {
+      expect(edit).toBeDisabled();
+    }
   });
 });

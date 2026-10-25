@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useReducer, useRef } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useReducer,
+  useRef,
+} from "react";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
 import {
   AI_FAILURE_MESSAGES,
@@ -86,6 +92,8 @@ interface ImportAiState {
   mode: ImportMode;
   /** Questions whose "Retry with AI" is still running; Import waits for them. */
   retryingIds: string[];
+  /** Questions whose edit form is open; Import waits for them to close. */
+  openEditIds: string[];
 }
 
 type ImportAiAction =
@@ -114,7 +122,9 @@ type ImportAiAction =
   | { type: "SET_MODE"; mode: ImportMode }
   | { type: "RETRY_START"; id: string }
   | { type: "RETRY_END"; id: string }
-  | { type: "RETRY_FAILED"; id: string; message: string };
+  | { type: "RETRY_FAILED"; id: string; message: string }
+  | { type: "EDIT_OPENED"; id: string }
+  | { type: "EDIT_CLOSED"; id: string };
 
 const initialState: ImportAiState = {
   documentText: "",
@@ -126,6 +136,7 @@ const initialState: ImportAiState = {
   importFailureMessage: null,
   mode: "append",
   retryingIds: [],
+  openEditIds: [],
 };
 
 /** Just over the server's AI call limit (AI_CALL_TIMEOUT_MS, 240 s), so only a call the server never answers hits it. */
@@ -221,6 +232,19 @@ function importAiReducer(
           q.id === action.id ? { ...q, retryError: action.message } : q,
         ),
       };
+    case "EDIT_OPENED":
+      return {
+        ...state,
+        openEditIds: [
+          ...state.openEditIds.filter((id) => id !== action.id),
+          action.id,
+        ],
+      };
+    case "EDIT_CLOSED":
+      return {
+        ...state,
+        openEditIds: state.openEditIds.filter((id) => id !== action.id),
+      };
     default:
       return state;
   }
@@ -238,6 +262,8 @@ interface ImportAiContextValue extends ImportAiState {
   ) => void;
   retryOneQuestion: (id: string, correctionNote: string) => Promise<void>;
   cancelRetry: (id: string) => void;
+  /** Tells the screen a question's edit form opened or closed. */
+  setEditOpen: (id: string, isOpen: boolean) => void;
   /** Writes the reviewed list onto the test in the current `mode`. Resolves true on success. */
   importQuestions: (testId: string, courseId: string) => Promise<boolean>;
   setMode: (mode: ImportMode) => void;
@@ -616,6 +642,10 @@ export function ImportAiProvider({
     return true;
   }
 
+  const setEditOpen = useCallback((id: string, isOpen: boolean) => {
+    dispatch({ type: isOpen ? "EDIT_OPENED" : "EDIT_CLOSED", id });
+  }, []);
+
   const value: ImportAiContextValue = {
     ...state,
     isBusy: state.phase !== "idle",
@@ -626,6 +656,7 @@ export function ImportAiProvider({
       dispatch({ type: "UPDATE_QUESTION", id, patch }),
     retryOneQuestion,
     cancelRetry,
+    setEditOpen,
     importQuestions,
     setMode: (mode) => dispatch({ type: "SET_MODE", mode }),
     reset: () => {
