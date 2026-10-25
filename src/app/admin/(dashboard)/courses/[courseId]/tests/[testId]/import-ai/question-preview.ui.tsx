@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { StudentCardQuestion } from "src/components/student-question-card.ui";
 import { StudentViewList } from "src/components/student-view-list.ui";
 import {
@@ -61,6 +61,38 @@ import {
   useQuestionEditState,
 } from "./question-edit.state";
 import { UnusedPictures } from "./unused-pictures.ui";
+
+/** Input types that take typed text, where the browser's own undo must keep working. */
+const TEXT_INPUT_TYPES = new Set([
+  "text",
+  "search",
+  "email",
+  "url",
+  "tel",
+  "password",
+  "number",
+]);
+
+/** Open dialogs and menus, which take the keyboard from the page behind them. */
+const OVERLAY_SELECTOR = '[role="dialog"],[role="alertdialog"],[role="menu"]';
+
+/**
+ * Whether a key press landed in a field with its own typing undo.
+ * @param target - The element that received the key press.
+ * @returns True for text inputs, textareas, selects and contenteditable elements.
+ */
+function isTextEntry(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable || target.closest("[contenteditable]")) {
+    return true;
+  }
+  if (target instanceof HTMLInputElement) {
+    return TEXT_INPUT_TYPES.has(target.type);
+  }
+  return (
+    target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
+  );
+}
 
 /**
  * The DOM id of a question's card, so focus can return to it.
@@ -253,6 +285,35 @@ function ReviewScreen({
   // Where focus goes once the list has re-rendered after a delete or the Undo of one.
   const pendingFocus = useRef<"undo" | { cardId: string } | null>(null);
 
+  /** Undoes the latest change, sending focus to the question when it was a delete. */
+  function undoWithFocus(): void {
+    if (undoChange?.kind === "delete") {
+      pendingFocus.current = { cardId: undoChange.id };
+    }
+    undo();
+  }
+
+  const onKey = useEffectEvent((event: KeyboardEvent) => {
+    if ((!event.ctrlKey && !event.metaKey) || event.key.toLowerCase() !== "z") {
+      return;
+    }
+    // AltGr layouts report Ctrl+Alt; a held key must not undo step after step.
+    if (event.altKey || event.repeat) return;
+    if (isTextEntry(event.target)) return;
+    // The overlay owns the keyboard while it is open.
+    if (document.querySelector(OVERLAY_SELECTOR)) return;
+    const change = event.shiftKey ? redoChange : undoChange;
+    if (!change || isBusy) return;
+    event.preventDefault();
+    if (event.shiftKey) redo();
+    else undoWithFocus();
+  });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: an Effect Event is never a dependency
+  useEffect(() => {
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   // Runs after every render so focus lands once the list has changed.
   useEffect(() => {
     const target = pendingFocus.current;
@@ -279,12 +340,7 @@ function ReviewScreen({
           size="sm"
           disabled={!undoChange || isBusy}
           ref={undoButton}
-          onClick={() => {
-            if (undoChange?.kind === "delete") {
-              pendingFocus.current = { cardId: undoChange.id };
-            }
-            undo();
-          }}
+          onClick={undoWithFocus}
         >
           {historyLabel(
             "Undo",

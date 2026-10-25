@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -488,5 +488,175 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
     expect(
       screen.getByRole("button", { name: "Undo edit of Question 2" }),
     ).toBeEnabled();
+  });
+});
+
+describe("Feature: AI document import — undo and redo from the keyboard", () => {
+  it("undoes the latest change on Ctrl+Z", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+
+    await user.keyboard("{Control>}z{/Control}");
+
+    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.queryByText("Q1 reworded")).not.toBeInTheDocument();
+  });
+
+  it("undoes the latest change on Cmd+Z", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+
+    await user.keyboard("{Meta>}z{/Meta}");
+
+    expect(screen.getByText("Q1")).toBeInTheDocument();
+  });
+
+  it("redoes the undone change on Ctrl+Shift+Z and on Cmd+Shift+Z", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+    await renameQuestion(user, "Q2", "Q2 reworded");
+    await user.keyboard("{Control>}z{/Control}");
+    await user.keyboard("{Control>}z{/Control}");
+
+    await user.keyboard("{Control>}{Shift>}Z{/Shift}{/Control}");
+    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+    await user.keyboard("{Meta>}{Shift>}Z{/Shift}{/Meta}");
+
+    expect(screen.getByText("Q2 reworded")).toBeInTheDocument();
+  });
+
+  it("leaves Ctrl+Z to the browser's own typing undo inside a text box", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+    await user.click(
+      within(questionCard("Q2")).getByRole("button", { name: "Edit" }),
+    );
+
+    const notPrevented = fireEvent.keyDown(screen.getByLabelText(/title/i), {
+      key: "z",
+      ctrlKey: true,
+    });
+    const alsoInTextarea = fireEvent.keyDown(
+      screen.getByLabelText(/content/i),
+      {
+        key: "z",
+        ctrlKey: true,
+      },
+    );
+
+    expect(notPrevented).toBe(true);
+    expect(alsoInTextarea).toBe(true);
+    expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Undo edit of Question 1" }),
+    ).toBeEnabled();
+  });
+
+  it("ignores the shortcut while the retry dialog is open", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+    await user.click(
+      within(questionCard("Q2")).getByRole("button", {
+        name: /retry with ai/i,
+      }),
+    );
+
+    const notPrevented = fireEvent.keyDown(screen.getByRole("dialog"), {
+      key: "z",
+      ctrlKey: true,
+    });
+
+    expect(notPrevented).toBe(true);
+    expect(
+      screen.getByRole("button", {
+        name: "Undo edit of Question 1",
+        hidden: true,
+      }),
+    ).toBeEnabled();
+  });
+
+  it("does not repeat while the keys are held down", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+
+    const notPrevented = fireEvent.keyDown(document.body, {
+      key: "z",
+      ctrlKey: true,
+      repeat: true,
+    });
+
+    expect(notPrevented).toBe(true);
+    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+  });
+
+  it("ignores Ctrl+Alt+Z, which other layouts use for typing a character", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+
+    const notPrevented = fireEvent.keyDown(document.body, {
+      key: "z",
+      ctrlKey: true,
+      altKey: true,
+    });
+
+    expect(notPrevented).toBe(true);
+    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+  });
+
+  it("works with focus on the file input right after an upload and on a radio", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+    await renameQuestion(user, "Q2", "Q2 reworded");
+    screen.getByLabelText(/document/i).focus();
+
+    await user.keyboard("{Control>}z{/Control}");
+    expect(screen.getByText("Q2")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /replace/i }));
+    await user.keyboard("{Control>}z{/Control}");
+
+    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /replace/i })).toBeChecked();
+  });
+
+  it("does nothing while a new file is read", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+    vi.mocked(parseQuestionsAction).mockReturnValueOnce(new Promise(() => {}));
+    await user.upload(
+      screen.getByLabelText(/document/i),
+      new File(["docx"], "second.docx", {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Read and replace" }));
+    await screen.findByRole("status");
+
+    const notPrevented = fireEvent.keyDown(document.body, {
+      key: "z",
+      ctrlKey: true,
+    });
+
+    expect(notPrevented).toBe(true);
+    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+  });
+
+  it("brings back the only draft on Ctrl+Z after it was deleted", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }]);
+    await user.click(screen.getByRole("button", { name: "Delete question 1" }));
+
+    await user.keyboard("{Control>}z{/Control}");
+
+    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(questionCard("Q1")).toHaveFocus();
   });
 });
