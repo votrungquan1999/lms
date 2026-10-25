@@ -180,3 +180,29 @@ describe("Feature: Student view width", () => {
     );
   });
 });
+
+describe("Feature: Student view card wraps unbroken text", () => {
+  it("lets an unbroken title and content wrap inside the card", () => {
+    const unbroken = (label: string) =>
+      `${label}${"x".repeat(120)}@example.com`;
+    render(
+      <StudentViewList
+        questions={[
+          {
+            ...photoQuestion("q1", 1),
+            title: unbroken("title-"),
+            content: unbroken("content-"),
+          },
+        ]}
+      />,
+    );
+
+    // Tailwind's wrap-anywhere lowers the minimum width, so the card never clips the string.
+    expect(screen.getByText(/title-x+@example\.com/)).toHaveClass(
+      "wrap-anywhere",
+    );
+    expect(
+      screen.getByText(unbroken("content-")).closest(".prose"),
+    ).toHaveClass("wrap-anywhere");
+  });
+});

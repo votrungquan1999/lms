@@ -49,7 +49,9 @@ export function MarkdownContent({
   const sizeClass = compact ? "prose-sm" : "prose-base";
 
   return (
-    <div className={`prose prose-neutral ${sizeClass} max-w-none ${className}`}>
+    <div
+      className={`prose prose-neutral ${sizeClass} max-w-none wrap-anywhere ${className}`}
+    >
       <ReactMarkdown
         remarkPlugins={MARKDOWN_REMARK_PLUGINS}
         components={{ table: MarkdownTable }}

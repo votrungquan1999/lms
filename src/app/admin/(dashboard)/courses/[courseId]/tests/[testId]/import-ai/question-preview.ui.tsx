@@ -799,11 +799,12 @@ function QuestionCard({
     <Card id={cardDomId(question.id)} tabIndex={-1}>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between gap-2 text-base">
-          <span className="flex items-center gap-1">
+          {/* min-w-0 + wrap-anywhere let an unbroken title shrink, keeping the buttons in view. */}
+          <span className="flex min-w-0 items-center gap-1">
             <span className="text-muted-foreground">#{number}</span>
-            <span>{question.title}</span>
+            <span className="min-w-0 wrap-anywhere">{question.title}</span>
           </span>
-          <span className="flex items-center gap-2">
+          <span className="flex shrink-0 items-center gap-2">
             <Badge variant="outline">
               {QUESTION_TYPE_LABELS[question.type]}
             </Badge>
@@ -832,7 +833,7 @@ function QuestionCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        <p className="text-sm">{question.content}</p>
+        <MarkdownContent content={question.content} compact />
         <QuestionPictures
           question={question}
           firstQuestionNumber={firstQuestionNumber}
@@ -850,7 +851,7 @@ function QuestionCard({
               // biome-ignore lint/suspicious/noArrayIndexKey: choice texts can repeat or be blank, and the list is read-only
               <li key={idx} className="flex items-center gap-2">
                 <span>{option.isCorrect ? "✓" : "○"}</span>
-                <span>{option.text}</span>
+                <span className="min-w-0 wrap-anywhere">{option.text}</span>
               </li>
             ))}
           </ul>

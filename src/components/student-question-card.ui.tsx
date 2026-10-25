@@ -42,7 +42,7 @@ export function StudentQuestionCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">
+        <CardTitle className="text-lg wrap-anywhere">
           Question {question.order}: {question.title}
         </CardTitle>
       </CardHeader>

@@ -24,6 +24,12 @@ export const PDF_TEXT_RECEIVED_MARKER = "Extracted PDF text reached the mock";
 /** A phrase only the pictures `.docx` fixture's first question holds, so no other prompt takes this branch. */
 const PICTURES_DOCX_MARKER = "Quan sát hình bên";
 
+/** A phrase only the long-text PDF holds, so only that document gets an unbroken title and text. */
+const LONG_TEXT_MARKER = "Unbroken text case";
+
+/** One long run with no spaces (like an email or URL) to test card wrapping. */
+export const MOCK_UNBROKEN_TEXT = `${"a".repeat(240)}@example.com`;
+
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 
 // Matches `.../v1beta/models/<any-model-id>:generateContent` — a colon, not
@@ -48,6 +54,18 @@ async function cannedBatchText(request: Request): Promise<string> {
           title: "Câu 1",
           content: "[image 1]Quan sát hình bên.",
           type: "free_text",
+        },
+      ],
+    });
+  }
+  if (body.includes(LONG_TEXT_MARKER)) {
+    return JSON.stringify({
+      questions: [
+        {
+          title: MOCK_UNBROKEN_TEXT,
+          content: MOCK_UNBROKEN_TEXT,
+          type: "free_text",
+          referenceAnswer: MOCK_UNBROKEN_TEXT,
         },
       ],
     });
