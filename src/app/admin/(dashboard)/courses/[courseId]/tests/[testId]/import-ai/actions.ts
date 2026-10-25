@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
+import { classifyAiFailure } from "src/lib/ai/ai-failure-cause";
+import { AI_FAILURE_MESSAGES } from "src/lib/ai/ai-failure-messages";
 import {
   draftQuestionSchema,
   questionImportItemSchema,
@@ -107,7 +109,7 @@ export async function parseQuestionsAction(
     logError(error);
     return {
       success: false,
-      message: "AI question extraction failed. Please try again.",
+      message: AI_FAILURE_MESSAGES[classifyAiFailure(error)],
     };
   }
 }
@@ -215,7 +217,7 @@ export async function retryQuestionAction(
     logError(error);
     return {
       success: false,
-      message: "AI retry failed. Please try again.",
+      message: AI_FAILURE_MESSAGES[classifyAiFailure(error)],
     };
   }
 }

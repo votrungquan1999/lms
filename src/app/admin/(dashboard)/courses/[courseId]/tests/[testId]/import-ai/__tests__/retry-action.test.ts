@@ -14,6 +14,8 @@ vi.mock("src/lib/services-singleton", () => ({
   getQuestionParseClient: vi.fn(async () => ({ retryQuestion })),
 }));
 
+import { APICallError } from "ai";
+import { RefusalError } from "src/lib/ai/ai-call-telemetry";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
 import { retryQuestionAction } from "../actions";
 
@@ -119,16 +121,44 @@ describe("Feature: retryQuestionAction re-reads one question, addressing a teach
     expect(retryQuestion).not.toHaveBeenCalled();
   });
 
-  it("returns a friendly message and never throws when the AI call fails", async () => {
-    retryQuestion.mockRejectedValueOnce(new Error("Gemini timed out"));
+  describe("when the AI retry fails, the message tells the teacher why and whether trying again can help", () => {
+    async function failWith(error: unknown): Promise<string> {
+      retryQuestion.mockRejectedValueOnce(error);
+      const state = await retryQuestionAction(
+        "1. Explain photosynthesis.",
+        currentQuestion,
+        "This should focus on the light-dependent reactions.",
+      );
+      expect(state.success).toBe(false);
+      return state.message;
+    }
 
-    const state = await retryQuestionAction(
-      "1. Explain photosynthesis.",
-      currentQuestion,
-      "This should focus on the light-dependent reactions.",
-    );
+    it("says to try again in a few minutes when the AI is overloaded", async () => {
+      const message = await failWith(
+        new APICallError({
+          message: "provider said 503",
+          url: "https://provider.example/v1",
+          requestBodyValues: {},
+          statusCode: 503,
+          isRetryable: true,
+        }),
+      );
 
-    expect(state.success).toBe(false);
-    expect(state.message).toBe("AI retry failed. Please try again.");
+      expect(message).toMatch(/few minutes/i);
+    });
+
+    it("says retrying will not help when the AI refused the question", async () => {
+      const message = await failWith(
+        new RefusalError("cyber", [{ finishReason: "content-filter" }]),
+      );
+
+      expect(message).toMatch(/will not help/i);
+    });
+
+    it("says to try again and contact the developer for an unexpected error", async () => {
+      const message = await failWith(new Error("something odd"));
+
+      expect(message).toMatch(/contact the developer/i);
+    });
   });
 });

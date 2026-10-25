@@ -69,6 +69,14 @@ const importProviderSchema = z.preprocess(
   z.enum(ImportProvider),
 );
 
+/** The `AI_IMPORT_PROVIDER` setting holds a value no provider answers to. */
+export class ImportProviderSettingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ImportProviderSettingError";
+  }
+}
+
 /**
  * Reads the import provider setting per call so a run can switch without a restart.
  * @returns The provider that reads imports.
@@ -77,7 +85,7 @@ function importProvider(): ImportProvider {
   const parsed = importProviderSchema.safeParse(process.env.AI_IMPORT_PROVIDER);
   if (!parsed.success) {
     // A bare ZodError would not name the variable the operator must fix.
-    throw new Error(
+    throw new ImportProviderSettingError(
       `AI_IMPORT_PROVIDER must be one of ${Object.values(ImportProvider).join(", ")}`,
     );
   }

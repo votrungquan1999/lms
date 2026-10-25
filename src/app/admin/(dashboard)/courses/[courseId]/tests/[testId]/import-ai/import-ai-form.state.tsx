@@ -2,6 +2,10 @@
 
 import { createContext, useContext, useReducer, useRef } from "react";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
+import {
+  AI_FAILURE_MESSAGES,
+  AiFailureCause,
+} from "src/lib/ai/ai-failure-messages";
 import type { MediaContentType } from "src/lib/question-service";
 import type { SubmittedMedia } from "../question-media.schema";
 import { requestUploadSlotsAction } from "../question-media-actions";
@@ -109,7 +113,8 @@ type ImportAiAction =
     }
   | { type: "SET_MODE"; mode: ImportMode }
   | { type: "RETRY_START"; id: string }
-  | { type: "RETRY_END"; id: string };
+  | { type: "RETRY_END"; id: string }
+  | { type: "RETRY_FAILED"; id: string; message: string };
 
 const initialState: ImportAiState = {
   documentText: "",
@@ -122,6 +127,9 @@ const initialState: ImportAiState = {
   mode: "append",
   retryingIds: [],
 };
+
+/** Just over the server's AI call limit (AI_CALL_TIMEOUT_MS, 240 s), so only a call the server never answers hits it. */
+const READ_GIVE_UP_MS = 300_000;
 
 /** D41 — matches the existing course-material upload limit. */
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -204,6 +212,14 @@ function importAiReducer(
       return {
         ...state,
         retryingIds: state.retryingIds.filter((id) => id !== action.id),
+      };
+    case "RETRY_FAILED":
+      return {
+        ...state,
+        retryingIds: state.retryingIds.filter((id) => id !== action.id),
+        questions: state.questions.map((q) =>
+          q.id === action.id ? { ...q, retryError: action.message } : q,
+        ),
       };
     default:
       return state;
@@ -400,10 +416,37 @@ export function ImportAiProvider({
       return;
     }
 
-    const result = await parseQuestionsAction(
-      text,
-      pictures.map((picture) => picture.number),
-    );
+    // Boundary: a dropped connection rejects the call, and a killed server never answers; either would leave the picker on busy.
+    let result: Awaited<ReturnType<typeof parseQuestionsAction>>;
+    let giveUp: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const gaveUp = new Promise<"gave-up">((resolve) => {
+        giveUp = setTimeout(() => resolve("gave-up"), READ_GIVE_UP_MS);
+      });
+      const outcome = await Promise.race([
+        parseQuestionsAction(
+          text,
+          pictures.map((picture) => picture.number),
+        ),
+        gaveUp,
+      ]);
+      if (outcome === "gave-up") {
+        settle({
+          type: "ERROR",
+          message: AI_FAILURE_MESSAGES[AiFailureCause.Timeout],
+        });
+        return;
+      }
+      result = outcome;
+    } catch {
+      settle({
+        type: "ERROR",
+        message: AI_FAILURE_MESSAGES[AiFailureCause.Busy],
+      });
+      return;
+    } finally {
+      clearTimeout(giveUp);
+    }
     if (!result.success || !result.questions) {
       settle({ type: "ERROR", message: result.message });
       return;
@@ -455,23 +498,28 @@ export function ImportAiProvider({
     const retry = {};
     runningRetries.current.set(id, retry);
     dispatch({ type: "RETRY_START", id });
-    const result = await retryQuestionAction(
-      state.documentText,
-      current,
-      correctionNote,
-    );
+    // Boundary: a dropped connection rejects the call, which would otherwise leave the card on "Retrying…".
+    let result: Awaited<ReturnType<typeof retryQuestionAction>>;
+    try {
+      result = await retryQuestionAction(
+        state.documentText,
+        current,
+        correctionNote,
+      );
+    } catch {
+      result = {
+        success: false,
+        message: AI_FAILURE_MESSAGES[AiFailureCause.Busy],
+      };
+    }
     // Cancelled (or replaced) while the AI was reading: its answer is dropped.
     if (runningRetries.current.get(id) !== retry) return;
     runningRetries.current.delete(id);
-    dispatch({ type: "RETRY_END", id });
     if (!result.success || !result.question) {
-      dispatch({
-        type: "UPDATE_QUESTION",
-        id,
-        patch: { retryError: result.message },
-      });
+      dispatch({ type: "RETRY_FAILED", id, message: result.message });
       return;
     }
+    dispatch({ type: "RETRY_END", id });
 
     // Name every ParsedQuestion field explicitly rather than `...result.question`
     // — a field the AI omits (e.g. `options` after a type correction) must

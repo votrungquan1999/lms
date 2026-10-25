@@ -366,4 +366,46 @@ describe("Feature: AI document import — a teacher re-asks the AI about one que
       screen.queryByText("A late answer that must not appear."),
     ).not.toBeInTheDocument();
   });
+
+  it("shows the try-again-in-a-few-minutes message on the card and unlocks Import when the retry call is dropped", async () => {
+    const user = userEvent.setup();
+    await uploadTwoQuestions(user);
+    vi.mocked(retryQuestionAction).mockRejectedValue(
+      new TypeError("Failed to fetch"),
+    );
+
+    await user.click(
+      screen.getAllByRole("button", { name: /retry with ai/i })[0],
+    );
+    await user.type(screen.getByLabelText(/what was wrong/i), "Wrong focus.");
+    await user.click(screen.getByRole("button", { name: /^retry$/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/few minutes/i);
+    expect(
+      screen.getByRole("button", { name: /import questions/i }),
+    ).toBeEnabled();
+    expect(screen.getByText("Explain photosynthesis.")).toBeInTheDocument();
+  });
+
+  it("stays silent when a retry the teacher cancelled later fails", async () => {
+    const user = userEvent.setup();
+    await uploadTwoQuestions(user);
+    let dropConnection: (error: Error) => void = () => {};
+    vi.mocked(retryQuestionAction).mockReturnValue(
+      new Promise((_resolve, reject) => {
+        dropConnection = reject;
+      }),
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: /retry with ai/i })[0],
+    );
+    await user.type(screen.getByLabelText(/what was wrong/i), "Wrong focus.");
+    await user.click(screen.getByRole("button", { name: /^retry$/i }));
+    await user.click(screen.getByRole("button", { name: /cancel retry/i }));
+
+    dropConnection(new TypeError("Failed to fetch"));
+    await new Promise((done) => setTimeout(done, 0));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

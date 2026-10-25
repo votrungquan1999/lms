@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -392,5 +392,89 @@ describe("Feature: AI document import — a teacher imports the reviewed questio
     expect(within(q2Card as HTMLElement).getByRole("alert")).toHaveTextContent(
       /question 2/i,
     );
+  });
+});
+
+type ParseResult = Awaited<ReturnType<typeof parseQuestionsAction>>;
+
+describe("Feature: AI document import — a read that fails or never answers in the browser does not leave the screen stuck", () => {
+  function renderScreen() {
+    render(
+      <ImportAiProvider>
+        <ImportAiFilePicker />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
+      </ImportAiProvider>,
+    );
+  }
+
+  it("tells the teacher to try again in a few minutes and unlocks the picker when the read call is dropped", async () => {
+    const user = userEvent.setup();
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "Some text.",
+      pictures: [],
+    });
+    vi.mocked(parseQuestionsAction).mockRejectedValue(
+      new TypeError("Failed to fetch"),
+    );
+    renderScreen();
+
+    await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/few minutes/i);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/document/i)).toBeEnabled();
+  });
+
+  it("gives up after 300 seconds with the too-long message, and ignores a reply that arrives later", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      vi.mocked(extractDocx).mockResolvedValue({
+        text: "Some text.",
+        pictures: [],
+      });
+      let answerLate!: (result: ParseResult) => void;
+      vi.mocked(parseQuestionsAction).mockReturnValue(
+        new Promise<ParseResult>((resolve) => {
+          answerLate = resolve;
+        }),
+      );
+      renderScreen();
+
+      await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
+      await screen.findByRole("status");
+      // act flushes the timer-fired dispatch into the DOM so a premature give-up is visible.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(299_000);
+      });
+
+      expect(screen.getByRole("status")).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/too long/i);
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/document/i)).toBeEnabled();
+
+      answerLate({
+        success: true,
+        message: "Extracted 1 question(s)",
+        questions: [{ title: "Late", content: "Late.", type: "free_text" }],
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(screen.queryByText("Late")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
