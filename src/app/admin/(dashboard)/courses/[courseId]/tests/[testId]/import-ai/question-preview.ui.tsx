@@ -241,12 +241,12 @@ function ReviewScreen({
             aria-busy={isReading}
             className={isReading ? "space-y-3 opacity-50" : "space-y-3"}
           >
-            <UnusedPictures />
+            <UnusedPictures firstQuestionNumber={firstQuestionNumber} />
             {questions.map((question, index) => (
               <QuestionCard
                 key={question.id}
                 question={question}
-                index={index}
+                number={firstQuestionNumber + index}
               />
             ))}
           </div>
@@ -567,10 +567,11 @@ function ReplaceConfirmDialog({
  */
 function QuestionCard({
   question,
-  index,
+  number,
 }: {
   question: ImportQuestionDraft;
-  index: number;
+  /** Number the question will have once saved. */
+  number: number;
 }): React.ReactNode {
   const { updateQuestion, pictures, isBusy, setEditOpen } = useImportAi();
   const [isEditing, setIsEditing] = useState(false);
@@ -618,7 +619,7 @@ function QuestionCard({
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between gap-2 text-base">
           <span className="flex items-center gap-1">
-            <span className="text-muted-foreground">#{index + 1}</span>
+            <span className="text-muted-foreground">#{number}</span>
             <span>{question.title}</span>
           </span>
           <span className="flex items-center gap-2">
@@ -671,7 +672,7 @@ function QuestionCard({
             role="alert"
             className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
           >
-            {question.importError}
+            Question {number} — {question.importReason ?? question.importError}
           </div>
         )}
       </CardContent>

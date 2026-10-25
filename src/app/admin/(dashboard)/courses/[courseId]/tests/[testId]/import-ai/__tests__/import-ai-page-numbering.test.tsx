@@ -41,54 +41,63 @@ afterEach(async () => {
   vi.resetAllMocks();
 });
 
+/** Renders the import page for a test whose live questions are #1 and #3 (#2 deleted), then uploads one parsed draft. */
+async function uploadFreshDraftAfterHighest3(): Promise<
+  ReturnType<typeof userEvent.setup>
+> {
+  const user = userEvent.setup();
+  const services = getTestServices();
+  const course = await services.courseService.createCourse({
+    title: "Course",
+    description: "",
+    createdBy: "admin",
+  });
+  const test = await services.testService.createTest(course.id, {
+    title: "Test",
+    description: "",
+    createdBy: "admin",
+  });
+  // Given questions #1-#3 with #2 deleted: count 2, highest number 3
+  const added = [];
+  for (const title of ["Q1", "Q2", "Q3"]) {
+    added.push(
+      await services.questionService.addQuestion(test.id, {
+        type: "free_text",
+        title,
+        content: title,
+        createdBy: "admin",
+      }),
+    );
+  }
+  await services.questionService.deleteQuestion(test.id, added[1].id, "admin");
+
+  vi.mocked(extractDocx).mockResolvedValue({ text: "Câu 1", pictures: [] });
+  vi.mocked(parseQuestionsAction).mockResolvedValue({
+    success: true,
+    message: "Extracted 1 question(s)",
+    questions: [{ title: "Fresh", content: "New?", type: "free_text" }],
+  });
+  render(
+    await ImportAiPage({
+      params: Promise.resolve({ courseId: course.id, testId: test.id }),
+    }),
+  );
+
+  await user.upload(
+    screen.getByLabelText(/document/i),
+    new File(["docx"], "exam.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }),
+  );
+  await screen.findByText("Fresh");
+  return user;
+}
+
 describe("Feature: Student view numbers drafts as the page's real test would save them", () => {
   it("continues after the highest live question number, not the question count, when one was deleted", async () => {
-    const user = userEvent.setup();
-    const services = getTestServices();
-    const course = await services.courseService.createCourse({
-      title: "Course",
-      description: "",
-      createdBy: "admin",
-    });
-    const test = await services.testService.createTest(course.id, {
-      title: "Test",
-      description: "",
-      createdBy: "admin",
-    });
-    // Given questions #1-#3 with #2 deleted: count 2, highest number 3
-    const added = [];
-    for (const title of ["Q1", "Q2", "Q3"]) {
-      added.push(
-        await services.questionService.addQuestion(test.id, {
-          type: "free_text",
-          title,
-          content: title,
-          createdBy: "admin",
-        }),
-      );
-    }
-    await services.questionService.deleteQuestion(test.id, added[1].id, "admin");
+    const user = await uploadFreshDraftAfterHighest3();
 
-    vi.mocked(extractDocx).mockResolvedValue({ text: "Câu 1", pictures: [] });
-    vi.mocked(parseQuestionsAction).mockResolvedValue({
-      success: true,
-      message: "Extracted 1 question(s)",
-      questions: [{ title: "Fresh", content: "New?", type: "free_text" }],
-    });
-    render(
-      await ImportAiPage({
-        params: Promise.resolve({ courseId: course.id, testId: test.id }),
-      }),
-    );
-
-    // When a document is uploaded and Student view is chosen
-    await user.upload(
-      screen.getByLabelText(/document/i),
-      new File(["docx"], "exam.docx", {
-        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      }),
-    );
-    await screen.findByText("Fresh");
+    // When Student view is chosen
     await user.click(screen.getByRole("button", { name: "Student view" }));
 
     // Then the draft is numbered 4, as it will be saved
@@ -97,5 +106,13 @@ describe("Feature: Student view numbers drafts as the page's real test would sav
         "Question 4: Fresh",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("numbers the Teacher card the same way", async () => {
+    // Given a draft uploaded after live questions up to #3
+    await uploadFreshDraftAfterHighest3();
+
+    // Then its Teacher card header reads #4
+    expect(screen.getByText("#4")).toBeInTheDocument();
   });
 });

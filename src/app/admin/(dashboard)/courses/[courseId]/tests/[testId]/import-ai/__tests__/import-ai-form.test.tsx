@@ -364,6 +364,7 @@ describe("Feature: AI document import — a teacher imports the reviewed questio
       success: false,
       message: 'Question 2 ("Q2"): Exactly one option must be marked correct.',
       invalidQuestionIndex: 1,
+      invalidQuestionReason: "Exactly one option must be marked correct.",
     });
 
     render(

@@ -246,7 +246,7 @@ describe("Feature: AI document import — the document's pictures come along wit
     expect(
       await within(questionCard("Câu 14")).findByRole("alert"),
     ).toHaveTextContent(
-      "This question's pictures could not be uploaded: Each media file must be 10 MB or smaller",
+      "Question 1 — Its pictures could not be uploaded: Each media file must be 10 MB or smaller",
     );
     expect(importAiQuestionsAction).not.toHaveBeenCalled();
     expect(

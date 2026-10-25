@@ -11,7 +11,12 @@ import { picturesOf, useImportAi } from "./import-ai-form.state";
  * the teacher can see what the AI left out. Derived from the drafts on every
  * render, so a picture removed from a question shows up here again.
  */
-export function UnusedPictures(): React.ReactNode {
+export function UnusedPictures({
+  firstQuestionNumber,
+}: {
+  /** Number the first draft will have once saved. */
+  firstQuestionNumber: number;
+}): React.ReactNode {
   const { pictures, questions } = useImportAi();
   const used = new Set(questions.flatMap((q) => q.imageNumbers ?? []));
   // Walks the document's pictures, so a number with no picture behind it never makes a tile.
@@ -34,7 +39,10 @@ export function UnusedPictures(): React.ReactNode {
               alt={`Unused picture ${picture.number}`}
               className="max-h-48 w-full rounded-md border border-border object-contain"
             />
-            <AddPictureControl picture={picture} />
+            <AddPictureControl
+              picture={picture}
+              firstQuestionNumber={firstQuestionNumber}
+            />
           </div>
         ))}
       </div>
@@ -45,11 +53,14 @@ export function UnusedPictures(): React.ReactNode {
 /**
  * Picks the question an unused picture should join and adds it there.
  * @param picture - The unused picture.
+ * @param firstQuestionNumber - Number the first draft will have once saved.
  */
 function AddPictureControl({
   picture,
+  firstQuestionNumber,
 }: {
   picture: ReviewPicture;
+  firstQuestionNumber: number;
 }): React.ReactNode {
   const { questions, pictures, updateQuestion, isBusy } = useImportAi();
   const [questionId, setQuestionId] = useState("");
@@ -73,7 +84,7 @@ function AddPictureControl({
           <option value="">Choose a question</option>
           {questions.map((question, index) => (
             <option key={question.id} value={question.id}>
-              #{index + 1} {question.title}
+              #{firstQuestionNumber + index} {question.title}
             </option>
           ))}
         </select>

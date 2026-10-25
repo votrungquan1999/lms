@@ -372,7 +372,7 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
     );
   });
 
-  it("keeps the server's own text on the question's card in Teacher view", async () => {
+  it("shows the rejected question's own number and the bare reason on its card in Teacher view, following the mode", async () => {
     const user = userEvent.setup();
     await uploadDocument({ count: 2, highest: 3 });
     vi.stubGlobal(
@@ -401,8 +401,20 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
 
     await user.click(screen.getByRole("button", { name: "Import questions" }));
 
+    // Live questions end at #3, so Capital (review position 2) is Question 5, not the server's "Question 2"
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      'Question 2 ("Capital"): Exactly one option must be marked correct.',
+      "Question 5 — Exactly one option must be marked correct.",
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/Question 2/);
+
+    // The number follows the mode: replacing restarts numbering at 1
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Replace the test's existing questions",
+      }),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Question 2 — Exactly one option must be marked correct.",
     );
   });
 

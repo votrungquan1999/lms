@@ -66,10 +66,12 @@ interface DraftSpec {
  * whose AI result places the given pictures on the given drafts.
  * @param pictureCount - How many pictures the document holds, numbered from 1.
  * @param drafts - The drafts the AI returns, in order.
+ * @param highestExistingQuestionNumber - Number of the test's last live question.
  */
 async function uploadDocument(
   pictureCount: number,
   drafts: DraftSpec[],
+  highestExistingQuestionNumber = 0,
 ): Promise<void> {
   const user = userEvent.setup();
   vi.mocked(extractDocx).mockResolvedValue({
@@ -98,6 +100,7 @@ async function uploadDocument(
         courseId="course-1"
         existingQuestionCount={0}
         answeredStudentCount={0}
+        highestExistingQuestionNumber={highestExistingQuestionNumber}
       />
     </ImportAiProvider>,
   );
@@ -500,5 +503,39 @@ describe("Feature: AI document import — pictures no question uses", () => {
     ).toBeNull();
     const unused = screen.getByRole("region", { name: "Unused pictures" });
     expect(within(unused).getByAltText("Unused picture 4")).toBeInTheDocument();
+  });
+
+  it("numbers the question picker from the number the drafts will have in the test", async () => {
+    // Given a test whose last live question is #3
+    await uploadDocument(1, [{ title: "Câu 14" }, { title: "Câu 15" }], 3);
+
+    // Then the picker offers the drafts as #4 and #5
+    const picker = screen.getByLabelText("Question for picture 1");
+    expect(
+      within(picker)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Choose a question", "#4 Câu 14", "#5 Câu 15"]);
+  });
+
+  it("renumbers the cards and the question picker when Replace is chosen", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(1, [{ title: "Câu 14" }, { title: "Câu 15" }], 3);
+    expect(within(questionCard("Câu 15")).getByText("#5")).toBeInTheDocument();
+
+    // When the teacher switches to replacing the test's questions
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Replace the test's existing questions",
+      }),
+    );
+
+    // Then the numbers restart at 1 on the cards and in the picker
+    expect(within(questionCard("Câu 15")).getByText("#2")).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("Question for picture 1"))
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Choose a question", "#1 Câu 14", "#2 Câu 15"]);
   });
 });
