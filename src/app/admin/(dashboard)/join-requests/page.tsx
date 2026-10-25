@@ -58,8 +58,8 @@ function resolvePage(raw: string | string[] | undefined): number {
 
 /**
  * Joins raw join requests with the student and course each one names.
- * D55: a request whose student or course no longer resolves is dropped, not
- * rendered as a placeholder — every returned row stays actionable. R9: the
+ * A request whose student or course no longer resolves is dropped, not
+ * rendered as a placeholder — every returned row stays actionable. The
  * `studentId` on the request is already the domain student id enrollment
  * uses, so the name shown here is provably the person approval would enroll.
  */
@@ -99,8 +99,8 @@ async function toVisibleRows(
 
 /**
  * Admin join-request queue — lists requests for the active tab (Waiting by
- * default), showing who is asking and which course they want (Step 27),
- * and lets the admin switch between Waiting/Approved/Rejected (Step 28).
+ * default), showing who is asking and which course they want,
+ * and lets the admin switch between Waiting/Approved/Rejected.
  */
 export default async function JoinRequestsPage({
   searchParams,
@@ -118,7 +118,7 @@ export default async function JoinRequestsPage({
   );
   const status = STATUS_BY_FILTER[filter];
 
-  // D69: the total must count only rows the admin can actually SEE, and
+  // The total must count only rows the admin can actually SEE, and
   // whether a row is visible isn't known until after the student/course
   // join below — so this loads every matching request for the status,
   // unbounded (limit: 0 is Mongo's own "no limit"), on every page view.

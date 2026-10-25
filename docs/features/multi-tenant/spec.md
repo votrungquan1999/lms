@@ -105,7 +105,7 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 - The results-report download checks the course and the student against the school before enrolment, so every foreign id is a 404; the 403 is left for this school's own student who isn't in this school's course (D117).
 - A grading link naming a student who isn't on the roster falls back to the first roster student, as before; the roster only holds this school's enrolled students (D67).
 - AI Apply only applies a suggestion whose own test and student match the verified pair (D55).
-- Approving a join request that names another school's student says "Student not found" and leaves the request pending (D129).
+- Approving a join request confirms the student exists (otherwise "Student not found" and the request stays pending, D129), claims the request, adds this school to the student's schools, then enrols them; each step is safe to repeat, so a retried approval finishes a half-done one (MS-D13).
 
 **Where it lives:** `TestService.requireTest`; `QuestionService.getQuestion`, `updateQuestion`, `deleteQuestion`; `src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/test-parent-check.ts` (`resolveOwnedTest`, `assertQuestionInTest`, `assertGradingTarget`); `courses/[courseId]/results-report/download/route.ts`; `join-requests/actions.ts` (`approveJoinRequestAction`).
 

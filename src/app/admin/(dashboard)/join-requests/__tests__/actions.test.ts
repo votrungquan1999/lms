@@ -87,29 +87,63 @@ describe("Feature: Approve a course join request", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/admin/join-requests");
   });
 
-  it("refuses a request naming another school's student and leaves it pending", async () => {
+  it("brings a student of another school into this school and the course", async () => {
     const { courseService, courseJoinRequestService, enrollmentService } =
       getTestServices();
 
-    // Given a (legacy) pending request in this school naming a student who
-    // belongs to another school
+    // Given a pending request in this school from a student who belongs only to School B
     const course = await courseService.createCourse({
       title: "Algebra I",
       description: "",
       createdBy: "admin-1",
     });
     const otherSchool = await addTestSchool("School B");
-    const outsider = await getTestServices(
+    const visitor = await getTestServices(
       otherSchool.id,
     ).studentService.createStudentDocument({
-      authUserId: "auth-outsider",
-      username: "outsider",
-      name: "Outsider",
+      authUserId: "auth-visitor",
+      username: "visitor",
+      name: "Visitor",
       createdBy: "self-signup",
     });
     const request = await courseJoinRequestService.createRequest({
       courseId: course.id,
-      studentId: outsider.id,
+      studentId: visitor.id,
+    });
+
+    const formData = new FormData();
+    formData.set("requestId", request.id);
+
+    // When an admin of this school approves it
+    const state = await approveJoinRequestAction(null, formData);
+
+    // Then the student is enrolled, belongs to both schools, and the request is approved
+    expect(state.success).toBe(true);
+    expect(await enrollmentService.isEnrolled(course.id, visitor.id)).toBe(
+      true,
+    );
+    const { studentService } = getTestServices(otherSchool.id);
+    const [updated] = await studentService.findByIds([visitor.id]);
+    expect([...updated.schoolIds].sort()).toEqual(
+      [otherSchool.id, TEST_SCHOOL.id].sort(),
+    );
+    const after = await courseJoinRequestService.getRequest(request.id);
+    expect(after?.status).toBe(JoinRequestStatus.Approved);
+  });
+
+  it("refuses a request whose student no longer exists and leaves it pending", async () => {
+    const { courseService, courseJoinRequestService, enrollmentService } =
+      getTestServices();
+
+    // Given a pending request naming a student id that no longer exists
+    const course = await courseService.createCourse({
+      title: "Algebra I",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const request = await courseJoinRequestService.createRequest({
+      courseId: course.id,
+      studentId: "deleted-student",
     });
 
     const formData = new FormData();
@@ -118,14 +152,56 @@ describe("Feature: Approve a course join request", () => {
     // When an admin approves it
     const state = await approveJoinRequestAction(null, formData);
 
-    // Then it is refused, nobody is enrolled, and the request is not left
-    // approved-but-not-enrolled
-    expect(state.success).toBe(false);
-    expect(await enrollmentService.isEnrolled(course.id, outsider.id)).toBe(
-      false,
-    );
+    // Then it is refused and the request stays pending
+    expect(state).toEqual({ success: false, message: "Student not found" });
+    expect(
+      await enrollmentService.isEnrolled(course.id, "deleted-student"),
+    ).toBe(false);
     const after = await courseJoinRequestService.getRequest(request.id);
     expect(after?.status).toBe(JoinRequestStatus.Pending);
+  });
+
+  it("finishes a half-done approval of another school's student: school and enrolment both land on the retry", async () => {
+    const { courseService, courseJoinRequestService, enrollmentService } =
+      getTestServices();
+
+    // Given a request that was claimed (Approved) before the crash, with the
+    // student not yet added to this school or enrolled
+    const course = await courseService.createCourse({
+      title: "Algebra I",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const otherSchool = await addTestSchool("School B");
+    const visitor = await getTestServices(
+      otherSchool.id,
+    ).studentService.createStudentDocument({
+      authUserId: "auth-visitor",
+      username: "visitor",
+      name: "Visitor",
+      createdBy: "self-signup",
+    });
+    const request = await courseJoinRequestService.createRequest({
+      courseId: course.id,
+      studentId: visitor.id,
+    });
+    await courseJoinRequestService.approve(request.id, "admin-1");
+
+    const formData = new FormData();
+    formData.set("requestId", request.id);
+
+    // When an admin approves it again
+    const state = await approveJoinRequestAction(null, formData);
+
+    // Then the student is in this school and the course
+    expect(state.success).toBe(true);
+    expect(await enrollmentService.isEnrolled(course.id, visitor.id)).toBe(
+      true,
+    );
+    const [updated] = await getTestServices().studentService.findByIds([
+      visitor.id,
+    ]);
+    expect(updated.schoolIds).toContain(TEST_SCHOOL.id);
   });
 
   it("refuses a non-admin caller and enrolls no one", async () => {
@@ -325,6 +401,47 @@ describe("Feature: Reject a course join request", () => {
     );
     expect(await studentService.findByIds([student.id])).toHaveLength(1);
     expect(revalidatePath).toHaveBeenCalledWith("/admin/join-requests");
+  });
+
+  it("leaves another school's student out of this school", async () => {
+    const { courseService, courseJoinRequestService, enrollmentService } =
+      getTestServices();
+
+    // Given a pending request from a student who belongs only to School B
+    const course = await courseService.createCourse({
+      title: "Algebra I",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const otherSchool = await addTestSchool("School B");
+    const visitor = await getTestServices(
+      otherSchool.id,
+    ).studentService.createStudentDocument({
+      authUserId: "auth-visitor",
+      username: "visitor",
+      name: "Visitor",
+      createdBy: "self-signup",
+    });
+    const request = await courseJoinRequestService.createRequest({
+      courseId: course.id,
+      studentId: visitor.id,
+    });
+
+    const formData = new FormData();
+    formData.set("requestId", request.id);
+
+    // When an admin of this school rejects it
+    const state = await rejectJoinRequestAction(null, formData);
+
+    // Then the student is neither enrolled nor added to this school
+    expect(state.success).toBe(true);
+    expect(await enrollmentService.isEnrolled(course.id, visitor.id)).toBe(
+      false,
+    );
+    const [unchanged] = await getTestServices(
+      otherSchool.id,
+    ).studentService.findByIds([visitor.id]);
+    expect(unchanged.schoolIds).toEqual([otherSchool.id]);
   });
 
   it("leaves an enrollment made through another path untouched (D66/R7)", async () => {

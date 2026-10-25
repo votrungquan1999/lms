@@ -121,3 +121,32 @@ describe("Feature: a student username can exist only once across all schools", (
     },
   );
 });
+
+/**
+ * Feature: adding a student to a school reports whether the student exists
+ * As a flow that brings a student into a school
+ * I want to know when the student id matches nobody
+ * So that it can refuse instead of silently adding nothing
+ */
+describe("Feature: adding a student to a school reports whether the student exists", () => {
+  dbIt(
+    "returns false for an unknown student and true, repeatably, for a known one",
+    async ({ db }) => {
+      const owner = new StudentService(db, "school-a");
+      const student = await owner.createStudentDocument({
+        authUserId: "auth-1",
+        username: "ada",
+        name: "Ada",
+        createdBy: "admin-a",
+      });
+      const joining = new StudentService(db, "school-b");
+
+      expect(await joining.addToSchool("no-such-student")).toBe(false);
+      expect(await joining.addToSchool(student.id)).toBe(true);
+      expect(await joining.addToSchool(student.id)).toBe(true);
+
+      const [stored] = await joining.findByIds([student.id]);
+      expect(stored.schoolIds.sort()).toEqual(["school-a", "school-b"]);
+    },
+  );
+});

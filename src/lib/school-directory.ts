@@ -124,9 +124,9 @@ export class SchoolDirectory {
   }
 
   /**
-   * Finds students by id, in any school. Safe only when fed one school's own
-   * request ids (the school-filtered `listByStatus` result): handed arbitrary
-   * ids it would return students of every school.
+   * Finds students by id, in any school. Safe only when fed ids taken from one
+   * school's own join requests: handed arbitrary ids it would return students
+   * of every school.
    * @param ids - Student ids; empty input returns `[]` without a query.
    * @returns The students found; unknown ids are simply absent.
    */

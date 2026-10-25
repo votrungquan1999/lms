@@ -7,6 +7,7 @@ import { withSpan } from "src/lib/observability/with-span";
 import {
   getCourseJoinRequestService,
   getEnrollmentService,
+  getSchoolDirectory,
   getStudentService,
 } from "src/lib/services-singleton";
 import { z } from "zod";
@@ -21,13 +22,12 @@ export interface JoinRequestActionState {
 }
 
 /**
- * Server action: approves a pending join request, enrolling the student
- * (Step 30). The status is claimed FIRST, the enrollment written SECOND
- * (D90/R6) — so a losing concurrent Reject is refused before an enrollment
- * for the turned-down student ever exists. A crash between the two writes
- * leaves "approved but not enrolled," which a retried approve safely
- * finishes: re-claiming an already-Approved row succeeds and re-runs the
- * (idempotent) enrollment instead of throwing.
+ * Server action: approves a pending join request. The status is claimed
+ * first, then this school is added to the student's schools, then the student
+ * is enrolled — so a losing concurrent Reject is refused before the student
+ * is added or enrolled. Every write is safe to repeat: a crash part-way leaves
+ * the request Approved, and a retried approve re-claims it and finishes the
+ * rest.
  */
 export async function approveJoinRequestAction(
   _prevState: JoinRequestActionState | null,
@@ -37,7 +37,7 @@ export async function approveJoinRequestAction(
   const authService = await getAuthService();
 
   // Re-checks admin access itself — a server action is a separate POST
-  // endpoint the (dashboard) layout guard never runs in front of (R5).
+  // endpoint the (dashboard) layout guard never runs in front of.
   let adminUserId: string;
   let schoolId: string;
   try {
@@ -72,19 +72,26 @@ export async function approveJoinRequestAction(
           return { success: false, message: "Join request not found" };
         }
 
-        // Refused before the claim: enrolment rejects an out-of-school
-        // student, which would leave the request approved but not enrolled.
-        const studentService = await getStudentService(schoolId);
-        const [ownStudent] = await studentService.findByIds([
+        // Refused before the claim: a missing student after it would leave
+        // the request approved but nobody added or enrolled.
+        const schoolDirectory = await getSchoolDirectory();
+        const [existing] = await schoolDirectory.findStudentsByIds([
           request.studentId,
         ]);
-        if (!ownStudent) {
+        if (!existing) {
           return { success: false, message: "Student not found" };
         }
 
-        // Claim the status BEFORE enrolling (D90/R6) — the atomic claim
-        // throws here for a Rejected row, or for a losing concurrent Reject.
+        // The atomic claim throws here for a Rejected row, or for a losing
+        // concurrent Reject.
         await joinRequestService.approve(request.id, adminUserId);
+
+        // Enrolment only accepts this school's students, so the school is
+        // added first; every step is safe to repeat on a retried approval.
+        const studentService = await getStudentService(schoolId);
+        if (!(await studentService.addToSchool(request.studentId))) {
+          return { success: false, message: "Student not found" };
+        }
 
         const enrollmentService = await getEnrollmentService(schoolId);
         await enrollmentService.enrollStudent(
@@ -106,10 +113,9 @@ export async function approveJoinRequestAction(
 }
 
 /**
- * Server action: rejects a pending join request (Step 31). Status-only — an
- * enrollment the student already has by another path is left untouched
- * (D66/R7); there is no delete/deactivate path for the account they created
- * (D11).
+ * Server action: rejects a pending join request. Status-only — an
+ * enrollment the student already has by another path is left untouched, and
+ * the account they created is not deleted or deactivated.
  */
 export async function rejectJoinRequestAction(
   _prevState: JoinRequestActionState | null,
@@ -119,7 +125,7 @@ export async function rejectJoinRequestAction(
   const authService = await getAuthService();
 
   // Re-checks admin access itself — a server action is a separate POST
-  // endpoint the (dashboard) layout guard never runs in front of (R5).
+  // endpoint the (dashboard) layout guard never runs in front of.
   let adminUserId: string;
   let schoolId: string;
   try {
@@ -154,7 +160,7 @@ export async function rejectJoinRequestAction(
           return { success: false, message: "Join request not found" };
         }
 
-        // The atomic claim (Step 32/R6) throws for a non-Pending row.
+        // The atomic claim throws for a non-Pending row.
         await joinRequestService.reject(request.id, adminUserId);
 
         revalidatePath("/admin/join-requests");
