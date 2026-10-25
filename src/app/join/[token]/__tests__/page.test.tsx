@@ -524,14 +524,14 @@ describe("Feature: the Google invite path provisions a student into the SAME sch
 });
 
 /**
- * Feature: an identity already provisioned in another school is never
- * provisioned a second time
+ * Feature: an identity already provisioned in another school is offered the
+ * request to join, never provisioned a second time
  * As a prospective student who already has a profile in a DIFFERENT school
  * I want opening a new school's invite link with the same Google identity to
- * be refused as another school's link, not create a second profile
- * So that one sign-in account can never hold two student documents
+ * file a request in that school
+ * So that one sign-in account never holds two student documents
  */
-describe("Feature: an identity already provisioned in another school is never provisioned a second time", () => {
+describe("Feature: an identity already provisioned in another school is offered the request to join, never provisioned a second time", () => {
   beforeEach(async () => {
     await setupTestDb();
   });
@@ -540,7 +540,7 @@ describe("Feature: an identity already provisioned in another school is never pr
     await teardownTestDb();
   });
 
-  it("creates no second student document, and leaves the original school's record untouched", async () => {
+  it("files a pending request in the invite's school and creates no second student document", async () => {
     const school = await addTestSchool("School B");
     const schoolServices = getTestServices(school.id);
     const course = await schoolServices.courseService.createCourse({
@@ -554,12 +554,14 @@ describe("Feature: an identity already provisioned in another school is never pr
 
     // An existing student, already assigned to the DEFAULT school
     const defaultServices = getTestServices();
-    await defaultServices.studentService.createStudentDocument({
-      authUserId: "cross-school-existing-id",
-      username: "existing-elsewhere",
-      name: "Existing Elsewhere",
-      createdBy: "admin-1",
-    });
+    const existing = await defaultServices.studentService.createStudentDocument(
+      {
+        authUserId: "cross-school-existing-id",
+        username: "existing-elsewhere",
+        name: "Existing Elsewhere",
+        createdBy: "admin-1",
+      },
+    );
     mockResolveUnclassifiedIdentity.mockResolvedValue({
       authUserId: "cross-school-existing-id",
       email: "existing-elsewhere@gmail.com",
@@ -572,10 +574,15 @@ describe("Feature: an identity already provisioned in another school is never pr
     });
     render(ui);
 
-    expect(
-      screen.getByText(/join link is for a course in another school/i),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/waiting for admin approval/i)).toBeNull();
+    expect(screen.getByText(/waiting for admin approval/i)).toBeInTheDocument();
+    expect(screen.queryByText(/another school/i)).toBeNull();
+    const queue = await schoolServices.courseJoinRequestService.listByStatus(
+      JoinRequestStatus.Pending,
+      { skip: 0, limit: 50 },
+    );
+    expect(queue.items.map((request) => request.studentId)).toEqual([
+      existing.id,
+    ]);
     expect(await schoolServices.studentService.listStudents()).toHaveLength(0);
     expect(await defaultServices.studentService.listStudents()).toHaveLength(1);
   });

@@ -129,12 +129,12 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 - **Invite links:** the link's course decides the school. Username/password sign-up and Google sign-up both create the student in that school. An invite to a course with no school is an invalid invite (D50).
 - A signed-in student opening another school's invite sees the request form, and the request is filed in the invite course's school queue for that school's admin to approve (MS-D14).
 - **Google sign-up:** one student profile per sign-in account, enforced by a unique index (D40). A second tab or reload finishing the same invite gets the same "waiting for approval" outcome (D72).
-- If the Google account already has a profile in another school — two invites from different schools finished in two tabs — the page shows the same cross-school refusal instead of a false "waiting for approval" (D113, D128).
+- If the Google account already has a profile in another school, the invite page files a pending request in the invite's school and says "waiting for approval"; no second profile is created and the student is never told the link is for another school (MS-D17).
 - **Usernames are unique across every school**, enforced by a unique index; lookups are case-sensitive exact matches and login is unchanged (D7). The accepted cost: "taken" reveals that the name exists in another school.
 - A taken name on self-signup says "That username is already taken. If it's yours, sign in instead; otherwise choose another." (D71); on the Google username form, "That username is already taken. Please choose another." When two sign-ups race, the database refuses the loser.
 - Duplicate username and duplicate sign-in account are typed errors (`DuplicateUsernameError`, `DuplicateAuthAccountError`), told apart by which index refused the insert, never by message text (D58, D127).
 
-**Where it lives:** `src/lib/session.ts` (`StudentSession.schoolId`); `PageGuard.requireEnrollment`; `canWorkOnTest` in `src/app/student/(dashboard)/courses/[courseId]/tests/[testId]/actions.ts`; `src/lib/school-directory.ts` (`findAssignedInviteCourse`); `src/app/join/[token]/actions.ts`, `page.tsx` and `join-messages.ts`; `src/lib/google-student-provisioner.ts` (`GoogleProvisionOutcome.WrongSchool`); `src/lib/student-service.ts`; `ensureIndexes` in `src/lib/database.ts`.
+**Where it lives:** `src/lib/session.ts` (`StudentSession.schoolId`); `PageGuard.requireEnrollment`; `canWorkOnTest` in `src/app/student/(dashboard)/courses/[courseId]/tests/[testId]/actions.ts`; `src/lib/school-directory.ts` (`findAssignedInviteCourse`); `src/app/join/[token]/actions.ts`, and `page.tsx`; `src/lib/google-student-provisioner.ts`; `src/lib/student-service.ts`; `ensureIndexes` in `src/lib/database.ts`.
 
 ## Records With No School
 

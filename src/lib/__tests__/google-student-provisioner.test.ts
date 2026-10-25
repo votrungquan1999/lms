@@ -578,14 +578,14 @@ describe("Feature: a derived username taken by another school's student still se
 
 /**
  * Feature: a Google sign-up whose account already belongs to another school
- * is refused instead of told it is waiting for approval
+ * is offered the request to join
  * As a student of one school who opens another school's invite
- * I want to be told the link is for another school
- * So that I never wait for an approval no admin can see
+ * I want my request to reach that school's admin
+ * So that I am never told the link is not for me
  */
-describe("Feature: a Google sign-up whose account already belongs to another school is refused", () => {
+describe("Feature: a Google sign-up whose account already belongs to another school asks to join the invite's school", () => {
   dbIt(
-    "reports WrongSchool and writes no join request when the account's profile is in another school",
+    "reports Provisioned and writes a pending request in the invite's school when the account's profile is in another school",
     async ({ db }) => {
       const inviteSchoolId = "school-b";
       const studentService = new StudentService(db, inviteSchoolId);
@@ -603,7 +603,10 @@ describe("Feature: a Google sign-up whose account already belongs to another sch
         name: "Two Schools",
         role: "student",
       });
-      await new StudentService(db, TEST_SCHOOL_ID).createStudentDocument({
+      const profile = await new StudentService(
+        db,
+        TEST_SCHOOL_ID,
+      ).createStudentDocument({
         authUserId: rawUserId.toHexString(),
         username: "two.schools",
         name: "Two Schools",
@@ -621,15 +624,44 @@ describe("Feature: a Google sign-up whose account already belongs to another sch
         },
       );
 
-      // Then it is refused as another school's, not "provisioned"
-      expect(outcome).toBe(GoogleProvisionOutcome.WrongSchool);
+      // Then it is reported as waiting for approval
+      expect(outcome).toBe(GoogleProvisionOutcome.Provisioned);
 
-      // And no request to join school B's course was written
+      // And one pending request for that student sits in school B
+      const requests = await db
+        .collection("course_join_request")
+        .find({ courseId: "course-b" })
+        .toArray();
+      expect(requests).toHaveLength(1);
+      expect(requests[0]).toMatchObject({
+        schoolId: inviteSchoolId,
+        studentId: profile.id,
+        status: "pending",
+      });
+
+      // And the profile stays in its own school only, with no second profile
+      const after = await schoolDirectory.findByAuthUserId(
+        rawUserId.toHexString(),
+      );
+      expect(after?.schoolIds).toEqual([TEST_SCHOOL_ID]);
+      expect(await countProfiles(db, rawUserId.toHexString())).toBe(1);
+
+      // And re-entering the invite page files no second request
+      const secondOutcome = await provisionGoogleStudent(
+        { studentService, schoolDirectory, courseJoinRequestService },
+        {
+          authUserId: rawUserId.toHexString(),
+          email: "two.schools@gmail.com",
+          name: "Two Schools",
+          courseId: "course-b",
+        },
+      );
+      expect(secondOutcome).toBe(GoogleProvisionOutcome.Provisioned);
       expect(
         await db
           .collection("course_join_request")
-          .countDocuments({ courseId: "course-b" }),
-      ).toBe(0);
+          .countDocuments({ courseId: "course-b", status: "pending" }),
+      ).toBe(1);
     },
   );
 });

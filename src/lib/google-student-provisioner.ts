@@ -37,8 +37,6 @@ export interface GoogleStudentProvisionInput {
 export enum GoogleProvisionOutcome {
   Provisioned = "provisioned",
   NeedsUsername = "needs-username",
-  /** The sign-in account already has a profile in a different school. */
-  WrongSchool = "wrong-school",
 }
 
 /**
@@ -57,16 +55,21 @@ export function deriveUsername(email: string): string {
 
 /**
  * The outcome when the sign-in account already has a profile: re-entry into
- * the same school is a no-op, but a profile in another school must not be
- * reported as waiting for approval here — no request exists for this school.
+ * the same school is a no-op, while a profile from another school asks to join
+ * the invite's course, so that school's admin sees the request.
  */
-function outcomeForExistingProfile(
-  profile: { schoolIds: string[] },
-  inviteSchoolId: string,
-): GoogleProvisionOutcome {
-  return profile.schoolIds.includes(inviteSchoolId)
-    ? GoogleProvisionOutcome.Provisioned
-    : GoogleProvisionOutcome.WrongSchool;
+async function outcomeForExistingProfile(
+  deps: GoogleStudentProvisionDeps,
+  input: GoogleStudentProvisionInput,
+  profile: { id: string; schoolIds: string[] },
+): Promise<GoogleProvisionOutcome> {
+  if (!profile.schoolIds.includes(deps.studentService.schoolId)) {
+    await deps.courseJoinRequestService.createRequest({
+      courseId: input.courseId,
+      studentId: profile.id,
+    });
+  }
+  return GoogleProvisionOutcome.Provisioned;
 }
 
 /**
@@ -85,10 +88,9 @@ export async function provisionGoogleStudent(
   // Collapses the common re-entry (a reload or second tab after the first
   // write landed) to a no-op. A truly concurrent one passes this read and is
   // caught below, where a clash is re-checked against this same account.
-  const schoolId = deps.studentService.schoolId;
   const already = await deps.schoolDirectory.findByAuthUserId(input.authUserId);
   if (already) {
-    return outcomeForExistingProfile(already, schoolId);
+    return outcomeForExistingProfile(deps, input, already);
   }
 
   const username = deriveUsername(input.email);
@@ -112,7 +114,7 @@ export async function provisionGoogleStudent(
       input.authUserId,
     );
     return ownProfile
-      ? outcomeForExistingProfile(ownProfile, schoolId)
+      ? outcomeForExistingProfile(deps, input, ownProfile)
       : GoogleProvisionOutcome.NeedsUsername;
   }
 
@@ -141,7 +143,7 @@ export async function provisionGoogleStudent(
       input.authUserId,
     );
     return ownProfile
-      ? outcomeForExistingProfile(ownProfile, schoolId)
+      ? outcomeForExistingProfile(deps, input, ownProfile)
       : GoogleProvisionOutcome.NeedsUsername;
   }
 
