@@ -117,7 +117,8 @@ export type Change =
   | { kind: "removePicture"; id: string; number: number }
   | { kind: "addPicture"; id: string; number: number }
   | { kind: "retry"; id: string; patch: RetryPatch }
-  | { kind: "delete"; id: string };
+  | { kind: "delete"; id: string }
+  | { kind: "movePicture"; id: string; toId: string; number: number };
 
 /**
  * Applies one change to its draft.
@@ -127,7 +128,7 @@ export type Change =
  */
 function applyChange(
   draft: ImportQuestionDraft,
-  change: Exclude<Change, { kind: "delete" }>,
+  change: Exclude<Change, { kind: "delete" | "movePicture" }>,
 ): ImportQuestionDraft {
   switch (change.kind) {
     case "edit":
@@ -170,15 +171,33 @@ function replay(
   base: ImportQuestionDraft[],
   changes: Change[],
 ): ImportQuestionDraft[] {
-  return changes.reduce(
-    (drafts, change) =>
-      change.kind === "delete"
-        ? drafts.filter((draft) => draft.id !== change.id)
-        : drafts.map((draft) =>
-            draft.id === change.id ? applyChange(draft, change) : draft,
-          ),
-    base,
-  );
+  return changes.reduce((drafts, change) => {
+    switch (change.kind) {
+      case "delete":
+        return drafts.filter((draft) => draft.id !== change.id);
+      case "movePicture":
+        return drafts.map((draft) => {
+          if (draft.id === change.id) {
+            return {
+              ...draft,
+              imageNumbers: (draft.imageNumbers ?? []).filter(
+                (n) => n !== change.number,
+              ),
+            };
+          }
+          if (draft.id !== change.toId) return draft;
+          const held = draft.imageNumbers ?? [];
+          // A target that already holds the picture keeps it once.
+          return held.includes(change.number)
+            ? draft
+            : { ...draft, imageNumbers: [...held, change.number] };
+        });
+      default:
+        return drafts.map((draft) =>
+          draft.id === change.id ? applyChange(draft, change) : draft,
+        );
+    }
+  }, base);
 }
 
 /** What the screen is waiting on: nothing, the AI reading a file, or the import writing. */
@@ -470,6 +489,8 @@ interface ImportAiContextValue
   /** Takes a draft out of the list; Undo brings it back. */
   removeQuestion: (id: string) => void;
   addPicture: (id: string, number: number) => void;
+  /** Moves a picture from one draft to another; Undo moves it back. */
+  movePicture: (number: number, fromId: string, toId: string) => void;
   retryOneQuestion: (id: string, correctionNote: string) => Promise<void>;
   cancelRetry: (id: string) => void;
   /** Tells the screen a question's edit form opened or closed. */
@@ -923,6 +944,11 @@ export function ImportAiProvider({
       }),
     removeQuestion: (id) =>
       dispatch({ type: "CHANGE", change: { kind: "delete", id } }),
+    movePicture: (number, fromId, toId) =>
+      dispatch({
+        type: "CHANGE",
+        change: { kind: "movePicture", id: fromId, toId, number },
+      }),
     addPicture: (id, number) =>
       dispatch({ type: "CHANGE", change: { kind: "addPicture", id, number } }),
     retryOneQuestion,

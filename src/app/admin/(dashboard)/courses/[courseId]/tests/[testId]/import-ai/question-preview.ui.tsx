@@ -35,6 +35,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "src/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "src/components/ui/dropdown-menu";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
@@ -374,6 +380,7 @@ function ReviewScreen({
                 key={question.id}
                 question={question}
                 number={firstQuestionNumber + index}
+                firstQuestionNumber={firstQuestionNumber}
                 onDelete={() => {
                   pendingFocus.current = "undo";
                   removeQuestion(question.id);
@@ -438,6 +445,10 @@ function historyLabel(
       return `${verb} AI retry of ${question}`;
     case "delete":
       return `${verb} delete of ${question}`;
+    case "movePicture": {
+      const toPosition = drafts.findIndex((draft) => draft.id === change.toId);
+      return `${verb} move of picture ${change.number} from ${question} to Question ${firstQuestionNumber + toPosition}`;
+    }
   }
 }
 
@@ -732,11 +743,14 @@ function ReplaceConfirmDialog({
 function QuestionCard({
   question,
   number,
+  firstQuestionNumber,
   onDelete,
 }: {
   question: ImportQuestionDraft;
   /** Number the question will have once saved. */
   number: number;
+  /** Number the first draft will have once saved, to label the other questions. */
+  firstQuestionNumber: number;
   onDelete: () => void;
 }): React.ReactNode {
   const { saveEdit, pictures, isBusy, setEditOpen } = useImportAi();
@@ -810,7 +824,10 @@ function QuestionCard({
       </CardHeader>
       <CardContent className="space-y-2">
         <p className="text-sm">{question.content}</p>
-        <QuestionPictures question={question} />
+        <QuestionPictures
+          question={question}
+          firstQuestionNumber={firstQuestionNumber}
+        />
         {/* Counts the pictures the card shows; Import rejects a question over the limit. */}
         {picturesOf(question, pictures).length > MAX_MEDIA_PER_QUESTION && (
           <p className="text-sm text-destructive">
@@ -856,38 +873,102 @@ function QuestionCard({
  */
 function QuestionPictures({
   question,
+  firstQuestionNumber,
 }: {
   question: ImportQuestionDraft;
+  firstQuestionNumber: number;
 }): React.ReactNode {
-  const { pictures, removePicture, isBusy } = useImportAi();
+  const { pictures, questions, removePicture, movePicture, isBusy } =
+    useImportAi();
   const shown = picturesOf(question, pictures);
   if (shown.length === 0) return null;
 
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {shown.map((picture) => (
-        <div key={picture.number} className="grid gap-1">
-          {/* A local blob preview — next/image can't optimize it. */}
-          {/* biome-ignore lint/performance/noImgElement: local blob preview url */}
-          <img
-            src={picture.previewUrl}
-            alt={`Figure ${picture.number}`}
-            className="max-h-48 w-full rounded-md border border-border object-contain"
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-label={`Remove picture ${picture.number}`}
-            disabled={isBusy}
-            onClick={() => removePicture(question.id, picture.number)}
-          >
-            Remove
-          </Button>
-        </div>
-      ))}
+      {shown.map((picture) => {
+        const targets = moveTargets(question, picture, questions, pictures);
+        return (
+          <div key={picture.number} className="grid gap-1">
+            {/* A local blob preview — next/image can't optimize it. */}
+            {/* biome-ignore lint/performance/noImgElement: local blob preview url */}
+            <img
+              src={picture.previewUrl}
+              alt={`Figure ${picture.number}`}
+              className="max-h-48 w-full rounded-md border border-border object-contain"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={`Remove picture ${picture.number}`}
+              disabled={isBusy}
+              onClick={() => removePicture(question.id, picture.number)}
+            >
+              Remove
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Move picture ${picture.number} to another question`}
+                  disabled={isBusy || targets.every((t) => t.unavailable)}
+                >
+                  Move to question…
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-auto max-w-xs min-w-48">
+                {targets.map(({ target, index, unavailable }) => (
+                  <DropdownMenuItem
+                    key={target.id}
+                    disabled={unavailable !== null}
+                    onSelect={() =>
+                      movePicture(picture.number, question.id, target.id)
+                    }
+                  >
+                    #{firstQuestionNumber + index}
+                    {target.title.trim() && ` ${target.title.trim()}`}
+                    {unavailable && ` — ${unavailable}`}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      })}
     </div>
   );
+}
+
+/**
+ * Every question except the picture's own, with why it cannot take the picture if it cannot.
+ * @param owner - The question the picture is on.
+ * @param picture - The picture to move.
+ * @param drafts - The drafts as listed now.
+ * @param pictures - Every picture the document had.
+ * @returns One entry per other question, with its position in the list.
+ */
+function moveTargets(
+  owner: ImportQuestionDraft,
+  picture: ReviewPicture,
+  drafts: ImportQuestionDraft[],
+  pictures: ReviewPicture[],
+): {
+  target: ImportQuestionDraft;
+  index: number;
+  unavailable: string | null;
+}[] {
+  return drafts.flatMap((target, index) => {
+    if (target.id === owner.id) return [];
+    // Counts the pictures the card shows, as the Unused area does.
+    const unavailable = target.imageNumbers?.includes(picture.number)
+      ? "already has this picture"
+      : picturesOf(target, pictures).length >= MAX_MEDIA_PER_QUESTION
+        ? "full"
+        : null;
+    return [{ target, index, unavailable }];
+  });
 }
 
 /**
