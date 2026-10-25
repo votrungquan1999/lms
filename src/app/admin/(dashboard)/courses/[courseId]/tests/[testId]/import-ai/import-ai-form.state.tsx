@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useReducer,
   useRef,
 } from "react";
@@ -76,6 +77,107 @@ export function picturesOf(
   );
 }
 
+/** The fields a teacher can hand-edit in a draft's edit form. */
+export type EditableFields = Pick<
+  ImportQuestionDraft,
+  "title" | "content" | "type" | "options" | "referenceAnswer" | "explanation"
+>;
+
+/**
+ * Narrows a draft to the fields its edit form works on.
+ * @param draft - Any draft, or a buffer holding more than the editable fields.
+ * @returns Just the editable fields.
+ */
+export function editableFieldsOf(draft: EditableFields): EditableFields {
+  return {
+    title: draft.title,
+    content: draft.content,
+    type: draft.type,
+    options: draft.options,
+    referenceAnswer: draft.referenceAnswer,
+    explanation: draft.explanation,
+  };
+}
+
+/** What a Retry-with-AI answer replaces; a field the AI left out is an explicit `undefined`. */
+type RetryPatch = Pick<
+  ParsedQuestion,
+  | "title"
+  | "content"
+  | "type"
+  | "options"
+  | "referenceAnswer"
+  | "explanation"
+  | "imageNumbers"
+>;
+
+/** One thing the teacher (or a retry) did to a draft since the read. */
+export type Change =
+  | { kind: "edit"; id: string; fields: EditableFields }
+  | { kind: "removePicture"; id: string; number: number }
+  | { kind: "addPicture"; id: string; number: number }
+  | { kind: "retry"; id: string; patch: RetryPatch };
+
+/**
+ * Applies one change to its draft.
+ * @param draft - The draft before the change.
+ * @param change - The change, which targets this draft.
+ * @returns The draft after the change.
+ */
+function applyChange(
+  draft: ImportQuestionDraft,
+  change: Change,
+): ImportQuestionDraft {
+  switch (change.kind) {
+    case "edit":
+      return { ...draft, ...change.fields, edited: true };
+    case "removePicture":
+      return {
+        ...draft,
+        imageNumbers: (draft.imageNumbers ?? []).filter(
+          (n) => n !== change.number,
+        ),
+      };
+    case "addPicture":
+      return {
+        ...draft,
+        imageNumbers: [...(draft.imageNumbers ?? []), change.number],
+      };
+    case "retry":
+      // Spread so a field the AI left out clears the stale value.
+      return { ...draft, ...change.patch, edited: false };
+  }
+}
+
+/**
+ * Compares two drafts' editable fields by value.
+ * @param a - One draft's editable fields.
+ * @param b - The other's.
+ * @returns Whether every field is equal.
+ */
+function sameFields(a: EditableFields, b: EditableFields): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * Replays the changes over the drafts the read produced.
+ * @param base - The drafts as the read returned them.
+ * @param changes - The changes still in effect, oldest first.
+ * @returns The drafts as the teacher sees them.
+ */
+function replay(
+  base: ImportQuestionDraft[],
+  changes: Change[],
+): ImportQuestionDraft[] {
+  return changes.reduce(
+    (drafts, change) =>
+      drafts.map((draft) =>
+        draft.id === change.id ? applyChange(draft, change) : draft,
+      ),
+    base,
+  );
+}
+
 /** What the screen is waiting on: nothing, the AI reading a file, or the import writing. */
 type ImportPhase = "idle" | "reading" | "importing";
 
@@ -83,7 +185,15 @@ interface ImportAiState {
   documentText: string;
   /** Every picture the document had, keyed by its `[image N]` number. */
   pictures: ReviewPicture[];
-  questions: ImportQuestionDraft[];
+  /** The drafts as the last read returned them; `changes` are replayed over them. */
+  base: ImportQuestionDraft[];
+  changes: Change[];
+  /** Changes taken back by Undo, most recently undone last. */
+  redo: Change[];
+  /** Per draft id: the failure of its last retry. */
+  retryErrors: Record<string, string>;
+  /** Per draft id: the rejection of the last import attempt. */
+  importErrors: Record<string, { message: string; reason: string }>;
   error: string | null;
   phase: ImportPhase;
   /** The file being read, since the file input is cleared on every pick. */
@@ -110,11 +220,10 @@ type ImportAiAction =
       questions: ImportQuestionDraft[];
     }
   | { type: "RESET" }
-  | {
-      type: "UPDATE_QUESTION";
-      id: string;
-      patch: Partial<Omit<ImportQuestionDraft, "id">>;
-    }
+  | { type: "CHANGE"; change: Change }
+  | { type: "UNDO" }
+  | { type: "REDO" }
+  | { type: "RETRY_RESULT"; id: string; patch: RetryPatch }
   | { type: "IMPORT_START" }
   | {
       type: "IMPORT_FAILED";
@@ -133,7 +242,11 @@ type ImportAiAction =
 const initialState: ImportAiState = {
   documentText: "",
   pictures: [],
-  questions: [],
+  base: [],
+  changes: [],
+  redo: [],
+  retryErrors: {},
+  importErrors: {},
   error: null,
   phase: "idle",
   readingFileName: null,
@@ -166,8 +279,8 @@ export function checkDocumentFile(file: File): string | null {
 }
 
 /**
- * Reduces the AI-import stage machine: file → busy → error, matching the
- * bulk-student-import reducer shape.
+ * Reduces the AI-import screen: the read/import phase and the drafts' change
+ * history behind Undo/Redo.
  */
 function importAiReducer(
   state: ImportAiState,
@@ -192,45 +305,95 @@ function importAiReducer(
         lastReadFileName: state.readingFileName,
         documentText: action.documentText,
         pictures: action.pictures,
-        questions: action.questions,
+        base: action.questions,
+        changes: [],
+        redo: [],
+        retryErrors: {},
+        importErrors: {},
       };
     case "RESET":
       return initialState;
-    case "UPDATE_QUESTION":
+    case "CHANGE": {
+      if (action.change.kind === "edit") {
+        const { id, fields } = action.change;
+        const current = replay(state.base, state.changes).find(
+          (draft) => draft.id === id,
+        );
+        // An unchanged save records nothing, so Redo survives and the draft isn't marked hand-edited.
+        if (current && sameFields(editableFieldsOf(current), fields)) {
+          return state;
+        }
+      }
       return {
         ...state,
-        questions: state.questions.map((q) =>
-          q.id === action.id ? { ...q, ...action.patch } : q,
-        ),
+        changes: [...state.changes, action.change],
+        redo: [],
       };
+    }
+    case "UNDO": {
+      if (state.phase !== "idle") return state;
+      const undone = state.changes.at(-1);
+      if (!undone) return state;
+      return {
+        ...state,
+        changes: state.changes.slice(0, -1),
+        redo: [...state.redo, undone],
+      };
+    }
+    case "REDO": {
+      if (state.phase !== "idle") return state;
+      const redone = state.redo.at(-1);
+      if (!redone) return state;
+      return {
+        ...state,
+        changes: [...state.changes, redone],
+        redo: state.redo.slice(0, -1),
+      };
+    }
+    case "RETRY_RESULT": {
+      // The question may be gone by the time its answer arrives.
+      if (
+        !replay(state.base, state.changes).some(
+          (draft) => draft.id === action.id,
+        )
+      ) {
+        return state;
+      }
+      const { [action.id]: _retryError, ...retryErrors } = state.retryErrors;
+      const { [action.id]: _importError, ...importErrors } = state.importErrors;
+      return {
+        ...state,
+        changes: [
+          ...state.changes,
+          { kind: "retry", id: action.id, patch: action.patch },
+        ],
+        redo: [],
+        retryErrors,
+        importErrors,
+      };
+    }
     case "IMPORT_START":
       // Clears any stale rejection from a prior attempt before this one runs.
       return {
         ...state,
         phase: "importing",
         importFailureMessage: null,
-        questions: state.questions.map((q) => ({
-          ...q,
-          importError: null,
-          importReason: null,
-        })),
+        importErrors: {},
       };
     case "IMPORT_FAILED":
       return {
         ...state,
         phase: "idle",
         importFailureMessage: action.questionId ? null : action.message,
-        questions: action.questionId
-          ? state.questions.map((q) =>
-              q.id === action.questionId
-                ? {
-                    ...q,
-                    importError: action.message,
-                    importReason: action.reason,
-                  }
-                : q,
-            )
-          : state.questions,
+        importErrors: action.questionId
+          ? {
+              ...state.importErrors,
+              [action.questionId]: {
+                message: action.message,
+                reason: action.reason,
+              },
+            }
+          : state.importErrors,
       };
     case "SET_MODE":
       return { ...state, mode: action.mode };
@@ -251,9 +414,7 @@ function importAiReducer(
       return {
         ...state,
         retryingIds: state.retryingIds.filter((id) => id !== action.id),
-        questions: state.questions.map((q) =>
-          q.id === action.id ? { ...q, retryError: action.message } : q,
-        ),
+        retryErrors: { ...state.retryErrors, [action.id]: action.message },
       };
     case "EDIT_OPENED":
       return {
@@ -273,7 +434,13 @@ function importAiReducer(
   }
 }
 
-interface ImportAiContextValue extends ImportAiState {
+interface ImportAiContextValue
+  extends Omit<
+    ImportAiState,
+    "base" | "changes" | "redo" | "retryErrors" | "importErrors"
+  > {
+  /** The drafts as the teacher sees them: the read plus every change in effect. */
+  questions: ImportQuestionDraft[];
   /** A file is being read or the import is writing. */
   isBusy: boolean;
   isReading: boolean;
@@ -281,10 +448,16 @@ interface ImportAiContextValue extends ImportAiState {
   /** Work the teacher would lose: a read is running or drafts are on screen. */
   hasWorkOnScreen: boolean;
   selectFile: (file: File) => Promise<void>;
-  updateQuestion: (
-    id: string,
-    patch: Partial<Omit<ImportQuestionDraft, "id">>,
-  ) => void;
+  /** Saves a hand-edit of a draft's text fields. */
+  saveEdit: (id: string, fields: EditableFields) => void;
+  /** The change Undo would take back, or null when there is none. */
+  undoChange: Change | null;
+  /** The change Redo would bring back, or null when there is none. */
+  redoChange: Change | null;
+  undo: () => void;
+  redo: () => void;
+  removePicture: (id: string, number: number) => void;
+  addPicture: (id: string, number: number) => void;
   retryOneQuestion: (id: string, correctionNote: string) => Promise<void>;
   cancelRetry: (id: string) => void;
   /** Tells the screen a question's edit form opened or closed. */
@@ -393,6 +566,16 @@ export function ImportAiProvider({
   children: React.ReactNode;
 }): React.ReactNode {
   const [state, dispatch] = useReducer(importAiReducer, initialState);
+  const questions = useMemo(
+    () =>
+      replay(state.base, state.changes).map((draft) => ({
+        ...draft,
+        retryError: state.retryErrors[draft.id] ?? null,
+        importError: state.importErrors[draft.id]?.message ?? null,
+        importReason: state.importErrors[draft.id]?.reason ?? null,
+      })),
+    [state.base, state.changes, state.retryErrors, state.importErrors],
+  );
   // The running retry of each question; a retry whose entry is gone was cancelled.
   const runningRetries = useRef(new Map<string, object>());
 
@@ -542,7 +725,7 @@ export function ImportAiProvider({
     id: string,
     correctionNote: string,
   ): Promise<void> {
-    const current = state.questions.find((q) => q.id === id);
+    const current = questions.find((q) => q.id === id);
     if (!current) return;
 
     const retry = {};
@@ -577,9 +760,8 @@ export function ImportAiProvider({
     // stale value, instead of silently depending on whether the key was
     // present on the object at all.
     const question = result.question;
-    // A fresh AI result is no longer "hand-edited" and clears any prior error.
     dispatch({
-      type: "UPDATE_QUESTION",
+      type: "RETRY_RESULT",
       id,
       patch: {
         title: question.title,
@@ -589,10 +771,6 @@ export function ImportAiProvider({
         referenceAnswer: question.referenceAnswer,
         explanation: question.explanation,
         imageNumbers: question.imageNumbers,
-        edited: false,
-        retryError: null,
-        importError: null,
-        importReason: null,
       },
     });
   }
@@ -622,7 +800,7 @@ export function ImportAiProvider({
 
     // Kept in review order — the write loop numbers the questions by it (Step 17).
     const reviewed: ReviewedQuestion[] = [];
-    for (const draft of state.questions) {
+    for (const draft of questions) {
       const files = picturesOf(draft, state.pictures).map(
         (picture) => picture.file,
       );
@@ -650,7 +828,7 @@ export function ImportAiProvider({
     if (!result.success) {
       const offender =
         result.invalidQuestionIndex !== undefined
-          ? state.questions[result.invalidQuestionIndex]
+          ? questions[result.invalidQuestionIndex]
           : undefined;
       dispatch({
         type: "IMPORT_FAILED",
@@ -670,8 +848,7 @@ export function ImportAiProvider({
     dispatch({ type: isOpen ? "EDIT_OPENED" : "EDIT_CLOSED", id });
   }, []);
 
-  const hasWorkOnScreen =
-    state.phase === "reading" || state.questions.length > 0;
+  const hasWorkOnScreen = state.phase === "reading" || questions.length > 0;
 
   // Lets the admin layout's links and Sign Out ask before leaving.
   const { setHasWork } = useLeaveGuard();
@@ -692,15 +869,38 @@ export function ImportAiProvider({
     return () => window.removeEventListener("beforeunload", warn);
   }, [hasWorkOnScreen]);
 
+  const {
+    base: _base,
+    changes: _changes,
+    redo: _redo,
+    retryErrors: _retryErrors,
+    importErrors: _importErrors,
+    ...visibleState
+  } = state;
   const value: ImportAiContextValue = {
-    ...state,
+    ...visibleState,
+    questions,
     isBusy: state.phase !== "idle",
     isReading: state.phase === "reading",
     isImporting: state.phase === "importing",
     hasWorkOnScreen,
     selectFile,
-    updateQuestion: (id, patch) =>
-      dispatch({ type: "UPDATE_QUESTION", id, patch }),
+    saveEdit: (id, fields) =>
+      dispatch({
+        type: "CHANGE",
+        change: { kind: "edit", id, fields: editableFieldsOf(fields) },
+      }),
+    undoChange: state.changes.at(-1) ?? null,
+    redoChange: state.redo.at(-1) ?? null,
+    undo: () => dispatch({ type: "UNDO" }),
+    redo: () => dispatch({ type: "REDO" }),
+    removePicture: (id, number) =>
+      dispatch({
+        type: "CHANGE",
+        change: { kind: "removePicture", id, number },
+      }),
+    addPicture: (id, number) =>
+      dispatch({ type: "CHANGE", change: { kind: "addPicture", id, number } }),
     retryOneQuestion,
     cancelRetry,
     setEditOpen,

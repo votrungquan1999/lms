@@ -62,7 +62,7 @@ function AddPictureControl({
   picture: ReviewPicture;
   firstQuestionNumber: number;
 }): React.ReactNode {
-  const { questions, pictures, updateQuestion, isBusy } = useImportAi();
+  const { questions, pictures, addPicture, isBusy } = useImportAi();
   const [questionId, setQuestionId] = useState("");
   const target = questions.find((question) => question.id === questionId);
   // Counts the pictures the card actually shows, not numbers with no picture behind them.
@@ -97,10 +97,7 @@ function AddPictureControl({
           aria-describedby={targetIsFull ? reasonId : undefined}
           onClick={() => {
             if (!target) return;
-            // Patches only the picture list, so the draft isn't marked hand-edited.
-            updateQuestion(target.id, {
-              imageNumbers: [...(target.imageNumbers ?? []), picture.number],
-            });
+            addPicture(target.id, picture.number);
           }}
         >
           Add

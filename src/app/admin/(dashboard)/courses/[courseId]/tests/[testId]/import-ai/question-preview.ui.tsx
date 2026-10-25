@@ -44,11 +44,14 @@ import type { MediaContentType } from "src/lib/question-service";
 import { MAX_MEDIA_PER_QUESTION } from "../question-media.schema";
 import type { ImportMode } from "./actions";
 import type {
+  Change,
+  EditableFields,
   ImportQuestionDraft,
   ReviewPicture,
 } from "./import-ai-form.state";
 import {
   checkDocumentFile,
+  editableFieldsOf,
   picturesOf,
   useImportAi,
 } from "./import-ai-form.state";
@@ -220,7 +223,17 @@ function ReviewScreen({
   answeredStudentCount: number;
   highestExistingQuestionNumber: number;
 }): React.ReactNode {
-  const { questions, pictures, mode, isReading } = useImportAi();
+  const {
+    questions,
+    pictures,
+    mode,
+    isReading,
+    isBusy,
+    undoChange,
+    redoChange,
+    undo,
+    redo,
+  } = useImportAi();
   // The server numbers new questions after the highest live one, not the
   // count; replacing removes them all first, so numbering restarts at 1.
   const firstQuestionNumber =
@@ -232,6 +245,26 @@ function ReviewScreen({
       <h2 className="text-lg font-semibold">
         {questions.length} question{questions.length === 1 ? "" : "s"} found
       </h2>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!undoChange || isBusy}
+          onClick={undo}
+        >
+          {historyLabel("Undo", undoChange, questions, firstQuestionNumber)}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!redoChange || isBusy}
+          onClick={redo}
+        >
+          {historyLabel("Redo", redoChange, questions, firstQuestionNumber)}
+        </Button>
+      </div>
       <StudentViewToggle
         view={view}
         onViewChange={setView}
@@ -277,6 +310,35 @@ function ReviewScreen({
       />
     </div>
   );
+}
+
+/**
+ * Words an Undo or Redo button so it names the change and the question it touches.
+ * @param verb - "Undo" or "Redo".
+ * @param change - The change the button would act on, if any.
+ * @param drafts - The drafts as listed now.
+ * @param firstQuestionNumber - Number the first draft will have once saved.
+ * @returns The bare verb when there is nothing to act on.
+ */
+function historyLabel(
+  verb: "Undo" | "Redo",
+  change: Change | null,
+  drafts: ImportQuestionDraft[],
+  firstQuestionNumber: number,
+): string {
+  if (!change) return verb;
+  const position = drafts.findIndex((draft) => draft.id === change.id);
+  const question = `Question ${firstQuestionNumber + position}`;
+  switch (change.kind) {
+    case "edit":
+      return `${verb} edit of ${question}`;
+    case "removePicture":
+      return `${verb} removing picture ${change.number} from ${question}`;
+    case "addPicture":
+      return `${verb} adding picture ${change.number} to ${question}`;
+    case "retry":
+      return `${verb} AI retry of ${question}`;
+  }
 }
 
 /**
@@ -573,7 +635,7 @@ function QuestionCard({
   /** Number the question will have once saved. */
   number: number;
 }): React.ReactNode {
-  const { updateQuestion, pictures, isBusy, setEditOpen } = useImportAi();
+  const { saveEdit, pictures, isBusy, setEditOpen } = useImportAi();
   const [isEditing, setIsEditing] = useState(false);
 
   // Cleanup also runs when the card goes away mid-edit, so a removed card never blocks Import.
@@ -587,22 +649,15 @@ function QuestionCard({
     return (
       <Card>
         <CardContent className="space-y-3 pt-4">
-          <QuestionEditProvider initial={question}>
+          <QuestionEditProvider initial={editableFieldsOf(question)}>
             <QuestionEditFields
               questionId={question.id}
-              onSave={({ imageNumbers: _openedWith, ...draft }) => {
-                // The pictures are left out: the list may have changed since
-                // the form opened, and saving would undo that.
-                // A manual save is what "hand-edited" means. Empty
-                // optional fields become `undefined`, not "" — a cleared
-                // model answer must stay retryable and importable, and the
-                // controlled textarea (which needs "" to be clearable) never
-                // sees this normalization.
-                updateQuestion(question.id, {
+              onSave={(draft) => {
+                // Cleared optional fields become undefined so the draft stays retryable and importable; the textarea still needs "".
+                saveEdit(question.id, {
                   ...draft,
                   referenceAnswer: draft.referenceAnswer || undefined,
                   explanation: draft.explanation || undefined,
-                  edited: true,
                 });
                 setIsEditing(false);
               }}
@@ -690,7 +745,7 @@ function QuestionPictures({
 }: {
   question: ImportQuestionDraft;
 }): React.ReactNode {
-  const { pictures, updateQuestion, isBusy } = useImportAi();
+  const { pictures, removePicture, isBusy } = useImportAi();
   const shown = picturesOf(question, pictures);
   if (shown.length === 0) return null;
 
@@ -711,13 +766,7 @@ function QuestionPictures({
             size="sm"
             aria-label={`Remove picture ${picture.number}`}
             disabled={isBusy}
-            onClick={() =>
-              updateQuestion(question.id, {
-                imageNumbers: (question.imageNumbers ?? []).filter(
-                  (n) => n !== picture.number,
-                ),
-              })
-            }
+            onClick={() => removePicture(question.id, picture.number)}
           >
             Remove
           </Button>
@@ -856,7 +905,7 @@ function QuestionEditFields({
   onCancel,
 }: {
   questionId: string;
-  onSave: (draft: Omit<ImportQuestionDraft, "id">) => void;
+  onSave: (draft: EditableFields) => void;
   onCancel: () => void;
 }): React.ReactNode {
   const draft = useQuestionEditState();

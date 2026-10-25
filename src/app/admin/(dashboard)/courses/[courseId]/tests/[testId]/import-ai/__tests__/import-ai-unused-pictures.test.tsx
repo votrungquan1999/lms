@@ -32,6 +32,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
+import { questionCard } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs; name each preview after its file so tests can tell them apart.
@@ -112,15 +113,6 @@ async function uploadDocument(
     }),
   );
   await screen.findByText(drafts[0].title);
-}
-
-/**
- * Finds one question's review card by its title.
- * @param title - The question's title.
- * @returns The card element.
- */
-function questionCard(title: string): HTMLElement {
-  return screen.getByText(title).closest('[data-slot="card"]') as HTMLElement;
 }
 
 describe("Feature: AI document import — pictures no question uses", () => {
