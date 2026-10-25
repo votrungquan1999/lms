@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { STUDENT_ACCOUNT_CANNOT_BE_ADMIN } from "src/lib/account-kind-refusals";
 import { OwnerRequiredError } from "src/lib/auth-service";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import {
+  getSchoolDirectory,
   getSchoolService,
   getUserRoleService,
 } from "src/lib/services-singleton";
@@ -83,6 +85,16 @@ export async function grantAdminAction(
         "lms.owner.id": ownerUserId,
       },
       async () => {
+        // No account is both a student and an admin; refuse before any write.
+        const schoolDirectory = await getSchoolDirectory();
+        if (await schoolDirectory.findByAuthUserId(parsed.data.userId)) {
+          logRefusal("action.grantAdminAction", {
+            "lms.reason": "has-student-profile",
+            "lms.owner.id": ownerUserId,
+            "lms.user.id": parsed.data.userId,
+          });
+          return { success: false, message: STUDENT_ACCOUNT_CANNOT_BE_ADMIN };
+        }
         const userRoleService = await getUserRoleService();
         await userRoleService.setRole(parsed.data.userId, Role.Admin);
         revalidatePath("/admin/user-roles");

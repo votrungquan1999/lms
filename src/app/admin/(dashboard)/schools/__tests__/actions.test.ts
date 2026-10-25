@@ -1,4 +1,5 @@
 import type { Db } from "mongodb";
+import { STUDENT_ACCOUNT_CANNOT_BE_ADMIN } from "src/lib/account-kind-refusals";
 import { OwnerRequiredError } from "src/lib/auth-service";
 import { ensureIndexes } from "src/lib/database";
 import {
@@ -232,6 +233,7 @@ describe("Feature: the platform owner manages a school's admins", () => {
       .collection("user")
       .findOne({ _id: insert.insertedId });
     expect(user?.role).toBeUndefined();
+    expect(user?.schoolAccessManagedAt).toBeUndefined();
     expect(await schoolService.listMembershipsForSchool(school.id)).toEqual([]);
   });
 
@@ -392,9 +394,11 @@ describe("Feature: the platform owner manages a school's admins", () => {
     ]);
   });
 
-  it("adds an account that already has a student profile, leaving the student document unchanged", async () => {
+  it("refuses an account that has a student profile, writing no role or membership", async () => {
+    await ensureIndexes(db);
     const { schoolDirectory, schoolService, studentService } =
       getTestServices();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const school = await schoolService.createSchool({
       name: "Acme",
       slug: "acme",
@@ -402,12 +406,12 @@ describe("Feature: the platform owner manages a school's admins", () => {
     });
     const insert = await db
       .collection("user")
-      .insertOne({ email: "student-turned-admin@example.com" });
-    const userId = insert.insertedId.toString();
+      .insertOne({ email: "student@example.com" });
+    const userId = insert.insertedId.toHexString();
     const student = await studentService.createStudentDocument({
       authUserId: userId,
-      username: "student-turned-admin",
-      name: "Student Turned Admin",
+      username: "student-account",
+      name: "Student Account",
       createdBy: "self-signup",
     });
 
@@ -416,15 +420,24 @@ describe("Feature: the platform owner manages a school's admins", () => {
       adminForm(school.id, userId),
     );
 
-    expect(state.success).toBe(true);
+    expect(state).toEqual({
+      success: false,
+      message: STUDENT_ACCOUNT_CANNOT_BE_ADMIN,
+    });
     const user = await db
       .collection("user")
       .findOne({ _id: insert.insertedId });
-    expect(user?.role).toBe("admin");
-    const unchangedStudent = await schoolDirectory.findByUsername(
-      "student-turned-admin",
+    expect(user?.role).toBeUndefined();
+    expect(user?.schoolAccessManagedAt).toBeUndefined();
+    expect(await schoolService.listMembershipsForSchool(school.id)).toEqual([]);
+    expect(await schoolDirectory.findByUsername("student-account")).toEqual(
+      student,
     );
-    expect(unchangedStudent).toEqual(student);
+    expect(warn).toHaveBeenCalledWith("action.addSchoolAdminAction.refused", {
+      "lms.reason": "has-student-profile",
+      "lms.owner.id": "owner-1",
+      "lms.user.id": userId,
+    });
   });
 });
 

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { ADMIN_ACCOUNT_CANNOT_BE_STUDENT } from "src/lib/account-kind-refusals";
 import { getAuthService } from "src/lib/auth-singleton";
 import {
   assertExpectedSchool,
@@ -10,9 +11,16 @@ import {
 import { withSpan } from "src/lib/observability/with-span";
 import {
   getSchoolDirectory,
+  getSchoolService,
   getStudentService,
+  getUserRoleService,
 } from "src/lib/services-singleton";
+import { Role } from "src/lib/session";
 import { DuplicateUsernameError } from "src/lib/student-service";
+import {
+  ALREADY_IN_SCHOOL_MESSAGE,
+  UNKNOWN_STUDENT_MESSAGE,
+} from "./add-existing-student.types";
 import { ADD_EXISTING_HINT } from "./bulk-import.types";
 
 export interface CreateStudentState {
@@ -25,10 +33,6 @@ export interface CreateStudentState {
     name: string;
   };
 }
-
-export const UNKNOWN_STUDENT_MESSAGE = "No student with that username";
-export const ALREADY_IN_SCHOOL_MESSAGE =
-  "That student is already in this school";
 
 export interface AddExistingStudentState {
   success: boolean;
@@ -81,6 +85,27 @@ export async function addExistingStudentAction(
 
       if (student.schoolIds.includes(schoolId)) {
         return { success: false, message: ALREADY_IN_SCHOOL_MESSAGE };
+      }
+
+      // No account is both a student and an admin; refuse before any write.
+      const authUserId = await (
+        await getSchoolDirectory()
+      ).findAuthUserIdByStudentId(student.id);
+      if (authUserId) {
+        const [account] = await (await getUserRoleService()).findUsersByIds([
+          authUserId,
+        ]);
+        // A membership counts even for a deleted school, so the check fails closed.
+        const isAdminAccount =
+          account?.role === Role.Admin ||
+          (await (await getSchoolService()).hasAnyMembership(authUserId));
+        if (isAdminAccount) {
+          console.warn("action.addExistingStudentAction.refused", {
+            "lms.reason": "is-admin-account",
+            "lms.user.id": authUserId,
+          });
+          return { success: false, message: ADMIN_ACCOUNT_CANNOT_BE_STUDENT };
+        }
       }
 
       const studentService = await getStudentService(schoolId);

@@ -84,6 +84,16 @@ export class SchoolDirectory {
   }
 
   /**
+   * Finds the sign-in account behind a student profile, in any school.
+   * @param studentId - The student's id.
+   * @returns The Better Auth user id, or null when no such student exists.
+   */
+  async findAuthUserIdByStudentId(studentId: string): Promise<string | null> {
+    const doc = await this.students.findOne({ id: studentId });
+    return doc?.authUserId ?? null;
+  }
+
+  /**
    * Finds a student by username, in any school.
    * @param username - The exact (case-sensitive) username.
    * @returns The student, or null when no school has that username.

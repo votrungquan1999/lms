@@ -1,8 +1,10 @@
 import type { Db } from "mongodb";
 import { revalidatePath } from "next/cache";
+import { STUDENT_ACCOUNT_CANNOT_BE_ADMIN } from "src/lib/account-kind-refusals";
 import { OwnerRequiredError } from "src/lib/auth-service";
 import { SchoolService } from "src/lib/school-service";
 import {
+  getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
   teardownTestDb,
@@ -104,6 +106,40 @@ describe("Feature: an owner grants administrator access", () => {
       .collection("user")
       .findOne({ _id: insertResult.insertedId });
     expect(stored?.role).toBeUndefined();
+  });
+
+  it("refuses an account that has a student profile, writing no role", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const insertResult = await db.collection("user").insertOne({
+      email: "student@example.com",
+      name: "Student",
+    });
+    const userId = insertResult.insertedId.toHexString();
+    await getTestServices().studentService.createStudentDocument({
+      authUserId: userId,
+      username: "student-account",
+      name: "Student",
+      createdBy: "self-signup",
+    });
+    const formData = new FormData();
+    formData.set("userId", userId);
+
+    const state = await grantAdminAction(null, formData);
+
+    expect(state).toEqual({
+      success: false,
+      message: STUDENT_ACCOUNT_CANNOT_BE_ADMIN,
+    });
+    const stored = await db
+      .collection("user")
+      .findOne({ _id: insertResult.insertedId });
+    expect(stored?.role).toBeUndefined();
+    expect(stored?.schoolAccessManagedAt).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith("action.grantAdminAction.refused", {
+      "lms.reason": "has-student-profile",
+      "lms.owner.id": "owner-1",
+      "lms.user.id": userId,
+    });
   });
 });
 

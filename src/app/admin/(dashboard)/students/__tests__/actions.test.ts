@@ -22,15 +22,15 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => authHolder.authService),
 }));
 
+import { ADMIN_ACCOUNT_CANNOT_BE_STUDENT } from "src/lib/account-kind-refusals";
 import { ACTIVE_SCHOOL_CHANGED_MESSAGE } from "src/lib/expected-school";
 import { realAuthServiceDeps } from "src/tests/auth-service-deps";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
+import { addExistingStudentAction, createStudentAction } from "../actions";
 import {
   ALREADY_IN_SCHOOL_MESSAGE,
-  addExistingStudentAction,
-  createStudentAction,
   UNKNOWN_STUDENT_MESSAGE,
-} from "../actions";
+} from "../add-existing-student.types";
 import {
   ADD_EXISTING_HINT,
   ImportOutcome,
@@ -483,7 +483,7 @@ async function seedStudent(
       .collection("student")
       .updateOne({ id: student.id }, { $set: { schoolIds: [] } });
   }
-  return student;
+  return { ...student, authUserId: userId.toHexString() };
 }
 
 function addExistingForm(username: string, expectedSchoolId: string) {
@@ -604,6 +604,85 @@ describe("Feature: a student who belongs to no school can be added by username",
     expect(result.success).toBe(true);
     const listed = await getTestServices().studentService.listStudents();
     expect(listed.map((student) => student.id)).toEqual([orphan.id]);
+  });
+});
+
+describe("Feature: adding an existing student refuses an account that holds admin access", () => {
+  it("refuses an account with the admin role, pointing to revoking it, and writes nothing", async () => {
+    // Given a legacy account that is both a student and an admin
+    const mixed = await seedStudent(null, "mixed", "Mixed Account");
+    await testDb
+      .collection("user")
+      .updateOne(
+        { _id: new ObjectId(mixed.authUserId) },
+        { $set: { role: "admin" } },
+      );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // When a school admin adds it by username
+    const result = await addExistingStudentAction(
+      null,
+      addExistingForm("mixed", TEST_SCHOOL.id),
+    );
+
+    // Then it is refused with the revoke-the-admin-role copy
+    expect(result).toEqual({
+      success: false,
+      message: ADMIN_ACCOUNT_CANNOT_BE_STUDENT,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "action.addExistingStudentAction.refused",
+      {
+        "lms.reason": "is-admin-account",
+        "lms.user.id": mixed.authUserId,
+      },
+    );
+
+    // And no school was added and no role or access stamp was written
+    const stored =
+      await getTestServices().schoolDirectory.findByUsername("mixed");
+    expect(stored?.schoolIds).toEqual([]);
+    const user = await testDb
+      .collection("user")
+      .findOne({ _id: new ObjectId(mixed.authUserId) });
+    expect(user?.role).toBe("admin");
+    expect(user?.schoolAccessManagedAt).toBeUndefined();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("Feature: adding an existing student refuses an account with a school membership", () => {
+  it("refuses an account whose only trace of admin access is a membership in a deleted school", async () => {
+    // Given a student whose account still has a membership row for a school that no longer exists
+    const mixed = await seedStudent(null, "mixed", "Mixed Account");
+    await getTestServices().schoolService.addMembership(
+      "deleted-school",
+      mixed.authUserId,
+      "owner-1",
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // When a school admin adds it by username
+    const result = await addExistingStudentAction(
+      null,
+      addExistingForm("mixed", TEST_SCHOOL.id),
+    );
+
+    // Then it is refused like an admin-role account and no school is added
+    expect(result).toEqual({
+      success: false,
+      message: ADMIN_ACCOUNT_CANNOT_BE_STUDENT,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "action.addExistingStudentAction.refused",
+      {
+        "lms.reason": "is-admin-account",
+        "lms.user.id": mixed.authUserId,
+      },
+    );
+    const stored =
+      await getTestServices().schoolDirectory.findByUsername("mixed");
+    expect(stored?.schoolIds).toEqual([]);
   });
 });
 

@@ -115,7 +115,7 @@ A record with no school is visible to no school. No code path treats a missing s
 
 - **Invite token → course and its school** (`findCourseByInviteToken`, `findAssignedInviteCourse`): the join page and the three join actions, which have no session to take a school from.
 - **Student by username** (`findByUsername`): the registration pre-check, username sign-in, the Google provisioner, the admin's Add existing student action and the seed scripts, because usernames are unique across schools.
-- **Student by sign-in account** (`findByAuthUserId`): session classification, the unclassified-identity check and the Google provisioner, the student layout and the student switch action, because one sign-in account has one profile across schools.
+- **Student by sign-in account** (`findByAuthUserId`): session classification, the unclassified-identity check and the Google provisioner, the student layout and the student switch action, because one sign-in account has one profile across schools; also the owner's add-school-admin and grant-admin-role checks, which refuse an account with a student profile (MS-D10, MS-D27). The Add existing student action reads the account behind a student through `findAuthUserIdByStudentId` and refuses one that holds the admin role or any membership (MS-D28).
 - **Existing usernames** (`findExistingUsernames`): the bulk-import preview.
 - **Students by id** (`findStudentsByIds`): the join-request queue and approval, fed only one school's own request ids, because a requester may belong only to another school (MS-D14, MS-D30).
 - **Pending request count for one student** (`countPendingJoinRequestsForStudent`): the student dashboard notice, fed only the signed-in student's own id (MS-D37).

@@ -199,6 +199,17 @@ export class SchoolService {
   }
 
   /**
+   * Reports whether a user holds any membership row, counting one whose
+   * school was deleted.
+   * @param userId - The hex user id.
+   */
+  async hasAnyMembership(userId: string): Promise<boolean> {
+    return (
+      (await this.memberships.countDocuments({ userId }, { limit: 1 })) > 0
+    );
+  }
+
+  /**
    * Lists the schools a user belongs to, `{id, name}` only — what the
    * active-school resolution and the switcher need.
    * @param userId - The hex user id.
