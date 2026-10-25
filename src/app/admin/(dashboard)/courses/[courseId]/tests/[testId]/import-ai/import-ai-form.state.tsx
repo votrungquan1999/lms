@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useReducer,
   useRef,
 } from "react";
@@ -668,12 +669,27 @@ export function ImportAiProvider({
     dispatch({ type: isOpen ? "EDIT_OPENED" : "EDIT_CLOSED", id });
   }, []);
 
+  const hasWorkOnScreen =
+    state.phase === "reading" || state.questions.length > 0;
+
+  // Keyed on the boolean so the listener isn't re-added on every edit.
+  useEffect(() => {
+    if (!hasWorkOnScreen) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Older browsers only show their prompt when returnValue is set.
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasWorkOnScreen]);
+
   const value: ImportAiContextValue = {
     ...state,
     isBusy: state.phase !== "idle",
     isReading: state.phase === "reading",
     isImporting: state.phase === "importing",
-    hasWorkOnScreen: state.phase === "reading" || state.questions.length > 0,
+    hasWorkOnScreen,
     selectFile,
     updateQuestion: (id, patch) =>
       dispatch({ type: "UPDATE_QUESTION", id, patch }),
