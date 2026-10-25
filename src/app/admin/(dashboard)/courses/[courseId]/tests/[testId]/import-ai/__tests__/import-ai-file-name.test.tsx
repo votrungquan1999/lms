@@ -75,6 +75,30 @@ describe("file picker shows the file on screen", () => {
     expect(screen.queryByText("No file chosen")).toBeNull();
   });
 
+  it("keeps the last read file visible when a later read fails", async () => {
+    renderPicker();
+    vi.mocked(parseQuestionsAction).mockResolvedValueOnce({
+      success: true,
+      message: "Extracted 1 question(s)",
+      questions: [{ title: "Q1", content: "Explain.", type: "free_text" }],
+    });
+    const input = screen.getByLabelText("Document (.docx or .pdf)");
+    await userEvent.upload(input, makeDocxFile("first.docx"));
+    await waitFor(() => expect(screen.getByText("first.docx")).toBeTruthy());
+
+    vi.mocked(parseQuestionsAction).mockResolvedValueOnce({
+      success: false,
+      message: "boom",
+    } as never);
+    await userEvent.upload(input, makeDocxFile("second.docx"));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Read and replace" }),
+    );
+
+    await screen.findByRole("alert");
+    expect(screen.getByText("first.docx")).toBeTruthy();
+  });
+
   it("shows the file being read while the AI reads it", async () => {
     renderPicker();
     vi.mocked(parseQuestionsAction).mockReturnValue(new Promise(() => {}));

@@ -180,10 +180,12 @@ function importAiReducer(
         error: null,
       };
     case "ERROR":
-      return { ...initialState, error: action.message };
+      return { ...state, phase: "idle", error: action.message };
     case "PARSED_READY":
       return {
         ...state,
+        // The old list's page-level import error does not describe the new list.
+        importFailureMessage: null,
         phase: "idle",
         lastReadFileName: state.readingFileName,
         documentText: action.documentText,
@@ -398,11 +400,16 @@ export function ImportAiProvider({
    * extracted text ever crosses the wire — the file itself never does.
    */
   async function selectFile(file: File): Promise<void> {
-    // The current cards stay on screen while this file is read, so their
-    // previews are freed only when this file's outcome replaces them.
+    // The current cards stay on screen while this file is read, so their previews must outlive the read.
     const previousPictures = state.pictures;
     function settle(action: ImportAiAction): void {
-      revokePreviews(previousPictures);
+      // A failed read leaves the old list, so its previews stay in use.
+      if (action.type === "PARSED_READY") revokePreviews(previousPictures);
+      // The banner sits above the old list, so it must say which file it is about.
+      if (action.type === "ERROR") {
+        dispatch({ ...action, message: `${file.name} — ${action.message}` });
+        return;
+      }
       dispatch(action);
     }
 
