@@ -63,6 +63,15 @@ import {
 import { UnusedPictures } from "./unused-pictures.ui";
 
 /**
+ * The DOM id of a question's card, so focus can return to it.
+ * @param questionId - The draft's id.
+ * @returns The element id.
+ */
+function cardDomId(questionId: string): string {
+  return `import-ai-card-${questionId}`;
+}
+
+/**
  * File picker for the document to import; shows an error if unusable.
  */
 export function ImportAiFilePicker(): React.ReactNode {
@@ -189,17 +198,16 @@ export function QuestionPreviewList({
   /** Number of the test's last live question (0 when none); Student view continues after it. */
   highestExistingQuestionNumber?: number;
 }): React.ReactNode {
-  const { questions } = useImportAi();
+  const { readId } = useImportAi();
 
-  if (questions.length === 0) {
+  if (!readId) {
     return null;
   }
 
   return (
-    // Each parse mints fresh draft ids, so a new file remounts the screen
-    // back on Teacher view.
+    // A new file remounts the screen back on Teacher view; deleting questions does not.
     <ReviewScreen
-      key={questions[0].id}
+      key={readId}
       testId={testId}
       courseId={courseId}
       existingQuestionCount={existingQuestionCount}
@@ -229,31 +237,61 @@ function ReviewScreen({
     mode,
     isReading,
     isBusy,
+    questionsAfterUndo,
     undoChange,
     redoChange,
     undo,
     redo,
+    removeQuestion,
   } = useImportAi();
   // The server numbers new questions after the highest live one, not the
   // count; replacing removes them all first, so numbering restarts at 1.
   const firstQuestionNumber =
     mode === "replace" ? 1 : highestExistingQuestionNumber + 1;
   const [view, setView] = useState<QuestionListView>("teacher");
+  const undoButton = useRef<HTMLButtonElement>(null);
+  // Where focus goes once the list has re-rendered after a delete or the Undo of one.
+  const pendingFocus = useRef<"undo" | { cardId: string } | null>(null);
+
+  // Runs after every render so focus lands once the list has changed.
+  useEffect(() => {
+    const target = pendingFocus.current;
+    pendingFocus.current = null;
+    if (target === "undo") undoButton.current?.focus();
+    else if (target) document.getElementById(cardDomId(target.cardId))?.focus();
+  });
 
   return (
     <div className="space-y-3">
-      <h2 className="text-lg font-semibold">
-        {questions.length} question{questions.length === 1 ? "" : "s"} found
-      </h2>
+      {questions.length === 0 ? (
+        <h2 className="text-lg font-semibold">
+          All questions deleted. Undo to bring them back.
+        </h2>
+      ) : (
+        <h2 className="text-lg font-semibold">
+          {questions.length} question{questions.length === 1 ? "" : "s"} found
+        </h2>
+      )}
       <div className="flex gap-2">
         <Button
           type="button"
           variant="outline"
           size="sm"
           disabled={!undoChange || isBusy}
-          onClick={undo}
+          ref={undoButton}
+          onClick={() => {
+            if (undoChange?.kind === "delete") {
+              pendingFocus.current = { cardId: undoChange.id };
+            }
+            undo();
+          }}
         >
-          {historyLabel("Undo", undoChange, questions, firstQuestionNumber)}
+          {historyLabel(
+            "Undo",
+            undoChange,
+            questionsAfterUndo,
+            firstQuestionNumber,
+          )}
         </Button>
         <Button
           type="button"
@@ -280,6 +318,10 @@ function ReviewScreen({
                 key={question.id}
                 question={question}
                 number={firstQuestionNumber + index}
+                onDelete={() => {
+                  pendingFocus.current = "undo";
+                  removeQuestion(question.id);
+                }}
               />
             ))}
           </div>
@@ -316,7 +358,7 @@ function ReviewScreen({
  * Words an Undo or Redo button so it names the change and the question it touches.
  * @param verb - "Undo" or "Redo".
  * @param change - The change the button would act on, if any.
- * @param drafts - The drafts as listed now.
+ * @param drafts - The drafts just before the change applies, so a deleted question still has its position.
  * @param firstQuestionNumber - Number the first draft will have once saved.
  * @returns The bare verb when there is nothing to act on.
  */
@@ -338,6 +380,8 @@ function historyLabel(
       return `${verb} adding picture ${change.number} to ${question}`;
     case "retry":
       return `${verb} AI retry of ${question}`;
+    case "delete":
+      return `${verb} delete of ${question}`;
   }
 }
 
@@ -474,7 +518,9 @@ function ImportQuestionsButton({
     <div className="space-y-2">
       <Button
         type="button"
-        disabled={isBusy || isRetrying || hasOpenEdits}
+        disabled={
+          isBusy || isRetrying || hasOpenEdits || questions.length === 0
+        }
         onClick={() =>
           mode === "replace" ? setIsConfirmOpen(true) : runImport()
         }
@@ -630,10 +676,12 @@ function ReplaceConfirmDialog({
 function QuestionCard({
   question,
   number,
+  onDelete,
 }: {
   question: ImportQuestionDraft;
   /** Number the question will have once saved. */
   number: number;
+  onDelete: () => void;
 }): React.ReactNode {
   const { saveEdit, pictures, isBusy, setEditOpen } = useImportAi();
   const [isEditing, setIsEditing] = useState(false);
@@ -647,7 +695,7 @@ function QuestionCard({
 
   if (isEditing) {
     return (
-      <Card>
+      <Card id={cardDomId(question.id)} tabIndex={-1}>
         <CardContent className="space-y-3 pt-4">
           <QuestionEditProvider initial={editableFieldsOf(question)}>
             <QuestionEditFields
@@ -670,7 +718,7 @@ function QuestionCard({
   }
 
   return (
-    <Card>
+    <Card id={cardDomId(question.id)} tabIndex={-1}>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between gap-2 text-base">
           <span className="flex items-center gap-1">
@@ -690,6 +738,16 @@ function QuestionCard({
               onClick={() => setIsEditing(true)}
             >
               Edit
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={`Delete question ${number}`}
+              disabled={isBusy}
+              onClick={onDelete}
+            >
+              Delete
             </Button>
           </span>
         </CardTitle>

@@ -116,17 +116,18 @@ export type Change =
   | { kind: "edit"; id: string; fields: EditableFields }
   | { kind: "removePicture"; id: string; number: number }
   | { kind: "addPicture"; id: string; number: number }
-  | { kind: "retry"; id: string; patch: RetryPatch };
+  | { kind: "retry"; id: string; patch: RetryPatch }
+  | { kind: "delete"; id: string };
 
 /**
  * Applies one change to its draft.
  * @param draft - The draft before the change.
- * @param change - The change, which targets this draft.
+ * @param change - The change, which targets this draft and keeps it in the list.
  * @returns The draft after the change.
  */
 function applyChange(
   draft: ImportQuestionDraft,
-  change: Change,
+  change: Exclude<Change, { kind: "delete" }>,
 ): ImportQuestionDraft {
   switch (change.kind) {
     case "edit":
@@ -171,9 +172,11 @@ function replay(
 ): ImportQuestionDraft[] {
   return changes.reduce(
     (drafts, change) =>
-      drafts.map((draft) =>
-        draft.id === change.id ? applyChange(draft, change) : draft,
-      ),
+      change.kind === "delete"
+        ? drafts.filter((draft) => draft.id !== change.id)
+        : drafts.map((draft) =>
+            draft.id === change.id ? applyChange(draft, change) : draft,
+          ),
     base,
   );
 }
@@ -185,6 +188,8 @@ interface ImportAiState {
   documentText: string;
   /** Every picture the document had, keyed by its `[image N]` number. */
   pictures: ReviewPicture[];
+  /** Identifies the last read, so the review screen resets only when a new file is read. */
+  readId: string | null;
   /** The drafts as the last read returned them; `changes` are replayed over them. */
   base: ImportQuestionDraft[];
   changes: Change[];
@@ -215,6 +220,7 @@ type ImportAiAction =
   | { type: "ERROR"; message: string }
   | {
       type: "PARSED_READY";
+      readId: string;
       documentText: string;
       pictures: ReviewPicture[];
       questions: ImportQuestionDraft[];
@@ -242,6 +248,7 @@ type ImportAiAction =
 const initialState: ImportAiState = {
   documentText: "",
   pictures: [],
+  readId: null,
   base: [],
   changes: [],
   redo: [],
@@ -305,6 +312,7 @@ function importAiReducer(
         lastReadFileName: state.readingFileName,
         documentText: action.documentText,
         pictures: action.pictures,
+        readId: action.readId,
         base: action.questions,
         changes: [],
         redo: [],
@@ -441,11 +449,13 @@ interface ImportAiContextValue
   > {
   /** The drafts as the teacher sees them: the read plus every change in effect. */
   questions: ImportQuestionDraft[];
+  /** The drafts as they would be listed once Undo took back the latest change. */
+  questionsAfterUndo: ImportQuestionDraft[];
   /** A file is being read or the import is writing. */
   isBusy: boolean;
   isReading: boolean;
   isImporting: boolean;
-  /** Work the teacher would lose: a read is running or drafts are on screen. */
+  /** Work the teacher would lose: a read is running, drafts are on screen or changes can be undone. */
   hasWorkOnScreen: boolean;
   selectFile: (file: File) => Promise<void>;
   /** Saves a hand-edit of a draft's text fields. */
@@ -457,6 +467,8 @@ interface ImportAiContextValue
   undo: () => void;
   redo: () => void;
   removePicture: (id: string, number: number) => void;
+  /** Takes a draft out of the list; Undo brings it back. */
+  removeQuestion: (id: string) => void;
   addPicture: (id: string, number: number) => void;
   retryOneQuestion: (id: string, correctionNote: string) => Promise<void>;
   cancelRetry: (id: string) => void;
@@ -575,6 +587,10 @@ export function ImportAiProvider({
         importReason: state.importErrors[draft.id]?.reason ?? null,
       })),
     [state.base, state.changes, state.retryErrors, state.importErrors],
+  );
+  const questionsAfterUndo = useMemo(
+    () => replay(state.base, state.changes.slice(0, -1)),
+    [state.base, state.changes],
   );
   // The running retry of each question; a retry whose entry is gone was cancelled.
   const runningRetries = useRef(new Map<string, object>());
@@ -699,6 +715,7 @@ export function ImportAiProvider({
 
     settle({
       type: "PARSED_READY",
+      readId: crypto.randomUUID(),
       documentText: text,
       pictures: pictures.map((picture) => ({
         ...picture,
@@ -848,7 +865,11 @@ export function ImportAiProvider({
     dispatch({ type: isOpen ? "EDIT_OPENED" : "EDIT_CLOSED", id });
   }, []);
 
-  const hasWorkOnScreen = state.phase === "reading" || questions.length > 0;
+  // A non-empty history counts, so deleting every draft still leaves something to lose.
+  const hasWorkOnScreen =
+    state.phase === "reading" ||
+    questions.length > 0 ||
+    state.changes.length > 0;
 
   // Lets the admin layout's links and Sign Out ask before leaving.
   const { setHasWork } = useLeaveGuard();
@@ -880,6 +901,7 @@ export function ImportAiProvider({
   const value: ImportAiContextValue = {
     ...visibleState,
     questions,
+    questionsAfterUndo,
     isBusy: state.phase !== "idle",
     isReading: state.phase === "reading",
     isImporting: state.phase === "importing",
@@ -899,6 +921,8 @@ export function ImportAiProvider({
         type: "CHANGE",
         change: { kind: "removePicture", id, number },
       }),
+    removeQuestion: (id) =>
+      dispatch({ type: "CHANGE", change: { kind: "delete", id } }),
     addPicture: (id, number) =>
       dispatch({ type: "CHANGE", change: { kind: "addPicture", id, number } }),
     retryOneQuestion,

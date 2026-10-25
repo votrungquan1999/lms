@@ -454,6 +454,32 @@ describe("Feature: replacing a test's questions deletes the old ones and writes 
   });
 });
 
+describe("Feature: an empty reviewed list is never imported", () => {
+  it("rejects an empty REPLACE before it deletes anything", async () => {
+    const { courseId, testId } = await createTest();
+    const questionService = getTestServices().questionService;
+    await questionService.addQuestion(testId, {
+      type: "free_text",
+      title: "Survives an empty replace",
+      content: "Stays put.",
+      createdBy: "admin-1",
+    });
+
+    const result = await importAiQuestionsAction(
+      testId,
+      courseId,
+      [],
+      "replace",
+    );
+
+    expect(result.success).toBe(false);
+    const questions = await questionService.listQuestions(testId);
+    expect(questions.map((q) => q.title)).toEqual([
+      "Survives an empty replace",
+    ]);
+  });
+});
+
 describe("Feature: a failed REPLACE warns that the test may be partly changed", () => {
   it("names the REPLACE-specific risk, distinct from a generic failure, when an infra fault interrupts the delete-then-insert loop partway through", async () => {
     const { courseId, testId } = await createTest();

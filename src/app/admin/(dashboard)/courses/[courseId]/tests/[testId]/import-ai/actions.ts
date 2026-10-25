@@ -409,6 +409,11 @@ export async function importAiQuestionsAction(
     return { success: false, message: "Unauthorized: admin access required" };
   }
 
+  // An empty list would make REPLACE wipe the test and write nothing.
+  if (questions.length === 0) {
+    return { success: false, message: "There are no questions to import." };
+  }
+
   const invalidQuestion = findFirstQuestionError(questions);
   if (invalidQuestion) {
     return {
