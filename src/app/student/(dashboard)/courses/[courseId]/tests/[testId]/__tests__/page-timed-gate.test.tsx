@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { StudentSession } from "src/lib/session";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
@@ -115,6 +116,24 @@ describe("Student timed test — Start gate", () => {
     expect(screen.queryByText(/what is 2\+2/i)).not.toBeInTheDocument();
   });
 
+  it("posts the start with the school the page was opened in", async () => {
+    // Given a timed test the student has not started.
+    const { courseId, testId, studentId } = await seedTest(30);
+    mockStudentSession(studentId);
+
+    // When the student page renders.
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId, testId }),
+    });
+    const { container } = render(ui);
+
+    // Then the Start form names the active school, so a stale tab is refused.
+    const field = container.querySelector<HTMLInputElement>(
+      'input[name="expectedSchoolId"]',
+    );
+    expect(field?.value).toBe(TEST_SCHOOL_ID);
+  });
+
   it("shows the questions and no Start control once a timed test has been started", async () => {
     // Given a timed test the student has already started.
     const { courseId, testId, studentId, s } = await seedTest(30);
@@ -132,6 +151,51 @@ describe("Student timed test — Start gate", () => {
     expect(
       screen.queryByRole("button", { name: /start/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("posts each answer with the school the page was opened in", async () => {
+    // Given a timed test the student has started, showing its answer form.
+    const { courseId, testId, studentId, s } = await seedTest(30);
+    await s.testStartService.recordStart(testId, studentId, new Date());
+    mockStudentSession(studentId);
+
+    // When the student page renders.
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId, testId }),
+    });
+    const { container } = render(ui);
+
+    // Then the answer form names the active school.
+    const answerForm = container
+      .querySelector<HTMLInputElement>('input[name="questionId"]')
+      ?.closest("form");
+    const field = answerForm?.querySelector<HTMLInputElement>(
+      'input[name="expectedSchoolId"]',
+    );
+    expect(field?.value).toBe(TEST_SCHOOL_ID);
+  });
+
+  it("posts the submission with the school the page was opened in", async () => {
+    // Given a timed test the student has started.
+    const { courseId, testId, studentId, s } = await seedTest(30);
+    await s.testStartService.recordStart(testId, studentId, new Date());
+    mockStudentSession(studentId);
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId, testId }),
+    });
+    render(ui);
+
+    // When the student opens the submit confirmation.
+    await userEvent.click(
+      screen.getByRole("button", { name: "Submit Test for Grading" }),
+    );
+
+    // Then the confirmation form names the active school.
+    const confirm = screen.getByRole("button", { name: "Confirm Submission" });
+    const field = confirm
+      .closest("form")
+      ?.querySelector<HTMLInputElement>('input[name="expectedSchoolId"]');
+    expect(field?.value).toBe(TEST_SCHOOL_ID);
   });
 
   it("reads 'In Progress' once a timed test has been started, before the student has answered anything", async () => {

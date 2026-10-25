@@ -2,12 +2,14 @@
 
 import { useEffect } from "react";
 import { useNow } from "src/hooks/use-now";
+import { EXPECTED_SCHOOL_FIELD } from "src/lib/expected-school";
 import { submitTestAction } from "./actions";
 
 interface TestCountdownProps {
   deadlineMs: number;
   testId: string;
   courseId: string;
+  schoolId: string;
 }
 
 /**
@@ -36,11 +38,13 @@ function formatRemaining(totalSeconds: number): string {
  * @param deadlineMs - The true deadline as epoch milliseconds.
  * @param testId - The test to auto-submit.
  * @param courseId - The course the test belongs to.
+ * @param schoolId - The active school when the test page rendered.
  */
 export function TestCountdown({
   deadlineMs,
   testId,
   courseId,
+  schoolId,
 }: TestCountdownProps) {
   const now = useNow();
   const remainingSeconds = Math.max(0, Math.ceil((deadlineMs - now) / 1000));
@@ -50,11 +54,12 @@ export function TestCountdown({
       const formData = new FormData();
       formData.set("testId", testId);
       formData.set("courseId", courseId);
+      formData.set(EXPECTED_SCHOOL_FIELD, schoolId);
       submitTestAction(null, formData);
     };
     const timer = setTimeout(fire, Math.max(0, deadlineMs - Date.now()));
     return () => clearTimeout(timer);
-  }, [deadlineMs, testId, courseId]);
+  }, [deadlineMs, testId, courseId, schoolId]);
 
   return (
     <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm font-medium">

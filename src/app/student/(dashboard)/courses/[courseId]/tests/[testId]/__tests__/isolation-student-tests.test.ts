@@ -62,6 +62,7 @@ function submitAnswerFormData(opts: {
   const fd = new FormData();
   fd.set("testId", opts.testId);
   fd.set("courseId", opts.courseId);
+  fd.set("expectedSchoolId", TEST_SCHOOL_ID);
   fd.set("questionId", opts.questionId);
   fd.set("answer", opts.answer);
   return fd;
@@ -71,6 +72,7 @@ function testFormData(testId: string, courseId: string) {
   const fd = new FormData();
   fd.set("testId", testId);
   fd.set("courseId", courseId);
+  fd.set("expectedSchoolId", TEST_SCHOOL_ID);
   return fd;
 }
 

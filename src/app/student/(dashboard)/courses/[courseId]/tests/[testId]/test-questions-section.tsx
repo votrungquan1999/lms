@@ -25,6 +25,7 @@ import { SubmitTestButton } from "./submit-test-button";
 interface TestQuestionsSectionProps {
   testId: string;
   courseId: string;
+  schoolId: string;
   questions: Question[];
   answerMap: Map<string, StudentAnswer>;
   gradeMap: Map<string, Grade>;
@@ -55,6 +56,7 @@ interface TestQuestionsSectionProps {
 export function TestQuestionsSection({
   testId,
   courseId,
+  schoolId,
   questions,
   answerMap,
   gradeMap,
@@ -158,6 +160,7 @@ export function TestQuestionsSection({
                     <AnswerForm
                       testId={testId}
                       courseId={courseId}
+                      schoolId={schoolId}
                       questionId={question.id}
                       questionType={question.type}
                       options={safeOptions}
@@ -171,6 +174,7 @@ export function TestQuestionsSection({
                     <AnswerForm
                       testId={testId}
                       courseId={courseId}
+                      schoolId={schoolId}
                       questionId={question.id}
                       questionType="image_answer"
                       existingImageCount={
@@ -183,6 +187,7 @@ export function TestQuestionsSection({
                     <AnswerForm
                       testId={testId}
                       courseId={courseId}
+                      schoolId={schoolId}
                       questionId={question.id}
                       questionType="free_text"
                       existingAnswer={
@@ -320,6 +325,7 @@ export function TestQuestionsSection({
           <SubmitTestButton
             testId={testId}
             courseId={courseId}
+            schoolId={schoolId}
             totalQuestions={questions.length}
             answeredQuestions={answerMap.size}
           />

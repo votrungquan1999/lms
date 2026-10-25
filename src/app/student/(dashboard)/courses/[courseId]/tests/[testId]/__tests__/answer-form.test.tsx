@@ -28,6 +28,7 @@ describe("Feature: Submit Answer is disabled until there is something to submit"
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="free_text"
         existingAnswer=""
@@ -47,6 +48,7 @@ describe("Feature: Submit Answer is disabled until there is something to submit"
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="free_text"
         existingAnswer=""
@@ -70,6 +72,7 @@ describe("Feature: Submit Answer is disabled until there is something to submit"
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="free_text"
         existingAnswer=""
@@ -94,6 +97,7 @@ describe("Feature: Submit Answer is disabled until there is something to submit"
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="multi_select"
         options={[
@@ -117,6 +121,7 @@ describe("Feature: Submit Answer is disabled until there is something to submit"
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="multi_select"
         options={[
@@ -141,6 +146,7 @@ describe("Feature: Submit Answer is disabled until there is something to submit"
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="image_answer"
         existingImageCount={0}
@@ -171,6 +177,7 @@ describe("Feature: a refused submit keeps what the student entered", () => {
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="free_text"
         existingAnswer=""
@@ -203,6 +210,7 @@ describe("Feature: a refused submit keeps what the student entered", () => {
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="multi_select"
         options={[
@@ -232,6 +240,7 @@ describe("Feature: re-opening a saved answer after Cancel discards the unsaved e
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="free_text"
         existingAnswer="Saved answer"
@@ -259,6 +268,7 @@ describe("Feature: re-opening a saved answer after Cancel discards the unsaved e
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="multi_select"
         options={[

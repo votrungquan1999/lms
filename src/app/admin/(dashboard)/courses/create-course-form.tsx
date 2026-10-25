@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { ExpectedSchoolField } from "src/components/expected-school-field";
 import { Button } from "src/components/ui/button";
 import {
   Dialog,
@@ -14,7 +15,6 @@ import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
 import { submitWithoutReset } from "src/lib/submit-without-reset";
-import { ExpectedSchoolField } from "../expected-school-field";
 import { type CreateCourseState, createCourseAction } from "./actions";
 
 /**

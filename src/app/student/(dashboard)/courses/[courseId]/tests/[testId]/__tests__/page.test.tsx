@@ -485,6 +485,7 @@ describe("Feature: Student test page — redo cycle preserves submittability aft
     const formData = new FormData();
     formData.set("testId", test.id);
     formData.set("courseId", course.id);
+    formData.set("expectedSchoolId", TEST_SCHOOL_ID);
     const result = await submitTestAction(null, formData);
     expect(result.success).toBe(true);
 

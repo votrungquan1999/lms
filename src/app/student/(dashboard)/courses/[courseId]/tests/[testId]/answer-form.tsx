@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { ExpectedSchoolField } from "src/components/expected-school-field";
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
@@ -19,6 +20,7 @@ interface BaseProps {
   testId: string;
   courseId: string;
   questionId: string;
+  schoolId: string;
 }
 
 interface FreeTextProps extends BaseProps {
@@ -61,7 +63,7 @@ export function AnswerForm(props: AnswerFormProps) {
 }
 
 function AnswerFormInner(props: AnswerFormProps) {
-  const { testId, courseId, questionId, questionType } = props;
+  const { testId, courseId, questionId, schoolId, questionType } = props;
   // Inline discriminant (not the isMcQuestionType helper): this exact aliased
   // form is what lets TS narrow the AnswerFormProps union to the MC variant.
   const isMC =
@@ -202,6 +204,7 @@ function AnswerFormInner(props: AnswerFormProps) {
       <input type="hidden" name="testId" value={testId} />
       <input type="hidden" name="courseId" value={courseId} />
       <input type="hidden" name="questionId" value={questionId} />
+      <ExpectedSchoolField schoolId={schoolId} />
 
       {isMC ? (
         // MC input: radio (single_select) or checkbox (multi_select)

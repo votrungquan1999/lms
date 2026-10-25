@@ -327,6 +327,7 @@ export default async function StudentTestDetailPage({
         <StartTestGate
           testId={testId}
           courseId={courseId}
+          schoolId={session.schoolId}
           timeLimitMinutes={startGateMinutes}
         />
       ) : (
@@ -337,12 +338,14 @@ export default async function StudentTestDetailPage({
                 deadlineMs={countdownDeadlineMs}
                 testId={testId}
                 courseId={courseId}
+                schoolId={session.schoolId}
               />
             </div>
           )}
           <TestQuestionsSection
             testId={testId}
             courseId={courseId}
+            schoolId={session.schoolId}
             questions={revealedQuestions}
             answerMap={answerMap}
             gradeMap={gradeMap}

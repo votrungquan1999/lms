@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { ExpectedSchoolField } from "src/components/expected-school-field";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +21,7 @@ interface SubmitTestButtonProps {
   courseId: string;
   totalQuestions: number;
   answeredQuestions: number;
+  schoolId: string;
 }
 
 export function SubmitTestButton({
@@ -27,6 +29,7 @@ export function SubmitTestButton({
   courseId,
   totalQuestions,
   answeredQuestions,
+  schoolId,
 }: SubmitTestButtonProps) {
   const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState<
@@ -81,6 +84,7 @@ export function SubmitTestButton({
             <form action={formAction}>
               <input type="hidden" name="testId" value={testId} />
               <input type="hidden" name="courseId" value={courseId} />
+              <ExpectedSchoolField schoolId={schoolId} />
               <AlertDialogAction type="submit" disabled={isPending}>
                 {isPending ? "Submitting..." : "Confirm Submission"}
               </AlertDialogAction>

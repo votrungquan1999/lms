@@ -49,6 +49,7 @@ describe("Feature: student answers an image-answer question", () => {
       <AnswerForm
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         questionId="q-1"
         questionType="image_answer"
         existingImageCount={0}

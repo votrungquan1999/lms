@@ -32,7 +32,12 @@ describe("TestCountdown — display", () => {
     // Given a deadline 10 minutes ahead of the current instant.
     mockNow = DEADLINE - 10 * 60 * 1000;
     const { rerender } = render(
-      <TestCountdown deadlineMs={DEADLINE} testId="t-1" courseId="c-1" />,
+      <TestCountdown
+        deadlineMs={DEADLINE}
+        testId="t-1"
+        courseId="c-1"
+        schoolId="school-a"
+      />,
     );
 
     // Then it starts at 10:00.
@@ -41,7 +46,12 @@ describe("TestCountdown — display", () => {
     // When the clock advances by one minute.
     mockNow = DEADLINE - 9 * 60 * 1000;
     rerender(
-      <TestCountdown deadlineMs={DEADLINE} testId="t-1" courseId="c-1" />,
+      <TestCountdown
+        deadlineMs={DEADLINE}
+        testId="t-1"
+        courseId="c-1"
+        schoolId="school-a"
+      />,
     );
 
     // Then the countdown reads 09:00.
@@ -51,7 +61,14 @@ describe("TestCountdown — display", () => {
   it("floors at 00:00 once the deadline has passed", () => {
     // Given the current instant is already past the deadline.
     mockNow = DEADLINE + 5_000;
-    render(<TestCountdown deadlineMs={DEADLINE} testId="t-1" courseId="c-1" />);
+    render(
+      <TestCountdown
+        deadlineMs={DEADLINE}
+        testId="t-1"
+        courseId="c-1"
+        schoolId="school-a"
+      />,
+    );
 
     // Then it shows 00:00 rather than a negative value.
     expect(screen.getByText("00:00")).toBeInTheDocument();
@@ -60,7 +77,14 @@ describe("TestCountdown — display", () => {
   it("rolls over to h:mm:ss once the remaining time is an hour or more", () => {
     // Given a 90-minute test that just started.
     mockNow = DEADLINE - 90 * 60 * 1000;
-    render(<TestCountdown deadlineMs={DEADLINE} testId="t-1" courseId="c-1" />);
+    render(
+      <TestCountdown
+        deadlineMs={DEADLINE}
+        testId="t-1"
+        courseId="c-1"
+        schoolId="school-a"
+      />,
+    );
 
     // Then it shows the hour digit, not a bare 90:00.
     expect(screen.getByText("1:30:00")).toBeInTheDocument();
@@ -69,7 +93,14 @@ describe("TestCountdown — display", () => {
   it("stays mm:ss one second below the hour boundary", () => {
     // Given 3599 seconds remaining.
     mockNow = DEADLINE - 3599 * 1000;
-    render(<TestCountdown deadlineMs={DEADLINE} testId="t-1" courseId="c-1" />);
+    render(
+      <TestCountdown
+        deadlineMs={DEADLINE}
+        testId="t-1"
+        courseId="c-1"
+        schoolId="school-a"
+      />,
+    );
 
     // Then it does not roll over yet.
     expect(screen.getByText("59:59")).toBeInTheDocument();
@@ -78,7 +109,14 @@ describe("TestCountdown — display", () => {
   it("rolls over exactly at the hour boundary", () => {
     // Given exactly 3600 seconds remaining.
     mockNow = DEADLINE - 3600 * 1000;
-    render(<TestCountdown deadlineMs={DEADLINE} testId="t-1" courseId="c-1" />);
+    render(
+      <TestCountdown
+        deadlineMs={DEADLINE}
+        testId="t-1"
+        courseId="c-1"
+        schoolId="school-a"
+      />,
+    );
 
     // Then it shows the hour digit.
     expect(screen.getByText("1:00:00")).toBeInTheDocument();
@@ -100,7 +138,12 @@ describe("TestCountdown — auto-submit at zero", () => {
     // Given a timed test with a deadline 60 seconds out.
     const deadlineMs = Date.now() + 60_000;
     render(
-      <TestCountdown deadlineMs={deadlineMs} testId="t-1" courseId="c-1" />,
+      <TestCountdown
+        deadlineMs={deadlineMs}
+        testId="t-1"
+        courseId="c-1"
+        schoolId="school-a"
+      />,
     );
 
     // Then nothing is submitted before the deadline.
@@ -112,5 +155,25 @@ describe("TestCountdown — auto-submit at zero", () => {
 
     // Then the test is submitted exactly once.
     expect(submitTestActionSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries the school the page was opened in, so a stale tab's auto-submit is refused", () => {
+    // Given a timed test opened under school-a.
+    const deadlineMs = Date.now() + 1_000;
+    render(
+      <TestCountdown
+        deadlineMs={deadlineMs}
+        testId="t-1"
+        courseId="c-1"
+        schoolId="school-a"
+      />,
+    );
+
+    // When the deadline arrives.
+    vi.advanceTimersByTime(1_000);
+
+    // Then the auto-submit form names that school.
+    const formData = submitTestActionSpy.mock.calls[0][1] as FormData;
+    expect(formData.get("expectedSchoolId")).toBe("school-a");
   });
 });

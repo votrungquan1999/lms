@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { ExpectedSchoolField } from "src/components/expected-school-field";
 import { Button } from "src/components/ui/button";
 import { type StartTestState, startTest } from "./actions";
 
@@ -8,6 +9,7 @@ interface StartTestGateProps {
   testId: string;
   courseId: string;
   timeLimitMinutes: number;
+  schoolId: string;
 }
 
 /**
@@ -19,6 +21,7 @@ export function StartTestGate({
   testId,
   courseId,
   timeLimitMinutes,
+  schoolId,
 }: StartTestGateProps) {
   const [state, formAction, isPending] = useActionState<
     StartTestState | null,
@@ -36,6 +39,7 @@ export function StartTestGate({
       <form action={formAction} className="mt-4">
         <input type="hidden" name="testId" value={testId} />
         <input type="hidden" name="courseId" value={courseId} />
+        <ExpectedSchoolField schoolId={schoolId} />
         <Button type="submit" disabled={isPending}>
           {isPending ? "Starting..." : "Start Test"}
         </Button>

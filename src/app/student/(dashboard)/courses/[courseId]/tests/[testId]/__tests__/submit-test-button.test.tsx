@@ -18,6 +18,7 @@ describe("Feature: the submit confirmation reads naturally for one question", ()
       <SubmitTestButton
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         totalQuestions={1}
         answeredQuestions={1}
       />,
@@ -42,6 +43,7 @@ describe("Feature: the submit confirmation reads naturally for one question", ()
       <SubmitTestButton
         testId="test-1"
         courseId="course-1"
+        schoolId="school-a"
         totalQuestions={3}
         answeredQuestions={3}
       />,

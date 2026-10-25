@@ -5,9 +5,9 @@ export const ACTIVE_SCHOOL_CHANGED_MESSAGE = "Your active school changed";
 export const EXPECTED_SCHOOL_FIELD = "expectedSchoolId";
 
 /**
- * Stale-tab check for root create actions: a form opened before the admin
- * switched school must not create a record in the newly active one. A missing
- * value (old cached tab, crafted post) is refused like a mismatch.
+ * Stale-tab check: a form opened before the active school changed must not
+ * act in the newly active one. A missing value (old cached tab, crafted post)
+ * is refused like a mismatch.
  * @param expected - The school the form was opened in, if it sent one.
  * @param actual - The session's active school.
  * @returns A refusal state to return from the action, or null when it may proceed.

@@ -3,11 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
+import {
+  assertExpectedSchool,
+  EXPECTED_SCHOOL_FIELD,
+} from "src/lib/expected-school";
 import { withSpan } from "src/lib/observability/with-span";
 import {
   getAnswerService,
   getEnrollmentService,
   getRedoRequestService,
+  getSchoolDirectory,
+  getSchoolService,
   getTestService,
   getTestStartService,
   getTestSubmissionService,
@@ -44,6 +50,37 @@ async function canWorkOnTest(
   return enrollmentService.isEnrolled(courseId, studentId);
 }
 
+/**
+ * Refuses a post from a tab opened under a different active school, naming
+ * the school to switch back to. The name comes from the student's own
+ * schools, never from form text.
+ * @param formData - The posted form.
+ * @param session - The signed-in student's session.
+ * @returns A refusal to return from the action, or null when it may proceed.
+ */
+async function staleSchoolRefusal(
+  formData: FormData,
+  session: StudentSession,
+): Promise<{ success: false; message: string } | null> {
+  const expected = formData.get(EXPECTED_SCHOOL_FIELD);
+  if (assertExpectedSchool(expected, session.schoolId) === null) {
+    return null;
+  }
+  const student = await (await getSchoolDirectory()).findByAuthUserId(
+    session.userId,
+  );
+  const schools = await (await getSchoolService()).listSchoolsForStudent(
+    student?.schoolIds ?? [],
+  );
+  const opened = schools.find((school) => school.id === expected);
+  return {
+    success: false,
+    message: opened
+      ? `Your active school changed — switch back to ${opened.name} to continue`
+      : "Your active school changed — switch back to continue",
+  };
+}
+
 const submitAnswerSchema = z.object({
   testId: z.string().min(1, "Test ID is missing"),
   courseId: z.string().min(1, "Course ID is missing"),
@@ -71,14 +108,18 @@ export async function submitAnswerAction(
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
-  let studentId: string;
-  let schoolId: string;
+  let session: StudentSession;
   try {
-    const session = await authService.requireStudentSession(requestHeaders);
-    studentId = (session as StudentSession).studentId;
-    schoolId = session.schoolId;
+    session = (await authService.requireStudentSession(
+      requestHeaders,
+    )) as StudentSession;
   } catch {
     return { success: false, message: "Unauthorized: student access required" };
+  }
+  const { studentId, schoolId } = session;
+  const staleRefusal = await staleSchoolRefusal(formData, session);
+  if (staleRefusal) {
+    return staleRefusal;
   }
 
   const parsed = submitAnswerSchema.safeParse({
@@ -216,14 +257,18 @@ export async function startTest(
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
-  let studentId: string;
-  let schoolId: string;
+  let session: StudentSession;
   try {
-    const session = await authService.requireStudentSession(requestHeaders);
-    studentId = (session as StudentSession).studentId;
-    schoolId = session.schoolId;
+    session = (await authService.requireStudentSession(
+      requestHeaders,
+    )) as StudentSession;
   } catch {
     return { success: false, message: "Unauthorized: student access required" };
+  }
+  const { studentId, schoolId } = session;
+  const staleRefusal = await staleSchoolRefusal(formData, session);
+  if (staleRefusal) {
+    return staleRefusal;
   }
 
   const parsed = startTestSchema.safeParse({
@@ -282,14 +327,18 @@ export async function submitTestAction(
   const requestHeaders = await headers();
   const authService = await getAuthService();
 
-  let studentId: string;
-  let schoolId: string;
+  let session: StudentSession;
   try {
-    const session = await authService.requireStudentSession(requestHeaders);
-    studentId = (session as StudentSession).studentId;
-    schoolId = session.schoolId;
+    session = (await authService.requireStudentSession(
+      requestHeaders,
+    )) as StudentSession;
   } catch {
     return { success: false, message: "Unauthorized: student access required" };
+  }
+  const { studentId, schoolId } = session;
+  const staleRefusal = await staleSchoolRefusal(formData, session);
+  if (staleRefusal) {
+    return staleRefusal;
   }
 
   const testId = formData.get("testId")?.toString() ?? "";
