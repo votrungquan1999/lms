@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
-import type { Db, MongoClient } from "mongodb";
+import { type Db, type MongoClient, ObjectId } from "mongodb";
 import { type AuthService, createAuthService } from "src/lib/auth-service";
 import { SchoolService } from "src/lib/school-service";
 import { isAdminSession } from "src/lib/session";
@@ -218,6 +218,7 @@ describe("Feature: the operator previews the school backfill before writing anyt
           authUserId: "auth-unassigned",
           username: "unassigned-student",
           schoolId: null,
+          schoolIds: [],
         }),
       );
       await db
@@ -324,30 +325,36 @@ describe("Feature: the backfill refuses to apply while duplicate students exist"
           authUserId: "auth-dup-a",
           username: "dup-user",
           schoolId: null,
+          schoolIds: [],
         }),
         rawStudent("student-dup-b", {
           authUserId: "auth-dup-b",
           username: "dup-user",
           schoolId: null,
+          schoolIds: [],
         }),
         rawStudent("student-no-username-key", {
           authUserId: "auth-no-username-key",
           schoolId: null,
+          schoolIds: [],
         }),
         rawStudent("student-null-username", {
           authUserId: "auth-null-username",
           username: null,
           schoolId: null,
+          schoolIds: [],
         }),
         rawStudent("student-authid-dup-a", {
           authUserId: "auth-shared",
           username: "authid-dup-a",
           schoolId: null,
+          schoolIds: [],
         }),
         rawStudent("student-authid-dup-b", {
           authUserId: "auth-shared",
           username: "authid-dup-b",
           schoolId: null,
+          schoolIds: [],
         }),
       ]);
       // student-dup-a is enrolled in one course; student-dup-b in none — an
@@ -429,6 +436,7 @@ describe("Feature: the operator applies the school backfill", () => {
           authUserId: "auth-a",
           username: "student-a",
           schoolId: null,
+          schoolIds: [],
         }),
       );
       await db
@@ -474,8 +482,9 @@ describe("Feature: the operator applies the school backfill", () => {
         (await db.collection("course").findOne({ id: "course-a" }))?.schoolId,
       ).toBe(schoolId);
       expect(
-        (await db.collection("student").findOne({ id: "student-a" }))?.schoolId,
-      ).toBe(schoolId);
+        (await db.collection("student").findOne({ id: "student-a" }))
+          ?.schoolIds,
+      ).toEqual([schoolId]);
       expect(
         (await db.collection("question_pool").findOne({ id: "pool-a" }))
           ?.schoolId,
@@ -568,12 +577,12 @@ describe("Feature: the operator applies the school backfill", () => {
         rawStudent("student-x", {
           authUserId: "auth-x",
           username: "student-x",
-          schoolId: "school-x",
+          schoolIds: ["school-x"],
         }),
         rawStudent("student-y", {
           authUserId: "auth-y",
           username: "student-y",
-          schoolId: "school-y",
+          schoolIds: ["school-y"],
         }),
       ]);
       await db
@@ -603,6 +612,52 @@ describe("Feature: the operator applies the school backfill", () => {
       expect(
         await db.collection("enrollment").findOne({ id: "enrollment-cross" }),
       ).toMatchObject({ courseId: "course-x", studentId: "student-y" });
+    },
+  );
+
+  dbIt(
+    "counts a legacy school not yet converted, so a dry run lists only the real crossing",
+    async ({ db, client }) => {
+      // Given: two students still on the old one-school field, one in the course's school
+      await db
+        .collection("course")
+        .insertOne(rawCourse("course-x", { schoolId: "school-x" }));
+      await db.collection("student").insertMany([
+        rawStudent("student-x", {
+          authUserId: "auth-x",
+          username: "student-x",
+          schoolId: "school-x",
+        }),
+        rawStudent("student-y", {
+          authUserId: "auth-y",
+          username: "student-y",
+          schoolId: "school-y",
+        }),
+      ]);
+      await db
+        .collection("enrollment")
+        .insertMany([
+          rawEnrollment("enrollment-cross", "course-x", "student-y"),
+          rawEnrollment("enrollment-same", "course-x", "student-x"),
+        ]);
+
+      // When: the operator runs the dry run
+      const result = await runBackfillScript(
+        mongoUriFor(client, db.databaseName),
+      );
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      // Then: only the real crossing is listed, and both legacy students are counted
+      expect(result.stdout).toContain(
+        "Enrollments whose course and student are in different schools: 1",
+      );
+      expect(result.stdout).toContain(
+        "enrollment-cross: course course-x (school-x), student student-y (school-y)",
+      );
+      expect(result.stdout).not.toContain("enrollment-same");
+      expect(result.stdout).toContain(
+        "2 student(s) with a single legacy school to convert",
+      );
     },
   );
 });
@@ -811,6 +866,7 @@ describe("Feature: a rerun after a second school exists never guesses or re-gran
           authUserId: "auth-unassigned-later",
           username: "unassigned-later",
           schoolId: null,
+          schoolIds: [],
         }),
       );
       await db
@@ -1029,6 +1085,220 @@ describe("Feature: a backfill that stopped between an admin's membership and mar
           .collection("school_membership")
           .findOne({ schoolId: defaultSchoolId, userId: admin2.id }),
       ).not.toBeNull();
+    },
+  );
+});
+
+/**
+ * Feature: the backfill converts a student's legacy single school into the set
+ * As the operator
+ * I want every student that still carries the old one-school field to end up
+ * in that school's set, whether or not another school already exists
+ * So that the new build shows them to the school they were already in
+ */
+describe("Feature: the backfill converts a student's legacy single school into the set", () => {
+  dbIt(
+    "moves a legacy school into the set and removes the old field, even when another school already exists",
+    async ({ db, client }) => {
+      // Given: a second school exists, so root stamping is switched off
+      const schoolB = await new SchoolService(db).createSchool({
+        name: "School B",
+        slug: "school-b",
+        createdBy: "owner-1",
+      });
+      // And: a student still carrying the old one-school field
+      await db.collection("student").insertOne(
+        rawStudent("student-legacy", {
+          authUserId: "auth-legacy",
+          username: "student-legacy",
+          schoolId: schoolB.id,
+        }),
+      );
+
+      // When: the operator applies
+      const result = await runBackfillScript(
+        mongoUriFor(client, db.databaseName),
+        ["--apply"],
+      );
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      // Then: the set holds that school and the old field is gone
+      const student = await db
+        .collection("student")
+        .findOne({ id: "student-legacy" });
+      expect(student?.schoolIds).toEqual([schoolB.id]);
+      expect(student).not.toHaveProperty("schoolId");
+    },
+  );
+
+  dbIt(
+    "merges the legacy school into a set the student already has",
+    async ({ db, client }) => {
+      // Given: a student with a legacy school and a set naming another school
+      await db.collection("student").insertOne(
+        rawStudent("student-both", {
+          authUserId: "auth-both",
+          username: "student-both",
+          schoolId: "school-old",
+          schoolIds: ["school-new"],
+        }),
+      );
+
+      // When: the operator applies
+      const result = await runBackfillScript(
+        mongoUriFor(client, db.databaseName),
+        ["--apply"],
+      );
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      // Then: both schools are in the set and the old field is gone
+      const student = await db
+        .collection("student")
+        .findOne({ id: "student-both" });
+      expect([...(student?.schoolIds ?? [])].sort()).toEqual([
+        "school-new",
+        "school-old",
+      ]);
+      expect(student).not.toHaveProperty("schoolId");
+    },
+  );
+
+  dbIt(
+    "leaves every student unchanged on a second apply",
+    async ({ db, client }) => {
+      // Given: one legacy student and one with no school, already backfilled once
+      await db.collection("student").insertMany([
+        rawStudent("student-legacy", {
+          authUserId: "auth-legacy",
+          username: "student-legacy",
+          schoolId: "school-old",
+        }),
+        rawStudent("student-unassigned", {
+          authUserId: "auth-unassigned",
+          username: "student-unassigned",
+          schoolId: null,
+          schoolIds: [],
+        }),
+      ]);
+      const mongoUri = mongoUriFor(client, db.databaseName);
+      const first = await runBackfillScript(mongoUri, ["--apply"]);
+      expect(first.exitCode, first.stderr).toBe(0);
+      const afterFirst = await db.collection("student").find({}).toArray();
+
+      // When: the operator applies again
+      const second = await runBackfillScript(mongoUri, ["--apply"]);
+      expect(second.exitCode, second.stderr).toBe(0);
+
+      // Then: no student changed, and nothing was converted or stamped again
+      expect(await db.collection("student").find({}).toArray()).toEqual(
+        afterFirst,
+      );
+      expect(second.stdout).toContain("Converted 0 student(s)");
+      expect(second.stdout).toContain(
+        'Stamped 0 unassigned student row(s) with "default".',
+      );
+    },
+  );
+});
+
+/**
+ * Feature: the backfill retires the old student school index
+ * As the operator
+ * I want --apply to drop the index the old build kept on the student's single
+ * school, and only that one
+ * So that the student collection carries just the index the new build reads
+ */
+describe("Feature: the backfill retires the old student school index", () => {
+  dbIt(
+    "drops the student's old school index, builds the set index and keeps every other collection's school index",
+    async ({ db, client }) => {
+      // Given: the index the old build created on the student's single school
+      await db.collection("student").createIndex({ schoolId: 1 });
+
+      // When: the operator applies
+      const result = await runBackfillScript(
+        mongoUriFor(client, db.databaseName),
+        ["--apply"],
+      );
+      expect(result.exitCode, result.stderr).toBe(0);
+
+      // Then: the student keeps only the set index, and other collections keep theirs
+      const studentIndexes = (await db.collection("student").indexes()).map(
+        (index) => index.name,
+      );
+      expect(studentIndexes).not.toContain("schoolId_1");
+      expect(studentIndexes).toContain("schoolIds_1");
+      const courseIndexes = (await db.collection("course").indexes()).map(
+        (index) => index.name,
+      );
+      expect(courseIndexes).toContain("schoolId_1");
+    },
+  );
+});
+
+/**
+ * Feature: the backfill lists accounts that are both a student and an admin
+ * As the operator
+ * I want the dry run and the apply to name every account that holds an admin
+ * role and a student profile
+ * So that I can revoke one of the two by hand, because the backfill changes neither
+ */
+describe("Feature: the backfill lists accounts that are both a student and an admin", () => {
+  dbIt(
+    "names such an account in the dry run, changing nothing, and in the apply, which still completes",
+    async ({ db, client }) => {
+      // Given: an admin account whose id is also a student's sign-in account,
+      // and an ordinary student
+      const mixedUserId = new ObjectId();
+      await db.collection("user").insertOne({
+        _id: mixedUserId,
+        email: "mixed@example.com",
+        name: "Mixed",
+        role: "admin",
+        schoolAccessManagedAt: new Date(),
+      });
+      await db.collection("student").insertMany([
+        rawStudent("student-mixed", {
+          authUserId: mixedUserId.toHexString(),
+          username: "mixed-user",
+          schoolId: null,
+          schoolIds: [],
+        }),
+        rawStudent("student-plain", {
+          authUserId: "auth-plain",
+          username: "plain-user",
+          schoolId: null,
+          schoolIds: [],
+        }),
+      ]);
+      const mongoUri = mongoUriFor(client, db.databaseName);
+
+      // When: the operator runs the dry run
+      const dry = await runBackfillScript(mongoUri);
+
+      // Then: only the mixed account is listed, and no student changed
+      expect(dry.exitCode, dry.stderr).toBe(0);
+      expect(dry.stdout).toContain(
+        "Accounts that are both a student and an admin: 1",
+      );
+      expect(dry.stdout).toContain(
+        `student-mixed (mixed-user), user ${mixedUserId.toHexString()}`,
+      );
+      expect(dry.stdout).not.toContain("student-plain (");
+      expect(await db.collection("school").countDocuments({})).toBe(0);
+
+      // When: the operator applies
+      const applied = await runBackfillScript(mongoUri, ["--apply"]);
+
+      // Then: it lists the account again and still completes, leaving the user untouched
+      expect(applied.exitCode, applied.stderr).toBe(0);
+      expect(applied.stdout).toContain(
+        `student-mixed (mixed-user), user ${mixedUserId.toHexString()}`,
+      );
+      expect(applied.stdout).toContain("Applied.");
+      expect(
+        await db.collection("user").findOne({ _id: mixedUserId }),
+      ).toMatchObject({ role: "admin" });
     },
   );
 });

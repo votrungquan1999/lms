@@ -136,6 +136,7 @@ Apart from those two reads it is never used to list or change a school's records
 - **No rollback once a second school exists.** A pre-multi-tenant build shows every admin every school's data; fixes go forward only.
 - **Duplicates block the boot.** The unique indexes are built at boot; with duplicate usernames or sign-in accounts every request fails until they are resolved. The backfill lists them and refuses to apply while any exist.
 - **Once another school exists, a backfill rerun never guesses a school** for an unassigned root; it reports it.
+- **The backfill converts each student's legacy single school into their set of schools, wherever other schools exist** (a legacy value is a real assignment, not a guess), and drops the student collection's old `schoolId_1` index. It finishes before the new build serves production, because the new code reads only the set and an unconverted student is visible to no school (MS-D9, MS-D15, MS-D16, MS-D29, MS-D32).
 
 **Alternatives considered:**
 - **Run the backfill only around the production deploy.**

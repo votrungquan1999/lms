@@ -32,10 +32,12 @@
  * cannot create its unique username and sign-in-account indexes — so
  * resolve them before any boot.
  *
- * Idempotent and safe to rerun at any time: a rerun after the owner
- * creates a second school or edits admins grants nothing new, moves
- * nothing between schools, and never guesses a school for a still-
- * unassigned root once another school exists.
+ * Idempotent and safe to rerun at any time, whether or not an earlier
+ * version already ran: it converts each student's legacy single `schoolId`
+ * into the `schoolIds` set (even once another school exists), and a rerun
+ * after the owner creates a second school or edits admins grants nothing
+ * new, moves nothing between schools, and never guesses a school for a
+ * still-unassigned root once another school exists.
  */
 
 import { type Db, MongoClient, MongoServerError, ObjectId } from "mongodb";
@@ -65,12 +67,19 @@ const BACKFILL_AUTHOR = "backfill-schools-script";
  * — confirmed against a real local instance, not guessed.
  */
 const OLD_QUEUE_INDEX_NAME = "status_1_requestedAt_1__id_1";
+/** Mongo's default name for the old `{schoolId: 1}` index on `student` only. */
+const OLD_STUDENT_SCHOOL_INDEX_NAME = "schoolId_1";
 /** MongoServerError code for "index not found" — a fresh DB never had it. */
 const INDEX_NOT_FOUND_CODE = 27;
 /** MongoDB duplicate-key error code (E11000). */
 const DUPLICATE_KEY_CODE = 11000;
 /** Matches a record with no school — Mongo's `null` also matches a missing key. */
 const UNASSIGNED = { schoolId: null };
+/** A student with no school: no legacy `schoolId` and an empty or missing `schoolIds`. */
+const UNASSIGNED_STUDENT = {
+  schoolId: null,
+  $or: [{ schoolIds: null }, { schoolIds: { $size: 0 } }],
+};
 
 /** One student in a duplicate group, with enough detail to pick which to keep. */
 interface DuplicateStudentInfo {
@@ -239,13 +248,16 @@ interface CrossSchoolEnrollment {
   courseId: string;
   courseSchoolId: string;
   studentId: string;
-  studentSchoolId: string;
+  studentSchoolIds: string[];
 }
 
 /**
- * Finds enrollments whose course and student both have a school, but not the
- * same one. Reported for a manual decision, never rewritten: enrollments
- * carry no school, so the app already hides such a row from both schools.
+ * Finds enrollments whose course has a school that is not among the
+ * student's schools. The student's schools are their set plus a legacy
+ * `schoolId` not yet converted, so a dry run before conversion neither misses
+ * rows nor reports every legacy student. Reported for a manual decision,
+ * never rewritten: enrollments carry no school, so the app already hides such
+ * a row from both schools.
  */
 async function findCrossSchoolEnrollments(
   db: Db,
@@ -255,31 +267,36 @@ async function findCrossSchoolEnrollments(
       .collection<CourseDocument>("course")
       .find({ schoolId: { $ne: null } })
       .toArray(),
-    db
-      .collection<StudentDocument>("student")
-      .find({ schoolId: { $ne: null } })
-      .toArray(),
+    db.collection<LegacyStudentDocument>("student").find({}).toArray(),
     db.collection<EnrollmentDocument>("enrollment").find({}).toArray(),
   ]);
   const courseSchools = new Map(courses.map((c) => [c.id, c.schoolId]));
-  const studentSchools = new Map(students.map((s) => [s.id, s.schoolId]));
+  const studentSchools = new Map(
+    students.map((s) => [
+      s.id,
+      [
+        ...(s.schoolIds ?? []),
+        ...(typeof s.schoolId === "string" ? [s.schoolId] : []),
+      ],
+    ]),
+  );
 
   const crossing: CrossSchoolEnrollment[] = [];
   for (const enrollment of enrollments) {
     const courseSchoolId = courseSchools.get(enrollment.courseId);
-    const studentSchoolId = studentSchools.get(enrollment.studentId);
-    // An unassigned or missing side is not a second school.
+    const studentSchoolIds = studentSchools.get(enrollment.studentId) ?? [];
+    // An unassigned course or a student with no school is not a second school.
     if (
       courseSchoolId &&
-      studentSchoolId &&
-      courseSchoolId !== studentSchoolId
+      studentSchoolIds.length > 0 &&
+      !studentSchoolIds.includes(courseSchoolId)
     ) {
       crossing.push({
         id: enrollment.id,
         courseId: enrollment.courseId,
         courseSchoolId,
         studentId: enrollment.studentId,
-        studentSchoolId,
+        studentSchoolIds,
       });
     }
   }
@@ -293,19 +310,23 @@ function reportCrossSchoolEnrollments(rows: CrossSchoolEnrollment[]): void {
   );
   for (const row of rows) {
     console.log(
-      `  ${row.id}: course ${row.courseId} (${row.courseSchoolId}), student ${row.studentId} (${row.studentSchoolId})`,
+      `  ${row.id}: course ${row.courseId} (${row.courseSchoolId}), student ${row.studentId} (${row.studentSchoolIds.join(", ")})`,
     );
   }
 }
 
 /**
- * Drops the old unscoped join-queue index if present. A fresh database
- * that never had it still applies cleanly — only IndexNotFound (27) is
- * swallowed; anything else is a real failure and rethrows.
+ * Drops a retired index if present. A fresh database that never had it still
+ * applies cleanly — only IndexNotFound (27) is swallowed; anything else is a
+ * real failure and rethrows.
  */
-async function dropOldQueueIndexIfPresent(db: Db): Promise<void> {
+async function dropIndexIfPresent(
+  db: Db,
+  collectionName: string,
+  indexName: string,
+): Promise<void> {
   try {
-    await db.collection("course_join_request").dropIndex(OLD_QUEUE_INDEX_NAME);
+    await db.collection(collectionName).dropIndex(indexName);
   } catch (err) {
     if (err instanceof MongoServerError && err.code === INDEX_NOT_FOUND_CODE) {
       return;
@@ -401,6 +422,57 @@ async function retractStaleDefaultMemberships(
   return retracted;
 }
 
+/** A student row that may still carry the pre-set single `schoolId`. */
+type LegacyStudentDocument = StudentDocument & { schoolId?: string | null };
+
+/** Matches a student whose legacy `schoolId` is a real school (not null or missing). */
+const LEGACY_STUDENT_SCHOOL = { schoolId: { $type: "string" } } as const;
+
+/**
+ * Moves each student's legacy `schoolId` into their `schoolIds` set and
+ * removes the old field. Runs outside the only-default gate: a legacy value
+ * is a real assignment, not a guess. One atomic write per student merges into
+ * any set already present, and a rerun finds nothing left to convert.
+ */
+async function convertLegacyStudentSchools(db: Db): Promise<number> {
+  const students = db.collection<LegacyStudentDocument>("student");
+  const legacy = await students.find(LEGACY_STUDENT_SCHOOL).toArray();
+  for (const student of legacy) {
+    await students.updateOne(
+      { id: student.id, schoolId: student.schoolId },
+      {
+        $addToSet: { schoolIds: student.schoolId as string },
+        $unset: { schoolId: "" },
+      },
+    );
+  }
+  return legacy.length;
+}
+
+/**
+ * Lists students whose sign-in account holds the admin role. Reported only:
+ * the operator resolves each by revoking the admin role, and neither side is
+ * changed here.
+ */
+async function reportStudentAdminAccounts(db: Db): Promise<void> {
+  const admins = await db
+    .collection<UserDocument>("user")
+    .find({ role: Role.Admin })
+    .toArray();
+  const students = await db
+    .collection<StudentDocument>("student")
+    .find({ authUserId: { $in: admins.map((a) => a._id.toHexString()) } })
+    .toArray();
+  console.log(
+    `Accounts that are both a student and an admin: ${students.length} (reported only, never changed)`,
+  );
+  for (const student of students) {
+    console.log(
+      `  ${student.id} (${student.username}), user ${student.authUserId}`,
+    );
+  }
+}
+
 /** Stamps every unassigned row in a root collection with the given school. */
 async function stampRoots(
   db: Db,
@@ -434,14 +506,24 @@ async function run(): Promise<void> {
       authUserIdDuplicates,
     );
 
-    const rootCollections = ["course", "student", "question_pool"] as const;
-    const unassignedRootCounts = await Promise.all(
+    const rootCollections = ["course", "question_pool"] as const;
+    const [unassignedCourses, unassignedPools] = await Promise.all(
       rootCollections.map((name) =>
         db.collection(name).countDocuments(UNASSIGNED),
       ),
     );
+    const unassignedStudents = await db
+      .collection("student")
+      .countDocuments(UNASSIGNED_STUDENT);
     console.log(
-      `Unassigned roots: ${unassignedRootCounts[0]} course(s), ${unassignedRootCounts[1]} student(s), ${unassignedRootCounts[2]} question pool(s)`,
+      `Unassigned roots: ${unassignedCourses} course(s), ${unassignedStudents} student(s), ${unassignedPools} question pool(s)`,
+    );
+
+    const legacyStudentCount = await db
+      .collection("student")
+      .countDocuments(LEGACY_STUDENT_SCHOOL);
+    console.log(
+      `${legacyStudentCount} student(s) with a single legacy school to convert`,
     );
 
     const childReports = await Promise.all(
@@ -476,6 +558,8 @@ async function run(): Promise<void> {
     );
     reportCrossSchoolEnrollments(await findCrossSchoolEnrollments(db));
 
+    await reportStudentAdminAccounts(db);
+
     if (!apply) {
       console.log(
         "Dry run only — no changes written. Re-run with --apply to write these changes.",
@@ -493,7 +577,9 @@ async function run(): Promise<void> {
     // Correctness indexes first: a production conflict surfaces here,
     // before anything is stamped, rather than breaking a later boot.
     await ensureIndexes(db);
-    await dropOldQueueIndexIfPresent(db);
+    await dropIndexIfPresent(db, "course_join_request", OLD_QUEUE_INDEX_NAME);
+    // The student's school now lives in a set; its single-school index is dead weight.
+    await dropIndexIfPresent(db, "student", OLD_STUDENT_SCHOOL_INDEX_NAME);
 
     const schoolService = new SchoolService(db);
     // Read before ensuring `default` — root-stamping is gated on whether
@@ -509,6 +595,11 @@ async function run(): Promise<void> {
       createdBy: BACKFILL_AUTHOR,
     });
 
+    const convertedStudents = await convertLegacyStudentSchools(db);
+    console.log(
+      `Converted ${convertedStudents} student(s) from a single legacy school to a set.`,
+    );
+
     if (otherSchoolExists) {
       console.log(
         "Another school already exists — unassigned roots are reported only, never guessed.",
@@ -520,6 +611,13 @@ async function run(): Promise<void> {
           `Stamped ${modified} unassigned ${name} row(s) with "${school.slug}".`,
         );
       }
+      // Students hold a set of schools, so they get their own stamp.
+      const stampedStudents = await db
+        .collection("student")
+        .updateMany(UNASSIGNED_STUDENT, { $set: { schoolIds: [school.id] } });
+      console.log(
+        `Stamped ${stampedStudents.modifiedCount} unassigned student row(s) with "${school.slug}".`,
+      );
     }
 
     // Children are derived from their parent's CURRENT school, read fresh

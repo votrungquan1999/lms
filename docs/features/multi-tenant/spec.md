@@ -172,17 +172,20 @@ What the script does:
 
 - **Dry run by default; `--apply` writes.** `--school-name` is optional (default "Default school"); the slug is always `default`. It prints the target host and database, credentials stripped, before its first read.
 - **Duplicates first.** It lists duplicate usernames (missing and null count as one value) and duplicate sign-in accounts, with each row's id, sign-in account, created date and enrolment count. `--apply` stops before any write while any exist (D39).
-- **Indexes before data.** `--apply` builds the correctness indexes, so a conflict reaches the operator rather than a boot, and drops the old unscoped join-queue index.
+- **Indexes before data.** `--apply` builds the correctness indexes, so a conflict reaches the operator rather than a boot, and drops the old unscoped join-queue index and the student collection's old single-school index (`schoolId_1`; other collections keep theirs) (MS-D16).
 - **The `default` school** is upserted by slug; a rerun never changes its id or name.
-- **Roots** (courses, students, pools) with no school are stamped `default` only while `default` is the only school. Once another school exists they are reported and left unassigned (D73).
+- **Students on the old one-school field are converted** into their set of schools, the old field removed, one student at a time, whether or not another school exists; a student who already has a set keeps it and gains the legacy school (MS-D15, MS-D32).
+- **Roots** (courses, students, pools) with no school are stamped `default` only while `default` is the only school; a student gets the `default` school as a set of one. Once another school exists they are reported and left unassigned (D73).
 - **Children** (tests, join requests, pool questions) take their parent's current school. Orphans, children waiting on an unassigned parent, and children in a different school than their parent are reported, never changed.
 - **Legacy admins** (admin role, no access marker) get a `default` membership and the marker. A rerun after a stop between those two writes just sets the marker (D126).
 - **Stale memberships:** a `default` membership whose user is no longer an admin — revoked by the old build between the two applies — is deleted (D105).
-- **Cross-school enrolments** are listed by id and never changed (D119).
+- **Cross-school enrolments** are listed by id and never changed: the course's school is not among the student's schools, counting a legacy school not yet converted (D119).
+- **Accounts that are both a student and an admin** are listed in the dry run and the apply, by student id, username and user id, and changed in no way; the operator revokes the admin role by hand. `--apply` is not blocked by them (MS-D23).
+- **Safe from either state.** A database that already ran an older apply and one that never did reach the same end state, and a rerun changes nothing (MS-D9).
 
 The hard rules, restated:
 
-- **Order.** Dry run, then `--apply`, against production **before the branch is pushed** — Vercel previews of the branch use the production database. Run `--apply` again **right after the production promote**. No second school and no new school admins until the deploy is verified.
+- **Order.** The backfill finishes before the new build serves production traffic: until students are converted, no school sees them (MS-D29). Dry run, then `--apply`, against production **before the branch is pushed** — Vercel previews of the branch use the production database. Run `--apply` again **right after the production promote**. No second school and no new school admins until the deploy is verified.
 - **Vercel Standard Protection is a standing control.** Before a second school exists, delete or protect every older deployment. The `lms` project's Standard Deployment Protection must never be relaxed, and no Shareable Links or bypass tokens may be issued for non-production deployments once a second school exists: an older build ignores schools and serves every school's data.
 - **No rollback once a second school exists.** A pre-multi-tenant build would show every admin every school's data; fixes go forward only.
 - **Duplicates block the boot.** While duplicate usernames or sign-in accounts exist, the new build cannot create its unique indexes and every request fails until they are resolved (D107). The dry run lists them; the recovery steps are in the script's JSDoc.
