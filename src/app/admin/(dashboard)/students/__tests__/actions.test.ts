@@ -1,3 +1,4 @@
+import { type Db, ObjectId } from "mongodb";
 import { revalidatePath } from "next/cache";
 import { createAuthService } from "src/lib/auth-service";
 import type { AppConfig } from "src/lib/config";
@@ -21,9 +22,15 @@ vi.mock("src/lib/auth-singleton", () => ({
   getAuthService: vi.fn(async () => authHolder.authService),
 }));
 
+import { ACTIVE_SCHOOL_CHANGED_MESSAGE } from "src/lib/expected-school";
 import { realAuthServiceDeps } from "src/tests/auth-service-deps";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
-import { createStudentAction } from "../actions";
+import {
+  ALREADY_IN_SCHOOL_MESSAGE,
+  addExistingStudentAction,
+  createStudentAction,
+  UNKNOWN_STUDENT_MESSAGE,
+} from "../actions";
 import { ImportOutcome, PreviewStatus } from "../bulk-import.types";
 import {
   bulkImportStudentsAction,
@@ -48,9 +55,11 @@ const testConfig: AppConfig = {
 
 // Controllable admin gate, re-created each test.
 let requireAdminSession: ReturnType<typeof vi.fn>;
+let testDb: Db;
 
 beforeEach(async () => {
   const { db } = await setupTestDb();
+  testDb = db;
   const authService = createAuthService(
     db,
     testConfig,
@@ -440,5 +449,184 @@ describe("Feature: a new student belongs to the admin's current school", () => {
     expect((await schoolDirectory.findByUsername("batch"))?.schoolIds).toEqual([
       school.id,
     ]);
+  });
+});
+
+/** Inserts a sign-in user and a student profile in the given school (none when null). */
+async function seedStudent(
+  schoolId: string | null,
+  username: string,
+  name: string,
+) {
+  const userId = new ObjectId();
+  await testDb.collection("user").insertOne({
+    _id: userId,
+    email: `${username}@example.com`,
+    name,
+    role: "student",
+  });
+  const { studentService } = getTestServices(schoolId ?? TEST_SCHOOL.id);
+  const student = await studentService.createStudentDocument({
+    authUserId: userId.toHexString(),
+    username,
+    name,
+    createdBy: "seed",
+  });
+  if (schoolId === null) {
+    await testDb
+      .collection("student")
+      .updateOne({ id: student.id }, { $set: { schoolIds: [] } });
+  }
+  return student;
+}
+
+function addExistingForm(username: string, expectedSchoolId: string) {
+  const form = new FormData();
+  form.set("username", username);
+  form.set("expectedSchoolId", expectedSchoolId);
+  return form;
+}
+
+describe("Feature: a school admin adds an existing student to their school by username", () => {
+  it("adds another school's student whatever the capitalisation, names them, and leaves their own school untouched", async () => {
+    // Given Alice belongs to the default school and school B's admin is acting
+    const alice = await seedStudent(TEST_SCHOOL.id, "alice", "Alice Nguyen");
+    const schoolB = await addTestSchool("School B");
+    requireAdminSession.mockResolvedValue({
+      userId: "admin-b",
+      role: "admin",
+      school: schoolB,
+    });
+
+    // When the admin adds " ALICE "
+    const result = await addExistingStudentAction(
+      null,
+      addExistingForm(" ALICE ", schoolB.id),
+    );
+
+    // Then the message names her and she is now in both schools
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("Alice Nguyen");
+    expect(result.message).toContain("alice");
+    const inB = await getTestServices(schoolB.id).studentService.listStudents();
+    expect(inB.map((student) => student.id)).toEqual([alice.id]);
+    const stored =
+      await getTestServices().schoolDirectory.findByUsername("alice");
+    expect([...(stored?.schoolIds ?? [])].sort()).toEqual(
+      [TEST_SCHOOL.id, schoolB.id].sort(),
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/students");
+  });
+});
+
+describe("Feature: adding an existing student refuses an unknown username", () => {
+  it("says no such student and changes nothing", async () => {
+    const result = await addExistingStudentAction(
+      null,
+      addExistingForm("nobody", TEST_SCHOOL.id),
+    );
+
+    expect(result).toEqual({
+      success: false,
+      message: UNKNOWN_STUDENT_MESSAGE,
+    });
+    expect(await getTestServices().studentService.listStudents()).toHaveLength(
+      0,
+    );
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("Feature: adding an existing student refuses a student already in the school", () => {
+  it("says they are already here and does not report an add", async () => {
+    await seedStudent(TEST_SCHOOL.id, "alice", "Alice Nguyen");
+
+    const result = await addExistingStudentAction(
+      null,
+      addExistingForm("alice", TEST_SCHOOL.id),
+    );
+
+    expect(result).toEqual({
+      success: false,
+      message: ALREADY_IN_SCHOOL_MESSAGE,
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("Feature: adding an existing student refuses a form opened under a different school", () => {
+  it("refuses a stale school and a missing school, and adds nobody", async () => {
+    const alice = await seedStudent(TEST_SCHOOL.id, "alice", "Alice Nguyen");
+    const schoolB = await addTestSchool("School B");
+    requireAdminSession.mockResolvedValue({
+      userId: "admin-b",
+      role: "admin",
+      school: schoolB,
+    });
+
+    // Given a form opened while the default school was active, and one with no school
+    const stale = await addExistingStudentAction(
+      null,
+      addExistingForm("alice", TEST_SCHOOL.id),
+    );
+    const missing = new FormData();
+    missing.set("username", "alice");
+    const noSchool = await addExistingStudentAction(null, missing);
+
+    // Then both are refused with the active-school message and Alice is unchanged
+    expect(stale).toEqual({
+      success: false,
+      message: ACTIVE_SCHOOL_CHANGED_MESSAGE,
+    });
+    expect(noSchool).toEqual(stale);
+    const stored =
+      await getTestServices().schoolDirectory.findByUsername("alice");
+    expect(stored?.schoolIds).toEqual([TEST_SCHOOL.id]);
+    expect(stored?.id).toBe(alice.id);
+  });
+});
+
+describe("Feature: a student who belongs to no school can be added by username", () => {
+  it("lands the student in the admin's school", async () => {
+    const orphan = await seedStudent(null, "orphan", "Orphan Student");
+
+    const result = await addExistingStudentAction(
+      null,
+      addExistingForm("orphan", TEST_SCHOOL.id),
+    );
+
+    expect(result.success).toBe(true);
+    const listed = await getTestServices().studentService.listStudents();
+    expect(listed.map((student) => student.id)).toEqual([orphan.id]);
+  });
+});
+
+describe("Feature: adding an existing student refuses an empty username and a non-admin caller", () => {
+  it("refuses a blank username as unknown", async () => {
+    const result = await addExistingStudentAction(
+      null,
+      addExistingForm("   ", TEST_SCHOOL.id),
+    );
+
+    expect(result).toEqual({
+      success: false,
+      message: UNKNOWN_STUDENT_MESSAGE,
+    });
+  });
+
+  it("refuses a caller without an admin session and adds nobody", async () => {
+    await seedStudent(null, "orphan", "Orphan Student");
+    requireAdminSession.mockRejectedValue(new Error("no admin"));
+
+    const result = await addExistingStudentAction(
+      null,
+      addExistingForm("orphan", TEST_SCHOOL.id),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("Unauthorized");
+    expect(await getTestServices().studentService.listStudents()).toHaveLength(
+      0,
+    );
   });
 });

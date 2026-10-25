@@ -62,7 +62,7 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 
 **A create form opened before the teacher switched school in another tab cannot create a record in the newly active school** (D42). A student's test tab gets the same protection: start, save an answer and submit all refuse once the active school changed (MS-D8).
 
-- Create Course, Create Pool, Create Student and Bulk Import carry the school they were opened in: a hidden `expectedSchoolId` field on the three forms, a third argument on the bulk import.
+- Create Course, Create Pool, Create Student, Add Existing Student and Bulk Import carry the school they were opened in: a hidden `expectedSchoolId` field on the four forms, a third argument on the bulk import.
 - A mismatch **or a missing value** is refused with "Your active school changed" and nothing is created (D131).
 - The student test forms (start, answer, submit) and the deadline auto-submit carry the school too. A mismatch or missing value is refused with "Your active school changed — switch back to <school> to continue", the school being the one the form was opened in, looked up from the student's own schools; an unknown or missing id gets the copy without a name. The check runs before the enrolment check, and nothing is written (MS-D25, MS-D33).
 - Photo-upload slot requests are not guarded; they write nothing (MS-D20).
@@ -130,11 +130,12 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 - A signed-in student opening another school's invite sees the request form, and the request is filed in the invite course's school queue for that school's admin to approve (MS-D14).
 - **Google sign-up:** one student profile per sign-in account, enforced by a unique index (D40). A second tab or reload finishing the same invite gets the same "waiting for approval" outcome (D72).
 - If the Google account already has a profile in another school, the invite page files a pending request in the invite's school and says "waiting for approval"; no second profile is created and the student is never told the link is for another school (MS-D17).
+- **Add existing student:** a school admin adds a student who already has an account, in any school or none, by username (trimmed, any capitalisation). The student is added at once, with no consent step and no undo, and the success message names them by name and username. An unknown or empty username, a student already in the school, and a form opened under a different school are refused and change nothing. A student with no school can be added (MS-D26, MS-D39).
 - **Usernames are unique across every school**, enforced by a unique index; lookups are case-sensitive exact matches and login is unchanged (D7). The accepted cost: "taken" reveals that the name exists in another school.
 - A taken name on self-signup says "That username is already taken. If it's yours, sign in instead; otherwise choose another." (D71); on the Google username form, "That username is already taken. Please choose another." When two sign-ups race, the database refuses the loser.
 - Duplicate username and duplicate sign-in account are typed errors (`DuplicateUsernameError`, `DuplicateAuthAccountError`), told apart by which index refused the insert, never by message text (D58, D127).
 
-**Where it lives:** `src/lib/session.ts` (`StudentSession.schoolId`); `PageGuard.requireEnrollment`; `canWorkOnTest` in `src/app/student/(dashboard)/courses/[courseId]/tests/[testId]/actions.ts`; `src/lib/school-directory.ts` (`findAssignedInviteCourse`); `src/app/join/[token]/actions.ts`, and `page.tsx`; `src/lib/google-student-provisioner.ts`; `src/lib/student-service.ts`; `ensureIndexes` in `src/lib/database.ts`.
+**Where it lives:** `src/lib/session.ts` (`StudentSession.schoolId`); `PageGuard.requireEnrollment`; `canWorkOnTest` in `src/app/student/(dashboard)/courses/[courseId]/tests/[testId]/actions.ts`; `src/lib/school-directory.ts` (`findAssignedInviteCourse`); `src/app/join/[token]/actions.ts`, and `page.tsx`; `src/lib/google-student-provisioner.ts`; `src/lib/student-service.ts`; `addExistingStudentAction` and `add-existing-student-dialog.tsx` in `src/app/admin/(dashboard)/students/`; `ensureIndexes` in `src/lib/database.ts`.
 
 ## Records With No School
 
@@ -193,6 +194,7 @@ The hard rules, restated:
 
 - **Deadline auto-submit in a stale tab is refused.** The student switches back to submit; the server has no deadline enforcement of its own (pre-existing) (MS-D35).
 - **Reopen the invite after signing in.** An existing student who is signed out signs in first, then opens the invite link again (MS-D38).
+- **Adding a student is final.** An admin can add a student without their consent, there is no undo, and nothing removes a student from a school (MS-D12, MS-D39).
 - **No pending-request list for students.** The dashboard shows only that a request is waiting (MS-D12).
 - **Course link from another school.** A link into a course of the student's other school gives the plain not found, as for admins until they switch (MS-D36).
 - **100-account picker.** An account beyond the first 100 can't be picked as a school admin from the console (D65). The roster itself has no cap.

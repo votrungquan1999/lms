@@ -11,6 +11,7 @@ import {
   getPageGuard,
   getStudentService,
 } from "src/lib/services-singleton";
+import { AddExistingStudentDialog } from "./add-existing-student-dialog";
 import { BulkImportDialog } from "./bulk-import-dialog";
 import { CreateStudentDialog } from "./create-student-dialog";
 
@@ -61,6 +62,7 @@ export default async function StudentsPage() {
             courses={courseOptions}
             schoolId={session.school.id}
           />
+          <AddExistingStudentDialog schoolId={session.school.id} />
           <CreateStudentDialog schoolId={session.school.id} />
         </div>
       </header>
