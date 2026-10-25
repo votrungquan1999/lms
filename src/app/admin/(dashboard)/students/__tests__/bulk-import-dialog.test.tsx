@@ -2,7 +2,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ImportOutcome, PreviewStatus } from "../bulk-import.types";
+import {
+  ADD_EXISTING_HINT,
+  ALREADY_EXISTS_LABEL,
+  ImportOutcome,
+  PreviewStatus,
+} from "../bulk-import.types";
 import {
   bulkImportStudentsAction,
   previewImportAction,
@@ -64,7 +69,14 @@ describe("Feature: Bulk import — teacher onboards a class via the Students pag
     vi.mocked(bulkImportStudentsAction).mockResolvedValue({
       success: true,
       message: "Imported 1 student",
-      report: [{ username: "alice", outcome: ImportOutcome.Created }],
+      report: [
+        { username: "alice", outcome: ImportOutcome.Created },
+        {
+          username: "taken",
+          outcome: ImportOutcome.Skipped,
+          reason: PreviewStatus.AlreadyExists,
+        },
+      ],
       summary: { created: 1, skipped: 1, failed: 0 },
     });
 
@@ -79,7 +91,8 @@ describe("Feature: Bulk import — teacher onboards a class via the Students pag
     // Preview rows appear with their statuses
     expect(await screen.findByText("@alice")).toBeInTheDocument();
     expect(screen.getByText(PreviewStatus.Valid)).toBeInTheDocument();
-    expect(screen.getByText(PreviewStatus.AlreadyExists)).toBeInTheDocument();
+    expect(screen.getByText(ALREADY_EXISTS_LABEL)).toBeInTheDocument();
+    expect(screen.getByText(ADD_EXISTING_HINT)).toBeInTheDocument();
 
     // Pick the course to enroll into
     await user.click(screen.getByLabelText(/math 101/i));
@@ -99,6 +112,10 @@ describe("Feature: Bulk import — teacher onboards a class via the Students pag
 
     // The per-student report is shown
     expect(await screen.findByText(/imported 1 student/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(`skipped: ${ALREADY_EXISTS_LABEL}`),
+    ).toBeInTheDocument();
+    expect(screen.getByText(ADD_EXISTING_HINT)).toBeInTheDocument();
   });
 
   it("shows a format error and does not preview when the file is unusable", async () => {

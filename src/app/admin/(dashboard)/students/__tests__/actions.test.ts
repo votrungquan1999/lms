@@ -31,7 +31,11 @@ import {
   createStudentAction,
   UNKNOWN_STUDENT_MESSAGE,
 } from "../actions";
-import { ImportOutcome, PreviewStatus } from "../bulk-import.types";
+import {
+  ADD_EXISTING_HINT,
+  ImportOutcome,
+  PreviewStatus,
+} from "../bulk-import.types";
 import {
   bulkImportStudentsAction,
   previewImportAction,
@@ -376,7 +380,9 @@ describe("Feature: Create Student names a taken username as a field error", () =
 
     // Then the error names the username field, not only the banner
     expect(result.success).toBe(false);
-    expect(result.fieldErrors?.username).toBe("Username already exists");
+    expect(result.fieldErrors?.username).toBe(
+      `Username already exists. ${ADD_EXISTING_HINT}`,
+    );
   });
 });
 
@@ -627,6 +633,64 @@ describe("Feature: adding an existing student refuses an empty username and a no
     expect(result.message).toContain("Unauthorized");
     expect(await getTestServices().studentService.listStudents()).toHaveLength(
       0,
+    );
+  });
+});
+
+describe("Feature: bulk import compares usernames whatever their capitalisation", () => {
+  it("previews a username that differs only in case from another school's student as already existing", async () => {
+    // Given "alice" belongs to a student of another school
+    const schoolB = await addTestSchool("School B");
+    await seedStudent(schoolB.id, "alice", "Alice Nguyen");
+
+    // When a roster row spells it "Alice"
+    const result = await previewImportAction([
+      { name: "Alice Again", username: "Alice", password: "secret123" },
+    ]);
+
+    // Then the row is skipped as already existing
+    expect(result.rows).toEqual([
+      {
+        name: "Alice Again",
+        username: "alice",
+        status: PreviewStatus.AlreadyExists,
+      },
+    ]);
+  });
+});
+
+describe("Feature: bulk import flags case variants within the same file", () => {
+  it("previews both spellings as duplicates", async () => {
+    const result = await previewImportAction([
+      { name: "Bob One", username: "Bob", password: "secret123" },
+      { name: "Bob Two", username: "bob", password: "secret123" },
+    ]);
+
+    expect(result.rows?.map((row) => row.status)).toEqual([
+      PreviewStatus.DupInFile,
+      PreviewStatus.DupInFile,
+    ]);
+  });
+
+  it("confirm skips a case variant of an existing username and creates nobody", async () => {
+    await seedStudent(TEST_SCHOOL.id, "alice", "Alice Nguyen");
+
+    const result = await bulkImportStudentsAction(
+      [{ name: "Alice Again", username: "ALICE", password: "secret123" }],
+      [],
+      TEST_SCHOOL.id,
+    );
+
+    expect(result.report).toEqual([
+      {
+        username: "alice",
+        outcome: ImportOutcome.Skipped,
+        reason: PreviewStatus.AlreadyExists,
+      },
+    ]);
+    expect(result.summary).toEqual({ created: 0, skipped: 1, failed: 0 });
+    expect(await getTestServices().studentService.listStudents()).toHaveLength(
+      1,
     );
   });
 });

@@ -13,6 +13,7 @@ import {
   getStudentService,
 } from "src/lib/services-singleton";
 import { DuplicateUsernameError } from "src/lib/student-service";
+import { ADD_EXISTING_HINT } from "./bulk-import.types";
 
 export interface CreateStudentState {
   success: boolean;
@@ -171,7 +172,7 @@ export async function createStudentAction(
       error instanceof Error ? error.message : "Failed to create student";
     let fieldErrors: CreateStudentState["fieldErrors"];
     if (error instanceof DuplicateUsernameError) {
-      fieldErrors = { username: message };
+      fieldErrors = { username: `${message}. ${ADD_EXISTING_HINT}` };
     } else if (message === "Password cannot be only spaces") {
       fieldErrors = { password: message };
     }

@@ -41,7 +41,7 @@ const courseIdsSchema = z.array(z.string().min(1));
 
 /**
  * Classifies a single normalized row against in-file duplicates and existing usernames.
- * @param row - The trimmed row (name/username trimmed; password as-is).
+ * @param row - The normalized row (name trimmed; username trimmed and lowercased; password as-is).
  * @param usernameCounts - Occurrence count of each username within the batch.
  * @param existingUsernames - Usernames already present in the system.
  * @returns The first matching {@link PreviewStatus}.
@@ -72,7 +72,7 @@ function classifyImportRow(
 }
 
 /**
- * Normalizes and classifies a roster: trims name/username, counts in-file
+ * Normalizes and classifies a roster: trims name/username and lowercases the username, counts in-file
  * duplicates, and runs a single existing-username query. Shared by preview and
  * confirm so both apply identical validation (confirm must never trust the client).
  * @param rows - Validated roster rows.
@@ -81,10 +81,10 @@ function classifyImportRow(
 async function classifyImportRows(
   rows: ImportRowInput[],
 ): Promise<{ normalized: ImportRowInput[]; statuses: PreviewStatus[] }> {
-  // Trim name/username (mirrors createStudentAction); leave password as-is.
+  // Trim like createStudentAction; lowercase the username as registerStudent stores it, so "Alice" matches "alice". Leave password as-is.
   const normalized: ImportRowInput[] = rows.map((row) => ({
     name: row.name.trim(),
-    username: row.username.trim(),
+    username: row.username.trim().toLowerCase(),
     password: row.password,
   }));
 

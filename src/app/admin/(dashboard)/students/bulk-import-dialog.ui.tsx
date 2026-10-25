@@ -5,6 +5,11 @@ import { Button } from "src/components/ui/button";
 import { Checkbox } from "src/components/ui/checkbox";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
+import {
+  ADD_EXISTING_HINT,
+  ALREADY_EXISTS_LABEL,
+  PreviewStatus,
+} from "./bulk-import.types";
 import { useBulkImport } from "./bulk-import-dialog.state";
 import { ImportStage } from "./bulk-import-dialog.type";
 
@@ -74,8 +79,17 @@ export function BulkImportPreview(): React.ReactNode {
             <div>
               <p className="text-sm font-medium">{row.name || "—"}</p>
               <p className="text-xs text-muted-foreground">@{row.username}</p>
+              {row.status === PreviewStatus.AlreadyExists && (
+                <p className="text-xs text-muted-foreground">
+                  {ADD_EXISTING_HINT}
+                </p>
+              )}
             </div>
-            <Badge variant="outline">{row.status}</Badge>
+            <Badge variant="outline">
+              {row.status === PreviewStatus.AlreadyExists
+                ? ALREADY_EXISTS_LABEL
+                : row.status}
+            </Badge>
           </div>
         ))}
       </div>
@@ -141,10 +155,23 @@ export function BulkImportReport(): React.ReactNode {
             key={`${row.username}-${index}`}
             className="flex items-center justify-between rounded-md border p-2 text-sm"
           >
-            <span>@{row.username}</span>
+            <div>
+              <span>@{row.username}</span>
+              {row.reason === PreviewStatus.AlreadyExists && (
+                <p className="text-xs text-muted-foreground">
+                  {ADD_EXISTING_HINT}
+                </p>
+              )}
+            </div>
             <Badge variant="outline">
               {row.outcome}
-              {row.reason ? `: ${row.reason}` : ""}
+              {row.reason
+                ? `: ${
+                    row.reason === PreviewStatus.AlreadyExists
+                      ? ALREADY_EXISTS_LABEL
+                      : row.reason
+                  }`
+                : ""}
             </Badge>
           </div>
         ))}

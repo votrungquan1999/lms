@@ -21,6 +21,13 @@ export enum PreviewStatus {
   AlreadyExists = "already-exists",
 }
 
+/** Readable label for a row skipped because the username already exists. */
+export const ALREADY_EXISTS_LABEL = "Already exists";
+
+/** Points an admin at the way to add a student who already has an account. */
+export const ADD_EXISTING_HINT =
+  'To add a student who already has an account, use "Add existing student".';
+
 /** A row's preview classification (password is never echoed back). */
 export interface PreviewRow {
   name: string;
