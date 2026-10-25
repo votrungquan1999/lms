@@ -86,6 +86,8 @@ interface ImportAiState {
   phase: ImportPhase;
   /** The file being read, since the file input is cleared on every pick. */
   readingFileName: string | null;
+  /** The file whose questions are on screen; kept when a later read fails. */
+  lastReadFileName: string | null;
   /** An import rejection with no specific offending question to attach to (e.g. an auth failure). */
   importFailureMessage: string | null;
   /** D37: APPEND (default) or REPLACE (Step 34) — chosen before Import runs. */
@@ -133,6 +135,7 @@ const initialState: ImportAiState = {
   error: null,
   phase: "idle",
   readingFileName: null,
+  lastReadFileName: null,
   importFailureMessage: null,
   mode: "append",
   retryingIds: [],
@@ -144,6 +147,21 @@ const READ_GIVE_UP_MS = 300_000;
 
 /** D41 — matches the existing course-material upload limit. */
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Checks a picked file's type and size, which needs no reading.
+ * @param file - The file the teacher picked.
+ * @returns The message to show, or null when the file may be read.
+ */
+export function checkDocumentFile(file: File): string | null {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension !== "docx" && extension !== "pdf") {
+    return "Upload a .docx or .pdf file.";
+  }
+  if (file.size > MAX_FILE_SIZE_BYTES)
+    return "The file must be 10 MB or smaller.";
+  return null;
+}
 
 /**
  * Reduces the AI-import stage machine: file → busy → error, matching the
@@ -167,6 +185,7 @@ function importAiReducer(
       return {
         ...state,
         phase: "idle",
+        lastReadFileName: state.readingFileName,
         documentText: action.documentText,
         pictures: action.pictures,
         questions: action.questions,
@@ -255,6 +274,8 @@ interface ImportAiContextValue extends ImportAiState {
   isBusy: boolean;
   isReading: boolean;
   isImporting: boolean;
+  /** Work the teacher would lose: a read is running or drafts are on screen. */
+  hasWorkOnScreen: boolean;
   selectFile: (file: File) => Promise<void>;
   updateQuestion: (
     id: string,
@@ -385,19 +406,13 @@ export function ImportAiProvider({
       dispatch(action);
     }
 
-    const extension = file.name.split(".").pop()?.toLowerCase();
-    if (extension !== "docx" && extension !== "pdf") {
-      settle({ type: "ERROR", message: "Upload a .docx or .pdf file." });
-      return;
-    }
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      settle({
-        type: "ERROR",
-        message: "The file must be 10 MB or smaller.",
-      });
+    const rejection = checkDocumentFile(file);
+    if (rejection) {
+      settle({ type: "ERROR", message: rejection });
       return;
     }
 
+    const extension = file.name.split(".").pop()?.toLowerCase();
     dispatch({ type: "READ_START", fileName: file.name });
     const fileType =
       extension === "docx" ? DocumentFileType.Docx : DocumentFileType.Pdf;
@@ -651,6 +666,7 @@ export function ImportAiProvider({
     isBusy: state.phase !== "idle",
     isReading: state.phase === "reading",
     isImporting: state.phase === "importing",
+    hasWorkOnScreen: state.phase === "reading" || state.questions.length > 0,
     selectFile,
     updateQuestion: (id, patch) =>
       dispatch({ type: "UPDATE_QUESTION", id, patch }),

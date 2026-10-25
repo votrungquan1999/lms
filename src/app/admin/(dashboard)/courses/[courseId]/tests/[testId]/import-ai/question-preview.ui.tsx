@@ -47,7 +47,11 @@ import type {
   ImportQuestionDraft,
   ReviewPicture,
 } from "./import-ai-form.state";
-import { picturesOf, useImportAi } from "./import-ai-form.state";
+import {
+  checkDocumentFile,
+  picturesOf,
+  useImportAi,
+} from "./import-ai-form.state";
 import {
   QuestionEditProvider,
   useQuestionEditActions,
@@ -59,22 +63,88 @@ import { UnusedPictures } from "./unused-pictures.ui";
  * File picker for the document to import; shows an error if unusable.
  */
 export function ImportAiFilePicker(): React.ReactNode {
-  const { selectFile, error, isBusy, isReading, readingFileName, questions } =
-    useImportAi();
+  const {
+    selectFile,
+    error,
+    isBusy,
+    isReading,
+    readingFileName,
+    lastReadFileName,
+    questions,
+    hasWorkOnScreen,
+  } = useImportAi();
+  // The picked file waiting for the teacher to agree to replace the list.
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // The input is cleared on every pick, so the name is shown from state.
+  const shownFileName = isReading ? readingFileName : lastReadFileName;
 
   return (
     <div className="space-y-3">
       <Label htmlFor="import-ai-file">Document (.docx or .pdf)</Label>
+      <div className="flex items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isBusy}
+          onClick={() => inputRef.current?.click()}
+        >
+          Choose file
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          {shownFileName ?? "No file chosen"}
+        </span>
+      </div>
       <Input
+        ref={inputRef}
         id="import-ai-file"
         type="file"
         accept=".docx,.pdf"
+        // Visually hidden but focusable; the Choose file button opens it.
+        className="sr-only w-px"
         disabled={isBusy}
         onChange={(event) => {
           const file = event.target.files?.[0];
-          if (file) selectFile(file);
+          // Cleared so picking the same file again still fires onChange.
+          event.target.value = "";
+          if (!file) return;
+          // A wrong type or oversized file is reported at once; any other file needs the confirm.
+          if (hasWorkOnScreen && checkDocumentFile(file) === null) {
+            setPendingFile(file);
+            return;
+          }
+          selectFile(file);
         }}
       />
+      <AlertDialog
+        open={pendingFile !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingFile(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Replace the questions on screen?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Reading {pendingFile?.name} takes about a minute. Once it is read,
+              it replaces the questions you have on screen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingFile) selectFile(pendingFile);
+                setPendingFile(null);
+              }}
+            >
+              Read and replace
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {isReading && (
         <output className="flex items-center gap-2 text-sm">
           <Loader2 className="size-4 animate-spin" aria-hidden="true" />

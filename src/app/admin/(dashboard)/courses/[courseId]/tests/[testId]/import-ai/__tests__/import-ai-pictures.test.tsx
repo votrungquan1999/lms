@@ -345,6 +345,7 @@ describe("Feature: AI document import — the document's pictures come along wit
         type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       }),
     );
+    await user.click(screen.getByRole("button", { name: "Read and replace" }));
     // The old cards stay on screen while the AI reads, so their pictures must still load.
     await waitFor(() => expect(parseQuestionsAction).toHaveBeenCalledTimes(2));
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();

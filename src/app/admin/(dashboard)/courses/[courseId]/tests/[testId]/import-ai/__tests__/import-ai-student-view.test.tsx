@@ -309,6 +309,7 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
         type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       }),
     );
+    await user.click(screen.getByRole("button", { name: "Read and replace" }));
     await screen.findByText("Fresh draft");
 
     // Then the review list is back on the teacher's view with its answer marks

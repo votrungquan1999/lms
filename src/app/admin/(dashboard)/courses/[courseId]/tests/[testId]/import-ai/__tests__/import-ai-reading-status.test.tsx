@@ -126,6 +126,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
       screen.getByLabelText(/document/i),
       makeDocxFile("second.docx"),
     );
+    await user.click(screen.getByRole("button", { name: "Read and replace" }));
 
     const status = await screen.findByRole("status");
     expect(status).toHaveTextContent("Reading second.docx…");
@@ -162,6 +163,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     holdNextRead();
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
+    await user.click(screen.getByRole("button", { name: "Read and replace" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
       "The list below is from your previous file.",
@@ -197,6 +199,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     const read = holdNextRead();
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
+    await user.click(screen.getByRole("button", { name: "Read and replace" }));
 
     await screen.findByRole("status");
     expect(screen.getByRole("radio", { name: /^Add to/ })).toBeDisabled();
@@ -217,6 +220,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     holdNextRead();
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
+    await user.click(screen.getByRole("button", { name: "Read and replace" }));
 
     await screen.findByRole("status");
     const busy = screen
