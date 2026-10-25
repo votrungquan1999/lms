@@ -62,6 +62,7 @@ import {
   useImportAi,
 } from "./import-ai-form.state";
 import {
+  MIN_CHOICES,
   QuestionEditProvider,
   useQuestionEditActions,
   useQuestionEditState,
@@ -837,8 +838,9 @@ function QuestionCard({
         )}
         {question.options && (
           <ul className="space-y-1 text-sm">
-            {question.options.map((option) => (
-              <li key={option.text} className="flex items-center gap-2">
+            {question.options.map((option, idx) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: choice texts can repeat or be blank, and the list is read-only
+              <li key={idx} className="flex items-center gap-2">
                 <span>{option.isCorrect ? "✓" : "○"}</span>
                 <span>{option.text}</span>
               </li>
@@ -1104,6 +1106,8 @@ function QuestionEditFields({
   onCancel: () => void;
 }): React.ReactNode {
   const draft = useQuestionEditState();
+  // A multiple-choice draft the AI returned without choices starts with none.
+  const choices = draft.options ?? [];
   // Locked while a new file is read, since its answer replaces this card; the typed text stays.
   const { isReading } = useImportAi();
   const {
@@ -1112,6 +1116,8 @@ function QuestionEditFields({
     setReferenceAnswer,
     setExplanation,
     setOptionText,
+    addOption,
+    removeOption,
     toggleOptionCorrect,
   } = useQuestionEditActions();
 
@@ -1122,6 +1128,7 @@ function QuestionEditFields({
   const contentId = `edit-question-content-${questionId}`;
   const referenceAnswerId = `edit-question-reference-answer-${questionId}`;
   const explanationId = `edit-question-explanation-${questionId}`;
+  const addOptionRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="space-y-3">
@@ -1171,17 +1178,23 @@ function QuestionEditFields({
           </div>
         </>
       )}
-      {draft.options && (
+      {draft.type !== "free_text" && (
         <div className="space-y-2">
           <Label>Options</Label>
-          {draft.options.map((option, idx) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: option order is stable within one edit session
+          {choices.map((option, idx) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: rows are controlled, so index keys are safe
             <div key={idx} className="flex items-center gap-2">
               <input
                 type={draft.type === "single_select" ? "radio" : "checkbox"}
                 checked={option.isCorrect}
                 disabled={isReading}
                 onChange={() => toggleOptionCorrect(idx)}
+                // An already-checked radio fires no change event, so the click picks it as the only answer.
+                onClick={
+                  draft.type === "single_select"
+                    ? () => toggleOptionCorrect(idx)
+                    : undefined
+                }
                 aria-label={`Mark option ${idx + 1} correct`}
               />
               <Input
@@ -1191,8 +1204,32 @@ function QuestionEditFields({
                 aria-label={`Option ${idx + 1} text`}
                 className="flex-1"
               />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isReading || choices.length <= MIN_CHOICES}
+                aria-label={`Remove choice ${idx + 1}`}
+                onClick={() => {
+                  removeOption(idx);
+                  // The clicked Remove is disabled or gone afterwards, which would drop keyboard focus.
+                  addOptionRef.current?.focus();
+                }}
+              >
+                Remove
+              </Button>
             </div>
           ))}
+          <Button
+            ref={addOptionRef}
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isReading}
+            onClick={addOption}
+          >
+            Add option
+          </Button>
         </div>
       )}
       <div className="flex justify-end gap-2">

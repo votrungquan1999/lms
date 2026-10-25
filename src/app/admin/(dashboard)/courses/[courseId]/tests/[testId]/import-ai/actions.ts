@@ -302,6 +302,24 @@ async function addReviewedQuestion(
 }
 
 /**
+ * Copies a reviewed question with its title, content and choice texts trimmed,
+ * so a spaces-only text fails the same minimum-length check an empty one does.
+ * @param question - The reviewed question as submitted.
+ * @returns The trimmed copy, used for validation only.
+ */
+function trimTexts(question: ReviewedQuestion): ReviewedQuestion {
+  return {
+    ...question,
+    title: question.title?.trim(),
+    content: question.content?.trim(),
+    options: question.options?.map((option) => ({
+      ...option,
+      text: option.text?.trim(),
+    })),
+  };
+}
+
+/**
  * Validates every reviewed question before any write, in list order, and
  * returns the first offender's message — or null when all are acceptable.
  * Transactions are architecturally unavailable here (no `startSession`
@@ -330,7 +348,8 @@ function findFirstQuestionError(
   questions: ReviewedQuestion[],
 ): { index: number; message: string; reason: string } | null {
   for (let i = 0; i < questions.length; i++) {
-    const parsed = questionImportItemSchema.safeParse(questions[i]);
+    // Spaces-only text counts as empty; the import itself keeps the text as typed.
+    const parsed = questionImportItemSchema.safeParse(trimTexts(questions[i]));
     if (!parsed.success) {
       const title = questions[i]?.title ?? "";
       return {

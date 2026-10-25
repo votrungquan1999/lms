@@ -6,12 +6,17 @@ import type { EditableFields } from "./import-ai-form.state";
 /** The editable fields of a review-list draft, seeded fresh per edit session. */
 export type QuestionEditDraft = EditableFields;
 
+/** Fewest choices a multiple-choice question keeps while its choices are edited. */
+export const MIN_CHOICES = 2;
+
 type QuestionEditAction =
   | { type: "SET_TITLE"; title: string }
   | { type: "SET_CONTENT"; content: string }
   | { type: "SET_REFERENCE_ANSWER"; referenceAnswer: string }
   | { type: "SET_EXPLANATION"; explanation: string }
   | { type: "SET_OPTION_TEXT"; index: number; text: string }
+  | { type: "ADD_OPTION" }
+  | { type: "REMOVE_OPTION"; index: number }
   | { type: "TOGGLE_OPTION_CORRECT"; index: number };
 
 /**
@@ -39,6 +44,17 @@ function questionEditReducer(
         options: state.options?.map((option, i) =>
           i === action.index ? { ...option, text: action.text } : option,
         ),
+      };
+    case "ADD_OPTION":
+      return {
+        ...state,
+        options: [...(state.options ?? []), { text: "", isCorrect: false }],
+      };
+    case "REMOVE_OPTION":
+      if ((state.options?.length ?? 0) <= MIN_CHOICES) return state;
+      return {
+        ...state,
+        options: state.options?.filter((_, i) => i !== action.index),
       };
     case "TOGGLE_OPTION_CORRECT":
       // single_select: picking one clears every other option (radio semantics).
@@ -107,6 +123,8 @@ export function useQuestionEditActions(): {
   setReferenceAnswer: (referenceAnswer: string) => void;
   setExplanation: (explanation: string) => void;
   setOptionText: (index: number, text: string) => void;
+  addOption: () => void;
+  removeOption: (index: number) => void;
   toggleOptionCorrect: (index: number) => void;
 } {
   const { dispatch } = useQuestionEditContext();
@@ -119,6 +137,8 @@ export function useQuestionEditActions(): {
       dispatch({ type: "SET_EXPLANATION", explanation }),
     setOptionText: (index, text) =>
       dispatch({ type: "SET_OPTION_TEXT", index, text }),
+    addOption: () => dispatch({ type: "ADD_OPTION" }),
+    removeOption: (index) => dispatch({ type: "REMOVE_OPTION", index }),
     toggleOptionCorrect: (index) =>
       dispatch({ type: "TOGGLE_OPTION_CORRECT", index }),
   };

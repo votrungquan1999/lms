@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -313,5 +313,223 @@ describe("Feature: AI document import — Import waits until every open edit is 
     for (const edit of screen.getAllByRole("button", { name: /^edit$/i })) {
       expect(edit).toBeDisabled();
     }
+  });
+});
+
+describe("Feature: AI document import — a teacher adds and removes choices while editing a multiple-choice draft", () => {
+  /**
+   * Reviews one multiple-choice draft and opens its edit form.
+   * @param options - The draft's choices; omit for a draft that came back without any.
+   */
+  async function editChoiceQuestion(
+    user: ReturnType<typeof userEvent.setup>,
+    options?: { text: string; isCorrect: boolean }[],
+  ): Promise<void> {
+    vi.mocked(extractDocx).mockResolvedValue({ text: "doc", pictures: [] });
+    vi.mocked(parseQuestionsAction).mockResolvedValue({
+      success: true,
+      message: "Extracted 1 question(s)",
+      questions: [
+        {
+          title: "Q1",
+          content: "Pick the prime number.",
+          type: "single_select",
+          options,
+        },
+      ],
+    });
+    render(
+      <ImportAiProvider>
+        <ImportAiFilePicker />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
+      </ImportAiProvider>,
+    );
+    await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
+    await screen.findByText("Q1");
+    await user.click(screen.getByRole("button", { name: /^edit$/i }));
+  }
+
+  const TWO_CHOICES = [
+    { text: "4", isCorrect: false },
+    { text: "7", isCorrect: true },
+  ];
+
+  it("adds a blank choice row each time Add option is pressed", async () => {
+    const user = userEvent.setup();
+    await editChoiceQuestion(user, TWO_CHOICES);
+
+    await user.click(screen.getByRole("button", { name: "Add option" }));
+
+    expect(screen.getAllByLabelText(/option \d+ text/i)).toHaveLength(3);
+    expect(screen.getByLabelText("Option 3 text")).toHaveValue("");
+  });
+
+  it("disables Remove on every row while the draft has only 2 choices, and enables it once a third is added", async () => {
+    const user = userEvent.setup();
+    await editChoiceQuestion(user, TWO_CHOICES);
+
+    expect(
+      screen.getByRole("button", { name: "Remove choice 1" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Remove choice 2" }),
+    ).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Add option" }));
+
+    expect(
+      screen.getByRole("button", { name: "Remove choice 1" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Remove choice 3" }),
+    ).toBeEnabled();
+  });
+
+  it("removes the chosen row and renumbers the rows after it", async () => {
+    const user = userEvent.setup();
+    await editChoiceQuestion(user, [
+      { text: "4", isCorrect: false },
+      { text: "7", isCorrect: true },
+      { text: "9", isCorrect: false },
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Remove choice 2" }));
+
+    expect(screen.getAllByLabelText(/option \d+ text/i)).toHaveLength(2);
+    expect(screen.getByLabelText("Option 1 text")).toHaveValue("4");
+    expect(screen.getByLabelText("Option 2 text")).toHaveValue("9");
+  });
+
+  it("moves focus to Add option after a choice is removed", async () => {
+    const user = userEvent.setup();
+    await editChoiceQuestion(user, [
+      ...TWO_CHOICES,
+      { text: "9", isCorrect: false },
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Remove choice 2" }));
+
+    expect(screen.getByRole("button", { name: "Add option" })).toHaveFocus();
+  });
+
+  it("lets the teacher remove the only correct choice, and the saved card then shows no tick", async () => {
+    const user = userEvent.setup();
+    await editChoiceQuestion(user, [
+      { text: "4", isCorrect: false },
+      { text: "7", isCorrect: true },
+      { text: "9", isCorrect: false },
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Remove choice 2" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const choices = screen.getAllByRole("listitem");
+    expect(choices.map((choice) => choice.textContent)).toEqual(["○4", "○9"]);
+  });
+
+  it("opens a draft that came back with no choices with no rows and an Add option button that starts the list", async () => {
+    const user = userEvent.setup();
+    await editChoiceQuestion(user);
+
+    expect(screen.queryAllByLabelText(/option \d+ text/i)).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Add option" }));
+
+    expect(screen.getAllByLabelText(/option \d+ text/i)).toHaveLength(1);
+  });
+
+  it("types into two blank rows independently", async () => {
+    const user = userEvent.setup();
+    await editChoiceQuestion(user, TWO_CHOICES);
+    await user.click(screen.getByRole("button", { name: "Add option" }));
+    await user.click(screen.getByRole("button", { name: "Add option" }));
+
+    await user.type(screen.getByLabelText("Option 3 text"), "Alpha");
+    await user.type(screen.getByLabelText("Option 4 text"), "Beta");
+
+    expect(screen.getByLabelText("Option 3 text")).toHaveValue("Alpha");
+    expect(screen.getByLabelText("Option 4 text")).toHaveValue("Beta");
+  });
+
+  it("saves a blank choice as typed and sends it to the import unchanged", async () => {
+    const user = userEvent.setup();
+    vi.mocked(importAiQuestionsAction).mockReturnValue(new Promise(() => {}));
+    await editChoiceQuestion(user, TWO_CHOICES);
+    await user.click(screen.getByRole("button", { name: "Add option" }));
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+    await waitFor(() => expect(importAiQuestionsAction).toHaveBeenCalled());
+    const [, , drafts] = vi.mocked(importAiQuestionsAction).mock.calls[0];
+    expect(drafts[0].options?.[2]).toEqual({ text: "", isCorrect: false });
+  });
+
+  it("records adding and removing choices as one edit that a single Undo reverts", async () => {
+    const user = userEvent.setup();
+    await editChoiceQuestion(user, TWO_CHOICES);
+    await user.click(screen.getByRole("button", { name: "Add option" }));
+    await user.type(screen.getByLabelText("Option 3 text"), "11");
+    await user.click(screen.getByRole("button", { name: "Remove choice 1" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      screen.getAllByRole("listitem").map((choice) => choice.textContent),
+    ).toEqual(["✓7", "○11"]);
+
+    await user.click(
+      screen.getByRole("button", { name: "Undo edit of Question 1" }),
+    );
+
+    expect(
+      screen.getAllByRole("listitem").map((choice) => choice.textContent),
+    ).toEqual(["○4", "✓7"]);
+  });
+
+  it("keeps Remove disabled on a draft that came back with a single choice", async () => {
+    const user = userEvent.setup();
+    await editChoiceQuestion(user, [{ text: "4", isCorrect: true }]);
+
+    expect(
+      screen.getByRole("button", { name: "Remove choice 1" }),
+    ).toBeDisabled();
+  });
+
+  it("lists two choices with the same text as two separate rows, without a duplicate-key warning", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    await editChoiceQuestion(user, [
+      { text: "Yes", isCorrect: false },
+      { text: "Yes", isCorrect: true },
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      screen.getAllByRole("listitem").map((choice) => choice.textContent),
+    ).toEqual(["○Yes", "✓Yes"]);
+    const warnings = consoleError.mock.calls.map((args) => String(args[0]));
+    expect(warnings.filter((text) => text.includes("same key"))).toEqual([]);
+    consoleError.mockRestore();
+  });
+
+  it("makes a clicked radio the only correct choice even when it is already checked", async () => {
+    const user = userEvent.setup();
+    await editChoiceQuestion(user, [
+      { text: "A", isCorrect: true },
+      { text: "B", isCorrect: true },
+    ]);
+
+    await user.click(screen.getByLabelText("Mark option 1 correct"));
+
+    expect(screen.getByLabelText("Mark option 1 correct")).toBeChecked();
+    expect(screen.getByLabelText("Mark option 2 correct")).not.toBeChecked();
   });
 });

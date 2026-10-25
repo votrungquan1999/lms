@@ -366,6 +366,57 @@ describe("Feature: a question left with no text once its picture tag is removed"
   );
 });
 
+describe("Feature: a question whose text is only spaces is rejected like an empty one", () => {
+  it.each([
+    [
+      "title",
+      { title: "   ", content: "Explain it.", type: "free_text" as const },
+      'Question 2 ("   "): title is empty',
+    ],
+    [
+      "content",
+      { title: "Q2", content: " \n ", type: "free_text" as const },
+      'Question 2 ("Q2"): content is empty',
+    ],
+    [
+      "an option",
+      {
+        title: "Q2",
+        content: "Which shape is shown?",
+        type: "single_select" as const,
+        options: [
+          { text: "Circle", isCorrect: true },
+          { text: "   ", isCorrect: false },
+        ],
+      },
+      'Question 2 ("Q2"): option 2 is empty',
+    ],
+  ])(
+    "stops the import and names the question and field when its %s is only spaces",
+    async (_field, offender, message) => {
+      const reviewed: ReviewedQuestion[] = [
+        { title: "Q1", content: "Explain it.", type: "free_text" },
+        offender,
+      ];
+
+      const result = await importAiQuestionsAction(
+        "test-1",
+        "course-1",
+        reviewed,
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        invalidQuestionIndex: 1,
+        message,
+      });
+      expect(
+        await getTestServices().questionService.listQuestions("test-1"),
+      ).toHaveLength(0);
+    },
+  );
+});
+
 describe("Feature: replacing a test's questions deletes the old ones and writes the reviewed ones (Step 34 / D37 REPLACE)", () => {
   it("soft-deletes every existing question and writes the reviewed list in its place", async () => {
     const { courseId, testId } = await createTest();
