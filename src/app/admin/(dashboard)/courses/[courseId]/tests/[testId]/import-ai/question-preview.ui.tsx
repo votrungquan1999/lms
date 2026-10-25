@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { MarkdownContent } from "src/components/markdown-content";
 import type { StudentCardQuestion } from "src/components/student-question-card.ui";
 import { StudentViewList } from "src/components/student-view-list.ui";
 import {
@@ -772,11 +773,15 @@ function QuestionCard({
             <QuestionEditFields
               questionId={question.id}
               onSave={(draft) => {
-                // Cleared optional fields become undefined so the draft stays retryable and importable; the textarea still needs "".
+                // Blank optional fields become undefined so the draft stays retryable and importable; the textarea still needs "".
                 saveEdit(question.id, {
                   ...draft,
-                  referenceAnswer: draft.referenceAnswer || undefined,
-                  explanation: draft.explanation || undefined,
+                  referenceAnswer: draft.referenceAnswer?.trim()
+                    ? draft.referenceAnswer
+                    : undefined,
+                  explanation: draft.explanation?.trim()
+                    ? draft.explanation
+                    : undefined,
                 });
                 setIsEditing(false);
               }}
@@ -846,6 +851,18 @@ function QuestionCard({
               </li>
             ))}
           </ul>
+        )}
+        {question.type === "free_text" && question.referenceAnswer?.trim() && (
+          <div className="text-muted-foreground">
+            <p className="text-xs font-medium">Model answer</p>
+            <MarkdownContent content={question.referenceAnswer} compact />
+          </div>
+        )}
+        {question.explanation?.trim() && (
+          <div className="text-muted-foreground">
+            <p className="text-xs font-medium">Explanation</p>
+            <MarkdownContent content={question.explanation} compact />
+          </div>
         )}
         {question.retryError && (
           <div
@@ -1092,9 +1109,9 @@ function RetryQuestionDialog({
 
 /**
  * Editable fields for one question's in-progress edit buffer. Mirrors
- * `add-question-form.tsx`'s field set (title, content, free-text model
- * answer/explanation, MC options + correctness), minus type-switching —
- * a wrong type is corrected via Step 16's AI retry, not this form.
+ * `add-question-form.tsx`'s field set (title, content, free-text model answer,
+ * explanation, multiple-choice choices + correctness), minus type-switching —
+ * a wrong type is corrected by the card's AI retry, not this form.
  */
 function QuestionEditFields({
   questionId,
@@ -1151,32 +1168,18 @@ function QuestionEditFields({
         />
       </div>
       {draft.type === "free_text" && (
-        <>
-          <div className="space-y-1">
-            <Label htmlFor={referenceAnswerId}>
-              Model answer{" "}
-              <span className="text-xs text-muted-foreground">(optional)</span>
-            </Label>
-            <Textarea
-              id={referenceAnswerId}
-              value={draft.referenceAnswer ?? ""}
-              disabled={isReading}
-              onChange={(e) => setReferenceAnswer(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor={explanationId}>
-              Explanation{" "}
-              <span className="text-xs text-muted-foreground">(optional)</span>
-            </Label>
-            <Textarea
-              id={explanationId}
-              value={draft.explanation ?? ""}
-              disabled={isReading}
-              onChange={(e) => setExplanation(e.target.value)}
-            />
-          </div>
-        </>
+        <div className="space-y-1">
+          <Label htmlFor={referenceAnswerId}>
+            Model answer{" "}
+            <span className="text-xs text-muted-foreground">(optional)</span>
+          </Label>
+          <Textarea
+            id={referenceAnswerId}
+            value={draft.referenceAnswer ?? ""}
+            disabled={isReading}
+            onChange={(e) => setReferenceAnswer(e.target.value)}
+          />
+        </div>
       )}
       {draft.type !== "free_text" && (
         <div className="space-y-2">
@@ -1232,6 +1235,18 @@ function QuestionEditFields({
           </Button>
         </div>
       )}
+      <div className="space-y-1">
+        <Label htmlFor={explanationId}>
+          Explanation{" "}
+          <span className="text-xs text-muted-foreground">(optional)</span>
+        </Label>
+        <Textarea
+          id={explanationId}
+          value={draft.explanation ?? ""}
+          disabled={isReading}
+          onChange={(e) => setExplanation(e.target.value)}
+        />
+      </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
           Cancel
