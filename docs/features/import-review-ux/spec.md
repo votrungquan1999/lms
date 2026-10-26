@@ -105,7 +105,8 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 ## Leaving the page
 
 - Refreshing or closing the tab with work on screen shows the browser's own warning. Browser Back is not guarded.
-- Sidebar links, the logo link, the breadcrumb links on this page (`@breadcrumb/.../import-ai/page.tsx`) and Sign Out go through a "Leave this page?" dialog with Stay and Leave when work is on screen. Without work they act at once.
+- Sidebar links (including the platform owner's Schools link), the logo link, the breadcrumb links on this page (`@breadcrumb/.../import-ai/page.tsx`) and Sign Out go through a "Leave this page?" dialog with Stay and Leave when work is on screen. Without work they act at once.
+- The sidebar's school switcher is not guarded: switching school with work on screen discards it without asking.
 - Dialog text depends on activity. Idle: questions have not been imported and leaving discards them. Reading: adds that a document still being read is not stopped and its result is thrown away. Importing: says the import keeps running and finishes in the background.
 - The guard resets when the page unmounts, so admin links stop asking after Leave.
 - If the teacher leaves during an import, the import finishes and the page does not redirect to the test page.
@@ -113,7 +114,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 ## Importing
 
 - The Import button reads "Import questions" (Add) or "Replace questions" (Replace) and "Importing…" while writing. It is disabled while busy, while a retry runs, while an edit form is open, and when there are no drafts.
-- The server rejects an empty list, and validates the whole list before writing anything. For title, content and each option text, spaces-only counts as empty; reasons are "title is empty", "content is empty", "option K is empty". The text is imported as typed.
+- The server rejects an empty list, and validates the whole list before writing anything. It then checks that the test belongs to the teacher's current school (`resolveOwnedTest`) and writes every question through that school's question service. For title, content and each option text, spaces-only counts as empty; reasons are "title is empty", "content is empty", "option K is empty". The text is imported as typed.
 - A single-answer question may have no correct option or one, never two or more; a multi-answer question may have none or any number (the warnings above tell the teacher). The number of options is not checked at the AI-import door. Pictures are checked as in the manual add form.
 - A rejected question gets its message on its own card; a rejection with no question (for example unauthorised) shows as a banner under the button. The card message stays until the next Import click, a new read, or a Retry-with-AI result for that question.
 - A picture upload failure lands on its own question and nothing is imported.
