@@ -929,7 +929,7 @@ function QuestionPictures({
             />
             <Button
               type="button"
-              variant="ghost"
+              variant="destructive"
               size="sm"
               aria-label={`Remove picture ${picture.number}`}
               disabled={isBusy}
@@ -1058,7 +1058,7 @@ function RetryQuestionDialog({
     >
       <DialogTrigger asChild>
         {/* Locked while a read or import runs: an import uploads this draft's pictures, and a retry can change them. */}
-        <Button type="button" variant="outline" size="sm" disabled={isBusy}>
+        <Button type="button" variant="secondary" size="sm" disabled={isBusy}>
           Retry with AI
         </Button>
       </DialogTrigger>
