@@ -42,12 +42,13 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 - The cookie is only a hint. Its value is compared against the admin's own membership list and never reaches a query, so a tampered or revoked value just falls through (D59).
 - The cookie is httpOnly, `sameSite: lax`, secure in production, unsigned, and lasts 400 days, so the last choice survives between sign-ins (D79).
 - Memberships are read once per server render — the session lookup, layout, page and breadcrumb slots share that read — and fresh on the next request, so a removed membership takes effect on the very next request (D130).
+- The active school is named in three places: a badge with a school icon in the top bar before the breadcrumb (admin and student shells; absent when the session has no school), a line under the signed-in user's name in the sidebar footer, and the sidebar header (D13). The badge and footer are display only and read the session's school, never the URL.
 - The sidebar header shows the active school's name (D13). With two or more schools it becomes a switcher listing the others; two schools with the same name look identical there (D63).
 - Switching re-checks membership on the server, sets the cookie, and redirects to the dashboard, because the open page's ids belong to the old school. A switch to a school the admin doesn't belong to throws to the error page.
 - A student in several schools gets the same switcher in the student sidebar (MS-D18). Its switch action re-checks the target against the student's own schools, sets the same cookie and redirects to the student dashboard.
 - Every school page and breadcrumb slot resolves its own school through `requireSchoolAdmin()`; the dashboard layout only requires a signed-in staff account (D24). School actions use `requireAdminSession`, which fails closed without a school (D22, D47).
 
-**Where it lives:** `src/lib/auth-service.ts` (`resolveActiveSchool`, `classify`, `requireAdminSession`); `src/lib/active-school-cookie.ts`; `SchoolService.listSchoolsForRequest`; `src/app/admin/(dashboard)/switch-school-actions.ts`, `admin-sidebar.tsx`, `layout.tsx`; `src/components/school-switcher.tsx`; `src/app/student/(dashboard)/switch-school-actions.ts`, `student-sidebar.tsx`, `layout.tsx`; `PageGuard.requireSchoolAdmin`.
+**Where it lives:** `src/lib/auth-service.ts` (`resolveActiveSchool`, `classify`, `requireAdminSession`); `src/lib/active-school-cookie.ts`; `SchoolService.listSchoolsForRequest`; `src/app/admin/(dashboard)/switch-school-actions.ts`, `admin-sidebar.tsx`, `layout.tsx`; `src/components/school-switcher.tsx`, `src/components/school-badge.tsx`; `src/app/student/(dashboard)/switch-school-actions.ts`, `student-sidebar.tsx`, `layout.tsx`; `PageGuard.requireSchoolAdmin`.
 
 ## Admins With No School
 

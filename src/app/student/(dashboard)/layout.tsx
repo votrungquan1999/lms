@@ -1,3 +1,4 @@
+import { SchoolBadge } from "src/components/school-badge";
 import { Separator } from "src/components/ui/separator";
 import {
   SidebarInset,
@@ -63,6 +64,8 @@ export default async function StudentDashboardLayout({
           <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" />
+            <SchoolBadge school={school} />
+            {school && <Separator orientation="vertical" />}
             <span className="text-sm font-medium">LMS</span>
           </header>
           {children}

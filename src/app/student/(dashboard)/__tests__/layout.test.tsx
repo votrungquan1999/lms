@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { StudentSession } from "src/lib/session";
 import {
   addTestSchool,
@@ -94,5 +94,48 @@ describe("Feature: the student sidebar shows the current school and a switcher",
     expect(screen.getByTestId("school-switcher-trigger")).toHaveTextContent(
       beta.name,
     );
+  });
+});
+
+/**
+ * Feature: the student top bar and sidebar footer name the active school
+ * As a student in one or more schools
+ * I want the current school unmistakable
+ * So that I know where my work lands
+ */
+describe("Feature: the student shell names the active school", () => {
+  it("shows the active school in the header badge and under the username in the footer", async () => {
+    const alpha = await addTestSchool("Alpha School");
+    const beta = await addTestSchool("Beta School");
+    const student = await getTestServices(
+      alpha.id,
+    ).studentService.createStudentDocument({
+      authUserId: "auth-kid",
+      username: "kid",
+      name: "Kid",
+      createdBy: "admin-1",
+    });
+    await getTestServices(beta.id).studentService.addToSchool(student.id);
+    signInAs(
+      new StudentSession({
+        userId: "auth-kid",
+        username: "kid",
+        studentId: student.id,
+        schoolId: beta.id,
+      }),
+    );
+
+    const ui = await StudentDashboardLayout({ children: <div>Content</div> });
+    render(ui);
+
+    expect(
+      within(screen.getByRole("banner")).getByTestId("school-badge"),
+    ).toHaveTextContent(beta.name);
+    const footerSchool = screen.getByTestId("sidebar-footer-school");
+    expect(footerSchool).toHaveTextContent(beta.name);
+    expect(
+      screen.getByText("@kid").compareDocumentPosition(footerSchool) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

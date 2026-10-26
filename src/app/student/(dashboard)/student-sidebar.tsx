@@ -1,6 +1,12 @@
 "use client";
 
-import { BookOpen, GraduationCap, LayoutDashboard, LogOut } from "lucide-react";
+import {
+  BookOpen,
+  GraduationCap,
+  Landmark,
+  LayoutDashboard,
+  LogOut,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { SchoolSwitcher } from "src/components/school-switcher";
@@ -154,6 +160,18 @@ export function StudentSidebar({
               <span className="truncate">@{username}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {school && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                className="text-xs text-muted-foreground"
+                data-testid="sidebar-footer-school"
+                tooltip={school.name}
+              >
+                <Landmark />
+                <span className="truncate">{school.name}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton onClick={handleLogout} tooltip="Sign Out">
               <LogOut />

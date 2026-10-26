@@ -195,6 +195,18 @@ export function AdminSidebar({
               <span className="truncate">{email}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {school && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                className="text-xs text-muted-foreground"
+                data-testid="sidebar-footer-school"
+                tooltip={school.name}
+              >
+                <Landmark />
+                <span className="truncate">{school.name}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton onClick={handleLogout} tooltip="Sign Out">
               <LogOut />

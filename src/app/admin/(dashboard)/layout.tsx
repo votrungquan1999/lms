@@ -1,3 +1,4 @@
+import { SchoolBadge } from "src/components/school-badge";
 import { Separator } from "src/components/ui/separator";
 import {
   SidebarInset,
@@ -46,6 +47,8 @@ export default async function AdminDashboardLayout({
           <header className="flex min-h-12 shrink-0 items-center gap-2 border-b px-4 py-2">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" />
+            <SchoolBadge school={adminSession.school} />
+            {adminSession.school && <Separator orientation="vertical" />}
             <div className="min-w-0 flex-1">{breadcrumb}</div>
           </header>
           {children}

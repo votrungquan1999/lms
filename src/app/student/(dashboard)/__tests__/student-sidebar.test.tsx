@@ -65,7 +65,7 @@ describe("Feature: StudentSidebar school header", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.getByText("Alpha School")).toBeInTheDocument();
+    expect(screen.getAllByText("Alpha School")).toHaveLength(2);
     expect(
       screen.queryByTestId("school-switcher-trigger"),
     ).not.toBeInTheDocument();
@@ -89,7 +89,9 @@ describe("Feature: StudentSidebar school header", () => {
     );
     await userEvent.click(screen.getByTestId("school-switcher-trigger"));
 
-    expect(screen.getByText("Alpha School")).toBeInTheDocument();
+    expect(screen.getByTestId("school-switcher-trigger")).toHaveTextContent(
+      "Alpha School",
+    );
     expect(
       await screen.findByRole("menuitem", { name: "Beta School" }),
     ).toBeInTheDocument();

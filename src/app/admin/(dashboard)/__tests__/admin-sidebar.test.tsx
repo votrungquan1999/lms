@@ -121,7 +121,7 @@ describe("Feature: AdminSidebar shows a one-school admin's school name", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.getByText("Acme School")).toBeInTheDocument();
+    expect(screen.getAllByText("Acme School")).toHaveLength(2);
     expect(
       screen.queryByTestId("school-switcher-trigger"),
     ).not.toBeInTheDocument();
