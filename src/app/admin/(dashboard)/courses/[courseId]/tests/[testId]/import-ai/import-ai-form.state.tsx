@@ -10,6 +10,7 @@ import {
   useRef,
 } from "react";
 import { useLeaveGuard } from "src/app/admin/(dashboard)/leave-guard.state";
+import { AI_CALL_TIMEOUT_MS } from "src/lib/ai/ai-call-timeout";
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
 import {
   AI_FAILURE_MESSAGES,
@@ -283,8 +284,8 @@ const initialState: ImportAiState = {
   openEditIds: [],
 };
 
-/** Just over the server's AI call limit (AI_CALL_TIMEOUT_MS, 240 s), so only a call the server never answers hits it. */
-const READ_GIVE_UP_MS = 300_000;
+/** A minute past the server's AI call limit, so only a call the server never answers hits it. */
+const READ_GIVE_UP_MS = AI_CALL_TIMEOUT_MS + 60_000;
 
 /** Matches the existing course-material upload limit. */
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;

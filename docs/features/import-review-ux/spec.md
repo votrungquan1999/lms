@@ -20,7 +20,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 - While reading or importing, everything that changes the list is disabled: Edit, Delete, Retry with AI, picture Remove, Move, Add picture, Undo, Redo, the Add/Replace choice and Import. While a read runs, open edit forms lock their fields, Add option, Remove and Save but keep what was typed; their Cancel stays enabled. An import cannot start with a form open, so forms never need locking for it.
 - A retry does not show the reading status. It only shows "Retrying…" in its own dialog.
 - A successful read replaces the list, clears the history and all per-question errors, clears any old page-level import error and shows the new list in Teacher view with no edit forms open.
-- If a read call never answers, the browser gives up after 300 seconds and shows the timeout message. The server's own AI limit is 240 seconds.
+- If a read call never answers, the browser gives up after 300 seconds and shows the timeout message. That is the server's own AI limit (240 seconds, `AI_CALL_TIMEOUT_MS` in `src/lib/ai/ai-call-timeout.ts`, which both sides import) plus one minute.
 - A thrown read call (for example a dropped connection) shows the "busy" message and leaves the picker usable.
 
 ## Picking a new file over a list

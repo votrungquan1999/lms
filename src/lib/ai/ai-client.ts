@@ -6,6 +6,7 @@ import {
   summarizeIdMatch,
   summarizeResult,
 } from "src/lib/ai/ai-call-telemetry";
+import { AI_CALL_TIMEOUT_MS } from "src/lib/ai/ai-call-timeout";
 import {
   AiProviderName,
   createAiRequestRecorder,
@@ -179,13 +180,6 @@ function geminiModel(span: Span, operation: string) {
   });
   return geminiModelFor(recorder.fetch);
 }
-
-/**
- * Total limit per call, retries included. A 31-question exam took ~2 minutes
- * to read; it must stay under Vercel's 300s function limit (Hobby, Fluid
- * compute) so the failure is still recorded.
- */
-export const AI_CALL_TIMEOUT_MS = 240_000;
 
 /**
  * Live Gemini-backed `AiClient` implementation.

@@ -13,8 +13,8 @@ import {
   recordAiCall,
   summarizeResults,
 } from "src/lib/ai/ai-call-telemetry";
+import { AI_CALL_TIMEOUT_MS } from "src/lib/ai/ai-call-timeout";
 import {
-  AI_CALL_TIMEOUT_MS,
   geminiModelFor,
   geminiModelId,
   type ParsedQuestion,
