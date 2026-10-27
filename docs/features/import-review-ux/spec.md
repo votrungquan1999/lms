@@ -107,7 +107,8 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 - Refreshing or closing the tab with work on screen shows the browser's own warning. Browser Back is not guarded.
 - Sidebar links (including the platform owner's Schools link), the logo link, the breadcrumb links on this page (`@breadcrumb/.../import-ai/page.tsx`) and Sign Out go through a "Leave this page?" dialog with Stay and Leave when work is on screen. Without work they act at once.
 - The sidebar's school switcher is not guarded: switching school with work on screen discards it without asking.
-- Dialog text depends on activity. Idle: questions have not been imported and leaving discards them. Reading: adds that a document still being read is not stopped and its result is thrown away. Importing: says the import keeps running and finishes in the background.
+- The admin layout's guard is shared by every admin page: a page registers its work with `setHasWork(hasWork, message?)`, and without a message the dialog reads "You have unsaved changes on this page. Leaving now discards them."
+- The import page passes its own text per phase. Idle: questions have not been imported and leaving discards them. Reading: adds that a document still being read is not stopped and its result is thrown away. Importing: says the import keeps running and finishes in the background.
 - The guard resets when the page unmounts, so admin links stop asking after Leave.
 - If the teacher leaves during an import, the import finishes and the page does not redirect to the test page.
 

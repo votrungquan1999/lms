@@ -104,7 +104,9 @@ describe("Feature: AI document import — leaving through the admin layout with 
 
     expect(
       await screen.findByRole("alertdialog", { name: /leave this page/i }),
-    ).toBeInTheDocument();
+    ).toHaveTextContent(
+      "Your questions have not been imported yet. Leaving now discards them.",
+    );
     expect(push).not.toHaveBeenCalled();
     expect(nextRouter.push).not.toHaveBeenCalled();
   });

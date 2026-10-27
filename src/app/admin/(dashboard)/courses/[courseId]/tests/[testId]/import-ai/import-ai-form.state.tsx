@@ -299,6 +299,15 @@ const initialState: ImportAiState = {
   openEditIds: [],
 };
 
+/** What leaving the page costs in each phase, shown by the admin layout's leave dialog. */
+const LEAVE_MESSAGES: Record<ImportPhase, string> = {
+  idle: "Your questions have not been imported yet. Leaving now discards them.",
+  reading:
+    "Your questions have not been imported yet. Leaving now discards them. A document still being read is not stopped; its result is thrown away.",
+  importing:
+    "Questions are being imported. Leaving won't stop the import; it will finish in the background.",
+};
+
 /** A minute past the server's AI call limit, so only a call the server never answers hits it. */
 const READ_GIVE_UP_MS = AI_CALL_TIMEOUT_MS + 60_000;
 
@@ -1018,7 +1027,7 @@ export function ImportAiProvider({
   // Lets the admin layout's links and Sign Out ask before leaving.
   const { setHasWork } = useLeaveGuard();
   useEffect(() => {
-    setHasWork(hasWorkOnScreen, state.phase);
+    setHasWork(hasWorkOnScreen, LEAVE_MESSAGES[state.phase]);
     return () => setHasWork(false);
   }, [hasWorkOnScreen, state.phase, setHasWork]);
 

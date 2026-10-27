@@ -12,17 +12,18 @@ import {
   AlertDialogTitle,
 } from "src/components/ui/alert-dialog";
 
-/** What the page is doing in the background, which changes what leaving costs. */
-export type LeaveActivity = "idle" | "reading" | "importing";
-
 interface LeaveGuardValue {
   /** Whether the page has unsaved work on screen. */
   hasWork: boolean;
-  /** Tells the layout whether the page has unsaved work on screen and what it is busy with. */
-  setHasWork: (hasWork: boolean, activity?: LeaveActivity) => void;
+  /** Tells the layout whether the page has unsaved work on screen, and what leaving it costs. */
+  setHasWork: (hasWork: boolean, message?: string) => void;
   /** Runs `onLeave` now, or after the teacher confirms when work is on screen. */
   requestLeave: (onLeave: () => void) => void;
 }
+
+/** Shown when the page does not say what leaving would lose. */
+const DEFAULT_LEAVE_MESSAGE =
+  "You have unsaved changes on this page. Leaving now discards them.";
 
 const LeaveGuardContext = createContext<LeaveGuardValue>({
   hasWork: false,
@@ -30,17 +31,21 @@ const LeaveGuardContext = createContext<LeaveGuardValue>({
   requestLeave: (onLeave) => onLeave(),
 });
 
+/**
+ * Lets admin pages register unsaved work, and asks before the layout's links
+ * or Sign Out leave a page that has some.
+ */
 export function LeaveGuardProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const [hasWork, setHasWorkState] = useState(false);
-  const [activity, setActivity] = useState<LeaveActivity>("idle");
+  const [message, setMessage] = useState(DEFAULT_LEAVE_MESSAGE);
   const setHasWork = useCallback(
-    (work: boolean, busyWith: LeaveActivity = "idle") => {
+    (work: boolean, leaveMessage: string = DEFAULT_LEAVE_MESSAGE) => {
       setHasWorkState(work);
-      setActivity(busyWith);
+      setMessage(leaveMessage);
     },
     [],
   );
@@ -67,13 +72,7 @@ export function LeaveGuardProvider({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Leave this page?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {activity === "importing"
-                ? "Questions are being imported. Leaving won't stop the import; it will finish in the background."
-                : activity === "reading"
-                  ? "Your questions have not been imported yet. Leaving now discards them. A document still being read is not stopped; its result is thrown away."
-                  : "Your questions have not been imported yet. Leaving now discards them."}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{message}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Stay</AlertDialogCancel>
