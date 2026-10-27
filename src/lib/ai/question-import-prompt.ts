@@ -47,18 +47,14 @@ export function buildQuestionRetryPrompt(
   currentQuestion: DraftQuestion,
   correctionNote: string,
 ): string {
-  // The model sees pictures only as markers, so the list is named in words, not printed in the JSON.
-  const { imageNumbers = [], ...draft } = currentQuestion;
-  const currentPictures = imageNumbers.length
-    ? `The question's current pictures: ${imageNumbers.map((n) => `[image ${n}]`).join(", ")}. Their markers are not in the extraction above; write a picture's marker back where it sits in the question to keep it, and leave it out to drop that picture. Copy only the markers that sit in this question's own text.`
-    : undefined;
+  // A retry keeps the question's pictures, so the model is not shown them.
+  const { imageNumbers: _pictures, ...draft } = currentQuestion;
   return [
     SYSTEM_RULES,
     "Document text:",
     documentText,
     "This question was already extracted once. The teacher reviewed it and found a problem, so it needs to be re-read — the rest of the document's questions are unaffected.",
     `Current extraction of this one question: ${JSON.stringify(draft)}`,
-    ...(currentPictures ? [currentPictures] : []),
     `Teacher's correction note — what was wrong: ${correctionNote}`,
     'Re-read the document and produce a corrected version of this ONE question that addresses the correction note. Respond with JSON of the form { "question": { "title": string, "content": string, "type": "free_text" | "single_select" | "multi_select", "options"?: [{ "text": string, "isCorrect": boolean }], "referenceAnswer"?: string, "explanation"?: string } }. Omit "referenceAnswer"/"explanation" entirely when the document gives none — never return an empty string for either.',
   ].join("\n\n");

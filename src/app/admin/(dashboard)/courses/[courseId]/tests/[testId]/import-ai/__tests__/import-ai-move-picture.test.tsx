@@ -233,6 +233,57 @@ describe("Feature: AI document import — moving a picture between questions", (
     expect(retryQuestionAction).not.toHaveBeenCalled();
   });
 
+  it("keeps a moved-in picture through Retry with AI, and Undo of the retry restores the old text", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(
+      user,
+      [{ title: "Q1", imageNumbers: [1] }, { title: "Q2" }],
+      1,
+    );
+    await openMoveMenu(user, "Q1", 1);
+    await user.click(await screen.findByRole("menuitem", { name: /#2/ }));
+    // The re-read's text carries no marker for the moved picture.
+    vi.mocked(retryQuestionAction).mockResolvedValue({
+      success: true,
+      message: "Question re-read",
+      question: {
+        title: "Q2 retried",
+        content: "Retried content",
+        type: "free_text",
+        imageNumbers: [],
+      },
+    });
+
+    await user.click(
+      within(questionCard("Q2")).getByRole("button", {
+        name: /retry with ai/i,
+      }),
+    );
+    await user.type(screen.getByLabelText(/what was wrong/i), "Typo.");
+    await user.click(screen.getByRole("button", { name: /^retry$/i }));
+
+    expect(
+      await within(questionCard("Q2 retried")).findByRole("img", {
+        name: "Figure 1",
+      }),
+    ).toBeInTheDocument();
+    // The reply's markers are checked against the document's real pictures.
+    expect(retryQuestionAction).toHaveBeenCalledWith(
+      "document text",
+      expect.objectContaining({ title: "Q2" }),
+      "Typo.",
+      [1],
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Undo AI retry of Question 2" }),
+    );
+    expect(
+      within(questionCard("Q2")).getByRole("img", { name: "Figure 1" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Q2 retried")).toBeNull();
+  });
+
   it("keeps a move onto a question whose edit form is open, and the form's Save lands on top", async () => {
     const user = userEvent.setup();
     await uploadDocument(

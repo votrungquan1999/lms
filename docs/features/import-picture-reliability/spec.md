@@ -80,10 +80,10 @@ Living spec for the document import (`import-ai`) in the LMS admin. Covers how p
 - Markers in the reference answer or explanation are stripped from that text and their pictures are not attached (they would show before students answer). The picture waits in Unused pictures.
 - A reference answer or explanation that is blank after stripping is left out and does not fail the import.
 
-### 10. A re-read of one question takes its pictures from the new markers
-- The re-read reply is read like a full read: the valid picture numbers are the ones sent with the request (`retryQuestionAction`'s `pictureNumbers`, none when left out), so a marker typed into the document text is not a picture.
-- The request names the draft's current pictures in words and asks the AI to copy only the markers that sit in that question's own text.
-- The result replaces the question's pictures and clears its hand-edited flag. A hand-added picture the re-read does not mark goes back to Unused pictures.
+### 10. A re-read of one question keeps its pictures
+- The re-read reply is read like a full read: the valid picture numbers are the ones sent with the request (`retryQuestionAction`'s `pictureNumbers`, which the review screen fills with every picture the document had), so a marker typed into the document text is not a picture and a picture-only text still reads "Picture N".
+- The request does not mention the draft's pictures.
+- The result replaces the question's text fields and clears its hand-edited flag; the question keeps the pictures it had, including ones the teacher moved in or added from Unused pictures.
 
 ### 11. Each import records how many pictures were attached and unused
 - The full read's trace carries `lms.ai.pictures_in_document`, `lms.ai.pictures_attached` and `lms.ai.pictures_unused`, counted from the final drafts (so a refusal re-read is included). A picture shared by two drafts counts once.

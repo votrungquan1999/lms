@@ -53,7 +53,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 - Every change to the drafts is an entry in a history: saved edit, delete, picture removed, picture added, picture moved, and a Retry-with-AI result. The list on screen is the read's drafts with the history applied.
 - Undo and Redo buttons sit above the list. Their labels name the change, for example "Undo delete of Question 7", "Redo AI retry of Question 2", "Undo move of picture 1 from Question 1 to Question 3". With nothing to act on they read just "Undo" / "Redo" and are disabled.
 - A new change empties Redo, including a Retry-with-AI result.
-- Undo restores a deleted draft in its old position with its edits, hand-edit mark, pictures and per-question errors. Undoing a retry restores the draft and its pictures as before the retry.
+- Undo restores a deleted draft in its old position with its edits, hand-edit mark, pictures and per-question errors. Undoing a retry restores the draft's text as before the retry; its pictures are the same either way.
 - Not in the history: the Add/Replace choice, and which cards have an open edit form. A new read starts a fresh history.
 - Undo and Redo are disabled while a read or import runs, and allowed while a retry runs and while an edit form is open (Save then records a new change on top).
 - Keyboard: Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z redoes. There is no Ctrl+Y.
@@ -100,7 +100,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 - Each card shows its pictures with Remove and "Move to question…". Move lists every other question as "#N title". A question that already holds that picture is disabled with "— already has this picture"; one with 3 pictures is disabled with "— full". The trigger is disabled when no question can take it.
 - Move is one history entry; Undo moves the picture back.
 - Pictures that no card uses sit in "Unused pictures", where a dropdown plus Add attaches one. Add is disabled when the chosen question already has 3 pictures.
-- A retry result takes the AI's pictures for that question (undoable). A question showing more than 3 pictures shows a note; Import is not disabled, but the server rejects that question ("A question can have at most 3 media files") until one is removed.
+- A retry result never changes a question's pictures: it replaces the text fields and keeps the pictures the teacher sees. A question showing more than 3 pictures shows a note; Import is not disabled, but the server rejects that question ("A question can have at most 3 media files") until one is removed.
 
 ## Leaving the page
 
@@ -132,7 +132,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 
 - New file over a list always asks first (even an untouched list): a read costs money and about a minute.
 - Delete is immediate with full undo/redo history, instead of a confirm per delete or a single latest-delete Undo.
-- Retry result takes the AI's pictures; Undo reverses the whole retry.
+- Retry with AI keeps the question's pictures: the teacher places pictures by hand (one undoable click), so a paid AI call must not undo that. Undo reverses the whole retry.
 - Import is blocked while edit forms are open, rather than importing the last saved version.
 - Failure texts by cause, no provider name, so the teacher knows whether retrying can help.
 - Orphan-retry cancellation was not built: the retry dialog is modal, and closing it already cancels the retry.

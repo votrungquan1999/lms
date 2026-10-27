@@ -208,7 +208,7 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
     expect(screen.getByAltText("Unused picture 1")).toBeInTheDocument();
   });
 
-  it("undoes an AI retry, bringing back the draft and its pictures as they were", async () => {
+  it("undoes an AI retry, bringing back the draft as it was with its pictures", async () => {
     const user = userEvent.setup();
     await uploadDocument(user, [{ title: "Q1", imageNumbers: [1] }], 2);
     vi.mocked(retryQuestionAction).mockResolvedValue({
@@ -224,7 +224,7 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
     await retryQuestion(user, "Q1");
     expect(
       await within(questionCard("Q1 retried")).findByRole("img", {
-        name: "Figure 2",
+        name: "Figure 1",
       }),
     ).toBeInTheDocument();
 

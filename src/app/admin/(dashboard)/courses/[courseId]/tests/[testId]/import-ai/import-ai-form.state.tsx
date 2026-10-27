@@ -100,16 +100,13 @@ export function editableFieldsOf(draft: EditableFields): EditableFields {
   };
 }
 
-/** What a Retry-with-AI answer replaces; a field the AI left out is an explicit `undefined`. */
+/**
+ * What a Retry-with-AI answer replaces; a field the AI left out is an explicit `undefined`.
+ * Pictures are not in it: the teacher places them by hand, and a retry keeps them.
+ */
 type RetryPatch = Pick<
   ParsedQuestion,
-  | "title"
-  | "content"
-  | "type"
-  | "options"
-  | "referenceAnswer"
-  | "explanation"
-  | "imageNumbers"
+  "title" | "content" | "type" | "options" | "referenceAnswer" | "explanation"
 >;
 
 /** One thing the teacher (or a retry) did to a draft since the read. */
@@ -759,6 +756,8 @@ export function ImportAiProvider({
    * note. Splices the result back by `id` — captured in this call's own
    * closure, never "whichever dialog is open" — so two in-flight retries
    * can't cross. On failure the pre-retry draft stays visible and intact.
+   * The question keeps its pictures; the document's picture numbers go along
+   * only so the reply's markers are read against the real pictures.
    */
   async function retryOneQuestion(
     id: string,
@@ -777,6 +776,7 @@ export function ImportAiProvider({
         state.documentText,
         current,
         correctionNote,
+        state.pictures.map((picture) => picture.number),
       );
     } catch {
       result = {
@@ -809,7 +809,6 @@ export function ImportAiProvider({
         options: question.options,
         referenceAnswer: question.referenceAnswer,
         explanation: question.explanation,
-        imageNumbers: question.imageNumbers,
       },
     });
   }

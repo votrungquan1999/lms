@@ -246,14 +246,14 @@ describe("Feature: AI document import — the document's pictures come along wit
     ).toBeEnabled();
   });
 
-  it("takes the pictures from the AI's re-read when the teacher retries a question", async () => {
+  it("keeps the question's own pictures when the AI's re-read marks a different one", async () => {
     const user = userEvent.setup();
     vi.mocked(retryQuestionAction).mockResolvedValue({
       success: true,
       message: "Question re-read",
       question: {
         title: "Câu 15",
-        content: "Virus là",
+        content: "Virus là gì?",
         type: "free_text",
         imageNumbers: [1],
       },
@@ -271,10 +271,12 @@ describe("Feature: AI document import — the document's pictures come along wit
     );
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
+    await screen.findByText("Virus là gì?");
     expect(
-      await within(questionCard("Câu 15")).findByRole("img", {
-        name: "Figure 1",
-      }),
+      within(questionCard("Câu 15")).queryByRole("img", { name: "Figure 1" }),
+    ).toBeNull();
+    expect(
+      within(questionCard("Câu 14")).getByRole("img", { name: "Figure 1" }),
     ).toBeInTheDocument();
   });
 
