@@ -121,6 +121,12 @@ interface UploadedPictures {
   media: Map<number, UploadedPicture>;
 }
 
+/** A job of `runInOrder` that threw, by its position. */
+interface JobFailure {
+  index: number;
+  error: unknown;
+}
+
 /** One thing the teacher (or a retry) did to a draft since the read. */
 export type Change =
   | { kind: "edit"; id: string; fields: EditableFields }
@@ -588,6 +594,42 @@ async function uploadPictures(files: File[]): Promise<SubmittedMedia> {
   }));
 }
 
+/** How many questions' pictures upload at the same time on Import. */
+const UPLOAD_CONCURRENCY = 4;
+
+/**
+ * Starts jobs in list order, at most `limit` at a time. After one fails no
+ * new job starts; those already running finish first.
+ * @param jobs - The jobs, in the order they should start.
+ * @param limit - The most jobs running at once.
+ * @returns The failed job earliest in the list, or null when none failed.
+ */
+async function runInOrder(
+  jobs: (() => Promise<void>)[],
+  limit: number,
+): Promise<JobFailure | null> {
+  let next = 0;
+  const failures: JobFailure[] = [];
+  async function work(): Promise<void> {
+    while (next < jobs.length && failures.length === 0) {
+      const index = next++;
+      // Boundary: a failure is collected, so the jobs still running can settle.
+      try {
+        await jobs[index]();
+      } catch (error) {
+        failures.push({ index, error });
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, work));
+  // Jobs start in order, so every job before the earliest failure has settled.
+  return failures.reduce<JobFailure | null>(
+    (first, failure) =>
+      first && first.index < failure.index ? first : failure,
+    null,
+  );
+}
+
 const ImportAiContext = createContext<ImportAiContextValue | null>(null);
 
 /**
@@ -878,12 +920,21 @@ export function ImportAiProvider({
     }
     const { media } = uploaded.current;
 
-    for (const draft of questions) {
-      const missing = picturesOf(draft, state.pictures).filter(
-        (picture) => !media.has(picture.number),
-      );
-      // Boundary: a failed upload lands on its own question, and nothing is imported.
-      try {
+    // A missing picture goes with the first question that shows it, so a shared picture uploads once.
+    const claimed = new Set<number>();
+    const uploads = questions
+      .map((draft) => {
+        const missing = picturesOf(draft, state.pictures).filter(
+          (picture) =>
+            !media.has(picture.number) && !claimed.has(picture.number),
+        );
+        for (const picture of missing) claimed.add(picture.number);
+        return { draft, missing };
+      })
+      .filter(({ missing }) => missing.length > 0);
+
+    const failure = await runInOrder(
+      uploads.map(({ missing }) => async () => {
         const entries = await uploadPictures(
           missing.map((picture) => picture.file),
         );
@@ -891,16 +942,20 @@ export function ImportAiProvider({
           const { order: _order, ...entry } = entries[i];
           media.set(picture.number, entry);
         });
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : "unknown error";
-        dispatch({
-          type: "IMPORT_FAILED",
-          message: `This question's pictures could not be uploaded: ${detail}`,
-          reason: `Its pictures could not be uploaded: ${detail}`,
-          questionId: draft.id,
-        });
-        return false;
-      }
+      }),
+      UPLOAD_CONCURRENCY,
+    );
+    // A failed upload lands on the earliest failing question, and nothing is imported.
+    if (failure) {
+      const { error } = failure;
+      const detail = error instanceof Error ? error.message : "unknown error";
+      dispatch({
+        type: "IMPORT_FAILED",
+        message: `This question's pictures could not be uploaded: ${detail}`,
+        reason: `Its pictures could not be uploaded: ${detail}`,
+        questionId: uploads[failure.index].draft.id,
+      });
+      return false;
     }
 
     // Kept in review order — the write loop numbers the questions by it.

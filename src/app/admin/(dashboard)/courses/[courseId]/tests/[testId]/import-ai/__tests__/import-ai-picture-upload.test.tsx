@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -122,6 +122,43 @@ function grantSlots(refused: string[] = []): void {
             })),
           },
   );
+}
+
+/** Answers one held slot request: grants its slots, or refuses them. */
+type SlotRelease = (outcome: "grant" | "refuse") => void;
+
+/**
+ * Holds every slot request until the test answers it, so the test controls
+ * which question's upload finishes first.
+ * @returns The answer function of each held request, by its first file name.
+ */
+function holdSlots(): Map<string, SlotRelease> {
+  const held = new Map<string, SlotRelease>();
+  vi.mocked(requestUploadSlotsAction).mockImplementation(
+    (files: RequestUploadSlotsInput[]) =>
+      new Promise((resolve) => {
+        held.set(files[0].fileName, (outcome) =>
+          resolve(
+            outcome === "refuse"
+              ? {
+                  success: false,
+                  message: `No slot for ${files[0].fileName}`,
+                }
+              : {
+                  success: true,
+                  message: "Upload slots created",
+                  slots: files.map((file, i) => ({
+                    key: `media/questions/${file.fileName}`,
+                    url: `https://fake-s3.local/put/${file.fileName}`,
+                    contentType: file.contentType,
+                    order: i,
+                  })),
+                },
+          ),
+        );
+      }),
+  );
+  return held;
 }
 
 /**
@@ -266,5 +303,82 @@ describe("Feature: AI document import — each picture uploads once per read", (
     expect(
       screen.getByRole("button", { name: /import questions/i }),
     ).toBeEnabled();
+  });
+});
+
+describe("Feature: AI document import — pictures upload several questions at a time", () => {
+  it("uploads up to 4 questions' pictures at once and starts the next when one finishes", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(
+      user,
+      5,
+      [1, 2, 3, 4, 5].map((n) => ({ title: `Câu ${n}`, imageNumbers: [n] })),
+    );
+    const held = holdSlots();
+    vi.mocked(importAiQuestionsAction).mockResolvedValue({
+      success: false,
+      message: "Unauthorized: admin access required",
+    });
+
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+
+    await waitFor(() =>
+      expect(requestUploadSlotsAction).toHaveBeenCalledTimes(4),
+    );
+    await act(async () => {});
+    expect(requestedFileNames()).toEqual([
+      ["picture-1.png"],
+      ["picture-2.png"],
+      ["picture-3.png"],
+      ["picture-4.png"],
+    ]);
+
+    await act(async () => held.get("picture-2.png")?.("grant"));
+    await waitFor(() =>
+      expect(requestUploadSlotsAction).toHaveBeenCalledTimes(5),
+    );
+    for (const name of [
+      "picture-1.png",
+      "picture-3.png",
+      "picture-4.png",
+      "picture-5.png",
+    ]) {
+      await act(async () => held.get(name)?.("grant"));
+    }
+
+    await waitFor(() => expect(importAiQuestionsAction).toHaveBeenCalled());
+    const [, , reviewed] = vi.mocked(importAiQuestionsAction).mock.calls[0];
+    expect(
+      reviewed.map((question) => question.media?.map((entry) => entry.key)),
+    ).toEqual([1, 2, 3, 4, 5].map((n) => [`media/questions/picture-${n}.png`]));
+  });
+
+  it("shows the earliest failing question in review order, starts no more uploads, and imports nothing", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(
+      user,
+      5,
+      [1, 2, 3, 4, 5].map((n) => ({ title: `Câu ${n}`, imageNumbers: [n] })),
+    );
+    const held = holdSlots();
+
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+    await waitFor(() =>
+      expect(requestUploadSlotsAction).toHaveBeenCalledTimes(4),
+    );
+    // Câu 3 fails first, then Câu 1; the others succeed.
+    await act(async () => held.get("picture-3.png")?.("refuse"));
+    await act(async () => held.get("picture-1.png")?.("refuse"));
+    await act(async () => held.get("picture-2.png")?.("grant"));
+    await act(async () => held.get("picture-4.png")?.("grant"));
+
+    expect(
+      await within(questionCard("Câu 1")).findByRole("alert"),
+    ).toHaveTextContent(
+      "Question 1 — Its pictures could not be uploaded: No slot for picture-1.png",
+    );
+    expect(within(questionCard("Câu 3")).queryByRole("alert")).toBeNull();
+    expect(requestedFileNames()).not.toContainEqual(["picture-5.png"]);
+    expect(importAiQuestionsAction).not.toHaveBeenCalled();
   });
 });
