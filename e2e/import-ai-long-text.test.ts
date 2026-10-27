@@ -83,4 +83,52 @@ test.describe("AI Document Import — long unbroken text", () => {
       page.getByRole("button", { name: /^Delete question/ }),
     ).toBeInViewport({ ratio: 1 });
   });
+  test("in Student view the column is the student page's width and an unbroken word wraps inside its card", async ({
+    page,
+  }) => {
+    await page.goto("/admin/courses");
+    await page.getByText(COURSE_TITLE).click();
+    await page.getByText(TEST_TITLE).click();
+    await page.getByRole("link", { name: "Import Questions with AI" }).click();
+    await page.getByLabel(/document/i).setInputFiles(pdfPath);
+    await expect(
+      page.getByRole("button", { name: "Edit", exact: true }),
+    ).toBeVisible({ timeout: 20000 });
+
+    await page.getByRole("button", { name: "Student view" }).click();
+    const region = page.getByRole("region", { name: "Student view" });
+    await expect(region).toBeVisible();
+
+    const measured = await region.evaluate((el) => {
+      const box = (node: Element) => node.getBoundingClientRect();
+      const column = el.firstElementChild as HTMLElement;
+      const card = column.firstElementChild as HTMLElement;
+      const wide = Array.from(card.querySelectorAll("*")).find((node) =>
+        node.textContent?.trim().startsWith("aaaaaaaa"),
+      ) as HTMLElement;
+      return {
+        regionWidth: box(el).width,
+        columnWidth: box(column).width,
+        cardLeft: box(card).left,
+        cardRight: box(card).right,
+        wideRight: box(wide).right,
+        wideScrollWidth: wide.scrollWidth,
+        wideClientWidth: wide.clientWidth,
+        docScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      };
+    });
+
+    // The student page caps its content at max-w-5xl (1024px)
+    expect(measured.columnWidth).toBeCloseTo(
+      Math.min(1024, measured.regionWidth),
+      0,
+    );
+    // The word wraps in its box instead of widening the card or the page
+    expect(measured.wideScrollWidth).toBeLessThanOrEqual(
+      measured.wideClientWidth,
+    );
+    expect(measured.wideRight).toBeLessThanOrEqual(measured.cardRight);
+    expect(measured.docScrollWidth).toBeLessThanOrEqual(measured.innerWidth);
+  });
 });
