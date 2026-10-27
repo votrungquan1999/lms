@@ -7,8 +7,8 @@ import {
   ImageAnswerControl,
   McAnswerControls,
 } from "src/components/student-answer-controls.ui";
+import type { StudentOption } from "src/components/student-question-card.ui";
 import { Button } from "src/components/ui/button";
-import type { McOption } from "src/lib/question-service";
 import { submitWithoutReset } from "src/lib/submit-without-reset";
 import { type SubmitAnswerState, submitAnswerAction } from "./actions";
 import {
@@ -34,7 +34,7 @@ interface FreeTextProps extends BaseProps {
 
 interface McProps extends BaseProps {
   questionType: "single_select" | "multi_select";
-  options: McOption[];
+  options: StudentOption[];
   /** IDs of options the student previously selected */
   existingSelectedIds: string[];
   existingAnswer?: never;

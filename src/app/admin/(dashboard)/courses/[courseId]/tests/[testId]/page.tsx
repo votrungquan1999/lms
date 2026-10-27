@@ -38,12 +38,11 @@ function toStudentCard(question: Question): StudentCardQuestion {
     title: question.title,
     content: question.content,
     type: question.type,
-    // Every option is marked wrong so the key never reaches the client toggle.
+    // Only id and text, so the key never reaches the client toggle.
     options: isMcQuestion(question)
       ? question.options.map((option) => ({
           id: option.id,
           text: option.text,
-          isCorrect: false,
         }))
       : [],
     media: question.media,

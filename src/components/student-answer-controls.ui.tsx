@@ -1,9 +1,9 @@
 "use client";
 
+import type { StudentOption } from "src/components/student-question-card.ui";
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
-import type { McOption } from "src/lib/question-service";
 
 /**
  * Radio (single answer) or checkbox (several answers) list for a multiple
@@ -23,7 +23,7 @@ export function McAnswerControls({
 }: {
   questionId: string;
   type: "single_select" | "multi_select";
-  options: McOption[];
+  options: StudentOption[];
   selectedIds: string[];
   onChange: (nextIds: string[]) => void;
 }) {

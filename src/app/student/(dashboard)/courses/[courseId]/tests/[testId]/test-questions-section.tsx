@@ -86,19 +86,20 @@ export function TestQuestionsSection({
             ? (revealMap.get(question.id) ?? false)
             : correctAnswersVisible;
 
-          // The answer-editing form never draws correctness, so it always gets
-          // the key-free options — the gate only governs answered views.
+          // The answer-editing form never draws correctness, so it only gets
+          // each option's id and text — the gate only governs answered views.
           const editOptions = isMcQuestion(question)
-            ? question.options.map((o) => ({ ...o, isCorrect: false }))
+            ? question.options.map((o) => ({ id: o.id, text: o.text }))
             : [];
 
-          // Option list safe to ship to the client: with the gate closed it is
-          // the key-free list, so the key never reaches the browser. Chip
+          // Option list safe to ship to the client: with the gate closed every
+          // option is marked wrong, so the key never reaches the browser. Chip
           // colouring is gated separately by `colorPicks`.
-          const safeOptions =
-            isMcQuestion(question) && mcRevealOpen
+          const safeOptions = isMcQuestion(question)
+            ? mcRevealOpen
               ? question.options
-              : editOptions;
+              : question.options.map((o) => ({ ...o, isCorrect: false }))
+            : [];
 
           // Practice-only MC reveal: `revealMap` already encodes
           // isPractice && answered, so no separate isPractice check needed

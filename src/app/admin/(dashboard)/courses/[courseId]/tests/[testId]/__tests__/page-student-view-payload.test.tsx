@@ -45,7 +45,7 @@ describe("Feature: test page Student view payload", () => {
     await teardownTestDb();
   });
 
-  it("sends only the card fields and marks every option wrong", async () => {
+  it("sends only the card fields, and options without an answer key", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Course",
@@ -99,6 +99,9 @@ describe("Feature: test page Student view payload", () => {
     }
     const options = items.flatMap((item) => item.options);
     expect(options.map((option) => option.text)).toEqual(["Paris", "Lyon"]);
-    expect(options.map((option) => option.isCorrect)).toEqual([false, false]);
+    expect(options.map((option) => Object.keys(option).sort())).toEqual([
+      ["id", "text"],
+      ["id", "text"],
+    ]);
   });
 });

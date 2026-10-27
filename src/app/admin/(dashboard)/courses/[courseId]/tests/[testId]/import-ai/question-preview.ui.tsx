@@ -476,7 +476,6 @@ function toStudentCards(
     options: (draft.options ?? []).map((option, optionIndex) => ({
       id: `${draft.id}-opt-${optionIndex}`,
       text: option.text,
-      isCorrect: false,
     })),
     media: picturesOf(draft, pictures).map((picture, order) => ({
       key: `draft-picture-${picture.number}`,

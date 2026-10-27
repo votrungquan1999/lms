@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render } from "@testing-library/react";
-import type { McOption } from "src/lib/question-service";
+import type { StudentOption } from "src/components/student-question-card.ui";
 import { StudentSession } from "src/lib/session";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
@@ -16,7 +16,7 @@ import StudentTestDetailPage from "../page";
 const mockGetSession = vi.fn();
 const mockRequireStudentSession = vi.fn();
 // What the server hands the client answer form, as a client bundle would receive it.
-const formOptions: McOption[][] = [];
+const formOptions: StudentOption[][] = [];
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/navigation", () => ({
@@ -43,7 +43,7 @@ vi.mock("src/lib/auth-singleton", () => ({
   }),
 }));
 vi.mock("../answer-form", () => ({
-  AnswerForm: ({ options }: { options?: McOption[] }) => {
+  AnswerForm: ({ options }: { options?: StudentOption[] }) => {
     if (options) {
       formOptions.push(JSON.parse(JSON.stringify(options)));
     }
@@ -123,7 +123,7 @@ describe("Feature: Student test page — unanswered answer key", () => {
     );
   }
 
-  it("hands the answer form options with no option marked correct on a default-settings test", async () => {
+  it("hands the answer form options without an answer key on a default-settings test", async () => {
     const { course, test } = await seedStudentWithCapitalQuestion();
 
     await renderStudentPage(course.id, test.id);
@@ -133,9 +133,9 @@ describe("Feature: Student test page — unanswered answer key", () => {
       "Paris",
       "Lyon",
     ]);
-    expect(formOptions[0].map((option) => option.isCorrect)).toEqual([
-      false,
-      false,
+    expect(formOptions[0].map((option) => Object.keys(option).sort())).toEqual([
+      ["id", "text"],
+      ["id", "text"],
     ]);
   });
 
@@ -155,9 +155,9 @@ describe("Feature: Student test page — unanswered answer key", () => {
     await renderStudentPage(course.id, test.id);
 
     expect(formOptions).toHaveLength(1);
-    expect(formOptions[0].map((option) => option.isCorrect)).toEqual([
-      false,
-      false,
+    expect(formOptions[0].map((option) => Object.keys(option).sort())).toEqual([
+      ["id", "text"],
+      ["id", "text"],
     ]);
   });
 });

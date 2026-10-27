@@ -101,8 +101,8 @@ describe("Feature: Submit Answer is disabled until there is something to submit"
         questionId="q-1"
         questionType="multi_select"
         options={[
-          { id: "opt-1", text: "A", isCorrect: true },
-          { id: "opt-2", text: "B", isCorrect: false },
+          { id: "opt-1", text: "A" },
+          { id: "opt-2", text: "B" },
         ]}
         existingSelectedIds={[]}
       />,
@@ -125,8 +125,8 @@ describe("Feature: Submit Answer is disabled until there is something to submit"
         questionId="q-1"
         questionType="multi_select"
         options={[
-          { id: "opt-1", text: "A", isCorrect: true },
-          { id: "opt-2", text: "B", isCorrect: false },
+          { id: "opt-1", text: "A" },
+          { id: "opt-2", text: "B" },
         ]}
         existingSelectedIds={[]}
       />,
@@ -214,8 +214,8 @@ describe("Feature: a refused submit keeps what the student entered", () => {
         questionId="q-1"
         questionType="multi_select"
         options={[
-          { id: "opt-1", text: "A", isCorrect: true },
-          { id: "opt-2", text: "B", isCorrect: false },
+          { id: "opt-1", text: "A" },
+          { id: "opt-2", text: "B" },
         ]}
         existingSelectedIds={[]}
       />,
@@ -272,8 +272,8 @@ describe("Feature: re-opening a saved answer after Cancel discards the unsaved e
         questionId="q-1"
         questionType="multi_select"
         options={[
-          { id: "opt-1", text: "A", isCorrect: true },
-          { id: "opt-2", text: "B", isCorrect: false },
+          { id: "opt-1", text: "A" },
+          { id: "opt-2", text: "B" },
         ]}
         existingSelectedIds={["opt-1"]}
       />,

@@ -14,7 +14,7 @@ Teachers can preview how students will see questions before or after import. A "
 
 **Behavior 2: Import screen Student view.** A teacher reviewing AI-drafted questions can flip to Student view and see each draft formatted and numbered as it will be saved, with answer choices clickable but nothing recorded.
 - **Shared components.** The student question card, answer controls, list and toggle live in `src/components/`; the student page and both previews use them.
-- **Draft adapter.** Drafts become student cards (id, order, title, content, type, options all `isCorrect: false`, attached pictures); the answer key is left out.
+- **Draft adapter.** Drafts become student cards (id, order, title, content, type, options as id and text only, attached pictures); the answer key is left out.
 - **Toggle.** Starts on Teacher view; two buttons with `aria-pressed`. The teacher list stays mounted but hidden in Student view so open edits survive a flip; Student view renders only while selected.
 - **Rejection reason.** In Student view, a rejected import shows its reason under the Import button as `Question N: title — reason`, where N is the card's own number. An empty or whitespace-only title drops the colon and title (`Question N — reason`). Teacher view shows `Question N — reason` on the rejected card, with the same N as its header. Applies to server rejections and picture-upload failures.
 - **New file resets the screen.** Parsing a new file remounts the review screen on Teacher view.
@@ -26,12 +26,12 @@ Teachers can preview how students will see questions before or after import. A "
 - **Per-card numbers.** The list shows each card's own `order`; Teacher cards (`#N` header) and the Unused-picture question picker use the same numbers and follow the Add/Replace switch live; the import adapter assigns `order` from the first number.
 
 **Behavior 4: Test page Student view.** A teacher on a test page can flip to Student view and see all saved questions as students see them.
-- **Typed server mapping.** The page maps each saved question through a typed `toStudentCard` function (id, order, title, content, type, options all `isCorrect: false`, media only), so reference answers, explanations, weight and reveal mode never reach the client.
+- **Typed server mapping.** The page maps each saved question through a typed `toStudentCard` function (id, order, title, content, type, options as id and text only, media only), so reference answers, explanations, weight and reveal mode never reach the client.
 - **Toggle.** A client wrapper holds the view state; the toggle is hidden when the test has no questions.
 - **Width.** The page's settings and question section is widened to `max-w-5xl`.
 
 **Behavior 5: Answer-key leak fix.** A student opening a test never receives correct answers for unanswered questions, regardless of test settings.
-- **Answer forms get key-free options.** The unanswered card and redo forms always receive options with `isCorrect: false`.
+- **Answer forms get key-free options.** The unanswered card and redo forms always receive options as id and text only. `StudentCardQuestion` and `McAnswerControls` take `StudentOption` (`isCorrect?: never`), so passing a keyed `McOption` to them is a compile error; answered and revealed views (`GradedQuestion`, `McAnswerChips`) keep full options, with every option marked wrong while the reveal gate is closed.
 - **Answered views unchanged.** Answered and graded views keep real options and reveal them only through the existing reveal gate.
 - **Why it mattered.** Default test settings open the reveal gate before any answer, so the flags were in the client payload.
 

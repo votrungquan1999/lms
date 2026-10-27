@@ -7,10 +7,17 @@ import {
   CardTitle,
 } from "src/components/ui/card";
 import type {
-  McOption,
   QuestionMedia as QuestionMediaItem,
   QuestionType,
 } from "src/lib/question-service";
+
+/** One choice as a student sees it. */
+export interface StudentOption {
+  id: string;
+  text: string;
+  /** Never set: a keyed `McOption` must not type-check here. */
+  isCorrect?: never;
+}
 
 /**
  * The narrow slice of a question a student's card needs — deliberately no
@@ -22,7 +29,7 @@ export interface StudentCardQuestion {
   title: string;
   content: string;
   type: QuestionType;
-  options: McOption[];
+  options: StudentOption[];
   media: QuestionMediaItem[];
 }
 
