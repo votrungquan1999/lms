@@ -394,6 +394,52 @@ describe("Feature: AI document import — a teacher imports the reviewed questio
       /question 2/i,
     );
   });
+
+  it("goes back to the review list with a banner when the import call fails to reach the server", async () => {
+    const user = userEvent.setup();
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "1. Explain photosynthesis.",
+      pictures: [],
+    });
+    vi.mocked(parseQuestionsAction).mockResolvedValue({
+      success: true,
+      message: "Extracted 1 question(s)",
+      questions: [
+        { title: "Q1", content: "Explain photosynthesis.", type: "free_text" },
+      ],
+    });
+    vi.mocked(importAiQuestionsAction).mockRejectedValue(
+      new TypeError("Failed to fetch"),
+    );
+
+    render(
+      <ImportAiProvider>
+        <ImportAiFilePicker />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
+      </ImportAiProvider>,
+    );
+
+    await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
+    expect(await screen.findByText("Q1")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The import didn't finish because the connection to the server failed. Open the test page to check its questions before trying again.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Import questions" }),
+    ).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /importing/i })).toBeNull();
+    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
+    expect(push).not.toHaveBeenCalled();
+  });
 });
 
 type ParseResult = Awaited<ReturnType<typeof parseQuestionsAction>>;

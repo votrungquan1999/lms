@@ -284,6 +284,10 @@ const initialState: ImportAiState = {
 /** A minute past the server's AI call limit, so only a call the server never answers hits it. */
 const READ_GIVE_UP_MS = AI_CALL_TIMEOUT_MS + 60_000;
 
+/** The server may have written some or all questions (Replace may have deleted the old ones), so the teacher checks first. */
+const IMPORT_UNREACHABLE_MESSAGE =
+  "The import didn't finish because the connection to the server failed. Open the test page to check its questions before trying again.";
+
 /** Matches the existing course-material upload limit. */
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -828,7 +832,8 @@ export function ImportAiProvider({
    * (APPEND or REPLACE). On rejection, the action's message is routed to
    * the ONE offending question by position rather than shown as a bare
    * page-level banner; a rejection with no specific offender (e.g. an auth
-   * failure) falls back to `importFailureMessage`.
+   * failure) falls back to `importFailureMessage`, as does a call that
+   * never reached the server.
    */
   async function importQuestions(
     testId: string,
@@ -857,12 +862,24 @@ export function ImportAiProvider({
       }
     }
 
-    const result = await importAiQuestionsAction(
-      testId,
-      courseId,
-      reviewed,
-      state.mode,
-    );
+    // Boundary: a dropped connection rejects the call, which would otherwise leave the screen on "Importing…".
+    let result: Awaited<ReturnType<typeof importAiQuestionsAction>>;
+    try {
+      result = await importAiQuestionsAction(
+        testId,
+        courseId,
+        reviewed,
+        state.mode,
+      );
+    } catch {
+      dispatch({
+        type: "IMPORT_FAILED",
+        message: IMPORT_UNREACHABLE_MESSAGE,
+        reason: IMPORT_UNREACHABLE_MESSAGE,
+        questionId: null,
+      });
+      return false;
+    }
     if (!result.success) {
       const offender =
         result.invalidQuestionIndex !== undefined
