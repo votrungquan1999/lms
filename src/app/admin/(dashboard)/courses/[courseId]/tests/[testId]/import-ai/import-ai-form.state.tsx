@@ -670,7 +670,7 @@ export function ImportAiProvider({
       return;
     }
 
-    // Nothing is sent to Google when no text was read — this short-circuit
+    // Nothing is sent to the AI provider when no text was read — this short-circuit
     // is what makes that true by construction, not a server-side check.
     if (text.trim().length === 0) {
       settle({

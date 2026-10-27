@@ -32,7 +32,7 @@ import {
 } from "../question-media.schema";
 import { resolveOwnedTest } from "../test-parent-check";
 
-/** Caps the text sent to Gemini, so a long exam paper stays affordable. */
+/** Caps the text sent to the AI provider, so a long exam paper stays affordable. */
 const MAX_DOCUMENT_TEXT_LENGTH = 200_000;
 
 const parseQuestionsSchema = z
