@@ -142,7 +142,7 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
     expect(await screen.findByText("Q1")).toBeInTheDocument();
 
-    // Delete the AI-invented model answer — the D6 remedy for that defect.
+    // Deleting an AI-invented model answer is how the teacher removes it.
     await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
     await user.clear(screen.getByLabelText(/model answer/i));
     await user.click(screen.getByRole("button", { name: /save/i }));

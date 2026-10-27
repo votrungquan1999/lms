@@ -114,7 +114,7 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
   it("rejects the whole batch and names the offending question when one cannot be accepted, importing none of them", async () => {
     const { courseId, testId } = await createTest();
     // Question 2 has TWO correct options — a wrong key, not a missing one,
-    // so D32's relaxation for AI import does not cover it either.
+    // so AI import's missing-key relaxation does not cover it either.
     const reviewed: ParsedQuestion[] = [
       {
         title: "Q1: photosynthesis",
@@ -146,18 +146,18 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
     expect(result.success).toBe(false);
     expect(result.message).toContain("Question 2");
     expect(result.message).toContain("Q2: broken key");
-    // The offender's 0-indexed position — Step 33 routes this onto that
-    // question's own card rather than a bare page-level banner.
+    // The offender's 0-indexed position — the review screen routes this onto
+    // that question's own card rather than a bare page-level banner.
     expect(result.invalidQuestionIndex).toBe(1);
     const questions =
       await getTestServices().questionService.listQuestions(testId);
     expect(questions).toHaveLength(0);
   });
 
-  it("imports a keyless single_select and a keyless multi_select rather than rejecting the batch (D32)", async () => {
+  it("imports a keyless single_select and a keyless multi_select rather than rejecting the batch", async () => {
     const { courseId, testId } = await createTest();
     // Q1 (free_text) writes first so a write-time regression — checkMcOptions
-    // run without D32's relaxation — shows up as a partial import, not a
+    // run without the missing-key relaxation — shows up as a partial import, not a
     // clean pre-write rejection.
     const reviewed: ParsedQuestion[] = [
       {
@@ -202,7 +202,7 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
   it("leaves nothing written on a genuinely invalid batch — the all-or-nothing guarantee, asserted directly rather than left incidental", async () => {
     const { courseId, testId } = await createTest();
     // Two correct options on a single_select is a WRONG key, not a missing
-    // one — D32's relaxation does not cover it, so this batch is still
+    // one — the missing-key relaxation does not cover it, so this batch is still
     // rejected outright and must leave zero questions behind.
     const failing: ParsedQuestion[] = [
       {
@@ -549,7 +549,7 @@ describe("Feature: a question whose text is only spaces is rejected like an empt
   );
 });
 
-describe("Feature: replacing a test's questions deletes the old ones and writes the reviewed ones (Step 34 / D37 REPLACE)", () => {
+describe("Feature: replacing a test's questions deletes the old ones and writes the reviewed ones", () => {
   it("soft-deletes every existing question and writes the reviewed list in its place", async () => {
     const { courseId, testId } = await createTest();
     const questionService = getTestServices().questionService;

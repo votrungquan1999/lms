@@ -118,7 +118,7 @@ describe("Feature: AI document import — a teacher re-asks the AI about one que
     const user = userEvent.setup();
     await uploadTwoQuestions(user);
 
-    // Hand-edit Q1 first (Step 15's flow) so it is "edited".
+    // Hand-edit Q1 first so it is "edited".
     await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
     const titleInput = screen.getByLabelText(/title/i);
     await user.clear(titleInput);
@@ -224,7 +224,7 @@ describe("Feature: AI document import — a teacher re-asks the AI about one que
     const user = userEvent.setup();
     await uploadTwoQuestions(user);
 
-    // Hand-edit Q1's title first (Step 15's flow) so its edit must survive.
+    // Hand-edit Q1's title first so its edit must survive.
     await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
     const titleInput = screen.getByLabelText(/title/i);
     await user.clear(titleInput);

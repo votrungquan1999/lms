@@ -32,7 +32,7 @@ import {
 } from "../question-media.schema";
 import { resolveOwnedTest } from "../test-parent-check";
 
-/** Caps the text sent to Gemini — see D41 (a long exam paper stays affordable). */
+/** Caps the text sent to Gemini, so a long exam paper stays affordable. */
 const MAX_DOCUMENT_TEXT_LENGTH = 200_000;
 
 const parseQuestionsSchema = z
@@ -53,7 +53,7 @@ export interface ParseQuestionsState {
 /**
  * Server action: sends extracted document text to the AI parse client and
  * returns the structured questions for review. Makes no database write —
- * nothing is imported until Step 17's separate import action runs.
+ * nothing is imported until the separate import action runs.
  * @param documentText - The full text extracted client-side from the upload.
  * @param pictureNumbers - The numbers of the pictures extracted client-side;
  *   none for a PDF.
@@ -154,7 +154,7 @@ export interface RetryQuestionState {
 /**
  * Server action: re-reads ONE already-extracted question, addressing a
  * teacher's correction note. Makes no database write — nothing is imported
- * until Step 17's separate import action runs. Splicing the result back into
+ * until the separate import action runs. Splicing the result back into
  * the review list is the caller's job (`retryOneQuestion` in
  * `import-ai-form.state.tsx`), scoped to that one question's id.
  * @param documentText - The full text extracted client-side from the upload.
@@ -258,7 +258,7 @@ export interface ImportAiQuestionsState {
   success: boolean;
   message: string;
   importedCount?: number;
-  /** 0-indexed position of the offender named in `message` — Step 33 surfaces it against that question, not a bare banner. */
+  /** 0-indexed position of the offender named in `message`, so the review screen shows it on that question, not in a bare banner. */
   invalidQuestionIndex?: number;
   /** The offender's rejection without the `Question N ("title"): ` prefix, so a view can label it by its own numbering. */
   invalidQuestionReason?: string;
@@ -294,7 +294,7 @@ async function addReviewedQuestion(
         media: question.media,
         createdBy,
       },
-      // D32: matches the relaxation checkReviewedQuestions already validated with.
+      // Matches the relaxation checkReviewedQuestions already validated with.
       { allowMissingAnswerKey: true },
     );
     return;
@@ -312,7 +312,7 @@ async function addReviewedQuestion(
         media: question.media,
         createdBy,
       },
-      // D32: matches the relaxation checkReviewedQuestions already validated with.
+      // Matches the relaxation checkReviewedQuestions already validated with.
       { allowMissingAnswerKey: true },
     );
     return;
@@ -358,7 +358,7 @@ function trimTexts(question: ReviewedQuestion): ReviewedQuestion {
  *
  * Checks every layer per question — schema-level field validity, its
  * pictures, then the MC option-count rule — so a batch cannot pass one layer,
- * start writing, and fail on another. `allowMissingAnswerKey: true` (D32) is scoped to this
+ * start writing, and fail on another. `allowMissingAnswerKey: true` is scoped to this
  * one call site: an AI-imported MC question with no correct option marked is
  * importable (flagged for the teacher, not rejected); every other write path
  * (manual add, JSON import, pool compose) is untouched and keeps today's
@@ -432,7 +432,7 @@ function checkReviewedQuestions(
   return { ok: true, questions: accepted };
 }
 
-/** D37: APPEND is the default; REPLACE also deletes the test's current questions first (Step 34). */
+/** APPEND is the default; REPLACE also deletes the test's current questions first. */
 export type ImportMode = "append" | "replace";
 
 /**
@@ -441,7 +441,7 @@ export type ImportMode = "append" | "replace";
  * it and writing nothing if any one question cannot be accepted.
  *
  * REPLACE (`mode: "replace"`) additionally soft-deletes every question
- * currently on the test (Step 29's `deleteQuestion`, one per question — no
+ * currently on the test (`deleteQuestion`, one per question — no
  * bespoke bulk-delete) BEFORE the write loop runs. Ordering is load-bearing:
  * validation (above) always runs before ANY delete, and delete always
  * completes before the first insert — never interleaved — so a rejected
@@ -449,7 +449,7 @@ export type ImportMode = "append" | "replace";
  * @param testId - The test to import onto.
  * @param courseId - Used only to revalidate the test's admin page.
  * @param questions - The reviewed list, in the order the teacher left it.
- * @param mode - "append" (default, D37) keeps existing questions; "replace" deletes them first.
+ * @param mode - "append" (default) keeps existing questions; "replace" deletes them first.
  */
 export async function importAiQuestionsAction(
   testId: string,

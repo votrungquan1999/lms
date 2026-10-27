@@ -219,7 +219,7 @@ export function ImportAiFilePicker(): React.ReactNode {
 
 /**
  * Renders the reviewable list of questions parsed from the uploaded document,
- * plus the controls that actually write them onto the test (Steps 33-34).
+ * plus the controls that actually write them onto the test.
  * `existingQuestionCount`/`answeredStudentCount` describe the test's CURRENT
  * questions (fetched server-side) — what REPLACE would remove, not the
  * reviewed list above.
@@ -487,7 +487,7 @@ function toStudentCards(
   }));
 }
 
-/** D37: lets the teacher choose APPEND (default) or REPLACE before importing. */
+/** Lets the teacher choose APPEND (default) or REPLACE before importing. */
 function ImportModeSelector(): React.ReactNode {
   const { mode, setMode, isBusy } = useImportAi();
 
@@ -1004,7 +1004,7 @@ function moveTargets(
 /**
  * Per-question "Retry with AI" trigger + Dialog. Sends the correction note
  * plus the current draft and the full document text; only this question's
- * card is affected. D40: if the draft has been hand-edited since its last AI
+ * card is affected. If the draft has been hand-edited since its last AI
  * result, retrying requires an explicit second confirmation before it
  * discards that edit.
  */

@@ -28,8 +28,8 @@ export default async function ImportAiPage({
     notFound();
   }
 
-  // D49: what REPLACE (Step 34) would remove and its worst-case blast
-  // radius — the same shared batch call as Step 25's edit modal.
+  // What REPLACE would remove and its worst-case blast radius — the same
+  // shared batch call the test page uses for its edit modal.
   const questionService = await getQuestionService(session.school.id);
   const existingQuestions = await questionService.listQuestions(testId);
   const answerService = await getAnswerService(session.school.id);

@@ -39,11 +39,11 @@ import { reportDocumentReadFailureAction } from "./read-failure-actions";
 
 /**
  * One parsed question in the review list, keyed by a stable client id.
- * `edited` (D40) tracks whether a teacher has hand-corrected this draft since
+ * `edited` tracks whether a teacher has hand-corrected this draft since
  * it last arrived from the AI, so a retry can warn before discarding it.
  * `retryError` surfaces a failed retry without blanking the pre-retry draft.
- * `importError` surfaces Step 18's named rejection against the ONE offending
- * question, instead of a bare page-level banner (Step 33's own scope note).
+ * `importError` surfaces the import action's named rejection against the ONE
+ * offending question, instead of a bare page-level banner.
  */
 export interface ImportQuestionDraft extends ParsedQuestion {
   id: string;
@@ -226,7 +226,7 @@ interface ImportAiState {
   lastReadFileName: string | null;
   /** An import rejection with no specific offending question to attach to (e.g. an auth failure). */
   importFailureMessage: string | null;
-  /** D37: APPEND (default) or REPLACE (Step 34) — chosen before Import runs. */
+  /** APPEND (default) or REPLACE — chosen before Import runs. */
   mode: ImportMode;
   /** Questions whose "Retry with AI" is still running; Import waits for them. */
   retryingIds: string[];
@@ -286,7 +286,7 @@ const initialState: ImportAiState = {
 /** Just over the server's AI call limit (AI_CALL_TIMEOUT_MS, 240 s), so only a call the server never answers hits it. */
 const READ_GIVE_UP_MS = 300_000;
 
-/** D41 — matches the existing course-material upload limit. */
+/** Matches the existing course-material upload limit. */
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 /**
@@ -825,7 +825,7 @@ export function ImportAiProvider({
 
   /**
    * Writes the current review list onto the test in the current `mode`
-   * (D37: APPEND or REPLACE). On rejection, Step 18's message is routed to
+   * (APPEND or REPLACE). On rejection, the action's message is routed to
    * the ONE offending question by position rather than shown as a bare
    * page-level banner; a rejection with no specific offender (e.g. an auth
    * failure) falls back to `importFailureMessage`.
@@ -836,7 +836,7 @@ export function ImportAiProvider({
   ): Promise<boolean> {
     dispatch({ type: "IMPORT_START" });
 
-    // Kept in review order — the write loop numbers the questions by it (Step 17).
+    // Kept in review order — the write loop numbers the questions by it.
     const reviewed: ReviewedQuestion[] = [];
     for (const draft of questions) {
       const files = picturesOf(draft, state.pictures).map(
