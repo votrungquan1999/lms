@@ -37,7 +37,7 @@ export function validateAnswerPhotos<T extends { type: string; size: number }>(
       continue;
     }
     if (alreadyPicked + accepted.length >= MAX_ANSWER_IMAGES) {
-      error = "You can attach at most 3 photos";
+      error = `You can attach at most ${MAX_ANSWER_IMAGES} photos`;
       continue;
     }
     accepted.push(file);

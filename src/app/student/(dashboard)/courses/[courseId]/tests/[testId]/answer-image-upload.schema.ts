@@ -31,7 +31,7 @@ export const answerImageItemSchema = z.object({
 /** Schema for the photos a student requests upload slots for (count-capped). */
 export const requestAnswerImageUploadSlotsSchema = z
   .array(answerImageItemSchema)
-  .max(MAX_ANSWER_IMAGES, "You can attach at most 3 photos");
+  .max(MAX_ANSWER_IMAGES, `You can attach at most ${MAX_ANSWER_IMAGES} photos`);
 
 /** A single photo the student requests an upload slot for. */
 export interface RequestAnswerImageUploadSlotsInput {
