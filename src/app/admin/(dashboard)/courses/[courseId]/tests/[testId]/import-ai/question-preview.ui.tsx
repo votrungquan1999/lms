@@ -36,7 +36,6 @@ import type { MediaContentType } from "src/lib/question-service";
 import { MAX_MEDIA_PER_QUESTION } from "../question-media.schema";
 import type { ImportMode } from "./actions";
 import type {
-  Change,
   ImportQuestionDraft,
   ReviewPicture,
 } from "./import-ai-form.state";
@@ -46,6 +45,7 @@ import {
   picturesOf,
   useImportAi,
 } from "./import-ai-form.state";
+import { historyLabel } from "./import-ai-history";
 import { QuestionEditProvider } from "./question-edit.state";
 import { QuestionEditFields } from "./question-edit-fields.ui";
 import { QuestionPictures } from "./question-pictures.ui";
@@ -400,41 +400,6 @@ function ReviewScreen({
       />
     </div>
   );
-}
-
-/**
- * Words an Undo or Redo button so it names the change and the question it touches.
- * @param verb - "Undo" or "Redo".
- * @param change - The change the button would act on, if any.
- * @param drafts - The drafts just before the change applies, so a deleted question still has its position.
- * @param firstQuestionNumber - Number the first draft will have once saved.
- * @returns The bare verb when there is nothing to act on.
- */
-function historyLabel(
-  verb: "Undo" | "Redo",
-  change: Change | null,
-  drafts: ImportQuestionDraft[],
-  firstQuestionNumber: number,
-): string {
-  if (!change) return verb;
-  const position = drafts.findIndex((draft) => draft.id === change.id);
-  const question = `Question ${firstQuestionNumber + position}`;
-  switch (change.kind) {
-    case "edit":
-      return `${verb} edit of ${question}`;
-    case "removePicture":
-      return `${verb} removing picture ${change.number} from ${question}`;
-    case "addPicture":
-      return `${verb} adding picture ${change.number} to ${question}`;
-    case "retry":
-      return `${verb} AI retry of ${question}`;
-    case "delete":
-      return `${verb} delete of ${question}`;
-    case "movePicture": {
-      const toPosition = drafts.findIndex((draft) => draft.id === change.toId);
-      return `${verb} move of picture ${change.number} from ${question} to Question ${firstQuestionNumber + toPosition}`;
-    }
-  }
 }
 
 /**

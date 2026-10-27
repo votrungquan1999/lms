@@ -16,12 +16,10 @@ import {
   AI_FAILURE_MESSAGES,
   AiFailureCause,
 } from "src/lib/ai/ai-failure-messages";
-import type { MediaContentType } from "src/lib/question-service";
 import {
   MAX_MEDIA_PER_QUESTION,
   type SubmittedMedia,
 } from "../question-media.schema";
-import { requestUploadSlotsAction } from "../question-media-actions";
 import {
   type ImportMode,
   importAiQuestionsAction,
@@ -39,6 +37,17 @@ import {
   DocumentReadFailure,
   type DocumentReadFailureReport,
 } from "./document-read-failure";
+import {
+  type Change,
+  type RetryPatch,
+  replay,
+  sameFields,
+} from "./import-ai-history";
+import {
+  runInOrder,
+  UPLOAD_CONCURRENCY,
+  uploadPictures,
+} from "./import-ai-uploads";
 import { reportDocumentReadFailureAction } from "./read-failure-actions";
 
 /**
@@ -103,15 +112,6 @@ export function editableFieldsOf(draft: EditableFields): EditableFields {
   };
 }
 
-/**
- * What a Retry-with-AI answer replaces; a field the AI left out is an explicit `undefined`.
- * Pictures are not in it: the teacher places them by hand, and a retry keeps them.
- */
-type RetryPatch = Pick<
-  ParsedQuestion,
-  "title" | "content" | "type" | "options" | "referenceAnswer" | "explanation"
->;
-
 /** A picture already in storage; its order depends on the question it is saved with. */
 type UploadedPicture = Omit<SubmittedMedia[number], "order">;
 
@@ -119,101 +119,6 @@ type UploadedPicture = Omit<SubmittedMedia[number], "order">;
 interface UploadedPictures {
   readId: string | null;
   media: Map<number, UploadedPicture>;
-}
-
-/** A job of `runInOrder` that threw, by its position. */
-interface JobFailure {
-  index: number;
-  error: unknown;
-}
-
-/** One thing the teacher (or a retry) did to a draft since the read. */
-export type Change =
-  | { kind: "edit"; id: string; fields: EditableFields }
-  | { kind: "removePicture"; id: string; number: number }
-  | { kind: "addPicture"; id: string; number: number }
-  | { kind: "retry"; id: string; patch: RetryPatch }
-  | { kind: "delete"; id: string }
-  | { kind: "movePicture"; id: string; toId: string; number: number };
-
-/**
- * Applies one change to its draft.
- * @param draft - The draft before the change.
- * @param change - The change, which targets this draft and keeps it in the list.
- * @returns The draft after the change.
- */
-function applyChange(
-  draft: ImportQuestionDraft,
-  change: Exclude<Change, { kind: "delete" | "movePicture" }>,
-): ImportQuestionDraft {
-  switch (change.kind) {
-    case "edit":
-      return { ...draft, ...change.fields, edited: true };
-    case "removePicture":
-      return {
-        ...draft,
-        imageNumbers: (draft.imageNumbers ?? []).filter(
-          (n) => n !== change.number,
-        ),
-      };
-    case "addPicture":
-      return {
-        ...draft,
-        imageNumbers: [...(draft.imageNumbers ?? []), change.number],
-      };
-    case "retry":
-      // Spread so a field the AI left out clears the stale value.
-      return { ...draft, ...change.patch, edited: false };
-  }
-}
-
-/**
- * Compares two drafts' editable fields by value.
- * @param a - One draft's editable fields.
- * @param b - The other's.
- * @returns Whether every field is equal.
- */
-function sameFields(a: EditableFields, b: EditableFields): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
-/**
- * Replays the changes over the drafts the read produced.
- * @param base - The drafts as the read returned them.
- * @param changes - The changes still in effect, oldest first.
- * @returns The drafts as the teacher sees them.
- */
-function replay(
-  base: ImportQuestionDraft[],
-  changes: Change[],
-): ImportQuestionDraft[] {
-  return changes.reduce((drafts, change) => {
-    switch (change.kind) {
-      case "delete":
-        return drafts.filter((draft) => draft.id !== change.id);
-      case "movePicture":
-        return drafts.map((draft) => {
-          if (draft.id === change.id) {
-            return {
-              ...draft,
-              imageNumbers: (draft.imageNumbers ?? []).filter(
-                (n) => n !== change.number,
-              ),
-            };
-          }
-          if (draft.id !== change.toId) return draft;
-          const held = draft.imageNumbers ?? [];
-          // A target that already holds the picture keeps it once.
-          return held.includes(change.number)
-            ? draft
-            : { ...draft, imageNumbers: [...held, change.number] };
-        });
-      default:
-        return drafts.map((draft) =>
-          draft.id === change.id ? applyChange(draft, change) : draft,
-        );
-    }
-  }, base);
 }
 
 /** What the screen is waiting on: nothing, the AI reading a file, or the import writing. */
@@ -559,84 +464,6 @@ function toReviewedQuestion(
  */
 function revokePreviews(pictures: ReviewPicture[]): void {
   for (const picture of pictures) URL.revokeObjectURL(picture.previewUrl);
-}
-
-/**
- * Uploads one question's pictures straight to storage, the same way the
- * add-question form uploads media, and returns the entries to save with it.
- * @param files - The question's pictures, in document order.
- * @returns The uploaded media entries, in order.
- */
-async function uploadPictures(files: File[]): Promise<SubmittedMedia> {
-  if (files.length === 0) return [];
-
-  const slotResult = await requestUploadSlotsAction(
-    files.map((file) => ({
-      fileName: file.name,
-      contentType: file.type,
-      size: file.size,
-    })),
-  );
-  if (!slotResult.success || !slotResult.slots) {
-    throw new Error(slotResult.message);
-  }
-
-  const { slots } = slotResult;
-  await Promise.all(
-    slots.map((slot, i) =>
-      fetch(slot.url, {
-        method: "PUT",
-        headers: { "Content-Type": files[i].type },
-        body: files[i],
-      }).then((res) => {
-        if (!res.ok) throw new Error(`Upload failed for ${files[i].name}`);
-      }),
-    ),
-  );
-
-  return slots.map((slot, i) => ({
-    fileName: files[i].name,
-    contentType: files[i].type as MediaContentType,
-    size: files[i].size,
-    key: slot.key,
-    order: slot.order,
-  }));
-}
-
-/** How many questions' pictures upload at the same time on Import. */
-const UPLOAD_CONCURRENCY = 4;
-
-/**
- * Starts jobs in list order, at most `limit` at a time. After one fails no
- * new job starts; those already running finish first.
- * @param jobs - The jobs, in the order they should start.
- * @param limit - The most jobs running at once.
- * @returns The failed job earliest in the list, or null when none failed.
- */
-async function runInOrder(
-  jobs: (() => Promise<void>)[],
-  limit: number,
-): Promise<JobFailure | null> {
-  let next = 0;
-  const failures: JobFailure[] = [];
-  async function work(): Promise<void> {
-    while (next < jobs.length && failures.length === 0) {
-      const index = next++;
-      // Boundary: a failure is collected, so the jobs still running can settle.
-      try {
-        await jobs[index]();
-      } catch (error) {
-        failures.push({ index, error });
-      }
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, work));
-  // Jobs start in order, so every job before the earliest failure has settled.
-  return failures.reduce<JobFailure | null>(
-    (first, failure) =>
-      first && first.index < failure.index ? first : failure,
-    null,
-  );
 }
 
 const ImportAiContext = createContext<ImportAiContextValue | null>(null);
