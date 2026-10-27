@@ -246,6 +246,82 @@ describe("Feature: AI document import — the document's pictures come along wit
     ).toBeEnabled();
   });
 
+  it("imports nothing when a later question's pictures fail to upload after an earlier question's uploaded", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 200 })),
+    );
+    // Picture 1 gets a slot; picture 2's slot request is refused.
+    vi.mocked(requestUploadSlotsAction).mockImplementation(async (files) =>
+      files.some((file) => file.fileName === "picture-2.png")
+        ? { success: false, message: "Upload slots unavailable" }
+        : {
+            success: true,
+            message: "Upload slots created",
+            slots: files.map((_, i) => ({
+              key: `media/questions/k1-${i}.png`,
+              url: `https://fake-s3.local/put/k1-${i}`,
+              contentType: "image/png",
+              order: i,
+            })),
+          },
+    );
+    vi.mocked(extractDocx).mockResolvedValue({
+      text: "[image 1]Câu 14: Quan sát.\n\n[image 2]Câu 15: Virus là",
+      pictures: [
+        { number: 1, file: makePicture(1) },
+        { number: 2, file: makePicture(2) },
+      ],
+    });
+    vi.mocked(parseQuestionsAction).mockResolvedValue({
+      success: true,
+      message: "Extracted 2 question(s)",
+      questions: [
+        {
+          title: "Câu 14",
+          content: "Quan sát.",
+          type: "free_text",
+          imageNumbers: [1],
+        },
+        {
+          title: "Câu 15",
+          content: "Virus là",
+          type: "free_text",
+          imageNumbers: [2],
+        },
+      ],
+    });
+    render(
+      <ImportAiProvider>
+        <ImportAiFilePicker />
+        <QuestionPreviewList
+          testId="test-1"
+          courseId="course-1"
+          existingQuestionCount={0}
+          answeredStudentCount={0}
+        />
+      </ImportAiProvider>,
+    );
+    await user.upload(
+      screen.getByLabelText(/document/i),
+      new File(["docx"], "exam.docx", {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
+    );
+    await screen.findByText("Câu 15");
+
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+
+    expect(
+      await within(questionCard("Câu 15")).findByRole("alert"),
+    ).toHaveTextContent(
+      "Question 2 — Its pictures could not be uploaded: Upload slots unavailable",
+    );
+    expect(within(questionCard("Câu 14")).queryByRole("alert")).toBeNull();
+    expect(importAiQuestionsAction).not.toHaveBeenCalled();
+  });
+
   it("keeps the question's own pictures when the AI's re-read marks a different one", async () => {
     const user = userEvent.setup();
     vi.mocked(retryQuestionAction).mockResolvedValue({
