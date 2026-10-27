@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  documentPictureNumbers,
-  type MarkedQuestion,
-  readPictureMarkers,
-} from "../picture-markers";
+import { type MarkedQuestion, readPictureMarkers } from "../picture-markers";
 
 /** A question whose content is `content`, the rest filled in. */
 function question(content: string, extra: Partial<MarkedQuestion> = {}) {
@@ -133,24 +129,6 @@ describe("readPictureMarkers without markers", () => {
     const content = "  x\n\n\n\ny  ";
 
     expect(readPictureMarkers(question(content), [1]).content).toBe(content);
-  });
-});
-
-describe("documentPictureNumbers", () => {
-  it("lists each picture the document marks once, in the order first seen", () => {
-    expect(
-      documentPictureNumbers(
-        "[image 2]Câu 1\n[image 1] x [image 2]\n[image 10]",
-      ),
-    ).toEqual([2, 1, 10]);
-  });
-
-  it("does not count a marker the extractor could not have written", () => {
-    expect(documentPictureNumbers("[IMAGE 3] and [image 4]")).toEqual([4]);
-  });
-
-  it("lists nothing for a document without markers", () => {
-    expect(documentPictureNumbers("Câu 1: không có hình")).toEqual([]);
   });
 });
 

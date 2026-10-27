@@ -26,10 +26,7 @@ import {
   createAiRequestRecorder,
 } from "src/lib/ai/ai-request-recorder";
 import { separateMarkdownBlocks } from "src/lib/ai/markdown-blocks";
-import {
-  documentPictureNumbers,
-  readPictureMarkers,
-} from "src/lib/ai/picture-markers";
+import { readPictureMarkers } from "src/lib/ai/picture-markers";
 import {
   buildQuestionImportPrompt,
   buildQuestionRetryPrompt,
@@ -348,12 +345,15 @@ export class ImportAiClient implements QuestionParseClient {
    * @param documentText - The full text extracted client-side from the upload.
    * @param currentQuestion - The question's current (possibly hand-edited) draft.
    * @param correctionNote - What the teacher says was wrong with it.
+   * @param pictureNumbers - The numbers of the pictures the browser really
+   *   extracted; none for a PDF.
    * @returns The corrected question.
    */
   async retryQuestion(
     documentText: string,
     currentQuestion: ParsedQuestion,
     correctionNote: string,
+    pictureNumbers: readonly number[] = [],
   ): Promise<ParsedQuestion> {
     const target = importTarget();
     return withSpan(
@@ -379,10 +379,8 @@ export class ImportAiClient implements QuestionParseClient {
 
           const parsed = result.output;
           return {
-            value: toDraft(
-              parsed.question,
-              documentPictureNumbers(documentText),
-            ),
+            // The browser's own list: a marker typed into the text is not a picture.
+            value: toDraft(parsed.question, [...new Set(pictureNumbers)]),
             summary: summarizeResults(results),
           };
         }),

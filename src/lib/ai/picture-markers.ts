@@ -24,19 +24,6 @@ function markedNumbers(text: string): number[] {
     .filter(Number.isSafeInteger);
 }
 
-/**
- * Lists the distinct pictures a document's text marks, in first-seen order.
- * @param text - The document's extracted plain text.
- * @returns The picture numbers.
- */
-export function documentPictureNumbers(text: string): number[] {
-  // The extractor writes exactly this form; looser forms are the model's.
-  const numbers = [...text.matchAll(/\[image (\d+)\]/g)]
-    .map((match) => Number(match[1]))
-    .filter(Number.isSafeInteger);
-  return [...new Set(numbers)];
-}
-
 /** The text without its markers, and the picture numbers they named. */
 interface StrippedText {
   text: string;

@@ -162,11 +162,14 @@ export interface RetryQuestionState {
  * @param documentText - The full text extracted client-side from the upload.
  * @param currentQuestion - The question's current (possibly hand-edited) draft.
  * @param correctionNote - What the teacher says was wrong with it.
+ * @param pictureNumbers - The numbers of the pictures extracted client-side;
+ *   none for a PDF.
  */
 export async function retryQuestionAction(
   documentText: string,
   currentQuestion: ParsedQuestion,
   correctionNote: string,
+  pictureNumbers: number[] = [],
 ): Promise<RetryQuestionState> {
   const requestHeaders = await headers();
   const authService = await getAuthService();
@@ -191,6 +194,13 @@ export async function retryQuestionAction(
         : issue.message;
     return { success: false, message };
   }
+  const numbers = pictureNumbersSchema.safeParse(pictureNumbers);
+  if (!numbers.success) {
+    return {
+      success: false,
+      message: "The document's pictures could not be read",
+    };
+  }
 
   try {
     return await withSpan(
@@ -205,6 +215,7 @@ export async function retryQuestionAction(
           parsed.data.documentText,
           parsed.data.currentQuestion,
           parsed.data.correctionNote,
+          numbers.data,
         );
 
         return {

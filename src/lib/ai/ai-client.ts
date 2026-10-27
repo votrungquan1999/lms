@@ -131,12 +131,15 @@ export interface QuestionParseClient {
    * @param documentText - The full text extracted client-side from the upload.
    * @param currentQuestion - The question's current (possibly hand-edited) draft.
    * @param correctionNote - What the teacher says was wrong with it.
+   * @param pictureNumbers - The numbers of the pictures the browser really
+   *   extracted from the document; none for a PDF.
    * @returns The corrected question.
    */
   retryQuestion(
     documentText: string,
     currentQuestion: ParsedQuestion,
     correctionNote: string,
+    pictureNumbers?: readonly number[],
   ): Promise<ParsedQuestion>;
 }
 

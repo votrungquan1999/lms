@@ -58,6 +58,24 @@ describe("Feature: retryQuestionAction re-reads one question, addressing a teach
     });
   });
 
+  it("hands the parse client the picture numbers the browser extracted", async () => {
+    retryQuestion.mockResolvedValueOnce({ ...currentQuestion });
+
+    await retryQuestionAction(
+      "[image 1]1. Explain photosynthesis.",
+      currentQuestion,
+      "Keep the picture.",
+      [1, 2],
+    );
+
+    expect(retryQuestion).toHaveBeenCalledWith(
+      "[image 1]1. Explain photosynthesis.",
+      currentQuestion,
+      "Keep the picture.",
+      [1, 2],
+    );
+  });
+
   it("hands the draft's current pictures to the parse client intact", async () => {
     retryQuestion.mockResolvedValueOnce({ ...currentQuestion });
 
@@ -71,6 +89,7 @@ describe("Feature: retryQuestionAction re-reads one question, addressing a teach
       "[image 1]1. Explain photosynthesis.",
       expect.objectContaining({ imageNumbers: [1] }),
       "Keep the picture.",
+      [],
     );
   });
 

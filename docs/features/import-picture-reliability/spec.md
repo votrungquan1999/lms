@@ -81,7 +81,7 @@ Living spec for the document import (`import-ai`) in the LMS admin. Covers how p
 - A reference answer or explanation that is blank after stripping is left out and does not fail the import.
 
 ### 10. A re-read of one question takes its pictures from the new markers
-- The re-read reply is read like a full read, except the valid picture numbers come from the `[image N]` markers in the document text sent with the request.
+- The re-read reply is read like a full read: the valid picture numbers are the ones sent with the request (`retryQuestionAction`'s `pictureNumbers`, none when left out), so a marker typed into the document text is not a picture.
 - The request names the draft's current pictures in words and asks the AI to copy only the markers that sit in that question's own text.
 - The result replaces the question's pictures and clears its hand-edited flag. A hand-added picture the re-read does not mark goes back to Unused pictures.
 
@@ -108,7 +108,7 @@ Living spec for the document import (`import-ai`) in the LMS admin. Covers how p
 ## Key files
 
 - `src/lib/ai/import-ai-client.ts`: provider setting, Claude/Gemini target, refusal re-read, 240 s budget, picture counts.
-- `src/lib/ai/picture-markers.ts`: marker reader (`readPictureMarkers`, `documentPictureNumbers`).
+- `src/lib/ai/picture-markers.ts`: marker reader (`readPictureMarkers`).
 - `src/lib/ai/question-import-prompt.ts`: import and re-read prompts (marker rules, current-pictures line).
 - `src/lib/ai/ai-request-recorder.ts`: per-request span, log line, usage file, environment tag.
 - `src/lib/ai/ai-call-telemetry.ts`: outcome, token and picture-count attributes on the import trace.
