@@ -100,7 +100,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 - Each card shows its pictures with Remove and "Move to question…". Move lists every other question as "#N title". A question that already holds that picture is disabled with "— already has this picture"; one with 3 pictures is disabled with "— full". The trigger is disabled when no question can take it.
 - Move is one history entry; Undo moves the picture back.
 - Pictures that no card uses sit in "Unused pictures", where a dropdown plus Add attaches one. Add is disabled when the chosen question already has 3 pictures.
-- A retry result never changes a question's pictures: it replaces the text fields and keeps the pictures the teacher sees. A question showing more than 3 pictures shows a note; Import is not disabled, but the server rejects that question ("A question can have at most 3 media files") until one is removed.
+- A retry result never changes a question's pictures: it replaces the text fields and keeps the pictures the teacher sees. A question showing more than 3 pictures shows a note; Import is not disabled, but clicking it refuses that question on its card ("Question N — Its pictures could not be uploaded: A question can have at most 3 media files") before any picture is uploaded, until one is removed.
 
 ## Leaving the page
 
@@ -118,6 +118,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 - A single-answer question may have no correct option or one, never two or more; a multi-answer question may have none or any number (the warnings above tell the teacher). The number of options is not checked at the AI-import door. Pictures are checked as in the manual add form, in the same pass before anything is written or deleted: every key must be one the teacher's current school minted (`media/schools/<schoolId>/questions/<uuid>.<ext>`, else "Invalid media key"), and only pictures are taken ("Only pictures can be imported" for a video). Only the known picture fields are stored.
 - A rejected question gets its message on its own card; a rejection with no question (for example unauthorised) shows as a banner under the button. The card message stays until the next Import click, a new read, or a Retry-with-AI result for that question.
 - A picture upload failure lands on its own question and nothing is imported.
+- Each picture uploads at most once per read: a later Import click uploads only pictures not uploaded yet, and a picture two questions share is uploaded once and saved with both. A new read (or a finished import) starts over. Uploaded pictures of an import that never completes stay in storage unused.
 - An import call that throws (dropped connection, server crash) returns the screen to the list, keeps every draft, and shows the banner "The import didn't finish because the connection to the server failed. Open the test page to check its questions before trying again." The server may have written part of the import, so the text sends the teacher to check first.
 - On success the teacher goes to the test's page.
 

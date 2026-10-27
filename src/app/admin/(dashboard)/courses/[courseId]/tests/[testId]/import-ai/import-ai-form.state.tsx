@@ -17,7 +17,10 @@ import {
   AiFailureCause,
 } from "src/lib/ai/ai-failure-messages";
 import type { MediaContentType } from "src/lib/question-service";
-import type { SubmittedMedia } from "../question-media.schema";
+import {
+  MAX_MEDIA_PER_QUESTION,
+  type SubmittedMedia,
+} from "../question-media.schema";
 import { requestUploadSlotsAction } from "../question-media-actions";
 import {
   type ImportMode,
@@ -108,6 +111,15 @@ type RetryPatch = Pick<
   ParsedQuestion,
   "title" | "content" | "type" | "options" | "referenceAnswer" | "explanation"
 >;
+
+/** A picture already in storage; its order depends on the question it is saved with. */
+type UploadedPicture = Omit<SubmittedMedia[number], "order">;
+
+/** The pictures uploaded for one read, by `[image N]` number. */
+interface UploadedPictures {
+  readId: string | null;
+  media: Map<number, UploadedPicture>;
+}
 
 /** One thing the teacher (or a retry) did to a draft since the read. */
 export type Change =
@@ -617,6 +629,8 @@ export function ImportAiProvider({
   );
   // The running retry of each question; a retry whose entry is gone was cancelled.
   const runningRetries = useRef(new Map<string, object>());
+  // A second Import, or a picture two questions share, reuses an earlier upload instead of minting a new key.
+  const uploaded = useRef<UploadedPictures>({ readId: null, media: new Map() });
 
   /**
    * Extracts the selected document's text in the browser, then asks the
@@ -841,15 +855,42 @@ export function ImportAiProvider({
   ): Promise<boolean> {
     dispatch({ type: "IMPORT_START" });
 
-    // Kept in review order — the write loop numbers the questions by it.
-    const reviewed: ReviewedQuestion[] = [];
+    // Checked before any upload, so no picture is stored for an import that cannot succeed.
+    const overfull = questions.find(
+      (draft) =>
+        picturesOf(draft, state.pictures).length > MAX_MEDIA_PER_QUESTION,
+    );
+    if (overfull) {
+      // Worded like the server's own refusal of a fourth file.
+      const detail = `A question can have at most ${MAX_MEDIA_PER_QUESTION} media files`;
+      dispatch({
+        type: "IMPORT_FAILED",
+        message: `This question's pictures could not be uploaded: ${detail}`,
+        reason: `Its pictures could not be uploaded: ${detail}`,
+        questionId: overfull.id,
+      });
+      return false;
+    }
+
+    // A new read starts with nothing uploaded.
+    if (uploaded.current.readId !== state.readId) {
+      uploaded.current = { readId: state.readId, media: new Map() };
+    }
+    const { media } = uploaded.current;
+
     for (const draft of questions) {
-      const files = picturesOf(draft, state.pictures).map(
-        (picture) => picture.file,
+      const missing = picturesOf(draft, state.pictures).filter(
+        (picture) => !media.has(picture.number),
       );
       // Boundary: a failed upload lands on its own question, and nothing is imported.
       try {
-        reviewed.push(toReviewedQuestion(draft, await uploadPictures(files)));
+        const entries = await uploadPictures(
+          missing.map((picture) => picture.file),
+        );
+        missing.forEach((picture, i) => {
+          const { order: _order, ...entry } = entries[i];
+          media.set(picture.number, entry);
+        });
       } catch (error) {
         const detail = error instanceof Error ? error.message : "unknown error";
         dispatch({
@@ -861,6 +902,16 @@ export function ImportAiProvider({
         return false;
       }
     }
+
+    // Kept in review order — the write loop numbers the questions by it.
+    const reviewed = questions.map((draft) =>
+      toReviewedQuestion(
+        draft,
+        picturesOf(draft, state.pictures)
+          .flatMap((picture) => media.get(picture.number) ?? [])
+          .map((entry, order) => ({ ...entry, order })),
+      ),
+    );
 
     // Boundary: a dropped connection rejects the call, which would otherwise leave the screen on "Importing…".
     let result: Awaited<ReturnType<typeof importAiQuestionsAction>>;

@@ -1,0 +1,270 @@
+// @vitest-environment jsdom
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../document-extract", () => ({
+  extractDocx: vi.fn(),
+  extractTextFromPdf: vi.fn(),
+}));
+vi.mock("../actions", () => ({
+  parseQuestionsAction: vi.fn(),
+  importAiQuestionsAction: vi.fn(),
+  retryQuestionAction: vi.fn(),
+}));
+vi.mock("../../question-media-actions", () => ({
+  requestUploadSlotsAction: vi.fn(),
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  unstable_rethrow: vi.fn(),
+}));
+
+import type { RequestUploadSlotsInput } from "../../question-media.schema";
+import { requestUploadSlotsAction } from "../../question-media-actions";
+import { importAiQuestionsAction, parseQuestionsAction } from "../actions";
+import { extractDocx } from "../document-extract";
+import { ImportAiProvider } from "../import-ai-form.state";
+import {
+  ImportAiFilePicker,
+  QuestionPreviewList,
+} from "../question-preview.ui";
+import { questionCard } from "./review-card.helpers";
+
+beforeEach(() => {
+  // jsdom has no object URLs; name each preview after its file.
+  URL.createObjectURL = vi.fn((file: Blob) => `blob:${(file as File).name}`);
+  URL.revokeObjectURL = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response(null, { status: 200 })),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.resetAllMocks();
+});
+
+/** One AI-made draft in the shape the parse action returns. */
+interface DraftSpec {
+  title: string;
+  imageNumbers?: number[];
+}
+
+/**
+ * Renders the import page and uploads a document whose AI result is the given drafts.
+ * @param pictureCount - How many pictures the document holds, numbered from 1.
+ * @param drafts - The drafts the AI returns, in order.
+ */
+async function uploadDocument(
+  user: ReturnType<typeof userEvent.setup>,
+  pictureCount: number,
+  drafts: DraftSpec[],
+): Promise<void> {
+  vi.mocked(extractDocx).mockResolvedValue({
+    text: "document text",
+    pictures: Array.from({ length: pictureCount }, (_, i) => ({
+      number: i + 1,
+      file: new File([`png-${i + 1}`], `picture-${i + 1}.png`, {
+        type: "image/png",
+      }),
+    })),
+  });
+  vi.mocked(parseQuestionsAction).mockResolvedValue({
+    success: true,
+    message: `Extracted ${drafts.length} question(s)`,
+    questions: drafts.map((draft) => ({
+      title: draft.title,
+      content: `${draft.title} content`,
+      type: "free_text" as const,
+      imageNumbers: draft.imageNumbers,
+    })),
+  });
+  render(
+    <ImportAiProvider>
+      <ImportAiFilePicker />
+      <QuestionPreviewList
+        testId="test-1"
+        courseId="course-1"
+        existingQuestionCount={0}
+        answeredStudentCount={0}
+      />
+    </ImportAiProvider>,
+  );
+  await user.upload(
+    screen.getByLabelText(/document/i),
+    new File(["docx"], "exam.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }),
+  );
+  await screen.findByText(drafts[0].title);
+}
+
+/**
+ * Grants a slot for every requested file, keyed by its file name, except
+ * for the file names listed as refused.
+ * @param refused - File names whose slot request fails.
+ */
+function grantSlots(refused: string[] = []): void {
+  vi.mocked(requestUploadSlotsAction).mockImplementation(
+    async (files: RequestUploadSlotsInput[]) =>
+      files.some((file) => refused.includes(file.fileName))
+        ? { success: false, message: "Upload slots unavailable" }
+        : {
+            success: true,
+            message: "Upload slots created",
+            slots: files.map((file, i) => ({
+              key: `media/questions/${file.fileName}`,
+              url: `https://fake-s3.local/put/${file.fileName}`,
+              contentType: file.contentType,
+              order: i,
+            })),
+          },
+  );
+}
+
+/**
+ * Every file name sent for an upload slot, call by call.
+ * @returns The requested file names per slot request.
+ */
+function requestedFileNames(): string[][] {
+  return vi
+    .mocked(requestUploadSlotsAction)
+    .mock.calls.map(([files]) => files.map((file) => file.fileName));
+}
+
+describe("Feature: AI document import — each picture uploads once per read", () => {
+  it("uploads on a second Import only the pictures the first attempt did not upload", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, 2, [
+      { title: "Câu 14", imageNumbers: [1] },
+      { title: "Câu 15", imageNumbers: [2] },
+    ]);
+    grantSlots(["picture-2.png"]);
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+    await within(questionCard("Câu 15")).findByRole("alert");
+
+    grantSlots();
+    vi.mocked(requestUploadSlotsAction).mockClear();
+    vi.mocked(importAiQuestionsAction).mockResolvedValue({
+      success: false,
+      message: "Unauthorized: admin access required",
+    });
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+
+    await waitFor(() => expect(importAiQuestionsAction).toHaveBeenCalled());
+    expect(requestedFileNames()).toEqual([["picture-2.png"]]);
+    const [, , reviewed] = vi.mocked(importAiQuestionsAction).mock.calls[0];
+    expect(reviewed.map((question) => question.media)).toEqual([
+      [
+        {
+          fileName: "picture-1.png",
+          contentType: "image/png",
+          size: 5,
+          key: "media/questions/picture-1.png",
+          order: 0,
+        },
+      ],
+      [
+        {
+          fileName: "picture-2.png",
+          contentType: "image/png",
+          size: 5,
+          key: "media/questions/picture-2.png",
+          order: 0,
+        },
+      ],
+    ]);
+  });
+
+  it("uploads a picture two questions share once and saves the same file with both", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, 1, [
+      { title: "Câu 14", imageNumbers: [1] },
+      { title: "Câu 15", imageNumbers: [1] },
+    ]);
+    grantSlots();
+    vi.mocked(importAiQuestionsAction).mockResolvedValue({
+      success: false,
+      message: "Unauthorized: admin access required",
+    });
+
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+
+    await waitFor(() => expect(importAiQuestionsAction).toHaveBeenCalled());
+    expect(requestedFileNames()).toEqual([["picture-1.png"]]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [, , reviewed] = vi.mocked(importAiQuestionsAction).mock.calls[0];
+    expect(
+      reviewed.map((question) => question.media?.map((entry) => entry.key)),
+    ).toEqual([
+      ["media/questions/picture-1.png"],
+      ["media/questions/picture-1.png"],
+    ]);
+  });
+
+  it("uploads the pictures again after a new file is read, since its picture 1 is a different file", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, 2, [
+      { title: "Câu 14", imageNumbers: [1] },
+      { title: "Câu 15", imageNumbers: [2] },
+    ]);
+    grantSlots(["picture-2.png"]);
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+    await within(questionCard("Câu 15")).findByRole("alert");
+
+    vi.mocked(parseQuestionsAction).mockResolvedValue({
+      success: true,
+      message: "Extracted 1 question(s)",
+      questions: [
+        {
+          title: "Câu 1 mới",
+          content: "Nội dung",
+          type: "free_text",
+          imageNumbers: [1],
+        },
+      ],
+    });
+    await user.upload(
+      screen.getByLabelText(/document/i),
+      new File(["docx"], "second.docx", {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Read and replace" }));
+    await screen.findByText("Câu 1 mới");
+    grantSlots();
+    vi.mocked(requestUploadSlotsAction).mockClear();
+    vi.mocked(importAiQuestionsAction).mockResolvedValue({
+      success: false,
+      message: "Unauthorized: admin access required",
+    });
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+
+    await waitFor(() => expect(importAiQuestionsAction).toHaveBeenCalled());
+    expect(requestedFileNames()).toEqual([["picture-1.png"]]);
+  });
+
+  it("refuses a question with more than 3 pictures on its own card before uploading anything", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, 4, [
+      { title: "Câu 14", imageNumbers: [1, 2] },
+      { title: "Câu 15", imageNumbers: [1, 2, 3, 4] },
+    ]);
+    grantSlots();
+
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+
+    expect(
+      await within(questionCard("Câu 15")).findByRole("alert"),
+    ).toHaveTextContent(
+      "Question 2 — Its pictures could not be uploaded: A question can have at most 3 media files",
+    );
+    expect(requestUploadSlotsAction).not.toHaveBeenCalled();
+    expect(importAiQuestionsAction).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /import questions/i }),
+    ).toBeEnabled();
+  });
+});
