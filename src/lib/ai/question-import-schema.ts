@@ -29,12 +29,17 @@ export const questionImportBatchSchema = z.object({
   questions: z.array(questionImportItemSchema),
 });
 
+/** A document's picture numbers: the extractor counts from 1. */
+export const pictureNumbersSchema = z
+  .array(z.number().int().positive())
+  .max(1000);
+
 /**
  * A draft question the app holds: the reply item plus the document pictures
  * attached to it, which the app derives from the `[image N]` markers in the text.
  */
 export const draftQuestionSchema = questionImportItemSchema.extend({
-  imageNumbers: z.array(z.number().int()).optional(),
+  imageNumbers: pictureNumbersSchema.optional(),
 });
 
 export type QuestionImportItem = z.infer<typeof questionImportItemSchema>;

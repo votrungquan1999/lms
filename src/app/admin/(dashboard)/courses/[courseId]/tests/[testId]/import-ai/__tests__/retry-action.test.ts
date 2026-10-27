@@ -93,6 +93,20 @@ describe("Feature: retryQuestionAction re-reads one question, addressing a teach
     );
   });
 
+  it.each([[0], [-1], [1.5]])(
+    "rejects a draft holding picture number %s, and never calls the parse client",
+    async (number) => {
+      const state = await retryQuestionAction(
+        "1. Explain photosynthesis.",
+        { ...currentQuestion, imageNumbers: [number] },
+        "Fix it.",
+      );
+
+      expect(state.success).toBe(false);
+      expect(retryQuestion).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     ["title", { ...currentQuestion, title: "" }, "Question: title is empty"],
     [

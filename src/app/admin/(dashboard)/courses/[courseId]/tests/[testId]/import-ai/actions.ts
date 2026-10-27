@@ -7,6 +7,7 @@ import { classifyAiFailure } from "src/lib/ai/ai-failure-cause";
 import { AI_FAILURE_MESSAGES } from "src/lib/ai/ai-failure-messages";
 import {
   draftQuestionSchema,
+  pictureNumbersSchema,
   questionImportItemSchema,
 } from "src/lib/ai/question-import-schema";
 import { getAuthService } from "src/lib/auth-singleton";
@@ -42,9 +43,6 @@ const parseQuestionsSchema = z
     MAX_DOCUMENT_TEXT_LENGTH,
     "The document is too long to import in one go",
   );
-
-/** The picture numbers the browser extracted; a PDF sends none. */
-const pictureNumbersSchema = z.array(z.number().int().positive()).max(1000);
 
 export interface ParseQuestionsState {
   success: boolean;
