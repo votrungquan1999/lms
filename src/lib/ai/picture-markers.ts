@@ -90,6 +90,18 @@ function stripMarkers(text: string): StrippedText {
 }
 
 /**
+ * Names the pictures a marker-only text held, so it is not left empty.
+ * @param numbers - The marker numbers that text held.
+ * @returns A label such as "Picture 3", or "" when there were none.
+ */
+function pictureLabel(numbers: readonly number[]): string {
+  const distinct = [...new Set(numbers)];
+  if (distinct.length === 0) return "";
+  if (distinct.length === 1) return `Picture ${distinct[0]}`;
+  return `Pictures ${distinct.join(", ")}`;
+}
+
+/**
  * Takes the picture markers out of a question's title, content and options and
  * lists the document pictures they name.
  * @param question - A question whose texts may still hold `[image N]` markers.
@@ -104,7 +116,7 @@ export function readPictureMarkers<Q extends MarkedQuestion>(
   const read = (text: string) => {
     const stripped = stripMarkers(text);
     found.push(...stripped.numbers);
-    return stripped.text;
+    return stripped.text || pictureLabel(stripped.numbers);
   };
   const title = read(question.title);
   const content = read(question.content);

@@ -73,7 +73,8 @@ Living spec for the document import (`import-ai`) in the LMS admin. Covers how p
 - The AI reply carries no picture list; pictures come only from markers in a question's title, content or option text, limited to the picture numbers the browser sent with the parse request (none for a PDF).
 - Markers are removed from the text. A line holding only markers is dropped. A marker between two letters/digits is replaced by a space so words do not fuse. A marker with a line break inside is plain text and stays.
 - A picture whose marker is missing or in an odd form waits in Unused pictures and can be added by hand.
-- If a title, content or option is empty after stripping, Import is refused and names the field, e.g. `Question 5 ("<title>"): option 2 is empty` (`title is empty`, `content is empty`). In the student preview the card shows `Question N: <title> — option 2 is empty`; on the Teacher card it reads `Question N — option 2 is empty`.
+- A title, content or option that held only markers becomes "Picture N" (several: "Pictures N, M"), naming the numbers its markers held.
+- A title, content or option that is empty (for example cleared by hand) refuses Import and names the field, e.g. `Question 5 ("<title>"): option 2 is empty` (`title is empty`, `content is empty`). In the student preview the card shows `Question N: <title> — option 2 is empty`; on the Teacher card it reads `Question N — option 2 is empty`.
 
 ### 9. Markers in a model answer or explanation never attach a picture
 - Markers in the reference answer or explanation are stripped from that text and their pictures are not attached (they would show before students answer). The picture waits in Unused pictures.
