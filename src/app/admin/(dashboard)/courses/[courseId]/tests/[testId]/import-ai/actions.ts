@@ -347,6 +347,26 @@ function trimTexts(question: ReviewedQuestion): ReviewedQuestion {
 }
 
 /**
+ * Builds the rejection for one question, prefixed so the teacher can find it.
+ * @param index - The question's 0-based position in the reviewed list.
+ * @param title - The title to quote in the message.
+ * @param reason - Why the question cannot be imported.
+ * @returns The rejection, with the bare reason kept for views that number it themselves.
+ */
+function rejectQuestion(
+  index: number,
+  title: string,
+  reason: string,
+): QuestionRejection {
+  return {
+    ok: false,
+    index,
+    message: `Question ${index + 1} ("${title}"): ${reason}`,
+    reason,
+  };
+}
+
+/**
  * Validates every reviewed question before any write, in list order, and
  * returns the first offender — or the list with each question's pictures
  * replaced by their parsed form, so nothing the schema does not know is stored.
@@ -390,24 +410,21 @@ function checkReviewedQuestions(
     // Spaces-only text counts as empty; the import itself keeps the text as typed.
     const parsed = questionImportItemSchema.safeParse(trimTexts(questions[i]));
     if (!parsed.success) {
-      const title = questions[i]?.title ?? "";
-      return {
-        ok: false,
-        index: i,
-        message: `Question ${i + 1} ("${title}"): ${describeQuestionIssue(parsed.error.issues[0])}`,
-        reason: describeQuestionIssue(parsed.error.issues[0]),
-      };
+      return rejectQuestion(
+        i,
+        questions[i]?.title ?? "",
+        describeQuestionIssue(parsed.error.issues[0]),
+      );
     }
 
     // The browser built this list, so its pictures get the same check as the manual add form's.
     const media = mediaSchema.safeParse(questions[i]?.media);
     if (!media.success) {
-      return {
-        ok: false,
-        index: i,
-        message: `Question ${i + 1} ("${parsed.data.title}"): ${media.error.issues[0].message}`,
-        reason: media.error.issues[0].message,
-      };
+      return rejectQuestion(
+        i,
+        parsed.data.title,
+        media.error.issues[0].message,
+      );
     }
 
     if (isMcQuestionType(parsed.data.type)) {
@@ -417,12 +434,7 @@ function checkReviewedQuestions(
         { allowMissingAnswerKey: true },
       );
       if (mcError) {
-        return {
-          ok: false,
-          index: i,
-          message: `Question ${i + 1} ("${parsed.data.title}"): ${mcError}`,
-          reason: mcError,
-        };
+        return rejectQuestion(i, parsed.data.title, mcError);
       }
     }
 
