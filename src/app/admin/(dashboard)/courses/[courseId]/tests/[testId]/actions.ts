@@ -8,9 +8,8 @@ import { pluralize } from "src/lib/pluralize";
 import type { UpdateQuestionInput } from "src/lib/question-service";
 import { getQuestionService, getTestService } from "src/lib/services-singleton";
 import {
-  isValidQuestionMediaKey,
   type SubmittedMedia,
-  submittedMediaSchema,
+  submittedMediaSchemaFor,
 } from "./question-media.schema";
 import { assertQuestionInTest, resolveOwnedTest } from "./test-parent-check";
 import {
@@ -232,17 +231,9 @@ export async function addQuestionAction(
     } catch {
       return { success: false, message: "Invalid media format" };
     }
-    const parsedMedia = submittedMediaSchema.safeParse(rawMedia);
+    const parsedMedia = submittedMediaSchemaFor(schoolId).safeParse(rawMedia);
     if (!parsedMedia.success) {
       return { success: false, message: parsedMedia.error.issues[0].message };
-    }
-    // Every key must be one this school could have minted itself.
-    if (
-      parsedMedia.data.some(
-        (item) => !isValidQuestionMediaKey(item.key, schoolId),
-      )
-    ) {
-      return { success: false, message: "Invalid media key" };
     }
     media = parsedMedia.data;
   }

@@ -116,7 +116,7 @@ The LMS used to serve one implicit school: any admin saw and changed every cours
 **A school admin can only attach question images uploaded for their own school** (D26, D57).
 
 - New uploads go under `media/schools/<schoolId>/questions/<uuid>.<ext>`.
-- Adding a question or a pool question accepts only keys matching that exact, anchored pattern for the session's school. `..`, an extra path segment, `?` or `#`, content before the media path, legacy `media/questions/…` keys and other schools' keys are all refused.
+- Adding a question, a pool question or an AI-imported question accepts only keys matching that exact, anchored pattern for the session's school. `..`, an extra path segment, `?` or `#`, content before the media path, legacy `media/questions/…` keys and other schools' keys are all refused.
 - Media is set only at create time, and compose copies media from pool questions that were already checked.
 - Images already stored under legacy keys keep rendering unchanged.
 

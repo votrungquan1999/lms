@@ -16,6 +16,7 @@ import { pluralize } from "src/lib/pluralize";
 import {
   checkMcOptions,
   isMcQuestionType,
+  MediaContentType,
   type QuestionService,
 } from "src/lib/question-service";
 import {
@@ -26,7 +27,7 @@ import {
 import { z } from "zod";
 import {
   type SubmittedMedia,
-  submittedMediaSchema,
+  submittedMediaSchemaFor,
 } from "../question-media.schema";
 import { resolveOwnedTest } from "../test-parent-check";
 
@@ -227,6 +228,23 @@ export interface ReviewedQuestion extends Omit<ParsedQuestion, "imageNumbers"> {
   media?: SubmittedMedia;
 }
 
+/** The first question that cannot be imported, located for the review screen. */
+interface QuestionRejection {
+  ok: false;
+  index: number;
+  message: string;
+  reason: string;
+}
+
+/** Every question passed; each carries only its validated picture fields. */
+interface AcceptedQuestions {
+  ok: true;
+  questions: ReviewedQuestion[];
+}
+
+/** The pre-write pass's verdict on the whole reviewed list. */
+type ReviewCheck = QuestionRejection | AcceptedQuestions;
+
 export interface ImportAiQuestionsState {
   success: boolean;
   message: string;
@@ -267,7 +285,7 @@ async function addReviewedQuestion(
         media: question.media,
         createdBy,
       },
-      // D32: matches the relaxation findFirstQuestionError already validated with.
+      // D32: matches the relaxation checkReviewedQuestions already validated with.
       { allowMissingAnswerKey: true },
     );
     return;
@@ -285,7 +303,7 @@ async function addReviewedQuestion(
         media: question.media,
         createdBy,
       },
-      // D32: matches the relaxation findFirstQuestionError already validated with.
+      // D32: matches the relaxation checkReviewedQuestions already validated with.
       { allowMissingAnswerKey: true },
     );
     return;
@@ -321,7 +339,8 @@ function trimTexts(question: ReviewedQuestion): ReviewedQuestion {
 
 /**
  * Validates every reviewed question before any write, in list order, and
- * returns the first offender's message — or null when all are acceptable.
+ * returns the first offender — or the list with each question's pictures
+ * replaced by their parsed form, so nothing the schema does not know is stored.
  * Transactions are architecturally unavailable here (no `startSession`
  * anywhere in the repo; the dev/CI Mongo is a standalone `mongo:7` with no
  * replica set, which multi-document transactions require), so this pre-pass
@@ -342,17 +361,29 @@ function trimTexts(question: ReviewedQuestion): ReviewedQuestion {
  * residual every bulk insert in this codebase already carries
  * (`importQuestions`/`composeFromPools` use plain `insertMany`).
  * @param questions - The reviewed list, in the order the teacher left it.
- * @returns The first offender's index (0-based), message and bare reason, or null when every question passes.
+ * @param schoolId - The school being written into; every picture key must be one it minted.
+ * @returns The first offender's index (0-based), message and bare reason, or the accepted list.
  */
-function findFirstQuestionError(
+function checkReviewedQuestions(
   questions: ReviewedQuestion[],
-): { index: number; message: string; reason: string } | null {
+  schoolId: string,
+): ReviewCheck {
+  // A document only carries pictures, so a video here did not come from it.
+  const mediaSchema = submittedMediaSchemaFor(schoolId)
+    .refine(
+      (items) =>
+        items.every((item) => item.contentType !== MediaContentType.MP4),
+      { message: "Only pictures can be imported" },
+    )
+    .optional();
+  const accepted: ReviewedQuestion[] = [];
   for (let i = 0; i < questions.length; i++) {
     // Spaces-only text counts as empty; the import itself keeps the text as typed.
     const parsed = questionImportItemSchema.safeParse(trimTexts(questions[i]));
     if (!parsed.success) {
       const title = questions[i]?.title ?? "";
       return {
+        ok: false,
         index: i,
         message: `Question ${i + 1} ("${title}"): ${describeQuestionIssue(parsed.error.issues[0])}`,
         reason: describeQuestionIssue(parsed.error.issues[0]),
@@ -360,11 +391,10 @@ function findFirstQuestionError(
     }
 
     // The browser built this list, so its pictures get the same check as the manual add form's.
-    const media = submittedMediaSchema
-      .optional()
-      .safeParse(questions[i]?.media);
+    const media = mediaSchema.safeParse(questions[i]?.media);
     if (!media.success) {
       return {
+        ok: false,
         index: i,
         message: `Question ${i + 1} ("${parsed.data.title}"): ${media.error.issues[0].message}`,
         reason: media.error.issues[0].message,
@@ -379,15 +409,18 @@ function findFirstQuestionError(
       );
       if (mcError) {
         return {
+          ok: false,
           index: i,
           message: `Question ${i + 1} ("${parsed.data.title}"): ${mcError}`,
           reason: mcError,
         };
       }
     }
+
+    accepted.push({ ...questions[i], media: media.data });
   }
 
-  return null;
+  return { ok: true, questions: accepted };
 }
 
 /** D37: APPEND is the default; REPLACE also deletes the test's current questions first (Step 34). */
@@ -433,13 +466,13 @@ export async function importAiQuestionsAction(
     return { success: false, message: "There are no questions to import." };
   }
 
-  const invalidQuestion = findFirstQuestionError(questions);
-  if (invalidQuestion) {
+  const checked = checkReviewedQuestions(questions, schoolId);
+  if (!checked.ok) {
     return {
       success: false,
-      message: invalidQuestion.message,
-      invalidQuestionIndex: invalidQuestion.index,
-      invalidQuestionReason: invalidQuestion.reason,
+      message: checked.message,
+      invalidQuestionIndex: checked.index,
+      invalidQuestionReason: checked.reason,
     };
   }
 
@@ -482,7 +515,7 @@ export async function importAiQuestionsAction(
         // Sequential, never Promise.all/.map(async...): getNextOrder is a
         // fresh read-then-write per call, so parallel addQuestion calls race
         // on the same "current max order" and silently break ordering.
-        for (const question of questions) {
+        for (const question of checked.questions) {
           await addReviewedQuestion(
             questionService,
             testId,

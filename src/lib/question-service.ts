@@ -296,7 +296,7 @@ export interface UpdateQuestionInput {
  * field, and would otherwise have to be excluded from persistence.
  */
 export interface AddQuestionOpts {
-  /** D32: relaxes the MC-key rule to match the AI-import pre-pass (`findFirstQuestionError`). Only that call site opts in. */
+  /** Relaxes the MC-key rule to match the AI-import pre-pass (`checkReviewedQuestions`). Only that call site opts in. */
   allowMissingAnswerKey?: boolean;
 }
 

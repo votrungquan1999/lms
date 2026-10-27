@@ -10,9 +10,8 @@ import {
   getQuestionPoolService,
 } from "src/lib/services-singleton";
 import {
-  isValidQuestionMediaKey,
   type SubmittedMedia,
-  submittedMediaSchema,
+  submittedMediaSchemaFor,
 } from "../courses/[courseId]/tests/[testId]/question-media.schema";
 import {
   addPoolQuestionSchema,
@@ -85,17 +84,9 @@ export async function addPoolQuestionAction(
     } catch {
       return { success: false, message: "Invalid media format" };
     }
-    const parsedMedia = submittedMediaSchema.safeParse(rawMedia);
+    const parsedMedia = submittedMediaSchemaFor(schoolId).safeParse(rawMedia);
     if (!parsedMedia.success) {
       return { success: false, message: parsedMedia.error.issues[0].message };
-    }
-    // Every key must be one this school could have minted itself.
-    if (
-      parsedMedia.data.some(
-        (item) => !isValidQuestionMediaKey(item.key, schoolId),
-      )
-    ) {
-      return { success: false, message: "Invalid media key" };
     }
     media = parsedMedia.data;
   }

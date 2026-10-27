@@ -225,22 +225,35 @@ describe("Feature: importing the reviewed AI-extracted list onto the test", () =
   });
 });
 
+/** A key shaped like one this school's upload slots mint. */
+function schoolKey(hex: string, extension = "png"): string {
+  return `media/schools/${TEST_SCHOOL.id}/questions/${hex}.${extension}`;
+}
+
+/**
+ * One uploaded document picture as the review screen submits it.
+ * @param key - The stored S3 key.
+ * @param order - Its position among the question's pictures.
+ */
+function picture(key: string, order = 0) {
+  return {
+    fileName: "picture.png",
+    contentType: MediaContentType.PNG,
+    size: 1000,
+    key,
+    order,
+  };
+}
+
 describe("Feature: importing the pictures the document had", () => {
   it("saves each question's uploaded pictures with it, for every question type", async () => {
     const { courseId, testId } = await createTest();
-    const picture = (key: string, order: number) => ({
-      fileName: `${key}.png`,
-      contentType: MediaContentType.PNG,
-      size: 1000,
-      key: `media/questions/${key}.png`,
-      order,
-    });
     const reviewed: ReviewedQuestion[] = [
       {
         title: "TL1",
         content: "Read the graph.",
         type: "free_text",
-        media: [picture("graph", 0)],
+        media: [picture(schoolKey("a1"), 0)],
       },
       {
         title: "Câu 14",
@@ -250,7 +263,7 @@ describe("Feature: importing the pictures the document had", () => {
           { text: "(1)", isCorrect: false },
           { text: "(4)", isCorrect: true },
         ],
-        media: [picture("virus", 0)],
+        media: [picture(schoolKey("b2"), 0)],
       },
       {
         title: "Sơ cua",
@@ -260,7 +273,7 @@ describe("Feature: importing the pictures the document had", () => {
           { text: "Dish 1", isCorrect: true },
           { text: "Dish 2", isCorrect: false },
         ],
-        media: [picture("dish-1", 0), picture("dish-2", 1)],
+        media: [picture(schoolKey("c3"), 0), picture(schoolKey("d4"), 1)],
       },
     ];
 
@@ -270,10 +283,30 @@ describe("Feature: importing the pictures the document had", () => {
     const questions =
       await getTestServices().questionService.listQuestions(testId);
     expect(questions.map((q) => q.media.map((m) => m.key))).toEqual([
-      ["media/questions/graph.png"],
-      ["media/questions/virus.png"],
-      ["media/questions/dish-1.png", "media/questions/dish-2.png"],
+      [schoolKey("a1")],
+      [schoolKey("b2")],
+      [schoolKey("c3"), schoolKey("d4")],
     ]);
+  });
+
+  it("stores only the known picture fields, dropping anything else the browser sent", async () => {
+    const { courseId, testId } = await createTest();
+    const sentByBrowser = { ...picture(schoolKey("a1")), extra: "unexpected" };
+    const reviewed: ReviewedQuestion[] = [
+      {
+        title: "Q1",
+        content: "Read the graph.",
+        type: "free_text",
+        media: [sentByBrowser],
+      },
+    ];
+
+    await importAiQuestionsAction(testId, courseId, reviewed);
+
+    const stored = await db
+      .collection<QuestionDocument>("question")
+      .findOne({ testId });
+    expect(stored?.media).toEqual([picture(schoolKey("a1"))]);
   });
 
   it("rejects a question with more pictures than a question can hold, naming it and importing nothing", async () => {
@@ -283,13 +316,9 @@ describe("Feature: importing the pictures the document had", () => {
         title: "Q2: four pictures",
         content: "Compare the pictures.",
         type: "free_text",
-        media: [0, 1, 2, 3].map((order) => ({
-          fileName: `p${order}.png`,
-          contentType: MediaContentType.PNG,
-          size: 1000,
-          key: `media/questions/p${order}.png`,
-          order,
-        })),
+        media: [0, 1, 2, 3].map((order) =>
+          picture(schoolKey(`e${order}`), order),
+        ),
       },
     ];
 
@@ -308,6 +337,109 @@ describe("Feature: importing the pictures the document had", () => {
     });
     expect(
       await getTestServices().questionService.listQuestions("test-1"),
+    ).toHaveLength(0);
+  });
+});
+
+describe("Feature: the import takes only pictures this school uploaded", () => {
+  it.each([
+    [
+      "another school's picture",
+      picture(
+        "media/schools/00000000-0000-4000-8000-00000000000b/questions/a1.png",
+      ),
+    ],
+    ["a student's answer photo", picture("answers/student-1/a1.jpg")],
+    ["a key that climbs out of its folder", picture(schoolKey("../a1"))],
+    ["a key carrying a query string", picture(`${schoolKey("a1")}?x=1`)],
+  ])(
+    "rejects %s, naming the question and importing nothing",
+    async (_label, media) => {
+      const { courseId, testId } = await createTest();
+      const reviewed: ReviewedQuestion[] = [
+        { title: "Q1", content: "Explain it.", type: "free_text" },
+        {
+          title: "Q2: bad picture",
+          content: "Look at the picture.",
+          type: "free_text",
+          media: [media],
+        },
+      ];
+
+      const result = await importAiQuestionsAction(testId, courseId, reviewed);
+
+      expect(result).toMatchObject({
+        success: false,
+        invalidQuestionIndex: 1,
+        invalidQuestionReason: "Invalid media key",
+        message: 'Question 2 ("Q2: bad picture"): Invalid media key',
+      });
+      expect(
+        await getTestServices().questionService.listQuestions(testId),
+      ).toHaveLength(0);
+    },
+  );
+
+  it("keeps the test's existing questions when Replace is rejected for a foreign picture", async () => {
+    const { courseId, testId } = await createTest();
+    const questionService = getTestServices().questionService;
+    await questionService.addQuestion(testId, {
+      type: "free_text",
+      title: "Existing Q1",
+      content: "Stays put.",
+      createdBy: "admin-1",
+    });
+    const reviewed: ReviewedQuestion[] = [
+      {
+        title: "Q1: answer photo",
+        content: "Look at the picture.",
+        type: "free_text",
+        media: [picture("answers/student-1/a1.jpg")],
+      },
+    ];
+
+    const result = await importAiQuestionsAction(
+      testId,
+      courseId,
+      reviewed,
+      "replace",
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      invalidQuestionIndex: 0,
+      invalidQuestionReason: "Invalid media key",
+    });
+    const questions = await questionService.listQuestions(testId);
+    expect(questions.map((q) => q.title)).toEqual(["Existing Q1"]);
+  });
+
+  it("rejects a video, since a document only carries pictures", async () => {
+    const { courseId, testId } = await createTest();
+    const reviewed: ReviewedQuestion[] = [
+      {
+        title: "Q1: a video",
+        content: "Watch it.",
+        type: "free_text",
+        media: [
+          {
+            ...picture(schoolKey("a1", "mp4")),
+            fileName: "clip.mp4",
+            contentType: MediaContentType.MP4,
+          },
+        ],
+      },
+    ];
+
+    const result = await importAiQuestionsAction(testId, courseId, reviewed);
+
+    expect(result).toMatchObject({
+      success: false,
+      invalidQuestionIndex: 0,
+      invalidQuestionReason: "Only pictures can be imported",
+    });
+    expect(
+      await getTestServices().questionService.listQuestions(testId),
     ).toHaveLength(0);
   });
 });
