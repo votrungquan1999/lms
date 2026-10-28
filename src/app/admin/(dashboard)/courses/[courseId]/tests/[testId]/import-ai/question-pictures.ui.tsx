@@ -33,7 +33,7 @@ export function QuestionPictures({
 
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {shown.map((picture) => {
+      {shown.map((picture, index) => {
         const targets = moveTargets(question, picture, questions, pictures);
         return (
           <div key={picture.number} className="grid gap-1">
@@ -44,6 +44,8 @@ export function QuestionPictures({
               alt={`Figure ${picture.number}`}
               className="max-h-48 w-full rounded-md border border-border object-contain"
             />
+            {/* The name students see under this picture, which "Picture k" in the text refers to. */}
+            <p className="text-sm text-muted-foreground">Picture {index + 1}</p>
             <Button
               type="button"
               variant="destructive"

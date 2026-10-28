@@ -98,6 +98,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 ## Pictures
 
 - Each card shows its pictures with Remove and "Move to question…". Move lists every other question as "#N title". A question that already holds that picture is disabled with "— already has this picture"; one with 3 pictures is disabled with "— full". The trigger is disabled when no question can take it.
+- Under each picture the card shows "Picture k", k being its place among that question's pictures (document order). It is the name students see, so it can change when a picture is moved, removed or added.
 - Move is one history entry; Undo moves the picture back.
 - Pictures that no card uses sit in "Unused pictures", where a dropdown plus Add attaches one. Add is disabled when the chosen question already has 3 pictures.
 - A retry result never changes a question's pictures: it replaces the text fields and keeps the pictures the teacher sees. A question showing more than 3 pictures shows a note; Import is not disabled, but clicking it refuses that question on its card ("Question N — Its pictures could not be uploaded: A question can have at most 3 media files") before any picture is uploaded, until one is removed.

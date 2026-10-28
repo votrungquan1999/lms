@@ -91,6 +91,9 @@ test.describe("AI Document Import — pictures", () => {
     await expect(
       page.getByRole("heading", { name: TEST_TITLE, level: 1 }),
     ).toBeVisible({ timeout: 30000 });
+    // The test page names each picture as students see it.
+    await expect(page.getByText("Picture 1", { exact: true })).toBeVisible();
+    await expect(page.getByText("Picture 2", { exact: true })).toBeVisible();
 
     // Both pictures are saved on the question.
     const testId = new URL(page.url()).pathname.match(/tests\/([^/]+)/)?.[1];

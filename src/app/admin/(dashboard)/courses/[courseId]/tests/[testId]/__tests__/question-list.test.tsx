@@ -130,7 +130,7 @@ describe("Feature: Question List media preview", () => {
       render(<QuestionList questions={[question]} courseId="course-1" />);
 
       // Assert — the attachment renders as an image pointing at the resolved url
-      const image = screen.getByAltText("Question media 1");
+      const image = screen.getByAltText("Picture 1");
       expect(image).toHaveAttribute(
         "src",
         "https://s3.example/signed/diagram.png",

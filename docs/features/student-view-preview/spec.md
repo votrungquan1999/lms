@@ -47,7 +47,7 @@ Teachers can preview how students will see questions before or after import. A "
 ## Architecture and Design
 
 **Shared student components** (`src/components/`): presentation only, no student server actions.
-- **`StudentQuestionCard`:** one question as a student sees it (title, content, media, children slot for controls).
+- **`StudentQuestionCard`:** one question as a student sees it (title, content, media, children slot for controls). Its media block (`QuestionMedia`, shared with the teacher's test page and grading) captions each picture "Picture k" with the same alt text, k counting pictures only (videos are not numbered).
 - **`StudentAnswerControls`:** radio or checkbox for multiple choice (radio names are per question), textarea for free text, photo picker for image answers (input id per question).
 - **`StudentViewToggle`:** controlled Teacher/Student switch with the two list slots.
 - **`StudentViewList`:** the numbered student-view list with throwaway local answer state.

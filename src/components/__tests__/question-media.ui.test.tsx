@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MediaContentType, type QuestionMedia } from "src/lib/question-service";
 import { describe, expect, it } from "vitest";
 import { QuestionMedia as QuestionMediaBlock } from "../question-media.ui";
@@ -71,6 +71,44 @@ describe("QuestionMedia", () => {
       "https://signed.example/first",
       "https://signed.example/second",
     ]);
+  });
+
+  it('captions each picture "Picture k" by its place among the question\'s pictures, with the same alt text', () => {
+    const media: QuestionMedia[] = [
+      {
+        key: "media/b.mp4",
+        url: "https://signed.example/b",
+        contentType: MediaContentType.MP4,
+        order: 1,
+      },
+      {
+        key: "media/c.webp",
+        url: "https://signed.example/c",
+        contentType: MediaContentType.WEBP,
+        order: 2,
+      },
+      {
+        key: "media/a.png",
+        url: "https://signed.example/a",
+        contentType: MediaContentType.PNG,
+        order: 0,
+      },
+    ];
+
+    render(<QuestionMediaBlock media={media} />);
+
+    // A video is not a picture, so the picture after it is still Picture 2
+    expect(screen.getByRole("img", { name: "Picture 1" })).toHaveAttribute(
+      "src",
+      "https://signed.example/a",
+    );
+    expect(screen.getByRole("img", { name: "Picture 2" })).toHaveAttribute(
+      "src",
+      "https://signed.example/c",
+    );
+    expect(screen.getByText("Picture 1")).toBeVisible();
+    expect(screen.getByText("Picture 2")).toBeVisible();
+    expect(screen.queryByText("Picture 3")).toBeNull();
   });
 
   it("renders no media block when there is no media", () => {
