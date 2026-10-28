@@ -5,7 +5,7 @@ import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
-import type { EditableFields } from "./import-ai-form.state";
+import type { EditableFields } from "./import-ai-draft";
 import { picturesOf, useImportAi } from "./import-ai-form.state";
 import { pictureReferenceHint } from "./picture-references";
 import {

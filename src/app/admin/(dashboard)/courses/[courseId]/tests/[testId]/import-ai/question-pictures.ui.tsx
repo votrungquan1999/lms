@@ -8,10 +8,8 @@ import {
   DropdownMenuTrigger,
 } from "src/components/ui/dropdown-menu";
 import { MAX_MEDIA_PER_QUESTION } from "../question-media.schema";
-import type {
-  ImportQuestionDraft,
-  ReviewPicture,
-} from "./import-ai-form.state";
+import type { ImportQuestionDraft } from "./import-ai-draft";
+import type { ReviewPicture } from "./import-ai-form.state";
 import { picturesOf, useImportAi } from "./import-ai-form.state";
 
 /**

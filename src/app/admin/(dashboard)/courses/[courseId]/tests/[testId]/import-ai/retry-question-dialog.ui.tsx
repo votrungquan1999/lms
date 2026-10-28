@@ -12,7 +12,7 @@ import {
 } from "src/components/ui/dialog";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
-import type { ImportQuestionDraft } from "./import-ai-form.state";
+import type { ImportQuestionDraft } from "./import-ai-draft";
 import { useImportAi } from "./import-ai-form.state";
 
 /**

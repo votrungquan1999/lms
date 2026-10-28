@@ -35,13 +35,10 @@ import { QUESTION_TYPE_LABELS } from "src/lib/question-labels";
 import type { MediaContentType } from "src/lib/question-service";
 import { MAX_MEDIA_PER_QUESTION } from "../question-media.schema";
 import type { ImportMode } from "./actions";
-import type {
-  ImportQuestionDraft,
-  ReviewPicture,
-} from "./import-ai-form.state";
+import { editableFieldsOf, type ImportQuestionDraft } from "./import-ai-draft";
+import type { ReviewPicture } from "./import-ai-form.state";
 import {
   checkDocumentFile,
-  editableFieldsOf,
   picturesOf,
   useImportAi,
 } from "./import-ai-form.state";

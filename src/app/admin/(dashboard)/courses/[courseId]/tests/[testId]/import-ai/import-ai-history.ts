@@ -1,8 +1,5 @@
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
-import type {
-  EditableFields,
-  ImportQuestionDraft,
-} from "./import-ai-form.state";
+import type { EditableFields, ImportQuestionDraft } from "./import-ai-draft";
 
 /**
  * What a Retry-with-AI answer replaces; a field the AI left out is an explicit `undefined`.

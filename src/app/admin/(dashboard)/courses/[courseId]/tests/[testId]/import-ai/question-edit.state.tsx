@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useReducer } from "react";
-import type { EditableFields } from "./import-ai-form.state";
+import type { EditableFields } from "./import-ai-draft";
 
 /** The editable fields of a review-list draft, seeded fresh per edit session. */
 export type QuestionEditDraft = EditableFields;
