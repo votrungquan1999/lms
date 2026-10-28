@@ -157,6 +157,8 @@ interface ImportAiState {
   retryingIds: string[];
   /** Questions whose edit form is open; Import waits for them to close. */
   openEditIds: string[];
+  /** An Add-mode import call threw, so the questions may be on the test already; Add stays locked until the teacher checks. */
+  importOutcomeUnknown: boolean;
 }
 
 type ImportAiAction =
@@ -181,7 +183,10 @@ type ImportAiAction =
       /** The message without any question prefix, for views that label it themselves. */
       reason: string;
       questionId: string | null;
+      /** The call never answered, so the server may have written the questions. */
+      outcomeUnknown?: boolean;
     }
+  | { type: "CONFIRM_NOTHING_ADDED" }
   | { type: "SET_MODE"; mode: ImportMode }
   | { type: "RETRY_START"; id: string }
   | { type: "RETRY_END"; id: string }
@@ -206,6 +211,7 @@ const initialState: ImportAiState = {
   mode: "append",
   retryingIds: [],
   openEditIds: [],
+  importOutcomeUnknown: false,
 };
 
 /** What leaving the page costs in each phase, shown by the admin layout's leave dialog. */
@@ -223,6 +229,10 @@ const READ_GIVE_UP_MS = AI_CALL_TIMEOUT_MS + 60_000;
 /** The server may have written some or all questions (Replace may have deleted the old ones), so the teacher checks first. */
 const IMPORT_UNREACHABLE_MESSAGE =
   "The import didn't finish because the connection to the server failed. Open the test page to check its questions before trying again.";
+
+/** A second Add would append the questions again if the first one landed, so Import waits for the teacher's check. */
+const ADD_IMPORT_UNREACHABLE_MESSAGE =
+  "The import didn't finish because the connection to the server failed, so the questions may have been added anyway. Import stays off until you check the test page.";
 
 /** Matches the existing course-material upload limit. */
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -267,6 +277,7 @@ function importAiReducer(
         importFailureMessage: null,
         phase: "idle",
         lastReadFileName: state.readingFileName,
+        importOutcomeUnknown: false,
         documentText: action.documentText,
         pictures: action.pictures,
         readId: action.readId,
@@ -350,6 +361,10 @@ function importAiReducer(
         ...state,
         phase: "idle",
         importFailureMessage: action.questionId ? null : action.message,
+        // Replace deletes before it writes, so only a lost Add can leave duplicates behind.
+        importOutcomeUnknown:
+          state.importOutcomeUnknown ||
+          (action.outcomeUnknown === true && state.mode === "append"),
         importErrors: action.questionId
           ? {
               ...state.importErrors,
@@ -359,6 +374,12 @@ function importAiReducer(
               },
             }
           : state.importErrors,
+      };
+    case "CONFIRM_NOTHING_ADDED":
+      return {
+        ...state,
+        importOutcomeUnknown: false,
+        importFailureMessage: null,
       };
     case "SET_MODE":
       return { ...state, mode: action.mode };
@@ -435,6 +456,8 @@ interface ImportAiContextValue
   setEditOpen: (id: string, isOpen: boolean) => void;
   /** Writes the reviewed list onto the test in the current `mode`. Resolves true on success. */
   importQuestions: (testId: string, courseId: string) => Promise<boolean>;
+  /** The teacher checked the test page after a lost Add import and found nothing added. */
+  confirmNothingAdded: () => void;
   setMode: (mode: ImportMode) => void;
   reset: () => void;
 }
@@ -840,11 +863,16 @@ export function ImportAiProvider({
         state.mode,
       );
     } catch {
+      const message =
+        state.mode === "append"
+          ? ADD_IMPORT_UNREACHABLE_MESSAGE
+          : IMPORT_UNREACHABLE_MESSAGE;
       dispatch({
         type: "IMPORT_FAILED",
-        message: IMPORT_UNREACHABLE_MESSAGE,
-        reason: IMPORT_UNREACHABLE_MESSAGE,
+        message,
+        reason: message,
         questionId: null,
+        outcomeUnknown: true,
       });
       return false;
     }
@@ -940,6 +968,7 @@ export function ImportAiProvider({
     cancelRetry,
     setEditOpen,
     importQuestions,
+    confirmNothingAdded: () => dispatch({ type: "CONFIRM_NOTHING_ADDED" }),
     setMode: (mode) => dispatch({ type: "SET_MODE", mode }),
     reset: () => {
       runningRetries.current.clear();

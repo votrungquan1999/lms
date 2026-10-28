@@ -503,6 +503,8 @@ function ImportQuestionsButton({
     isBusy,
     isImporting,
     importFailureMessage,
+    importOutcomeUnknown,
+    confirmNothingAdded,
     questions,
     retryingIds,
     openEditIds,
@@ -511,6 +513,8 @@ function ImportQuestionsButton({
   const isRetrying = retryingIds.length > 0;
   // An unsaved edit would be left out of the import.
   const hasOpenEdits = openEditIds.length > 0;
+  // A lost Add may have landed; repeating it would append every question twice.
+  const isAddLocked = mode === "append" && importOutcomeUnknown;
   const rejectedIndex = questions.findIndex((question) => question.importError);
   const rejected = questions[rejectedIndex];
   // Student view leads with the card's own label; the server's review-position prefix would disagree in add mode.
@@ -543,7 +547,11 @@ function ImportQuestionsButton({
       <Button
         type="button"
         disabled={
-          isBusy || isRetrying || hasOpenEdits || questions.length === 0
+          isBusy ||
+          isRetrying ||
+          hasOpenEdits ||
+          isAddLocked ||
+          questions.length === 0
         }
         onClick={() =>
           mode === "replace" ? setIsConfirmOpen(true) : runImport()
@@ -565,7 +573,28 @@ function ImportQuestionsButton({
           role="alert"
           className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
         >
-          {importFailureMessage ?? questionRejection}
+          <p>{importFailureMessage ?? questionRejection}</p>
+          {importOutcomeUnknown && (
+            <div className="mt-2 grid justify-items-start gap-2">
+              {/* A new tab keeps this review list while the teacher checks. */}
+              <a
+                href={`/admin/courses/${courseId}/tests/${testId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium underline"
+              >
+                Open the test page
+              </a>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={confirmNothingAdded}
+              >
+                I checked the test page — nothing was added
+              </Button>
+            </div>
+          )}
         </div>
       )}
       <ReplaceConfirmDialog
