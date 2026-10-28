@@ -38,8 +38,11 @@ export const requestUploadSlotsSchema = z
   .array(mediaItemSchema)
   .max(MAX_MEDIA_PER_QUESTION, "A question can have at most 3 media files");
 
-/** Schema for the stored media entries submitted alongside a created question. */
-export const submittedMediaSchema = z
+/**
+ * Shape of the stored media entries submitted alongside a created question.
+ * Private: it lacks the school check, so write paths use `submittedMediaSchemaFor`.
+ */
+const submittedMediaSchema = z
   .array(
     mediaItemSchema.extend({
       key: z.string().min(1, "Media key is required"),
