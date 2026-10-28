@@ -10,7 +10,7 @@ import {
 import { MAX_MEDIA_PER_QUESTION } from "../question-media.schema";
 import type { ImportQuestionDraft } from "./import-ai-draft";
 import type { ReviewPicture } from "./import-ai-form.state";
-import { picturesOf, useImportAi } from "./import-ai-form.state";
+import { picturesOf, shownTitle, useImportAi } from "./import-ai-form.state";
 
 /**
  * The document pictures the AI matched to one question, so the teacher can
@@ -67,19 +67,22 @@ export function QuestionPictures({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-auto max-w-xs min-w-48">
-                {targets.map(({ target, index, unavailable }) => (
-                  <DropdownMenuItem
-                    key={target.id}
-                    disabled={unavailable !== null}
-                    onSelect={() =>
-                      movePicture(picture.number, question.id, target.id)
-                    }
-                  >
-                    #{firstQuestionNumber + index}
-                    {target.title.trim() && ` ${target.title.trim()}`}
-                    {unavailable && ` — ${unavailable}`}
-                  </DropdownMenuItem>
-                ))}
+                {targets.map(({ target, index, unavailable }) => {
+                  const title = shownTitle(target, pictures);
+                  return (
+                    <DropdownMenuItem
+                      key={target.id}
+                      disabled={unavailable !== null}
+                      onSelect={() =>
+                        movePicture(picture.number, question.id, target.id)
+                      }
+                    >
+                      #{firstQuestionNumber + index}
+                      {title && ` ${title}`}
+                      {unavailable && ` — ${unavailable}`}
+                    </DropdownMenuItem>
+                  );
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

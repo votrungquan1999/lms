@@ -40,6 +40,7 @@ import type { ReviewPicture } from "./import-ai-form.state";
 import {
   checkDocumentFile,
   picturesOf,
+  shownTitle,
   useImportAi,
 } from "./import-ai-form.state";
 import { historyLabel } from "./import-ai-history";
@@ -503,6 +504,7 @@ function ImportQuestionsButton({
     importOutcomeUnknown,
     confirmNothingAdded,
     questions,
+    pictures,
     retryingIds,
     openEditIds,
   } = useImportAi();
@@ -514,10 +516,11 @@ function ImportQuestionsButton({
   const isAddLocked = mode === "append" && importOutcomeUnknown;
   const rejectedIndex = questions.findIndex((question) => question.importError);
   const rejected = questions[rejectedIndex];
+  const rejectedTitle = rejected ? shownTitle(rejected, pictures) : "";
   // Student view leads with the card's own label; the server's review-position prefix would disagree in add mode.
   const questionRejection =
     showQuestionRejection && rejected
-      ? `Question ${firstQuestionNumber + rejectedIndex}${rejected.title?.trim() ? `: ${rejected.title.trim()}` : ""} — ${rejected.importReason ?? rejected.importError}`
+      ? `Question ${firstQuestionNumber + rejectedIndex}${rejectedTitle ? `: ${rejectedTitle}` : ""} — ${rejected.importReason ?? rejected.importError}`
       : null;
   const router = useRouter();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);

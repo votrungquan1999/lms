@@ -297,3 +297,84 @@ describe("Feature: AI document import — pictures are named by their place in t
     ).toBeVisible();
   });
 });
+
+describe("Feature: AI document import — a title that is only a picture marker reads the same everywhere it is listed", () => {
+  it('lists it as "Picture k" in another question\'s Move menu', async () => {
+    const user = userEvent.setup();
+    await uploadDocument(
+      user,
+      [
+        {
+          title: "[image 1]",
+          content: "Hình nào?",
+          type: "free_text",
+          imageNumbers: [1],
+        },
+        {
+          title: "Câu 2",
+          content: "Mô tả",
+          type: "free_text",
+          imageNumbers: [2],
+        },
+      ],
+      2,
+    );
+
+    await user.click(
+      within(questionCard("Câu 2")).getByRole("button", {
+        name: "Move picture 2 to another question",
+      }),
+    );
+
+    expect(
+      await screen.findByRole("menuitem", { name: "#1 Picture 1" }),
+    ).toBeVisible();
+  });
+
+  it('lists it as "Picture k" in the Unused pictures question picker', async () => {
+    const user = userEvent.setup();
+    await uploadDocument(
+      user,
+      [
+        {
+          title: "[image 1]",
+          content: "Hình nào?",
+          type: "free_text",
+          imageNumbers: [1],
+        },
+      ],
+      2,
+    );
+
+    expect(
+      within(screen.getByLabelText("Question for picture 2")).getByRole(
+        "option",
+        { name: "#1 Picture 1" },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('leads the Student view rejection line with "Picture k"', async () => {
+    const user = userEvent.setup();
+    // Four pictures is one over the limit, so Import refuses this card before any upload.
+    await uploadDocument(
+      user,
+      [
+        {
+          title: "[image 1]",
+          content: "Hình nào?",
+          type: "free_text",
+          imageNumbers: [1, 2, 3, 4],
+        },
+      ],
+      4,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Student view" }));
+    await user.click(screen.getByRole("button", { name: "Import questions" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Question 1: Picture 1 — Its pictures could not be uploaded: A question can have at most 3 media files",
+    );
+  });
+});

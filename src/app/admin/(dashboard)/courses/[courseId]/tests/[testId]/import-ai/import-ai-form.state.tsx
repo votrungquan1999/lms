@@ -82,6 +82,22 @@ export function picturesOf(
   );
 }
 
+/**
+ * A draft's title as its card shows it, so a marker-only title reads "Picture k" wherever the draft is listed.
+ * @param draft - The draft to name.
+ * @param pictures - Every picture the document had.
+ * @returns The title with marker-only text resolved, trimmed.
+ */
+export function shownTitle(
+  draft: Pick<ImportQuestionDraft, "title" | "imageNumbers">,
+  pictures: ReviewPicture[],
+): string {
+  return pictureReferenceText(
+    draft.title,
+    picturesOf(draft, pictures).map((picture) => picture.number),
+  ).trim();
+}
+
 /** A picture already in storage; its order depends on the question it is saved with. */
 type UploadedPicture = Omit<SubmittedMedia[number], "order">;
 

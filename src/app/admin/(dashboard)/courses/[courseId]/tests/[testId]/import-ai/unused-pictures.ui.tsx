@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "src/components/ui/button";
 import { MAX_MEDIA_PER_QUESTION } from "../question-media.schema";
 import type { ReviewPicture } from "./import-ai-form.state";
-import { picturesOf, useImportAi } from "./import-ai-form.state";
+import { picturesOf, shownTitle, useImportAi } from "./import-ai-form.state";
 
 /**
  * The document pictures no question uses yet, shown above the review list so
@@ -84,7 +84,7 @@ function AddPictureControl({
           <option value="">Choose a question</option>
           {questions.map((question, index) => (
             <option key={question.id} value={question.id}>
-              #{firstQuestionNumber + index} {question.title}
+              #{firstQuestionNumber + index} {shownTitle(question, pictures)}
             </option>
           ))}
         </select>
