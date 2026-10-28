@@ -242,7 +242,6 @@ describe("Feature: AI document import — moving a picture between questions", (
     );
     await openMoveMenu(user, "Q1", 1);
     await user.click(await screen.findByRole("menuitem", { name: /#2/ }));
-    // The re-read's text carries no marker for the moved picture.
     vi.mocked(retryQuestionAction).mockResolvedValue({
       success: true,
       message: "Question re-read",
@@ -250,7 +249,6 @@ describe("Feature: AI document import — moving a picture between questions", (
         title: "Q2 retried",
         content: "Retried content",
         type: "free_text",
-        imageNumbers: [],
       },
     });
 
@@ -267,14 +265,6 @@ describe("Feature: AI document import — moving a picture between questions", (
         name: "Figure 1",
       }),
     ).toBeInTheDocument();
-    // The reply's markers are checked against the document's real pictures.
-    expect(retryQuestionAction).toHaveBeenCalledWith(
-      "document text",
-      expect.objectContaining({ title: "Q2" }),
-      "Typo.",
-      [1],
-    );
-
     await user.click(
       screen.getByRole("button", { name: "Undo AI retry of Question 2" }),
     );

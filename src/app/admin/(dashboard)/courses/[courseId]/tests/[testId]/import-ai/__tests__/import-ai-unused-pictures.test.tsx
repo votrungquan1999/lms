@@ -232,13 +232,12 @@ describe("Feature: AI document import — pictures no question uses", () => {
     expect(retryQuestionAction).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps a hand-added picture through a re-read that marks a different one", async () => {
+  it("keeps a hand-added picture through a re-read", async () => {
     const user = userEvent.setup();
     await uploadDocument(2, [
       { title: "Câu 14", imageNumbers: [1] },
       { title: "Câu 15" },
     ]);
-    // The re-read marks picture 1, not the hand-added picture 2.
     vi.mocked(retryQuestionAction).mockResolvedValue({
       success: true,
       message: "Question re-read",
@@ -246,7 +245,6 @@ describe("Feature: AI document import — pictures no question uses", () => {
         title: "Câu 15",
         content: "Re-read content",
         type: "free_text",
-        imageNumbers: [1],
       },
     });
     await user.selectOptions(

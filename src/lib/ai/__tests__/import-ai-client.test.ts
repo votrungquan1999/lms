@@ -305,8 +305,8 @@ describe("ImportAiClient.retryQuestion", () => {
 });
 
 describe("ImportAiClient.retryQuestion pictures", () => {
-  it("replaces the question's pictures with the ones the re-read marks in its text, and takes the markers out", async () => {
-    // Given a re-read reply with no picture list, marking picture 3 and not picture 10
+  it("takes the markers out of the re-read's text and returns no pictures, so the question keeps its own", async () => {
+    // Given a re-read reply marking picture 3
     generateTextMock.mockResolvedValueOnce({
       usage: {},
       output: {
@@ -328,36 +328,10 @@ describe("ImportAiClient.retryQuestion pictures", () => {
         imageNumbers: [10],
       },
       "The picture is missing",
-      [10, 3],
     );
 
-    // Then only the marked picture remains, and the tag is gone
-    expect(question.imageNumbers).toEqual([3]);
+    // Then the tag is gone and the reply names no pictures
     expect(question.content).toBe("Quan sát hình bên");
-  });
-
-  it("does not count a marker typed into the document text as a picture, like the first read", async () => {
-    // Given a re-read reply marking picture 3 and a typed "[image 7]" the document has no picture for
-    generateTextMock.mockResolvedValueOnce({
-      usage: {},
-      output: {
-        question: {
-          title: "Câu 14",
-          content: "[image 7][image 3]Quan sát hình bên",
-          type: "free_text",
-        },
-      },
-    });
-
-    // When the browser says the document has only picture 3
-    const question = await new ImportAiClient().retryQuestion(
-      "Câu 14: [image 7][image 3]Quan sát hình bên",
-      { title: "Câu 14", content: "Quan sát hình bên", type: "free_text" },
-      "The picture is missing",
-      [3],
-    );
-
-    // Then only the real picture is attached
-    expect(question.imageNumbers).toEqual([3]);
+    expect(question).not.toHaveProperty("imageNumbers");
   });
 });

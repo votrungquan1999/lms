@@ -218,7 +218,6 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
         title: "Q1 retried",
         content: "Retried content",
         type: "free_text",
-        imageNumbers: [2],
       },
     });
     await retryQuestion(user, "Q1");

@@ -345,16 +345,13 @@ export class ImportAiClient implements QuestionParseClient {
    * @param documentText - The full text extracted client-side from the upload.
    * @param currentQuestion - The question's current (possibly hand-edited) draft.
    * @param correctionNote - What the teacher says was wrong with it.
-   * @param pictureNumbers - The numbers of the pictures the browser really
-   *   extracted; none for a PDF.
-   * @returns The corrected question.
+   * @returns The corrected question, without pictures: a re-read never changes them.
    */
   async retryQuestion(
     documentText: string,
     currentQuestion: ParsedQuestion,
     correctionNote: string,
-    pictureNumbers: readonly number[] = [],
-  ): Promise<ParsedQuestion> {
+  ): Promise<Omit<ParsedQuestion, "imageNumbers">> {
     const target = importTarget();
     return withSpan(
       "import.retryQuestion",
@@ -377,10 +374,13 @@ export class ImportAiClient implements QuestionParseClient {
             ),
           });
 
-          const parsed = result.output;
+          // No picture numbers: the reply's markers are stripped, never attached.
+          const { imageNumbers: _pictures, ...question } = toDraft(
+            result.output.question,
+            [],
+          );
           return {
-            // The browser's own list: a marker typed into the text is not a picture.
-            value: toDraft(parsed.question, [...new Set(pictureNumbers)]),
+            value: question,
             summary: summarizeResults(results),
           };
         }),

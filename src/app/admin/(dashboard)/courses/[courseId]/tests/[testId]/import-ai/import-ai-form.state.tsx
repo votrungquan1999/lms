@@ -652,8 +652,7 @@ export function ImportAiProvider({
    * note. Splices the result back by `id` — captured in this call's own
    * closure, never "whichever dialog is open" — so two in-flight retries
    * can't cross. On failure the pre-retry draft stays visible and intact.
-   * The question keeps its pictures; the document's picture numbers go along
-   * only so the reply's markers are read against the real pictures.
+   * The question keeps its pictures.
    */
   async function retryOneQuestion(
     id: string,
@@ -672,7 +671,6 @@ export function ImportAiProvider({
         state.documentText,
         current,
         correctionNote,
-        state.pictures.map((picture) => picture.number),
       );
     } catch {
       result = {

@@ -322,7 +322,7 @@ describe("Feature: AI document import — the document's pictures come along wit
     expect(importAiQuestionsAction).not.toHaveBeenCalled();
   });
 
-  it("keeps the question's own pictures when the AI's re-read marks a different one", async () => {
+  it("keeps the question's own pictures through a re-read asked to move a picture in", async () => {
     const user = userEvent.setup();
     vi.mocked(retryQuestionAction).mockResolvedValue({
       success: true,
@@ -331,7 +331,6 @@ describe("Feature: AI document import — the document's pictures come along wit
         title: "Câu 15",
         content: "Virus là gì?",
         type: "free_text",
-        imageNumbers: [1],
       },
     });
     await uploadDocumentWithPictures();

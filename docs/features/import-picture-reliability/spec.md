@@ -81,7 +81,7 @@ Living spec for the document import (`import-ai`) in the LMS admin. Covers how p
 - A reference answer or explanation that is blank after stripping is left out and does not fail the import.
 
 ### 10. A re-read of one question keeps its pictures
-- The re-read reply is read like a full read: the valid picture numbers are the ones sent with the request (`retryQuestionAction`'s `pictureNumbers`, which the review screen fills with every picture the document had), so a marker typed into the document text is not a picture and a picture-only text still reads "Picture N".
+- The re-read request carries no picture numbers and the reply carries no picture list: markers in the reply's text are stripped and never attach a picture.
 - The request does not mention the draft's pictures.
 - The result replaces the question's text fields and clears its hand-edited flag; the question keeps the pictures it had, including ones the teacher moved in or added from Unused pictures.
 

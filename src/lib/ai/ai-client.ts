@@ -132,16 +132,13 @@ export interface QuestionParseClient {
    * @param documentText - The full text extracted client-side from the upload.
    * @param currentQuestion - The question's current (possibly hand-edited) draft.
    * @param correctionNote - What the teacher says was wrong with it.
-   * @param pictureNumbers - The numbers of the pictures the browser really
-   *   extracted from the document; none for a PDF.
-   * @returns The corrected question.
+   * @returns The corrected question, without pictures: a re-read never changes them.
    */
   retryQuestion(
     documentText: string,
     currentQuestion: ParsedQuestion,
     correctionNote: string,
-    pictureNumbers?: readonly number[],
-  ): Promise<ParsedQuestion>;
+  ): Promise<Omit<ParsedQuestion, "imageNumbers">>;
 }
 
 /** Gemini model id used for every live call unless `GEMINI_MODEL_ID` overrides it. */
