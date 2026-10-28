@@ -215,6 +215,28 @@ describe("Feature: AI document import — each picture uploads once per read", (
     ]);
   });
 
+  it("uploads every picture again on the next Import after the server refused a picture key", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, 1, [{ title: "Câu 14", imageNumbers: [1] }]);
+    grantSlots();
+    // A key minted for one school is refused once the admin's active school changes in another tab.
+    vi.mocked(importAiQuestionsAction).mockResolvedValue({
+      success: false,
+      message: 'Question 1 ("Câu 14"): Invalid media key',
+      invalidQuestionIndex: 0,
+      invalidQuestionReason: "Invalid media key",
+    });
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+    await within(questionCard("Câu 14")).findByRole("alert");
+
+    vi.mocked(requestUploadSlotsAction).mockClear();
+    vi.mocked(importAiQuestionsAction).mockClear();
+    await user.click(screen.getByRole("button", { name: /import questions/i }));
+
+    await waitFor(() => expect(importAiQuestionsAction).toHaveBeenCalled());
+    expect(requestedFileNames()).toEqual([["picture-1.png"]]);
+  });
+
   it("uploads a picture two questions share once and saves the same file with both", async () => {
     const user = userEvent.setup();
     await uploadDocument(user, 1, [

@@ -4,6 +4,9 @@ import { z } from "zod";
 /** Maximum media files attachable to one question. */
 export const MAX_MEDIA_PER_QUESTION = 3;
 
+/** The refusal of a key this school could not have minted, or whose extension contradicts its type. */
+export const INVALID_MEDIA_KEY_MESSAGE = "Invalid media key";
+
 /** Maximum media file size in bytes (10 MB). */
 export const MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -72,7 +75,7 @@ export function submittedMediaSchemaFor(schoolId: string) {
           isValidQuestionMediaKey(item.key, schoolId) &&
           item.key.endsWith(`.${EXTENSION_BY_CONTENT_TYPE[item.contentType]}`),
       ),
-    { message: "Invalid media key" },
+    { message: INVALID_MEDIA_KEY_MESSAGE },
   );
 }
 

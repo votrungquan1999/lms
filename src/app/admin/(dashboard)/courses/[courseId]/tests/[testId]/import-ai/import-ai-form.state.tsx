@@ -17,6 +17,7 @@ import {
   AiFailureCause,
 } from "src/lib/ai/ai-failure-messages";
 import {
+  INVALID_MEDIA_KEY_MESSAGE,
   MAX_MEDIA_PER_QUESTION,
   type SubmittedMedia,
 } from "../question-media.schema";
@@ -877,6 +878,10 @@ export function ImportAiProvider({
       return false;
     }
     if (!result.success) {
+      // Cached keys may belong to a school that is no longer active (switched in another tab), so the next Import mints fresh ones.
+      if (result.invalidQuestionReason === INVALID_MEDIA_KEY_MESSAGE) {
+        uploaded.current = { readId: null, media: new Map() };
+      }
       const offender =
         result.invalidQuestionIndex !== undefined
           ? questions[result.invalidQuestionIndex]
