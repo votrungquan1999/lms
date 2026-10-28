@@ -83,24 +83,26 @@ describe("readPictureMarkers whitespace", () => {
     expect(read.content).toBe("Đề bài\n\nCâu hỏi");
   });
 
-  it("labels a choice that was only a marker with its picture number, so it is not left empty", () => {
+  it("keeps the marker of a choice that was only a marker, so the review screen can name the picture by its place", () => {
     const read = readPictureMarkers(
-      question("Hình", { options: [{ text: " [image 2] ", isCorrect: true }] }),
+      question("Hình", {
+        options: [{ text: " [ Image 2 ] ", isCorrect: true }],
+      }),
       [2],
     );
 
-    expect(read.options?.[0]?.text).toBe("Picture 2");
+    expect(read.options?.[0]?.text).toBe("[image 2]");
     expect(read.imageNumbers).toEqual([2]);
   });
 
-  it("labels a title or content that was only markers with every picture number it held, once each", () => {
+  it("keeps a title or content that was only markers as one marker per picture, once each, in the order found", () => {
     const read = readPictureMarkers(
       question("[image 3]\n[image 1] [image 3]", { title: "[image 1]" }),
       [1, 3],
     );
 
-    expect(read.title).toBe("Picture 1");
-    expect(read.content).toBe("Pictures 3, 1");
+    expect(read.title).toBe("[image 1]");
+    expect(read.content).toBe("[image 3] [image 1]");
   });
 
   it.each([

@@ -48,6 +48,10 @@ import {
   UPLOAD_CONCURRENCY,
   uploadPictures,
 } from "./import-ai-uploads";
+import {
+  missingPictureReference,
+  pictureReferenceText,
+} from "./picture-references";
 import { reportDocumentReadFailureAction } from "./read-failure-actions";
 
 /**
@@ -438,20 +442,26 @@ interface ImportAiContextValue
 /**
  * Strips the review-list-only fields (`id`, `edited`, `retryError`,
  * `importError`, `imageNumbers`), leaving exactly the shape the server action
- * accepts, with the question's pictures already uploaded.
+ * accepts, with the question's pictures already uploaded. A text that is only
+ * picture markers is saved as the "Picture k" students see.
  * @param draft - One reviewed draft.
  * @param media - Its uploaded pictures.
+ * @param pictureNumbers - The `[image N]` numbers of its pictures, in saved order.
  * @returns The question as the import action takes it.
  */
 function toReviewedQuestion(
   draft: ImportQuestionDraft,
   media: SubmittedMedia,
+  pictureNumbers: readonly number[],
 ): ReviewedQuestion {
   return {
-    title: draft.title,
-    content: draft.content,
+    title: pictureReferenceText(draft.title, pictureNumbers),
+    content: pictureReferenceText(draft.content, pictureNumbers),
     type: draft.type,
-    options: draft.options,
+    options: draft.options?.map((option) => ({
+      ...option,
+      text: pictureReferenceText(option.text, pictureNumbers),
+    })),
     referenceAnswer: draft.referenceAnswer,
     explanation: draft.explanation,
     media,
@@ -747,6 +757,22 @@ export function ImportAiProvider({
       });
       return false;
     }
+    // Saving would name a picture students cannot see, so it is refused before any upload.
+    for (const draft of questions) {
+      const missing = missingPictureReference(
+        draft,
+        picturesOf(draft, state.pictures).map((picture) => picture.number),
+      );
+      if (!missing) continue;
+      const reason = `${missing.label} names a picture this question no longer has`;
+      dispatch({
+        type: "IMPORT_FAILED",
+        message: reason,
+        reason,
+        questionId: draft.id,
+      });
+      return false;
+    }
 
     // A new read starts with nothing uploaded.
     if (uploaded.current.readId !== state.readId) {
@@ -793,14 +819,16 @@ export function ImportAiProvider({
     }
 
     // Kept in review order — the write loop numbers the questions by it.
-    const reviewed = questions.map((draft) =>
-      toReviewedQuestion(
+    const reviewed = questions.map((draft) => {
+      const shown = picturesOf(draft, state.pictures);
+      return toReviewedQuestion(
         draft,
-        picturesOf(draft, state.pictures)
+        shown
           .flatMap((picture) => media.get(picture.number) ?? [])
           .map((entry, order) => ({ ...entry, order })),
-      ),
-    );
+        shown.map((picture) => picture.number),
+      );
+    });
 
     // Boundary: a dropped connection rejects the call, which would otherwise leave the screen on "Importing…".
     let result: Awaited<ReturnType<typeof importAiQuestionsAction>>;

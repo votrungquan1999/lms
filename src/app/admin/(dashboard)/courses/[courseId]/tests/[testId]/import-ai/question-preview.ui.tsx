@@ -46,6 +46,10 @@ import {
   useImportAi,
 } from "./import-ai-form.state";
 import { historyLabel } from "./import-ai-history";
+import {
+  missingPictureReference,
+  pictureReferenceText,
+} from "./picture-references";
 import { QuestionEditProvider } from "./question-edit.state";
 import { QuestionEditFields } from "./question-edit-fields.ui";
 import { QuestionPictures } from "./question-pictures.ui";
@@ -415,24 +419,28 @@ function toStudentCards(
   pictures: ReviewPicture[],
   firstQuestionNumber: number,
 ): StudentCardQuestion[] {
-  return drafts.map((draft, index) => ({
-    id: draft.id,
-    order: firstQuestionNumber + index,
-    title: draft.title,
-    content: draft.content,
-    type: draft.type,
-    options: (draft.options ?? []).map((option, optionIndex) => ({
-      id: `${draft.id}-opt-${optionIndex}`,
-      text: option.text,
-    })),
-    media: picturesOf(draft, pictures).map((picture, order) => ({
-      key: `draft-picture-${picture.number}`,
-      url: picture.previewUrl,
-      // Document pictures are only png/jpeg/webp (see document-extract).
-      contentType: picture.file.type as MediaContentType,
-      order,
-    })),
-  }));
+  return drafts.map((draft, index) => {
+    const shown = picturesOf(draft, pictures);
+    const pictureNumbers = shown.map((picture) => picture.number);
+    return {
+      id: draft.id,
+      order: firstQuestionNumber + index,
+      title: pictureReferenceText(draft.title, pictureNumbers),
+      content: pictureReferenceText(draft.content, pictureNumbers),
+      type: draft.type,
+      options: (draft.options ?? []).map((option, optionIndex) => ({
+        id: `${draft.id}-opt-${optionIndex}`,
+        text: pictureReferenceText(option.text, pictureNumbers),
+      })),
+      media: shown.map((picture, order) => ({
+        key: `draft-picture-${picture.number}`,
+        url: picture.previewUrl,
+        // Document pictures are only png/jpeg/webp (see document-extract).
+        contentType: picture.file.type as MediaContentType,
+        order,
+      })),
+    };
+  });
 }
 
 /** Lets the teacher choose APPEND (default) or REPLACE before importing. */
@@ -635,6 +643,10 @@ function QuestionCard({
   }
 
   const warning = answerKeyWarning(question);
+  const pictureNumbers = picturesOf(question, pictures).map(
+    (picture) => picture.number,
+  );
+  const missingPicture = missingPictureReference(question, pictureNumbers);
 
   return (
     <Card id={cardDomId(question.id)} tabIndex={-1}>
@@ -643,7 +655,9 @@ function QuestionCard({
           {/* min-w-0 + wrap-anywhere let an unbroken title shrink, keeping the buttons in view. */}
           <span className="flex min-w-0 items-center gap-1">
             <span className="text-muted-foreground">#{number}</span>
-            <span className="min-w-0 wrap-anywhere">{question.title}</span>
+            <span className="min-w-0 wrap-anywhere">
+              {pictureReferenceText(question.title, pictureNumbers)}
+            </span>
           </span>
           <span className="flex shrink-0 items-center gap-2">
             <Badge variant="outline">
@@ -674,7 +688,10 @@ function QuestionCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        <MarkdownContent content={question.content} compact />
+        <MarkdownContent
+          content={pictureReferenceText(question.content, pictureNumbers)}
+          compact
+        />
         <QuestionPictures
           question={question}
           firstQuestionNumber={firstQuestionNumber}
@@ -686,13 +703,22 @@ function QuestionCard({
             Remove one to import it.
           </p>
         )}
+        {missingPicture && (
+          <p className="text-sm text-destructive">
+            {missingPicture.label} names a picture this question no longer has.
+            Move the picture back or edit the {missingPicture.field} to import
+            it.
+          </p>
+        )}
         {question.options && (
           <ul className="space-y-1 text-sm">
             {question.options.map((option, idx) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: choice texts can repeat or be blank, and the list is read-only
               <li key={idx} className="flex items-center gap-2">
                 <span>{option.isCorrect ? "✓" : "○"}</span>
-                <span className="min-w-0 wrap-anywhere">{option.text}</span>
+                <span className="min-w-0 wrap-anywhere">
+                  {pictureReferenceText(option.text, pictureNumbers)}
+                </span>
               </li>
             ))}
           </ul>

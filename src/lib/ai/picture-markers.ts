@@ -77,15 +77,26 @@ function stripMarkers(text: string): StrippedText {
 }
 
 /**
- * Names the pictures a marker-only text held, so it is not left empty.
+ * Writes the markers a marker-only text held back as plain markers, so the
+ * text is not left empty and the review screen can name each picture by its
+ * place in the question.
  * @param numbers - The marker numbers that text held.
- * @returns A label such as "Picture 3", or "" when there were none.
+ * @returns Such as "[image 3] [image 1]", or "" when there were none.
  */
-function pictureLabel(numbers: readonly number[]): string {
-  const distinct = [...new Set(numbers)];
-  if (distinct.length === 0) return "";
-  if (distinct.length === 1) return `Picture ${distinct[0]}`;
-  return `Pictures ${distinct.join(", ")}`;
+function markersOnly(numbers: readonly number[]): string {
+  return [...new Set(numbers)].map((number) => `[image ${number}]`).join(" ");
+}
+
+/**
+ * Reads a text that names pictures by markers alone, such as a picture choice.
+ * @param text - Any question text.
+ * @returns Its distinct marker numbers in the order found, or null when the
+ *   text holds anything besides markers and blanks (or no marker at all).
+ */
+export function markerOnlyNumbers(text: string): number[] | null {
+  if (text.replace(MARKER, "").trim() !== "") return null;
+  const numbers = [...new Set(markedNumbers(text))];
+  return numbers.length > 0 ? numbers : null;
 }
 
 /**
@@ -103,7 +114,7 @@ export function readPictureMarkers<Q extends MarkedQuestion>(
   const read = (text: string) => {
     const stripped = stripMarkers(text);
     found.push(...stripped.numbers);
-    return stripped.text || pictureLabel(stripped.numbers);
+    return stripped.text || markersOnly(stripped.numbers);
   };
   const title = read(question.title);
   const content = read(question.content);
