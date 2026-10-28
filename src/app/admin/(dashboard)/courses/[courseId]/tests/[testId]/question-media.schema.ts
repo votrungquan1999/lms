@@ -57,15 +57,21 @@ export type SubmittedMedia = z.infer<typeof submittedMediaSchema>;
 /**
  * The submitted-media schema plus the tenant rule: every key must be one this
  * school could have minted. Signing a URL is the only access control on the
- * bucket, so a stored foreign key would be readable. The key check runs after
- * the shape checks, so a malformed entry still reports its shape message.
+ * bucket, so a stored foreign key would be readable. Each key's extension must
+ * also match its declared type, since students' pages render by that type.
+ * The key check runs after the shape checks, so a malformed entry still
+ * reports its shape message.
  * @param schoolId - The school the question is being written into.
  * @returns A schema whose parsed data holds only the known media fields.
  */
 export function submittedMediaSchemaFor(schoolId: string) {
   return submittedMediaSchema.refine(
     (items) =>
-      items.every((item) => isValidQuestionMediaKey(item.key, schoolId)),
+      items.every(
+        (item) =>
+          isValidQuestionMediaKey(item.key, schoolId) &&
+          item.key.endsWith(`.${EXTENSION_BY_CONTENT_TYPE[item.contentType]}`),
+      ),
     { message: "Invalid media key" },
   );
 }

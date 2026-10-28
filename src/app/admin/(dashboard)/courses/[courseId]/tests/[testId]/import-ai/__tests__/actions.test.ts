@@ -352,6 +352,7 @@ describe("Feature: the import takes only pictures this school uploaded", () => {
     ["a student's answer photo", picture("answers/student-1/a1.jpg")],
     ["a key that climbs out of its folder", picture(schoolKey("../a1"))],
     ["a key carrying a query string", picture(`${schoolKey("a1")}?x=1`)],
+    ["a picture whose key names a video file", picture(schoolKey("a1", "mp4"))],
   ])(
     "rejects %s, naming the question and importing nothing",
     async (_label, media) => {

@@ -221,6 +221,26 @@ describe("Feature: teacher attaches media to a question", () => {
         await getTestServices().questionService.listQuestions("test-1");
       expect(questions).toHaveLength(0);
     });
+
+    it("refuses a picture whose key names a video file, and persists nothing", async () => {
+      const result = await addQuestionAction(
+        null,
+        buildFreeTextFormData("test-1", [
+          {
+            key: `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000aaaa.mp4`,
+            contentType: MediaContentType.PNG,
+            order: 0,
+            size: 1000,
+            fileName: "picture.png",
+          },
+        ]),
+      );
+
+      expect(result).toEqual({ success: false, message: "Invalid media key" });
+      const questions =
+        await getTestServices().questionService.listQuestions("test-1");
+      expect(questions).toHaveLength(0);
+    });
   });
 
   describe("creating a single_select question with an explanation", () => {
