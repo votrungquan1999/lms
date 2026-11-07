@@ -8,7 +8,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "src/components/ui/breadcrumb";
-import { Progress } from "src/components/ui/progress";
 import type { AnnotationEntry } from "src/lib/annotation-service";
 import {
   type AnswerImage,
@@ -34,6 +33,7 @@ import {
 import { PageHeader } from "../../../../_ui/page-header.ui";
 import { StatusBadge } from "../../../../_ui/status-badge.ui";
 import { TestCountdown } from "./countdown.state";
+import { QuestionNavigator } from "./question-navigator";
 import { StartTestGate } from "./start-test-gate";
 import { TestQuestionsSection } from "./test-questions-section";
 
@@ -303,24 +303,6 @@ export default async function StudentTestDetailPage({
             )}
           </div>
         )}
-
-        {startGateMinutes === null && !isSubmitted && questions.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                {answerMap.size} / {questions.length} question
-                {questions.length !== 1 ? "s" : ""} answered
-              </span>
-              <span className="font-medium">
-                {Math.round((answerMap.size / (questions.length || 1)) * 100)}%
-              </span>
-            </div>
-            <Progress
-              value={(answerMap.size / (questions.length || 1)) * 100}
-              className="h-2"
-            />
-          </div>
-        )}
       </PageHeader>
 
       {startGateMinutes !== null ? (
@@ -332,6 +314,12 @@ export default async function StudentTestDetailPage({
         />
       ) : (
         <>
+          {canAnswer && questions.length > 0 && (
+            <QuestionNavigator
+              questions={questions.map((q) => ({ id: q.id, order: q.order }))}
+              answeredIds={new Set(answerMap.keys())}
+            />
+          )}
           {countdownDeadlineMs !== null && (
             <div className="w-full max-w-5xl">
               <TestCountdown

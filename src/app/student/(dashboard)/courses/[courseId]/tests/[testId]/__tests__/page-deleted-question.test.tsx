@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StudentSession } from "src/lib/session";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
@@ -124,10 +124,17 @@ describe("Feature: a student's progress ignores an answer to a question that was
     const user = userEvent.setup();
     render(ui);
 
-    // Then: progress reads 1 of the 2 remaining questions, and the
+    // Then: the navigator reads 1 of the 2 remaining questions, and the
     // confirmation never claims every question is answered while Q2 is blank.
-    expect(screen.getByText("1 / 2 questions answered")).toBeInTheDocument();
-    expect(screen.getByText("50%")).toBeInTheDocument();
+    const navigator = screen.getByRole("navigation", {
+      name: "Question navigator",
+    });
+    expect(navigator).toHaveTextContent("1 / 2 answered");
+    expect(
+      within(navigator)
+        .getAllByRole("link")
+        .map((l) => l.textContent),
+    ).toEqual(["1", "2"]);
     await user.click(
       screen.getByRole("button", { name: "Submit Test for Grading" }),
     );
