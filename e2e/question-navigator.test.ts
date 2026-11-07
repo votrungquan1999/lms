@@ -74,13 +74,18 @@ async function seedTest({
  * Opens a test page as the logged-in navigator student.
  * @param browser - The Playwright browser.
  * @param ids - The course and test to open.
+ * @param viewport - Screen size; the browser default (desktop) when omitted.
  * @returns The page and its context, for closing.
  */
 async function openAsStudent(
   browser: Browser,
   ids: { courseId: string; testId: string },
+  viewport?: { width: number; height: number },
 ) {
-  const context = await browser.newContext({ storageState: STUDENT_AUTH });
+  const context = await browser.newContext({
+    storageState: STUDENT_AUTH,
+    ...(viewport && { viewport }),
+  });
   const page = await context.newPage();
   await page.goto(`/student/courses/${ids.courseId}/tests/${ids.testId}`);
   return { context, page };
@@ -220,6 +225,35 @@ test.describe("Question navigator", () => {
     );
     await expect(page.getByText("[navigator] Q1")).not.toBeInViewport();
     await expect(bar.getByText(/Time remaining/)).toBeInViewport();
+
+    await context.close();
+  });
+
+  test("on a phone the boxes fold behind a Questions button while the count stays on screen", async ({
+    browser,
+  }) => {
+    const ids = await seedTest({ questionCount: 3, answeredOrders: [2] });
+    const { context, page } = await openAsStudent(browser, ids, {
+      width: 390,
+      height: 844,
+    });
+    const bar = page.getByRole("navigation", { name: "Question navigator" });
+    const toggle = bar.getByRole("button", { name: "Questions" });
+    const q3Box = bar.getByRole("link", { name: "Question 3, not answered" });
+
+    await expect(bar).toContainText("1 / 3 answered");
+    await expect(q3Box).toBeHidden();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(bar.getByRole("link")).toHaveText(["1", "2", "3"]);
+
+    // Picking a question folds the boxes again so they don't cover it.
+    await q3Box.click();
+    await expect(page.getByText("[navigator] Q3")).toBeInViewport();
+    await expect(q3Box).toBeHidden();
+    await expect(bar).toContainText("1 / 3 answered");
 
     await context.close();
   });

@@ -1,5 +1,10 @@
+"use client";
+
+import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
+import { Button } from "src/components/ui/button";
 import { cn } from "src/lib/utils";
+import { useNavigatorFold } from "./question-navigator.state";
 
 /**
  * The bar itself: pinned to the top of the window while the student scrolls.
@@ -79,5 +84,47 @@ export function NavigatorBox({
     >
       {children}
     </a>
+  );
+}
+
+/**
+ * Phone-only button that shows or hides the question boxes.
+ * @param children - The button's label.
+ */
+export function NavigatorFoldToggle({ children }: { children: ReactNode }) {
+  const { isOpen, toggle } = useNavigatorFold();
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      aria-expanded={isOpen}
+      onClick={toggle}
+      className="md:hidden"
+    >
+      {children}
+      <ChevronDown className={cn("size-4", isOpen && "rotate-180")} />
+    </Button>
+  );
+}
+
+/**
+ * The question boxes: always shown from tablet width up, folded on phones
+ * until opened. Picking a box folds them again so they don't cover the question.
+ * @param children - The boxes.
+ */
+export function NavigatorFoldPanel({ children }: { children: ReactNode }) {
+  const { isOpen, close } = useNavigatorFold();
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: listens for clicks bubbling up from the box links inside
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the links inside already handle Enter
+    <div
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest("a")) close();
+      }}
+      className={cn(isOpen ? "block" : "hidden", "md:block")}
+    >
+      {children}
+    </div>
   );
 }
