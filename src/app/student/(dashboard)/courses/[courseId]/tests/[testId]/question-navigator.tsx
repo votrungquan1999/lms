@@ -1,3 +1,4 @@
+import { questionAnchorId } from "./question-anchor";
 import {
   NavigatorBar,
   NavigatorBox,
@@ -42,7 +43,7 @@ export function QuestionNavigator({
           return (
             <NavigatorBox
               key={q.id}
-              href={`#question-${q.order}`}
+              href={`#${questionAnchorId(q.order)}`}
               label={`Question ${q.order}, ${answered ? "answered" : "not answered"}`}
               answered={answered}
             >

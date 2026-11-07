@@ -13,6 +13,7 @@ import { isTextEquivalent } from "src/lib/text-normalization";
 import { AnswerForm } from "./answer-form";
 import { DiffViewer } from "./diff-viewer";
 import { GradedQuestion } from "./graded-question";
+import { questionAnchorId } from "./question-anchor";
 import { SubmitTestButton } from "./submit-test-button";
 
 interface TestQuestionsSectionProps {
@@ -144,6 +145,7 @@ export function TestQuestionsSection({
           return (
             <StudentQuestionCard
               key={question.id}
+              anchorId={questionAnchorId(question.order)}
               // Only the card's fields, so the answer key never reaches it.
               question={{
                 order: question.order,

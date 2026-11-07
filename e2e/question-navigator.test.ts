@@ -170,4 +170,25 @@ test.describe("Question navigator", () => {
 
     await context.close();
   });
+
+  test("clicking a question's box brings that question into view below the bar", async ({
+    browser,
+  }) => {
+    const ids = await seedTest({ questionCount: 3, answeredOrders: [] });
+    const { context, page } = await openAsStudent(browser, ids);
+    const bar = page.getByRole("navigation", { name: "Question navigator" });
+    const q3Title = page.getByText("[navigator] Q3");
+    await expect(q3Title).not.toBeInViewport();
+
+    await bar.getByRole("link", { name: "Question 3, not answered" }).click();
+
+    await expect(q3Title).toBeInViewport();
+    // The pinned bar must not sit on top of the title it jumped to.
+    const barBox = await bar.boundingBox();
+    const titleBox = await q3Title.boundingBox();
+    if (!barBox || !titleBox) throw new Error("bar or title has no box");
+    expect(titleBox.y).toBeGreaterThanOrEqual(barBox.y + barBox.height);
+
+    await context.close();
+  });
 });

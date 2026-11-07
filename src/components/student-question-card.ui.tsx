@@ -37,17 +37,21 @@ export interface StudentCardQuestion {
  * A question as a student sees it: numbered title, formatted content and
  * pictures, then whatever the caller slots in below (answer controls, etc.).
  * @param question - The card's numbered header, content and pictures.
+ * @param anchorId - Element id other parts of the page can link to.
  * @param children - Content shown under the pictures.
  */
 export function StudentQuestionCard({
   question,
+  anchorId,
   children,
 }: {
   question: Pick<StudentCardQuestion, "order" | "title" | "content" | "media">;
+  anchorId?: string;
   children?: React.ReactNode;
 }) {
   return (
-    <Card>
+    // Scroll margin keeps a jumped-to card clear of the pinned navigator bar.
+    <Card id={anchorId} className="scroll-mt-40">
       <CardHeader>
         <CardTitle className="text-lg wrap-anywhere">
           Question {question.order}: {question.title}
