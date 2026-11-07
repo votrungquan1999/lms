@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { questionAnchorId } from "./question-anchor";
 import {
   NavigatorBar,
@@ -16,6 +17,8 @@ interface QuestionNavigatorProps {
   questions: NavigatorQuestion[];
   /** Questions with a saved answer. */
   answeredIds: Set<string>;
+  /** The live countdown, on a timed test. */
+  timer?: ReactNode;
 }
 
 /**
@@ -23,10 +26,12 @@ interface QuestionNavigatorProps {
  * answered count and one box per question, filled once its answer is saved.
  * @param questions - The test's questions, in display order.
  * @param answeredIds - Ids of the questions whose answer is saved.
+ * @param timer - The countdown to show beside the count, if the test is timed.
  */
 export function QuestionNavigator({
   questions,
   answeredIds,
+  timer,
 }: QuestionNavigatorProps) {
   const answeredCount = questions.filter((q) => answeredIds.has(q.id)).length;
 
@@ -36,6 +41,7 @@ export function QuestionNavigator({
         <NavigatorCount>
           {answeredCount} / {questions.length} answered
         </NavigatorCount>
+        {timer}
       </NavigatorSummary>
       <NavigatorBoxes>
         {questions.map((q) => {

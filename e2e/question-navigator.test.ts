@@ -26,14 +26,19 @@ const LONG_CONTENT = Array.from(
 interface SeedOptions {
   questionCount: number;
   answeredOrders: number[];
+  timeLimitMinutes?: number;
 }
 
 /**
- * Seeds a course with the navigator student enrolled and one untimed test.
- * @param options - How many questions to add and which ones have a saved answer.
+ * Seeds a course with the navigator student enrolled and one test.
+ * @param options - How many questions, which ones have a saved answer, and an optional time limit.
  * @returns The course and test ids to open.
  */
-async function seedTest({ questionCount, answeredOrders }: SeedOptions) {
+async function seedTest({
+  questionCount,
+  answeredOrders,
+  timeLimitMinutes,
+}: SeedOptions) {
   return withDb(async (db) => {
     const student = await db
       .collection<StudentDocument>("student")
@@ -44,6 +49,7 @@ async function seedTest({ questionCount, answeredOrders }: SeedOptions) {
     await enroll(db, { courseId, studentId: student.id });
     const testId = await insertTest(db, courseId, {
       title: "[navigator] Test",
+      timeLimitMinutes: timeLimitMinutes ?? null,
     });
     for (let order = 1; order <= questionCount; order++) {
       const questionId = await insertQuestion(db, testId, {
@@ -188,6 +194,32 @@ test.describe("Question navigator", () => {
     const titleBox = await q3Title.boundingBox();
     if (!barBox || !titleBox) throw new Error("bar or title has no box");
     expect(titleBox.y).toBeGreaterThanOrEqual(barBox.y + barBox.height);
+
+    await context.close();
+  });
+
+  test("on a timed test the time remaining sits in the pinned bar and stays on screen while scrolling", async ({
+    browser,
+  }) => {
+    const ids = await seedTest({
+      questionCount: 3,
+      answeredOrders: [],
+      timeLimitMinutes: 30,
+    });
+    const { context, page } = await openAsStudent(browser, ids);
+    await page.getByRole("button", { name: "Start Test" }).click();
+
+    const bar = page.getByRole("navigation", { name: "Question navigator" });
+    await expect(bar).toContainText(/Time remaining: (30:00|29:\d\d)/, {
+      timeout: 10_000,
+    });
+    await expect(page.getByText(/Time remaining/)).toHaveCount(1);
+
+    await page.evaluate(() =>
+      window.scrollTo(0, document.documentElement.scrollHeight),
+    );
+    await expect(page.getByText("[navigator] Q1")).not.toBeInViewport();
+    await expect(bar.getByText(/Time remaining/)).toBeInViewport();
 
     await context.close();
   });

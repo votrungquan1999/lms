@@ -314,22 +314,24 @@ export default async function StudentTestDetailPage({
         />
       ) : (
         <>
-          {canAnswer && questions.length > 0 && (
-            <QuestionNavigator
-              questions={questions.map((q) => ({ id: q.id, order: q.order }))}
-              answeredIds={new Set(answerMap.keys())}
-            />
-          )}
-          {countdownDeadlineMs !== null && (
-            <div className="w-full max-w-5xl">
-              <TestCountdown
-                deadlineMs={countdownDeadlineMs}
-                testId={testId}
-                courseId={courseId}
-                schoolId={session.schoolId}
+          {/* A timed test keeps the bar even with no questions: the countdown in it auto-submits. */}
+          {canAnswer &&
+            (questions.length > 0 || countdownDeadlineMs !== null) && (
+              <QuestionNavigator
+                questions={questions.map((q) => ({ id: q.id, order: q.order }))}
+                answeredIds={new Set(answerMap.keys())}
+                timer={
+                  countdownDeadlineMs !== null && (
+                    <TestCountdown
+                      deadlineMs={countdownDeadlineMs}
+                      testId={testId}
+                      courseId={courseId}
+                      schoolId={session.schoolId}
+                    />
+                  )
+                }
               />
-            </div>
-          )}
+            )}
           <TestQuestionsSection
             testId={testId}
             courseId={courseId}

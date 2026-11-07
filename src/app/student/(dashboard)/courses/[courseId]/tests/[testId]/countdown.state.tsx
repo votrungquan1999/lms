@@ -62,11 +62,11 @@ export function TestCountdown({
   }, [deadlineMs, testId, courseId, schoolId]);
 
   return (
-    <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm font-medium">
+    <span className="font-medium">
       Time remaining:{" "}
       <span className="font-mono tabular-nums">
         {formatRemaining(remainingSeconds)}
       </span>
-    </div>
+    </span>
   );
 }
