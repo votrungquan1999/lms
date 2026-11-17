@@ -1,6 +1,10 @@
 import type { Collection, Db } from "mongodb";
 import type { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
+import {
+  type EditedMediaEntry,
+  mergeEditedMedia,
+} from "src/lib/question-media-merge";
 import type { QuestionPoolService } from "src/lib/question-pool-service";
 import {
   isMcQuestionType,
@@ -185,6 +189,11 @@ export interface UpdatePoolQuestionInput {
    * field on its own.
    */
   mcGradingStrategy?: McGradingStrategy;
+  /**
+   * The full ordered picture list after the edit; absent leaves pictures
+   * unchanged. Kept pictures are named by key only.
+   */
+  media?: EditedMediaEntry[];
 }
 
 // ── Service ──────────────────────────────────────────────────────────────────
@@ -416,6 +425,9 @@ export class PoolQuestionService {
       set.mcGradingStrategy = input.mcGradingStrategy ?? null;
     }
 
+    if (input.media !== undefined) {
+      set.media = mergeEditedMedia(before.media ?? [], input.media);
+    }
     const optionsProvided = "options" in input && input.options !== undefined;
     const typeChanging =
       "type" in input &&
@@ -572,6 +584,7 @@ export class PoolQuestionService {
       "options",
       "type",
       "mcGradingStrategy",
+      "media",
     ] as const;
 
     const changedFields: string[] = [];

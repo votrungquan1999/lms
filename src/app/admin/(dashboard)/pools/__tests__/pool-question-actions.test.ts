@@ -1,7 +1,9 @@
 import type { Db } from "mongodb";
 import type { PoolQuestionDocument } from "src/lib/pool-question-service";
 import type { QuestionPoolDocument } from "src/lib/question-pool-service";
+import { MediaContentType } from "src/lib/question-service";
 import {
+  getFakeS3,
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
@@ -415,6 +417,99 @@ describe("updatePoolQuestionAction (Step 30)", () => {
       await getTestServices().poolQuestionService.listPoolQuestions("pool-1");
     expect(unchanged.title).toBe("Explain recursion");
   });
+});
+
+describe("updatePoolQuestionAction — editing a pool question's pictures", () => {
+  const ownKey = `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000aaaa.png`;
+  const otherKey = `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000bbbb.png`;
+  const newPicture = {
+    key: `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000cccc.png`,
+    contentType: MediaContentType.PNG,
+    order: 1,
+    size: 1000,
+    fileName: "new.png",
+  };
+
+  /**
+   * Builds one stored picture entry for a seeded pool question.
+   * @param key - The picture's storage key.
+   * @returns The media entry to store.
+   */
+  function storedPicture(key: string) {
+    return {
+      key,
+      contentType: MediaContentType.PNG,
+      order: 0,
+      size: 1000,
+      fileName: "stored.png",
+    };
+  }
+
+  it.each([
+    {
+      refusal: "a new picture whose key another school minted",
+      media: [
+        { key: ownKey },
+        {
+          ...newPicture,
+          key: "media/schools/school-b/questions/00000000-0000-4000-8000-00000000dddd.png",
+        },
+      ],
+    },
+    {
+      refusal: "keeping a picture another pool question holds",
+      media: [{ key: ownKey }, { key: otherKey }],
+    },
+    {
+      refusal: "keeping a key no question holds",
+      media: [
+        {
+          key: `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000eeee.png`,
+        },
+      ],
+    },
+    {
+      refusal: "listing the same key twice",
+      media: [{ key: ownKey }, { ...newPicture, key: ownKey }],
+    },
+  ])(
+    "refuses $refusal, keeps the stored pictures and deletes no file",
+    async ({ media }) => {
+      // Given: two pool questions, each holding its own picture
+      const services = getTestServices();
+      const question = await services.poolQuestionService.addPoolQuestion(
+        "pool-1",
+        {
+          title: "Read the chart",
+          content: "Describe it.",
+          createdBy: "admin-1",
+          media: [storedPicture(ownKey)],
+        },
+      );
+      await services.poolQuestionService.addPoolQuestion("pool-1", {
+        title: "Other chart",
+        content: "Describe it.",
+        createdBy: "admin-1",
+        media: [storedPicture(otherKey)],
+      });
+
+      // When: a save submits a picture list with a key the question may not hold
+      const result = await updatePoolQuestionAction(
+        null,
+        buildUpdatePoolQuestionFormData(question.id, {
+          media: JSON.stringify(media),
+        }),
+      );
+
+      // Then: the save is refused, nothing changed and nothing left storage
+      expect(result).toEqual({ success: false, message: "Invalid media key" });
+      const stored = await db
+        .collection<PoolQuestionDocument>("pool_question")
+        .findOne({ id: question.id });
+      expect(stored?.media.map((m) => m.key)).toEqual([ownKey]);
+      expect(getFakeS3().deletedKeys).toEqual([]);
+    },
+  );
 });
 
 describe("deletePoolQuestionAction (Step 30)", () => {

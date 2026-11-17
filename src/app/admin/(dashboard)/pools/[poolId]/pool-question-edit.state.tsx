@@ -28,8 +28,23 @@ import {
   MC_GRADING_STRATEGY_LABELS,
   QUESTION_TYPE_LABELS,
 } from "src/lib/question-labels";
-import { isMcQuestionType, type QuestionType } from "src/lib/question-service";
+import { MAX_MEDIA_PER_QUESTION } from "src/lib/question-media-merge";
+import {
+  isMcQuestionType,
+  type QuestionMedia,
+  type QuestionType,
+} from "src/lib/question-service";
 import { submitWithoutReset } from "src/lib/submit-without-reset";
+import { KeptMediaList } from "../../courses/[courseId]/tests/[testId]/question-kept-media.ui";
+import {
+  QuestionMediaPickerProvider,
+  useQuestionMediaPickerActions,
+  useQuestionMediaPickerState,
+} from "../../courses/[courseId]/tests/[testId]/question-media-picker.state";
+import {
+  QuestionMediaFileInput,
+  QuestionMediaFileList,
+} from "../../courses/[courseId]/tests/[testId]/question-media-picker.ui";
 import {
   deletePoolQuestionAction,
   updatePoolQuestionAction,
@@ -47,6 +62,13 @@ interface PoolQuestionEditPanelProps extends PoolQuestionEditButtonProps {
   requestClose?: () => void;
 }
 
+interface PoolQuestionEditFormProps extends PoolQuestionEditPanelProps {
+  /** The pictures and videos the question keeps so far (removals applied). */
+  keptMedia: QuestionMedia[];
+  /** Drops one kept picture or video by key. */
+  onRemoveKept: (key: string) => void;
+}
+
 /** One row of the options editor. `id` absent means a genuinely new option (D53). */
 interface OptionDraft {
   id?: string;
@@ -59,12 +81,16 @@ interface OptionDraft {
  * parallel implementation to `QuestionEditPanel`, not a shared one. Pool
  * questions carry no student answers, so every save submits directly.
  */
-export function PoolQuestionEditPanel({
+function PoolQuestionEditForm({
   question,
   poolId,
   onSaved,
   requestClose,
-}: PoolQuestionEditPanelProps) {
+  keptMedia,
+  onRemoveKept,
+}: PoolQuestionEditFormProps) {
+  const { selectedFiles } = useQuestionMediaPickerState();
+  const { uploadSelectedFiles } = useQuestionMediaPickerActions();
   const [selectedType, setSelectedType] = useState<QuestionType>(question.type);
   const isFreeText = selectedType === "free_text";
   const isMc = isMcQuestionType(selectedType);
@@ -90,6 +116,10 @@ export function PoolQuestionEditPanel({
   const originalMcGradingStrategy =
     question.type === "multi_select" ? question.mcGradingStrategy : undefined;
 
+  // Kept pictures are only ever removed, so a shorter list means a change
+  const picturesChanged =
+    keptMedia.length !== question.media.length || selectedFiles.length > 0;
+
   const [state, formAction, isPending] = useActionState(
     async (
       prevState: Awaited<ReturnType<typeof updatePoolQuestionAction>> | null,
@@ -97,6 +127,23 @@ export function PoolQuestionEditPanel({
     ) => {
       if (isMc) {
         formData.set("options", JSON.stringify(options));
+      }
+      // New files upload first so the one save below carries the final list
+      if (picturesChanged) {
+        try {
+          const uploaded = await uploadSelectedFiles();
+          formData.set(
+            "media",
+            JSON.stringify([
+              ...keptMedia.map(({ key }) => ({ key })),
+              ...uploaded,
+            ]),
+          );
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Upload failed";
+          return { success: false, message };
+        }
       }
       const result = await updatePoolQuestionAction(prevState, formData);
       if (result.success) onSaved?.();
@@ -347,6 +394,12 @@ export function PoolQuestionEditPanel({
         </div>
       )}
 
+      <div className="space-y-2">
+        <KeptMediaList media={keptMedia} onRemove={onRemoveKept} />
+        <QuestionMediaFileInput id={`pool-media-files-${question.id}`} />
+        <QuestionMediaFileList />
+      </div>
+
       {(isFreeText || isMc) && (
         <OptionalTextField
           id={`pool-explanation-${question.id}`}
@@ -379,6 +432,32 @@ export function PoolQuestionEditPanel({
         </div>
       )}
     </form>
+  );
+}
+
+/**
+ * Edit form plus picture controls for one Question Bank question. Owns the
+ * kept-media list so the new-file picker is capped at what the question has
+ * room for.
+ * @param props - The question, its pool id and the modal hooks.
+ */
+export function PoolQuestionEditPanel(props: PoolQuestionEditPanelProps) {
+  const [keptMedia, setKeptMedia] = useState<QuestionMedia[]>(
+    props.question.media,
+  );
+
+  return (
+    <QuestionMediaPickerProvider
+      maxFiles={MAX_MEDIA_PER_QUESTION - keptMedia.length}
+    >
+      <PoolQuestionEditForm
+        {...props}
+        keptMedia={keptMedia}
+        onRemoveKept={(key) =>
+          setKeptMedia((prev) => prev.filter((entry) => entry.key !== key))
+        }
+      />
+    </QuestionMediaPickerProvider>
   );
 }
 
