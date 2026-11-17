@@ -2,6 +2,7 @@ import { MarkdownContent } from "src/components/markdown-content";
 import { QuestionMedia } from "src/components/question-media.ui";
 import {
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
@@ -38,24 +39,32 @@ export interface StudentCardQuestion {
  * pictures, then whatever the caller slots in below (answer controls, etc.).
  * @param question - The card's numbered header, content and pictures.
  * @param anchorId - Element id other parts of the page can link to.
+ * @param headerActions - Optional controls shown beside the title (teacher pages).
  * @param children - Content shown under the pictures.
  */
 export function StudentQuestionCard({
   question,
   anchorId,
+  headerActions,
   children,
 }: {
   question: Pick<StudentCardQuestion, "order" | "title" | "content" | "media">;
   anchorId?: string;
+  headerActions?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
     // Scroll margin keeps a jumped-to card clear of the pinned navigator bar.
     <Card id={anchorId} className="scroll-mt-40">
       <CardHeader>
-        <CardTitle className="text-lg wrap-anywhere">
+        <CardTitle className="min-w-0 text-lg wrap-anywhere">
           Question {question.order}: {question.title}
         </CardTitle>
+        {headerActions && (
+          <CardAction className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {headerActions}
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         <MarkdownContent content={question.content} />

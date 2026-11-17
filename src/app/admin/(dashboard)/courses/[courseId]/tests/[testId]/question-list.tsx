@@ -1,12 +1,5 @@
-import { MarkdownContent } from "src/components/markdown-content";
-import { QuestionMedia } from "src/components/question-media.ui";
+import { StudentQuestionCard } from "src/components/student-question-card.ui";
 import { Badge } from "src/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "src/components/ui/card";
 import {
   ANSWER_REVEAL_MODE_HEADING,
   ANSWER_REVEAL_MODE_INHERIT_LABEL,
@@ -80,103 +73,95 @@ export function QuestionList({
         </p>
       )}
       {questions.map((question) => {
-        const preview =
-          question.content.length > 200
-            ? `${question.content.slice(0, 200)}…`
-            : question.content;
         const answeredCount = answeredCounts.get(question.id) ?? 0;
 
         return (
-          <Card key={question.id}>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center justify-between gap-2 text-base">
-                <span className="flex items-center gap-2">
-                  <span className="text-muted-foreground">
-                    #{question.order}
-                  </span>{" "}
-                  {question.title}
-                  {needsAnswerOptions(question) && (
-                    <Badge variant="destructive">Needs answer options</Badge>
-                  )}
-                  {needsAnswerKey(question) && (
-                    <Badge variant="destructive">Needs an answer key</Badge>
-                  )}
-                </span>
+          <StudentQuestionCard
+            key={question.id}
+            question={question}
+            headerActions={
+              <>
+                <Badge variant="secondary">
+                  {QUESTION_TYPE_LABELS[question.type]}
+                </Badge>
+                {needsAnswerOptions(question) && (
+                  <Badge variant="destructive">Needs answer options</Badge>
+                )}
+                {needsAnswerKey(question) && (
+                  <Badge variant="destructive">Needs an answer key</Badge>
+                )}
                 <DeleteQuestionButton
                   questionId={question.id}
                   testId={question.testId}
                   courseId={courseId}
                   answeredCount={answeredCount}
                 />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {answeredCount > 0 && (
-                <p className="text-sm font-medium text-amber-600">
-                  {answeredStudentCountLabel(answeredCount)}
+              </>
+            }
+          >
+            {answeredCount > 0 && (
+              <p className="text-sm font-medium text-amber-600">
+                {answeredStudentCountLabel(answeredCount)}
+              </p>
+            )}
+            {question.type === "free_text" && (
+              <div className="space-y-1 text-sm">
+                <p>
+                  <span className="font-medium">Model answer:</span>{" "}
+                  {question.referenceAnswer ?? (
+                    <span className="text-muted-foreground">None</span>
+                  )}
                 </p>
-              )}
-              <MarkdownContent content={preview} compact />
-              <QuestionMedia media={question.media} />
-              {question.type === "free_text" && (
-                <div className="space-y-1 text-sm">
+                <p>
+                  <span className="font-medium">Explanation:</span>{" "}
+                  {question.explanation ?? (
+                    <span className="text-muted-foreground">None</span>
+                  )}
+                </p>
+                <p>
+                  <span className="font-medium">
+                    {ANSWER_REVEAL_MODE_HEADING}:
+                  </span>{" "}
+                  {answerRevealModeLabel(question.answerRevealMode)}
+                </p>
+              </div>
+            )}
+            {isMcQuestion(question) && (
+              <div className="space-y-1 text-sm">
+                <p>
+                  <span className="font-medium">Type:</span>{" "}
+                  {QUESTION_TYPE_LABELS[question.type]}
+                </p>
+                {question.type === "multi_select" && (
                   <p>
-                    <span className="font-medium">Model answer:</span>{" "}
-                    {question.referenceAnswer ?? (
-                      <span className="text-muted-foreground">None</span>
-                    )}
+                    <span className="font-medium">Grading:</span>{" "}
+                    {MC_GRADING_STRATEGY_LABELS[question.mcGradingStrategy]}
                   </p>
+                )}
+                <ul className="list-inside list-disc">
+                  {question.options.map((option) => (
+                    <li key={option.id}>
+                      {option.text}
+                      {option.isCorrect && " (correct)"}
+                    </li>
+                  ))}
+                </ul>
+                {question.explanation && (
                   <p>
                     <span className="font-medium">Explanation:</span>{" "}
-                    {question.explanation ?? (
-                      <span className="text-muted-foreground">None</span>
-                    )}
+                    {question.explanation}
                   </p>
-                  <p>
-                    <span className="font-medium">
-                      {ANSWER_REVEAL_MODE_HEADING}:
-                    </span>{" "}
-                    {answerRevealModeLabel(question.answerRevealMode)}
-                  </p>
-                </div>
-              )}
-              {isMcQuestion(question) && (
-                <div className="space-y-1 text-sm">
-                  <p>
-                    <span className="font-medium">Type:</span>{" "}
-                    {QUESTION_TYPE_LABELS[question.type]}
-                  </p>
-                  {question.type === "multi_select" && (
-                    <p>
-                      <span className="font-medium">Grading:</span>{" "}
-                      {MC_GRADING_STRATEGY_LABELS[question.mcGradingStrategy]}
-                    </p>
-                  )}
-                  <ul className="list-inside list-disc">
-                    {question.options.map((option) => (
-                      <li key={option.id}>
-                        {option.text}
-                        {option.isCorrect && " (correct)"}
-                      </li>
-                    ))}
-                  </ul>
-                  {question.explanation && (
-                    <p>
-                      <span className="font-medium">Explanation:</span>{" "}
-                      {question.explanation}
-                    </p>
-                  )}
-                </div>
-              )}
-              {(question.type === "free_text" || isMcQuestion(question)) && (
-                <QuestionEditPanel
-                  question={question}
-                  courseId={courseId}
-                  answeredCount={answeredCount}
-                />
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </div>
+            )}
+            {(question.type === "free_text" || isMcQuestion(question)) && (
+              <QuestionEditPanel
+                question={question}
+                courseId={courseId}
+                answeredCount={answeredCount}
+              />
+            )}
+          </StudentQuestionCard>
         );
       })}
     </div>

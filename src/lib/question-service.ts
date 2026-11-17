@@ -828,7 +828,7 @@ export class QuestionService {
   async listQuestions(testId: string): Promise<Question[]> {
     const docs = await this.questions
       .find({ testId, deletedAt: null })
-      .sort({ order: 1 })
+      .sort({ order: 1, id: 1 })
       .toArray();
 
     return docs.map(this.toQuestion);
