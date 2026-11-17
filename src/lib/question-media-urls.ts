@@ -1,16 +1,16 @@
-import type { Question } from "./question-service";
+import type { QuestionMedia } from "./question-service";
 import { getS3StorageService } from "./services-singleton";
 
 /**
  * Attaches a freshly-minted presigned GET URL to each media entry of every
  * question, preserving media order. Questions with no media are returned
  * unchanged. Returns a new array — never mutates the input.
- * @param questions - Questions whose media entries carry stored S3 keys.
+ * @param questions - Test or Question Bank questions whose media entries carry stored S3 keys.
  * @returns Questions with each `media[].url` populated.
  */
-export async function attachQuestionMediaUrls(
-  questions: Question[],
-): Promise<Question[]> {
+export async function attachQuestionMediaUrls<
+  T extends { media: QuestionMedia[] },
+>(questions: T[]): Promise<T[]> {
   const s3 = await getS3StorageService();
 
   return Promise.all(

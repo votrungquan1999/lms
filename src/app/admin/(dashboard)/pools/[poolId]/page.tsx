@@ -1,13 +1,8 @@
 import { notFound } from "next/navigation";
-import { MarkdownContent } from "src/components/markdown-content";
+import { StudentQuestionCard } from "src/components/student-question-card.ui";
 import { Badge } from "src/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "src/components/ui/card";
 import { QUESTION_TYPE_LABELS } from "src/lib/question-labels";
+import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import {
   getPageGuard,
   getPoolQuestionService,
@@ -18,6 +13,10 @@ import {
   DeletePoolQuestionButton,
   PoolQuestionEditPanel,
 } from "./pool-question-edit.state";
+import { PoolQuestionKey } from "./pool-question-key.ui";
+
+// Presigned media URLs are short-lived, so render dynamically to mint fresh ones.
+export const dynamic = "force-dynamic";
 
 export default async function PoolDetailPage({
   params,
@@ -35,7 +34,9 @@ export default async function PoolDetailPage({
   }
 
   const poolQuestionService = await getPoolQuestionService(session.school.id);
-  const questions = await poolQuestionService.listPoolQuestions(poolId);
+  const questions = await attachQuestionMediaUrls(
+    await poolQuestionService.listPoolQuestions(poolId),
+  );
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
@@ -56,36 +57,24 @@ export default async function PoolDetailPage({
       {questions.length > 0 && (
         <div className="space-y-3">
           {questions.map((question) => (
-            <Card key={question.id}>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center justify-between text-base">
-                  <span className="flex items-center gap-2">
-                    {question.title}
-                    <Badge variant="outline">
-                      {QUESTION_TYPE_LABELS[question.type]}
-                    </Badge>
-                  </span>
+            <StudentQuestionCard
+              key={question.id}
+              question={question}
+              headerActions={
+                <>
+                  <Badge variant="secondary">
+                    {QUESTION_TYPE_LABELS[question.type]}
+                  </Badge>
                   <DeletePoolQuestionButton
                     poolQuestionId={question.id}
                     poolId={poolId}
                   />
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {question.content && (
-                  <MarkdownContent
-                    content={
-                      question.content.length > 200
-                        ? `${question.content.slice(0, 200)}…`
-                        : question.content
-                    }
-                    compact
-                    className="text-muted-foreground line-clamp-3"
-                  />
-                )}
-                <PoolQuestionEditPanel question={question} poolId={poolId} />
-              </CardContent>
-            </Card>
+                </>
+              }
+            >
+              <PoolQuestionKey question={question} />
+              <PoolQuestionEditPanel question={question} poolId={poolId} />
+            </StudentQuestionCard>
           ))}
         </div>
       )}

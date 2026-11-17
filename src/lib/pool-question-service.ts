@@ -278,12 +278,12 @@ export class PoolQuestionService {
 
   /**
    * Returns every question in a pool of the bound school, ordered by `order`
-   * ascending. Excludes tombstones (D51/D47).
+   * ascending, then `id` so equal orders never swap. Excludes tombstones (D51/D47).
    */
   async listPoolQuestions(poolId: string): Promise<PoolQuestion[]> {
     const docs = await this.questions
       .find({ poolId, deletedAt: null, schoolId: this.schoolId })
-      .sort({ order: 1 })
+      .sort({ order: 1, id: 1 })
       .toArray();
 
     return docs.map((doc) => this.toPoolQuestion(doc));
@@ -302,7 +302,7 @@ export class PoolQuestionService {
   ): Promise<PoolQuestionSnapshotInput[]> {
     const docs = await this.questions
       .find({ poolId, deletedAt: null, schoolId: this.schoolId })
-      .sort({ order: 1 })
+      .sort({ order: 1, id: 1 })
       .toArray();
 
     return docs.map((doc) => ({

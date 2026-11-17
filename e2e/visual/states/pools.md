@@ -13,7 +13,7 @@ Every row this tour creates is prefixed `[pools] `, and `resetOwnFixtures()` del
 ### Pool detail — /admin/pools/[poolId]
 
 - [T1] pools/detail-empty: pool created seconds ago, "0 questions", only the blank Free Text add form ([poolId]/page.tsx:50-86)
-- [T1] pools/detail-many-questions: one question of each type, each with its always-expanded edit panel ([poolId]/page.tsx:55-84, pool-question-edit.state.tsx)
+- [T1] pools/detail-many-questions: one question of each type, each previewed like the student card with its key strip, plus its always-expanded edit panel ([poolId]/page.tsx, pool-question-edit.state.tsx)
 - [T1] pools/detail-long-name: pool name is a long Vietnamese phrase with spaces — wraps in the h1 and in the breadcrumb ([poolId]/page.tsx:44, @breadcrumb/pools/[poolId]/page.tsx:35)
 - [T1] pools/detail-unbroken-name: pool name is one unbroken email-like string — page scroll width exceeds the viewport here
 

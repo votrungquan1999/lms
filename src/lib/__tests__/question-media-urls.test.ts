@@ -120,4 +120,26 @@ describe("attachQuestionMediaUrls", () => {
     expect(withMedia.media[0].url).toBe("");
     expect(result[0]).not.toBe(withMedia);
   });
+
+  it("fills presigned URLs for any media-holding items, not only test questions", async () => {
+    const poolShaped = [
+      {
+        id: "pool-q1",
+        media: [
+          {
+            key: "media/p.png",
+            url: "",
+            contentType: MediaContentType.PNG,
+            order: 0,
+          },
+        ],
+      },
+    ];
+
+    const result = await attachQuestionMediaUrls(poolShaped);
+
+    expect(result[0].id).toBe("pool-q1");
+    expect(result[0].media[0].url).toBe("https://signed.example/media/p.png");
+    expect(poolShaped[0].media[0].url).toBe("");
+  });
 });
