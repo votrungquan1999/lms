@@ -28,7 +28,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
-import { questionCard } from "./review-card.helpers";
+import { cardTitleText, questionCard } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs; name each preview after its file.
@@ -94,7 +94,7 @@ async function uploadDocument(
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
   );
-  await screen.findByText(drafts[0].title);
+  await screen.findByText(cardTitleText(drafts[0].title));
 }
 
 /**
@@ -271,7 +271,7 @@ describe("Feature: AI document import — moving a picture between questions", (
     expect(
       within(questionCard("Q2")).getByRole("img", { name: "Figure 1" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Q2 retried")).toBeNull();
+    expect(screen.queryByText(cardTitleText("Q2 retried"))).toBeNull();
   });
 
   it("keeps a move onto a question whose edit form is open, and the form's Save lands on top", async () => {

@@ -27,7 +27,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
-import { questionCard } from "./review-card.helpers";
+import { cardTitleText, questionCard } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs.
@@ -75,7 +75,7 @@ describe("Feature: AI document import — action buttons look like what they do"
         type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       }),
     );
-    await screen.findByText("Q1");
+    await screen.findByText(cardTitleText("Q1"));
 
     const card = within(questionCard("Q1"));
 

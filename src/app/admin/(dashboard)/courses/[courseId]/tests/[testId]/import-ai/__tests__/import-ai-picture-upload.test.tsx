@@ -29,7 +29,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
-import { questionCard } from "./review-card.helpers";
+import { cardTitleText, questionCard } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs; name each preview after its file.
@@ -98,7 +98,7 @@ async function uploadDocument(
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
   );
-  await screen.findByText(drafts[0].title);
+  await screen.findByText(cardTitleText(drafts[0].title));
 }
 
 /**
@@ -292,7 +292,7 @@ describe("Feature: AI document import — each picture uploads once per read", (
       }),
     );
     await user.click(screen.getByRole("button", { name: "Read and replace" }));
-    await screen.findByText("Câu 1 mới");
+    await screen.findByText(cardTitleText("Câu 1 mới"));
     grantSlots();
     vi.mocked(requestUploadSlotsAction).mockClear();
     vi.mocked(importAiQuestionsAction).mockResolvedValue({

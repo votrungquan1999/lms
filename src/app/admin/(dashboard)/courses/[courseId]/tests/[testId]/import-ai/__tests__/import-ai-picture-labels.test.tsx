@@ -159,11 +159,12 @@ describe("Feature: AI document import — pictures are named by their place in t
     );
 
     const card = screen
-      .getByText("#1")
+      .getByText(/^Question 1:/)
       .closest('[data-slot="card"]') as HTMLElement;
     expect(within(card).getByText("Pictures 2, 1")).toBeVisible();
     // The caption under the second picture and the title both read "Picture 2".
-    expect(within(card).getAllByText("Picture 2")).toHaveLength(2);
+    expect(within(card).getByText("Question 1: Picture 2")).toBeVisible();
+    expect(within(card).getAllByText("Picture 2")).toHaveLength(1);
     expect(within(card).queryByText(/\[image/)).toBeNull();
   });
 

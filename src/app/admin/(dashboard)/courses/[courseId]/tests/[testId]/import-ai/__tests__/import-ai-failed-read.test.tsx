@@ -24,6 +24,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
+import { cardTitleText } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs.
@@ -74,7 +75,7 @@ function renderScreen() {
 async function readFirstFile(user: ReturnType<typeof userEvent.setup>) {
   vi.mocked(parseQuestionsAction).mockResolvedValueOnce(TWO_QUESTIONS);
   await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-  await screen.findByText("Q1");
+  await screen.findByText(cardTitleText("Q1"));
 }
 
 /** Picks a second readable file and confirms the replace dialog. */
@@ -104,11 +105,11 @@ describe("Feature: AI document import — a failed read keeps the list on screen
 
     const banner = await screen.findByRole("alert");
     expect(banner).toHaveTextContent("The AI is busy right now.");
-    const card = screen.getByText("Q1");
+    const card = screen.getByText(cardTitleText("Q1"));
     expect(
       banner.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(screen.getByText("Q2")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q2"))).toBeInTheDocument();
   });
 
   it("keeps the old pictures and their previews when the read fails", async () => {
@@ -136,7 +137,7 @@ describe("Feature: AI document import — a failed read keeps the list on screen
       ],
     });
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    await screen.findByText("Q1");
+    await screen.findByText(cardTitleText("Q1"));
     const previewSrc = screen.getByRole("img").getAttribute("src");
     vi.mocked(parseQuestionsAction).mockResolvedValueOnce({
       success: false,
@@ -163,7 +164,7 @@ describe("Feature: AI document import — a failed read keeps the list on screen
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Upload a .docx or .pdf file.",
     );
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
@@ -194,7 +195,7 @@ describe("Feature: AI document import — a failed read keeps the list on screen
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The file must be 10 MB or smaller.",
     );
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
@@ -209,7 +210,7 @@ describe("Feature: AI document import — a failed read keeps the list on screen
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This document could not be read.",
     );
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
   });
 
   it("keeps the list and shows the reason when the file has no text", async () => {
@@ -223,7 +224,7 @@ describe("Feature: AI document import — a failed read keeps the list on screen
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "No text could be read from this document.",
     );
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
   });
 
   it("keeps the list and shows the reason when the AI finds no questions", async () => {
@@ -241,7 +242,7 @@ describe("Feature: AI document import — a failed read keeps the list on screen
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "No questions were found in this document.",
     );
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
   });
 
   it("keeps the Replace choice and a hand edit when the read fails", async () => {
@@ -260,7 +261,9 @@ describe("Feature: AI document import — a failed read keeps the list on screen
     await pickSecondFileAndConfirm(user);
 
     await screen.findByRole("alert");
-    expect(screen.getByText("Q1 (corrected)")).toBeInTheDocument();
+    expect(
+      screen.getByText(cardTitleText("Q1 (corrected)")),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("radio", { name: /replace the test/i }),
     ).toBeChecked();

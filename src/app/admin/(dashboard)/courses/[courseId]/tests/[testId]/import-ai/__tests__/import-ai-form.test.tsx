@@ -34,6 +34,7 @@ import {
   QuestionPreviewList,
 } from "../question-preview.ui";
 import { reportDocumentReadFailureAction } from "../read-failure-actions";
+import { cardTitleText } from "./review-card.helpers";
 
 afterEach(() => {
   // resetAllMocks (not clearAllMocks) — also clears a prior test's
@@ -92,8 +93,8 @@ describe("Feature: AI document import — a teacher uploads a Word document of q
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
 
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
-    expect(screen.getByText("Q2")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q2"))).toBeInTheDocument();
     expect(screen.getByText("Free Text")).toBeInTheDocument();
     expect(screen.getByText("Single Select")).toBeInTheDocument();
   });
@@ -127,7 +128,7 @@ describe("Feature: AI document import — a teacher uploads a PDF of questions f
 
     await user.upload(screen.getByLabelText(/document/i), makePdfFile());
 
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(screen.getByText("Free Text")).toBeInTheDocument();
     expect(extractTextFromPdf).toHaveBeenCalledTimes(1);
   });
@@ -323,7 +324,7 @@ describe("Feature: AI document import — a teacher imports the reviewed questio
     );
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /import questions/i }));
 
@@ -380,15 +381,17 @@ describe("Feature: AI document import — a teacher imports the reviewed questio
     );
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
-    expect(screen.getByText("Q2")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q2"))).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /import questions/i }));
 
     // Exactly one alert on the page, and it lives inside Q2's own card —
     // not a bare page-level banner and not on Q1's card.
     expect(await screen.findAllByRole("alert")).toHaveLength(1);
-    const q2Card = screen.getByText("Q2").closest('[data-slot="card"]');
+    const q2Card = screen
+      .getByText(cardTitleText("Q2"))
+      .closest('[data-slot="card"]');
     expect(q2Card).not.toBeNull();
     expect(within(q2Card as HTMLElement).getByRole("alert")).toHaveTextContent(
       /question 2/i,
@@ -473,7 +476,7 @@ describe("Feature: AI document import — a read that fails or never answers in 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
       });
-      expect(screen.queryByText("Late")).not.toBeInTheDocument();
+      expect(screen.queryByText(cardTitleText("Late"))).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

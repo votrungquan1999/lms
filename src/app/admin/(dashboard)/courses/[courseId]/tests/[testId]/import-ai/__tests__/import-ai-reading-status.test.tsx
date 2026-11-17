@@ -24,6 +24,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
+import { cardTitleText } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs.
@@ -119,7 +120,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     renderScreen();
     vi.mocked(parseQuestionsAction).mockResolvedValueOnce(TWO_QUESTIONS);
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    await screen.findByText("Q1");
+    await screen.findByText(cardTitleText("Q1"));
     holdNextRead();
 
     await user.upload(
@@ -144,7 +145,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     await screen.findByRole("status");
     read.finish(TWO_QUESTIONS);
 
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -153,7 +154,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     renderScreen();
     vi.mocked(parseQuestionsAction).mockResolvedValueOnce(TWO_QUESTIONS);
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    await screen.findByText("Q1");
+    await screen.findByText(cardTitleText("Q1"));
     await user.selectOptions(
       screen.getByLabelText("Question for picture 2"),
       screen.getByRole("option", { name: /Q2/ }),
@@ -168,10 +169,9 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     expect(await screen.findByRole("status")).toHaveTextContent(
       "The list below is from your previous file.",
     );
-    expect(screen.getByText("Q1").closest("[aria-busy]")).toHaveAttribute(
-      "aria-busy",
-      "true",
-    );
+    expect(
+      screen.getByText(cardTitleText("Q1")).closest("[aria-busy]"),
+    ).toHaveAttribute("aria-busy", "true");
     // Q2's form is open, so Q1's Edit is the only one left on a card.
     expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
     for (const retry of screen.getAllByRole("button", {
@@ -195,7 +195,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     renderScreen();
     vi.mocked(parseQuestionsAction).mockResolvedValueOnce(TWO_QUESTIONS);
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    await screen.findByText("Q1");
+    await screen.findByText(cardTitleText("Q1"));
     const read = holdNextRead();
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
@@ -206,7 +206,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     expect(screen.getByRole("radio", { name: /^Replace/ })).toBeDisabled();
 
     read.finish(TWO_QUESTIONS);
-    await screen.findAllByText("Q1");
+    await screen.findAllByText(cardTitleText("Q1"));
     expect(screen.getByRole("radio", { name: /^Replace/ })).toBeEnabled();
   });
 
@@ -215,7 +215,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     renderScreen();
     vi.mocked(parseQuestionsAction).mockResolvedValueOnce(TWO_QUESTIONS);
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    await screen.findByText("Q1");
+    await screen.findByText(cardTitleText("Q1"));
     await user.click(screen.getByRole("button", { name: "Student view" }));
     holdNextRead();
 
@@ -235,7 +235,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     renderScreen();
     vi.mocked(parseQuestionsAction).mockResolvedValueOnce(TWO_QUESTIONS);
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    await screen.findByText("Q1");
+    await screen.findByText(cardTitleText("Q1"));
     vi.mocked(retryQuestionAction).mockReturnValueOnce(new Promise(() => {}));
 
     await user.click(

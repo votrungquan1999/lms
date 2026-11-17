@@ -32,7 +32,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
-import { questionCard } from "./review-card.helpers";
+import { cardTitle, cardTitleText, questionCard } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs; name each preview after its file so tests can tell them apart.
@@ -112,7 +112,7 @@ async function uploadDocument(
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
   );
-  await screen.findByText(drafts[0].title);
+  await screen.findByText(cardTitleText(drafts[0].title));
 }
 
 describe("Feature: AI document import — pictures no question uses", () => {
@@ -509,7 +509,7 @@ describe("Feature: AI document import — pictures no question uses", () => {
   it("renumbers the cards and the question picker when Replace is chosen", async () => {
     const user = userEvent.setup();
     await uploadDocument(1, [{ title: "Câu 14" }, { title: "Câu 15" }], 3);
-    expect(within(questionCard("Câu 15")).getByText("#5")).toBeInTheDocument();
+    expect(cardTitle("Câu 15")).toHaveTextContent("Question 5: Câu 15");
 
     // When the teacher switches to replacing the test's questions
     await user.click(
@@ -519,7 +519,7 @@ describe("Feature: AI document import — pictures no question uses", () => {
     );
 
     // Then the numbers restart at 1 on the cards and in the picker
-    expect(within(questionCard("Câu 15")).getByText("#2")).toBeInTheDocument();
+    expect(cardTitle("Câu 15")).toHaveTextContent("Question 2: Câu 15");
     expect(
       within(screen.getByLabelText("Question for picture 1"))
         .getAllByRole("option")

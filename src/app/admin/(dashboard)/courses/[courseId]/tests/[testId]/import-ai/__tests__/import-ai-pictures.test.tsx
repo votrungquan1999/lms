@@ -32,7 +32,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
-import { questionCard } from "./review-card.helpers";
+import { cardTitleText, questionCard } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs; name each preview after its file so tests can tell them apart.
@@ -98,7 +98,7 @@ async function uploadDocumentWithPictures(): Promise<void> {
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
   );
-  await screen.findByText("Câu 14");
+  await screen.findByText(cardTitleText("Câu 14"));
 }
 
 describe("Feature: AI document import — the document's pictures come along with their questions", () => {
@@ -135,7 +135,7 @@ describe("Feature: AI document import — the document's pictures come along wit
       screen.getByLabelText(/document/i),
       new File(["pdf"], "exam.pdf", { type: "application/pdf" }),
     );
-    await screen.findByText("Câu 1");
+    await screen.findByText(cardTitleText("Câu 1"));
 
     expect(parseQuestionsAction).toHaveBeenCalledWith(
       "Câu 1: gõ [image 2] ra",
@@ -309,7 +309,7 @@ describe("Feature: AI document import — the document's pictures come along wit
         type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       }),
     );
-    await screen.findByText("Câu 15");
+    await screen.findByText(cardTitleText("Câu 15"));
 
     await user.click(screen.getByRole("button", { name: /import questions/i }));
 

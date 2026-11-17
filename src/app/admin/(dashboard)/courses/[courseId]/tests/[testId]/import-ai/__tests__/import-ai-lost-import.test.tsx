@@ -22,7 +22,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { importAiQuestionsAction, parseQuestionsAction } from "../actions";
-import { questionCard, uploadDrafts } from "./review-card.helpers";
+import {
+  cardTitleText,
+  questionCard,
+  uploadDrafts,
+} from "./review-card.helpers";
 
 afterEach(() => {
   vi.resetAllMocks();
@@ -63,7 +67,7 @@ describe("Feature: AI document import — an Add import whose call never answere
     expect(
       within(banner).getByRole("link", { name: "Open the test page" }),
     ).toHaveAttribute("href", "/admin/courses/course-1/tests/test-1");
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(
       within(questionCard("Q1")).getByRole("button", { name: "Edit" }),
     ).toBeEnabled();
@@ -125,13 +129,13 @@ describe("Feature: AI document import — an Add import whose call never answere
     ).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: /^undo/i }));
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Import questions" }),
     ).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: /^redo/i }));
-    expect(screen.getByText("Q1 fixed")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1 fixed"))).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Import questions" }),
     ).toBeDisabled();
@@ -158,7 +162,7 @@ describe("Feature: AI document import — an Add import whose call never answere
       await screen.findByRole("button", { name: "Read and replace" }),
     );
 
-    expect(await screen.findByText("New A")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("New A"))).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Import questions" }),
     ).toBeEnabled();

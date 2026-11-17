@@ -30,6 +30,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
+import { cardTitleText } from "./review-card.helpers";
 
 afterEach(() => {
   vi.resetAllMocks();
@@ -76,7 +77,7 @@ async function uploadTwoQuestions(user: ReturnType<typeof userEvent.setup>) {
   );
 
   await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-  expect(await screen.findByText("Q1")).toBeInTheDocument();
+  expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
 }
 
 describe("Feature: AI document import — a teacher re-asks the AI about one question", () => {
@@ -110,7 +111,7 @@ describe("Feature: AI document import — a teacher re-asks the AI about one que
         "Explain photosynthesis, focusing on the light reactions.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("Q2")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q2"))).toBeInTheDocument();
     expect(screen.getByText("Pick the prime number.")).toBeInTheDocument();
   });
 
@@ -192,7 +193,7 @@ describe("Feature: AI document import — a teacher re-asks the AI about one que
     );
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
 
     // The AI corrects Q2's type to free_text — its response has no `options`
     // key at all, the shape a `return parsed.question` refactor would produce.
@@ -249,7 +250,9 @@ describe("Feature: AI document import — a teacher re-asks the AI about one que
     await user.click(screen.getByRole("button", { name: /^retry$/i }));
 
     expect(
-      await screen.findByText("Hand-edited title survives a failed retry"),
+      await screen.findByText(
+        cardTitleText("Hand-edited title survives a failed retry"),
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "AI retry failed. Please try again.",

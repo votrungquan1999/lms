@@ -12,12 +12,31 @@ import {
 } from "../question-preview.ui";
 
 /**
+ * Matches a review card's heading, "Question N: <title>", for a draft's title.
+ * @param title - The question's title.
+ * @returns A matcher for `getByText` / `findByText`.
+ */
+export function cardTitleText(title: string): RegExp {
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^Question \\d+: ${escaped}$`);
+}
+
+/**
+ * Finds a review card's heading element by the draft's title.
+ * @param title - The question's title.
+ * @returns The heading element.
+ */
+export function cardTitle(title: string): HTMLElement {
+  return screen.getByText(cardTitleText(title));
+}
+
+/**
  * Finds one question's review card by its title.
  * @param title - The question's title.
  * @returns The card element.
  */
 export function questionCard(title: string): HTMLElement {
-  return screen.getByText(title).closest('[data-slot="card"]') as HTMLElement;
+  return cardTitle(title).closest('[data-slot="card"]') as HTMLElement;
 }
 
 /**
@@ -55,5 +74,5 @@ export async function uploadDrafts(
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
   );
-  await screen.findByText(drafts[0].title);
+  await screen.findByText(cardTitleText(drafts[0].title));
 }

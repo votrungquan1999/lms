@@ -27,7 +27,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
-import { questionCard } from "./review-card.helpers";
+import { cardTitleText, questionCard } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs; name each preview after its file.
@@ -93,7 +93,7 @@ async function uploadDocument(
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
   );
-  await screen.findByText(drafts[0].title);
+  await screen.findByText(cardTitleText(drafts[0].title));
 }
 
 /**
@@ -122,8 +122,8 @@ describe("Feature: AI document import — deleting a draft question", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete question 2" }));
 
-    expect(screen.queryByText("Q2")).not.toBeInTheDocument();
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.queryByText(cardTitleText("Q2"))).not.toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     const undo = screen.getByRole("button", {
       name: "Undo delete of Question 2",
     });
@@ -205,7 +205,7 @@ describe("Feature: AI document import — deleting a draft question", () => {
     await user.click(
       screen.getByRole("button", { name: "Undo delete of Question 1" }),
     );
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
   });
 
   it("lists a deleted draft's pictures as unused, and takes them back with Undo", async () => {
@@ -278,7 +278,7 @@ describe("Feature: AI document import — deleting a draft question", () => {
     await user.click(
       screen.getByRole("button", { name: "Undo delete of Question 1" }),
     );
-    expect(screen.getByText("Q2")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q2"))).toBeInTheDocument();
     expect(screen.getByText("1 question found")).toBeInTheDocument();
   });
 

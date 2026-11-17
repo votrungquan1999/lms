@@ -24,6 +24,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
+import { cardTitleText } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs.
@@ -78,7 +79,7 @@ function renderScreen() {
 async function readFirstFile(user: ReturnType<typeof userEvent.setup>) {
   vi.mocked(parseQuestionsAction).mockResolvedValueOnce(parsed(["Q1", "Q2"]));
   await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-  await screen.findByText("Q1");
+  await screen.findByText(cardTitleText("Q1"));
   vi.mocked(extractDocx).mockClear();
   vi.mocked(parseQuestionsAction).mockClear();
 }
@@ -98,7 +99,7 @@ describe("Feature: AI document import — picking a new file over work on screen
     expect(dialog).toHaveTextContent("week-2.docx");
     expect(extractDocx).not.toHaveBeenCalled();
     expect(parseQuestionsAction).not.toHaveBeenCalled();
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
   });
 
   it("keeps the list and reads nothing when the teacher cancels", async () => {
@@ -114,7 +115,7 @@ describe("Feature: AI document import — picking a new file over work on screen
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(extractDocx).not.toHaveBeenCalled();
     expect(parseQuestionsAction).not.toHaveBeenCalled();
   });
@@ -132,7 +133,7 @@ describe("Feature: AI document import — picking a new file over work on screen
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(parseQuestionsAction).not.toHaveBeenCalled();
     expect(extractDocx).not.toHaveBeenCalled();
   });
@@ -150,8 +151,8 @@ describe("Feature: AI document import — picking a new file over work on screen
 
     await user.click(screen.getByRole("button", { name: "Read and replace" }));
 
-    expect(await screen.findByText("New A")).toBeInTheDocument();
-    expect(screen.queryByText("Q1")).not.toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("New A"))).toBeInTheDocument();
+    expect(screen.queryByText(cardTitleText("Q1"))).not.toBeInTheDocument();
     expect(parseQuestionsAction).toHaveBeenCalledTimes(1);
   });
 
@@ -162,7 +163,7 @@ describe("Feature: AI document import — picking a new file over work on screen
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
 
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 

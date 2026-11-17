@@ -36,6 +36,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
+import { cardTitleText } from "./review-card.helpers";
 
 const nextRouter = {
   push: vi.fn(),
@@ -92,7 +93,7 @@ async function renderWithListOnScreen() {
   const user = userEvent.setup();
   renderShell();
   await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-  expect(await screen.findByText("Q1")).toBeInTheDocument();
+  expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
   return user;
 }
 
@@ -118,7 +119,7 @@ describe("Feature: AI document import — leaving through the admin layout with 
     await user.click(await screen.findByRole("button", { name: "Stay" }));
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -204,7 +205,7 @@ describe("Feature: AI document import — leaving through the admin layout with 
     const user = userEvent.setup();
     const view = renderShell();
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    await screen.findByText("Q1");
+    await screen.findByText(cardTitleText("Q1"));
     let finish!: (result: { success: true; message: string }) => void;
     vi.mocked(importAiQuestionsAction).mockReturnValueOnce(
       new Promise((resolve) => {

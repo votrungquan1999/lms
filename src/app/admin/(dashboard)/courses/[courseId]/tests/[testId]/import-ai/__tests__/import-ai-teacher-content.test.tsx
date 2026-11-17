@@ -21,7 +21,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import type { ParsedQuestion } from "src/lib/ai/ai-client";
-import { questionCard, uploadDrafts } from "./review-card.helpers";
+import { cardTitle, questionCard, uploadDrafts } from "./review-card.helpers";
 
 afterEach(() => {
   vi.resetAllMocks();
@@ -72,10 +72,9 @@ describe("Feature: AI document import — the Teacher view formats question cont
       card.getByText(unbroken(text)).closest(".prose");
 
     // Tailwind's wrap-anywhere lowers the minimum width; min-w-0 lets the flex title row shrink.
-    expect(card.getByText(unbroken("title-"))).toHaveClass("wrap-anywhere");
-    expect(card.getByText(unbroken("title-")).parentElement).toHaveClass(
-      "min-w-0",
-    );
+    const title = cardTitle(unbroken("title-"));
+    expect(title).toHaveClass("wrap-anywhere");
+    expect(title).toHaveClass("min-w-0");
     expect(wrapper("content-")).toHaveClass("wrap-anywhere");
     expect(wrapper("answer-")).toHaveClass("wrap-anywhere");
   });

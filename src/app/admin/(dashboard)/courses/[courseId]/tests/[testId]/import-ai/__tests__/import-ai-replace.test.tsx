@@ -32,7 +32,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
-import { questionCard } from "./review-card.helpers";
+import { cardTitleText, questionCard } from "./review-card.helpers";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -88,7 +88,7 @@ async function openReplaceDialog(
     </ImportAiProvider>,
   );
   await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-  await screen.findByText("Q1");
+  await screen.findByText(cardTitleText("Q1"));
   await user.click(screen.getByRole("radio", { name: /replace/i }));
   await user.click(
     screen.getByRole("button", { name: /^replace questions$/i }),

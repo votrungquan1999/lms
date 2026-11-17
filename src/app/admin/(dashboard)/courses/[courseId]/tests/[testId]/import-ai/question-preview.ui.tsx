@@ -4,7 +4,10 @@ import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { MarkdownContent } from "src/components/markdown-content";
-import type { StudentCardQuestion } from "src/components/student-question-card.ui";
+import {
+  type StudentCardQuestion,
+  StudentQuestionCard,
+} from "src/components/student-question-card.ui";
 import { StudentViewList } from "src/components/student-view-list.ui";
 import {
   type QuestionListView,
@@ -22,12 +25,7 @@ import {
 } from "src/components/ui/alert-dialog";
 import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "src/components/ui/card";
+import { Card, CardContent } from "src/components/ui/card";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
@@ -678,110 +676,102 @@ function QuestionCard({
   const missingPicture = missingPictureReference(question, pictureNumbers);
 
   return (
-    <Card id={cardDomId(question.id)} tabIndex={-1}>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between gap-2 text-base">
-          {/* min-w-0 + wrap-anywhere let an unbroken title shrink, keeping the buttons in view. */}
-          <span className="flex min-w-0 items-center gap-1">
-            <span className="text-muted-foreground">#{number}</span>
-            <span className="min-w-0 wrap-anywhere">
-              {pictureReferenceText(question.title, pictureNumbers)}
-            </span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            <Badge variant="outline">
-              {QUESTION_TYPE_LABELS[question.type]}
-            </Badge>
-            {warning && <Badge variant="destructive">{warning}</Badge>}
-            <RetryQuestionDialog question={question} />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isBusy}
-              onClick={() => setIsEditing(true)}
-            >
-              Edit
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label={`Delete question ${number}`}
-              disabled={isBusy}
-              onClick={onDelete}
-            >
-              Delete
-            </Button>
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <MarkdownContent
-          content={pictureReferenceText(question.content, pictureNumbers)}
-          compact
-        />
-        <QuestionPictures
-          question={question}
-          firstQuestionNumber={firstQuestionNumber}
-        />
-        {/* Counts the pictures the card shows; Import rejects a question over the limit. */}
-        {picturesOf(question, pictures).length > MAX_MEDIA_PER_QUESTION && (
-          <p className="text-sm text-destructive">
-            A question can have at most {MAX_MEDIA_PER_QUESTION} pictures.
-            Remove one to import it.
-          </p>
-        )}
-        {missingPicture && (
-          <p className="text-sm text-destructive">
-            {missingPicture.label} names a picture this question no longer has.
-            Move the picture back or edit the {missingPicture.field} to import
-            it.
-          </p>
-        )}
-        {question.options && (
-          <ul className="space-y-1 text-sm">
-            {question.options.map((option, idx) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: choice texts can repeat or be blank, and the list is read-only
-              <li key={idx} className="flex items-center gap-2">
-                <span>{option.isCorrect ? "✓" : "○"}</span>
-                <span className="min-w-0 wrap-anywhere">
-                  {pictureReferenceText(option.text, pictureNumbers)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {question.type === "free_text" && question.referenceAnswer?.trim() && (
-          <div className="text-muted-foreground">
-            <p className="text-xs font-medium">Model answer</p>
-            <MarkdownContent content={question.referenceAnswer} compact />
-          </div>
-        )}
-        {question.explanation?.trim() && (
-          <div className="text-muted-foreground">
-            <p className="text-xs font-medium">Explanation</p>
-            <MarkdownContent content={question.explanation} compact />
-          </div>
-        )}
-        {question.retryError && (
-          <div
-            role="alert"
-            className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+    <StudentQuestionCard
+      anchorId={cardDomId(question.id)}
+      tabIndex={-1}
+      question={{
+        order: number,
+        title: pictureReferenceText(question.title, pictureNumbers),
+        content: pictureReferenceText(question.content, pictureNumbers),
+        // The draft's pictures render in the card body, with their Remove and Move controls.
+        media: [],
+      }}
+      headerActions={
+        <>
+          <Badge variant="outline">{QUESTION_TYPE_LABELS[question.type]}</Badge>
+          {warning && <Badge variant="destructive">{warning}</Badge>}
+          <RetryQuestionDialog question={question} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isBusy}
+            onClick={() => setIsEditing(true)}
           >
-            {question.retryError}
-          </div>
-        )}
-        {question.importError && (
-          <div
-            role="alert"
-            className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+            Edit
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={`Delete question ${number}`}
+            disabled={isBusy}
+            onClick={onDelete}
           >
-            Question {number} — {question.importReason ?? question.importError}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            Delete
+          </Button>
+        </>
+      }
+    >
+      <QuestionPictures
+        question={question}
+        firstQuestionNumber={firstQuestionNumber}
+      />
+      {/* Counts the pictures the card shows; Import rejects a question over the limit. */}
+      {picturesOf(question, pictures).length > MAX_MEDIA_PER_QUESTION && (
+        <p className="text-sm text-destructive">
+          A question can have at most {MAX_MEDIA_PER_QUESTION} pictures. Remove
+          one to import it.
+        </p>
+      )}
+      {missingPicture && (
+        <p className="text-sm text-destructive">
+          {missingPicture.label} names a picture this question no longer has.
+          Move the picture back or edit the {missingPicture.field} to import it.
+        </p>
+      )}
+      {question.options && (
+        <ul className="space-y-1 text-sm">
+          {question.options.map((option, idx) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: choice texts can repeat or be blank, and the list is read-only
+            <li key={idx} className="flex items-center gap-2">
+              <span>{option.isCorrect ? "✓" : "○"}</span>
+              <span className="min-w-0 wrap-anywhere">
+                {pictureReferenceText(option.text, pictureNumbers)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {question.type === "free_text" && question.referenceAnswer?.trim() && (
+        <div className="text-muted-foreground">
+          <p className="text-xs font-medium">Model answer</p>
+          <MarkdownContent content={question.referenceAnswer} compact />
+        </div>
+      )}
+      {question.explanation?.trim() && (
+        <div className="text-muted-foreground">
+          <p className="text-xs font-medium">Explanation</p>
+          <MarkdownContent content={question.explanation} compact />
+        </div>
+      )}
+      {question.retryError && (
+        <div
+          role="alert"
+          className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          {question.retryError}
+        </div>
+      )}
+      {question.importError && (
+        <div
+          role="alert"
+          className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          Question {number} — {question.importReason ?? question.importError}
+        </div>
+      )}
+    </StudentQuestionCard>
   );
 }
 

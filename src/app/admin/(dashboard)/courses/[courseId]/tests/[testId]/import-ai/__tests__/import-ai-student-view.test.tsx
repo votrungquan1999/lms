@@ -28,6 +28,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
+import { cardTitleText } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs; name each preview after its file.
@@ -108,7 +109,7 @@ async function uploadDocument(
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
   );
-  await screen.findByText("Câu 14");
+  await screen.findByText(cardTitleText("Câu 14"));
 }
 
 describe("Feature: teacher previews AI-drafted questions in Student view", () => {
@@ -181,7 +182,7 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
 
     // Then the open edit still holds its typed text and the saved edit shows
     expect(screen.getByLabelText(/title/i)).toHaveValue("Capital city");
-    expect(screen.getByText("Câu 14 edited")).toBeVisible();
+    expect(screen.getByText(cardTitleText("Câu 14 edited"))).toBeVisible();
   });
 
   it("leaves the draft's answer mark on Paris after a student pick of Rome", async () => {
@@ -310,14 +311,14 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
       }),
     );
     await user.click(screen.getByRole("button", { name: "Read and replace" }));
-    await screen.findByText("Fresh draft");
+    await screen.findByText(cardTitleText("Fresh draft"));
 
     // Then the review list is back on the teacher's view with its answer marks
     expect(
       screen.getByRole("button", { name: "Teacher view" }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("region", { name: "Student view" })).toBeNull();
-    expect(screen.getByText("Fresh draft")).toBeVisible();
+    expect(screen.getByText(cardTitleText("Fresh draft"))).toBeVisible();
     expect(screen.getByText("✓")).toBeVisible();
   });
 

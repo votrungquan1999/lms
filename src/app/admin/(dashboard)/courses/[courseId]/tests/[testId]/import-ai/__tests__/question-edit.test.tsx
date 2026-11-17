@@ -32,6 +32,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
+import { cardTitleText } from "./review-card.helpers";
 
 afterEach(() => {
   vi.resetAllMocks();
@@ -80,7 +81,7 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     );
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
 
     // Correct the first question's title by hand.
     const editButtons = screen.getAllByRole("button", { name: /edit/i });
@@ -93,10 +94,10 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
 
     // The edited question shows the correction; the other is untouched.
     expect(
-      screen.getByText("Explain the process of photosynthesis"),
+      screen.getByText(cardTitleText("Explain the process of photosynthesis")),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Q1")).not.toBeInTheDocument();
-    expect(screen.getByText("Q2")).toBeInTheDocument();
+    expect(screen.queryByText(cardTitleText("Q1"))).not.toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q2"))).toBeInTheDocument();
   });
 
   it("saves a cleared model answer as a draft the AI-import schema still accepts", async () => {
@@ -140,7 +141,7 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     );
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
 
     // Deleting an AI-invented model answer is how the teacher removes it.
     await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
@@ -210,7 +211,7 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     );
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
 
     // Open both cards' editors at once — nothing closes the other one.
     await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
@@ -253,7 +254,7 @@ describe("Feature: AI document import — Import waits until every open edit is 
       </ImportAiProvider>,
     );
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
   }
 
   it("disables Import with a note while a question's edit form is open", async () => {
@@ -350,7 +351,7 @@ describe("Feature: AI document import — a teacher adds and removes choices whi
       </ImportAiProvider>,
     );
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    await screen.findByText("Q1");
+    await screen.findByText(cardTitleText("Q1"));
     await user.click(screen.getByRole("button", { name: /^edit$/i }));
   }
 

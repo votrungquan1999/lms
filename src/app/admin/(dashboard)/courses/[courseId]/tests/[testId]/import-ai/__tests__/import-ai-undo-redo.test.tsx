@@ -31,7 +31,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
-import { questionCard } from "./review-card.helpers";
+import { cardTitleText, questionCard } from "./review-card.helpers";
 
 beforeEach(() => {
   // jsdom has no object URLs; name each preview after its file.
@@ -97,7 +97,7 @@ async function uploadDocument(
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
   );
-  await screen.findByText(drafts[0].title);
+  await screen.findByText(cardTitleText(drafts[0].title));
 }
 
 /**
@@ -141,12 +141,12 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
     const user = userEvent.setup();
     await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
     await renameQuestion(user, "Q1", "Q1 reworded");
-    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /^undo/i }));
 
-    expect(screen.getByText("Q1")).toBeInTheDocument();
-    expect(screen.queryByText("Q1 reworded")).toBeNull();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
+    expect(screen.queryByText(cardTitleText("Q1 reworded"))).toBeNull();
   });
 
   it("redoes an undone edit", async () => {
@@ -157,8 +157,8 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
 
     await user.click(screen.getByRole("button", { name: /^redo/i }));
 
-    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
-    expect(screen.queryByText("Q1")).toBeNull();
+    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
+    expect(screen.queryByText(cardTitleText("Q1"))).toBeNull();
   });
 
   it("drops the undone changes when a new change is made", async () => {
@@ -171,9 +171,9 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
     await user.click(screen.getByRole("button", { name: /^redo/i }));
 
     // Redo has nothing left to bring back
-    expect(screen.getByText("Q1")).toBeInTheDocument();
-    expect(screen.queryByText("Q1 reworded")).toBeNull();
-    expect(screen.getByText("Q2 reworded")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
+    expect(screen.queryByText(cardTitleText("Q1 reworded"))).toBeNull();
+    expect(screen.getByText(cardTitleText("Q2 reworded"))).toBeInTheDocument();
   });
 
   it("undoes removing a picture from a question", async () => {
@@ -232,7 +232,7 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
     expect(
       within(questionCard("Q1")).getByRole("img", { name: "Figure 1" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Q1 retried")).toBeNull();
+    expect(screen.queryByText(cardTitleText("Q1 retried"))).toBeNull();
     expect(screen.getByAltText("Unused picture 2")).toBeInTheDocument();
   });
 
@@ -250,7 +250,7 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
 
     // Then Redo still brings back the earlier change
     await user.click(screen.getByRole("button", { name: /^redo/i }));
-    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
 
     // And a retry of Q2 does not warn about discarding edits
     await user.click(
@@ -326,7 +326,7 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
       question: { title: "Q2 retried", content: "New", type: "free_text" },
     });
     await retryQuestion(user, "Q2");
-    await screen.findByText("Q2 retried");
+    await screen.findByText(cardTitleText("Q2 retried"));
 
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
     expect(
@@ -436,7 +436,7 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
       }),
     );
     await user.click(screen.getByRole("button", { name: "Read and replace" }));
-    await screen.findByText("Fresh");
+    await screen.findByText(cardTitleText("Fresh"));
 
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
@@ -454,7 +454,7 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
 
     await user.click(screen.getByRole("button", { name: /^undo/i }));
 
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(
       screen.getByRole("radio", {
         name: "Replace the test's existing questions",
@@ -482,8 +482,8 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
     // The form kept its typing while the list changed underneath it
     expect(screen.getByLabelText(/title/i)).toHaveValue("Q2 typed");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(screen.getByText("Q2 typed")).toBeInTheDocument();
-    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q2 typed"))).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Undo edit of Question 2" }),
     ).toBeEnabled();
@@ -498,8 +498,10 @@ describe("Feature: AI document import — undo and redo from the keyboard", () =
 
     await user.keyboard("{Control>}z{/Control}");
 
-    expect(screen.getByText("Q1")).toBeInTheDocument();
-    expect(screen.queryByText("Q1 reworded")).not.toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
+    expect(
+      screen.queryByText(cardTitleText("Q1 reworded")),
+    ).not.toBeInTheDocument();
   });
 
   it("undoes the latest change on Cmd+Z", async () => {
@@ -509,7 +511,7 @@ describe("Feature: AI document import — undo and redo from the keyboard", () =
 
     await user.keyboard("{Meta>}z{/Meta}");
 
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
   });
 
   it("redoes the undone change on Ctrl+Shift+Z and on Cmd+Shift+Z", async () => {
@@ -521,10 +523,10 @@ describe("Feature: AI document import — undo and redo from the keyboard", () =
     await user.keyboard("{Control>}z{/Control}");
 
     await user.keyboard("{Control>}{Shift>}Z{/Shift}{/Control}");
-    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
     await user.keyboard("{Meta>}{Shift>}Z{/Shift}{/Meta}");
 
-    expect(screen.getByText("Q2 reworded")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q2 reworded"))).toBeInTheDocument();
   });
 
   it("leaves Ctrl+Z to the browser's own typing undo inside a text box", async () => {
@@ -591,7 +593,7 @@ describe("Feature: AI document import — undo and redo from the keyboard", () =
     });
 
     expect(notPrevented).toBe(true);
-    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
   });
 
   it("ignores Ctrl+Alt+Z, which other layouts use for typing a character", async () => {
@@ -606,7 +608,7 @@ describe("Feature: AI document import — undo and redo from the keyboard", () =
     });
 
     expect(notPrevented).toBe(true);
-    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
   });
 
   it("works with focus on the file input right after an upload and on a radio", async () => {
@@ -617,11 +619,11 @@ describe("Feature: AI document import — undo and redo from the keyboard", () =
     screen.getByLabelText(/document/i).focus();
 
     await user.keyboard("{Control>}z{/Control}");
-    expect(screen.getByText("Q2")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q2"))).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: /replace/i }));
     await user.keyboard("{Control>}z{/Control}");
 
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /replace/i })).toBeChecked();
   });
 
@@ -645,7 +647,7 @@ describe("Feature: AI document import — undo and redo from the keyboard", () =
     });
 
     expect(notPrevented).toBe(true);
-    expect(screen.getByText("Q1 reworded")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
   });
 
   it("brings back the only draft on Ctrl+Z after it was deleted", async () => {
@@ -655,7 +657,7 @@ describe("Feature: AI document import — undo and redo from the keyboard", () =
 
     await user.keyboard("{Control>}z{/Control}");
 
-    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(questionCard("Q1")).toHaveFocus();
   });
 });

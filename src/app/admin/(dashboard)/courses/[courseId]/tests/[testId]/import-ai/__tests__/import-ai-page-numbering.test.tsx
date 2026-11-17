@@ -31,6 +31,7 @@ vi.mock("../../question-media-actions", () => ({
 import { parseQuestionsAction } from "../actions";
 import { extractDocx } from "../document-extract";
 import ImportAiPage from "../page";
+import { cardTitleText } from "./review-card.helpers";
 
 beforeEach(async () => {
   await setupTestDb();
@@ -89,7 +90,7 @@ async function uploadFreshDraftAfterHighest3(): Promise<
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
   );
-  await screen.findByText("Fresh");
+  await screen.findByText(cardTitleText("Fresh"));
   return user;
 }
 
@@ -112,7 +113,7 @@ describe("Feature: Student view numbers drafts as the page's real test would sav
     // Given a draft uploaded after live questions up to #3
     await uploadFreshDraftAfterHighest3();
 
-    // Then its Teacher card header reads #4
-    expect(screen.getByText("#4")).toBeInTheDocument();
+    // Then its Teacher card header reads Question 4
+    expect(screen.getByText("Question 4: Fresh")).toBeInTheDocument();
   });
 });

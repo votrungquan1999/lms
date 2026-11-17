@@ -23,6 +23,7 @@ import {
   ImportAiFilePicker,
   QuestionPreviewList,
 } from "../question-preview.ui";
+import { cardTitleText } from "./review-card.helpers";
 
 function makeDocxFile(): File {
   return new File(["dummy content"], "questions.docx", {
@@ -70,7 +71,7 @@ describe("Feature: AI document import — refreshing or closing the tab with wor
     renderScreen();
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
 
     expect(browserWarnsOnUnload()).toBe(true);
   });
@@ -112,7 +113,7 @@ describe("Feature: AI document import — refreshing or closing the tab with wor
     });
     renderScreen();
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /^import/i }));
 
@@ -137,7 +138,7 @@ describe("Feature: AI document import — refreshing or closing the tab with wor
     });
     const { unmount } = renderScreen();
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText("Q1")).toBeInTheDocument();
+    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
 
     unmount();
 
