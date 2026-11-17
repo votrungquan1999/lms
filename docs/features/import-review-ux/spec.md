@@ -75,6 +75,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 - Single-answer questions use radios, and clicking any choice always makes it the only correct one (also when the choices were all marked). Multi-answer questions use checkboxes.
 - Removing the only correct option is allowed; the card then shows a warning.
 - Save trims blank optional fields: a Model answer or Explanation that is empty or only spaces is saved as nothing.
+- The Edit modal also shows the draft's pictures with "Remove picture N from this question" and an image-only picker ("Add a picture file": PNG, JPEG or WebP, 10 MB each, at most 3 pictures counting those kept). A picked file gets the next free `[image N]` number and a local preview; nothing is uploaded until Import. Save records one undoable change covering the text and the pictures; Undo restores the old pictures and leaves an added picture in "Unused pictures". A Save that changed only pictures still marks the draft hand-edited, so Retry with AI warns first. Previews of files never saved are released on Cancel.
 - While the Edit modal is open, Import is disabled and shows "Save or cancel your open edits first"; the page behind the modal is inert, so the note is not reachable in practice.
 
 ## What a card shows

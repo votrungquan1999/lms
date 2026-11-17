@@ -21,14 +21,19 @@ export interface ImportQuestionDraft extends ParsedQuestion {
 export type EditableFields = Pick<
   ImportQuestionDraft,
   "title" | "content" | "type" | "options" | "referenceAnswer" | "explanation"
->;
+> & {
+  /** The `[image N]` numbers of the draft's pictures; none reads as an empty list. */
+  imageNumbers: number[];
+};
 
 /**
  * Narrows a draft to the fields its edit form works on.
  * @param draft - Any draft, or a buffer holding more than the editable fields.
  * @returns Just the editable fields.
  */
-export function editableFieldsOf(draft: EditableFields): EditableFields {
+export function editableFieldsOf(
+  draft: Omit<EditableFields, "imageNumbers"> & { imageNumbers?: number[] },
+): EditableFields {
   return {
     title: draft.title,
     content: draft.content,
@@ -36,5 +41,6 @@ export function editableFieldsOf(draft: EditableFields): EditableFields {
     options: draft.options,
     referenceAnswer: draft.referenceAnswer,
     explanation: draft.explanation,
+    imageNumbers: draft.imageNumbers ?? [],
   };
 }

@@ -1,10 +1,20 @@
 "use client";
 
-import { createContext, useContext, useReducer } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useReducer,
+  useRef,
+} from "react";
 import type { EditableFields } from "./import-ai-draft";
+import type { ReviewPicture } from "./import-ai-form.state";
 
-/** The editable fields of a review-list draft, seeded fresh per edit session. */
-export type QuestionEditDraft = EditableFields;
+/** The editable fields of a review-list draft plus the files picked in this edit session, seeded fresh per session. */
+export interface QuestionEditDraft extends EditableFields {
+  /** Pictures picked in the modal; they join the review pictures only on Save. */
+  addedPictures: ReviewPicture[];
+}
 
 /** Fewest choices a multiple-choice question keeps while its choices are edited. */
 export const MIN_CHOICES = 2;
@@ -17,7 +27,9 @@ type QuestionEditAction =
   | { type: "SET_OPTION_TEXT"; index: number; text: string }
   | { type: "ADD_OPTION" }
   | { type: "REMOVE_OPTION"; index: number }
-  | { type: "TOGGLE_OPTION_CORRECT"; index: number };
+  | { type: "TOGGLE_OPTION_CORRECT"; index: number }
+  | { type: "REMOVE_PICTURE"; number: number }
+  | { type: "ADD_PICTURE"; picture: ReviewPicture };
 
 /**
  * Reduces the in-progress edit buffer for one question. `createReducerContext`
@@ -68,6 +80,20 @@ function questionEditReducer(
               : option,
         ),
       };
+    case "REMOVE_PICTURE":
+      return {
+        ...state,
+        imageNumbers: state.imageNumbers.filter((n) => n !== action.number),
+        addedPictures: state.addedPictures.filter(
+          (picture) => picture.number !== action.number,
+        ),
+      };
+    case "ADD_PICTURE":
+      return {
+        ...state,
+        imageNumbers: [...state.imageNumbers, action.picture.number],
+        addedPictures: [...state.addedPictures, action.picture],
+      };
     default:
       return state;
   }
@@ -76,6 +102,8 @@ function questionEditReducer(
 interface QuestionEditContextValue {
   state: QuestionEditDraft;
   dispatch: React.Dispatch<QuestionEditAction>;
+  /** Keeps the picked files' previews alive past this modal; call when Save hands them on. */
+  keepPreviews: () => void;
 }
 
 const QuestionEditContext = createContext<QuestionEditContextValue | null>(
@@ -90,12 +118,38 @@ export function QuestionEditProvider({
   initial,
   children,
 }: {
-  initial: QuestionEditDraft;
+  initial: EditableFields;
   children: React.ReactNode;
 }): React.ReactNode {
-  const [state, dispatch] = useReducer(questionEditReducer, initial);
+  const [state, dispatch] = useReducer(questionEditReducer, {
+    ...initial,
+    addedPictures: [],
+  });
+  const kept = useRef(false);
+  const latestAdded = useRef<ReviewPicture[]>([]);
+  useEffect(() => {
+    latestAdded.current = state.addedPictures;
+  }, [state.addedPictures]);
+  // Previews of files that never reached a Save would leak browser memory.
+  useEffect(
+    () => () => {
+      if (kept.current) return;
+      for (const picture of latestAdded.current) {
+        URL.revokeObjectURL(picture.previewUrl);
+      }
+    },
+    [],
+  );
   return (
-    <QuestionEditContext.Provider value={{ state, dispatch }}>
+    <QuestionEditContext.Provider
+      value={{
+        state,
+        dispatch,
+        keepPreviews: () => {
+          kept.current = true;
+        },
+      }}
+    >
       {children}
     </QuestionEditContext.Provider>
   );
@@ -109,6 +163,11 @@ function useQuestionEditContext(): QuestionEditContextValue {
     );
   }
   return value;
+}
+
+/** Domain hook for handing picked previews on to Save. */
+export function useKeepPreviews(): () => void {
+  return useQuestionEditContext().keepPreviews;
 }
 
 /** Domain hook exposing the current edit buffer. Throws outside the provider. */
@@ -126,6 +185,8 @@ export function useQuestionEditActions(): {
   addOption: () => void;
   removeOption: (index: number) => void;
   toggleOptionCorrect: (index: number) => void;
+  removePicture: (number: number) => void;
+  addPicture: (picture: ReviewPicture) => void;
 } {
   const { dispatch } = useQuestionEditContext();
   return {
@@ -141,5 +202,7 @@ export function useQuestionEditActions(): {
     removeOption: (index) => dispatch({ type: "REMOVE_OPTION", index }),
     toggleOptionCorrect: (index) =>
       dispatch({ type: "TOGGLE_OPTION_CORRECT", index }),
+    removePicture: (number) => dispatch({ type: "REMOVE_PICTURE", number }),
+    addPicture: (picture) => dispatch({ type: "ADD_PICTURE", picture }),
   };
 }

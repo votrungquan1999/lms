@@ -154,7 +154,7 @@ type ImportAiAction =
       questions: ImportQuestionDraft[];
     }
   | { type: "RESET" }
-  | { type: "CHANGE"; change: Change }
+  | { type: "CHANGE"; change: Change; addedPictures?: ReviewPicture[] }
   | { type: "UNDO" }
   | { type: "REDO" }
   | { type: "RETRY_RESULT"; id: string; patch: RetryPatch }
@@ -284,6 +284,10 @@ function importAiReducer(
       }
       return {
         ...state,
+        // The files picked in the edit join the review pictures with the change, so Undo leaves them unused.
+        pictures: action.addedPictures
+          ? [...state.pictures, ...action.addedPictures]
+          : state.pictures,
         changes: [...state.changes, action.change],
         redo: [],
       };
@@ -418,8 +422,12 @@ interface ImportAiContextValue
   /** Work the teacher would lose: a read is running, drafts are on screen or changes can be undone. */
   hasWorkOnScreen: boolean;
   selectFile: (file: File) => Promise<void>;
-  /** Saves a hand-edit of a draft's text fields. */
-  saveEdit: (id: string, fields: EditableFields) => void;
+  /** Saves a hand-edit of a draft's fields and pictures as one change; files picked in the edit join the review pictures with it. */
+  saveEdit: (
+    id: string,
+    fields: EditableFields,
+    addedPictures?: ReviewPicture[],
+  ) => void;
   /** The change Undo would take back, or null when there is none. */
   undoChange: Change | null;
   /** The change Redo would bring back, or null when there is none. */
@@ -927,10 +935,11 @@ export function ImportAiProvider({
     isImporting: state.phase === "importing",
     hasWorkOnScreen,
     selectFile,
-    saveEdit: (id, fields) =>
+    saveEdit: (id, fields, addedPictures) =>
       dispatch({
         type: "CHANGE",
         change: { kind: "edit", id, fields: editableFieldsOf(fields) },
+        addedPictures,
       }),
     undoChange: state.changes.at(-1) ?? null,
     redoChange: state.redo.at(-1) ?? null,

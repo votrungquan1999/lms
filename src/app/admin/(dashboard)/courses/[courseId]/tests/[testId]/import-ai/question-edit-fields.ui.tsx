@@ -5,14 +5,16 @@ import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
-import type { EditableFields } from "./import-ai-draft";
 import { picturesOf, useImportAi } from "./import-ai-form.state";
 import { pictureReferenceHint } from "./picture-references";
 import {
   MIN_CHOICES,
+  type QuestionEditDraft,
+  useKeepPreviews,
   useQuestionEditActions,
   useQuestionEditState,
 } from "./question-edit.state";
+import { QuestionEditPictures } from "./question-edit-pictures.ui";
 
 /**
  * Editable fields for one question's in-progress edit buffer. Mirrors
@@ -26,10 +28,11 @@ export function QuestionEditFields({
   onCancel,
 }: {
   questionId: string;
-  onSave: (draft: EditableFields) => void;
+  onSave: (draft: QuestionEditDraft) => void;
   onCancel: () => void;
 }): React.ReactNode {
   const draft = useQuestionEditState();
+  const keepPreviews = useKeepPreviews();
   // A multiple-choice draft the AI returned without choices starts with none.
   const choices = draft.options ?? [];
   // Locked while a new file is read, since its answer replaces this card; the typed text stays.
@@ -170,6 +173,7 @@ export function QuestionEditFields({
           onChange={(e) => setExplanation(e.target.value)}
         />
       </div>
+      <QuestionEditPictures questionId={questionId} />
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
           Cancel
@@ -178,7 +182,10 @@ export function QuestionEditFields({
           type="button"
           size="sm"
           disabled={isReading}
-          onClick={() => onSave(draft)}
+          onClick={() => {
+            keepPreviews();
+            onSave(draft);
+          }}
         >
           Save
         </Button>

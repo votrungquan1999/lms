@@ -641,17 +641,21 @@ function ImportEditHost({
     <QuestionEditProvider initial={editableFieldsOf(question)}>
       <QuestionEditFields
         questionId={question.id}
-        onSave={(draft) => {
+        onSave={({ addedPictures, ...draft }) => {
           // Blank optional fields become undefined so the draft stays retryable and importable; the textarea still needs "".
-          saveEdit(question.id, {
-            ...draft,
-            referenceAnswer: draft.referenceAnswer?.trim()
-              ? draft.referenceAnswer
-              : undefined,
-            explanation: draft.explanation?.trim()
-              ? draft.explanation
-              : undefined,
-          });
+          saveEdit(
+            question.id,
+            {
+              ...draft,
+              referenceAnswer: draft.referenceAnswer?.trim()
+                ? draft.referenceAnswer
+                : undefined,
+              explanation: draft.explanation?.trim()
+                ? draft.explanation
+                : undefined,
+            },
+            addedPictures,
+          );
           onSaved();
         }}
         onCancel={onCancel}
