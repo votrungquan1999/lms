@@ -1,4 +1,5 @@
 import {
+  DeleteObjectsCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -118,5 +119,27 @@ export class S3StorageService {
     });
 
     return getSignedUrl(this.client, command, { expiresIn: ttlSeconds });
+  }
+
+  /**
+   * Deletes stored objects in one batch call. Does nothing for an empty list,
+   * which S3 would reject.
+   * @param keys - The object keys to delete.
+   * @throws When S3 reports a per-key failure in its response.
+   */
+  async deleteObjects(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+
+    const result = await this.client.send(
+      new DeleteObjectsCommand({
+        Bucket: this.config.bucket,
+        Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
+      }),
+    );
+    if (result.Errors && result.Errors.length > 0) {
+      throw new Error(
+        `Failed to delete ${result.Errors.length} stored file(s): ${result.Errors[0].Message ?? result.Errors[0].Code}`,
+      );
+    }
   }
 }

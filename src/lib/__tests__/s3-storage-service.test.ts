@@ -1,4 +1,9 @@
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  type DeleteObjectsCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl as getCloudFrontSignedUrl } from "@aws-sdk/cloudfront-signer";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
@@ -169,5 +174,49 @@ describe("S3StorageService.getPresignedDownloadUrl", () => {
     expect((signedCommand as GetObjectCommand).input).toMatchObject({
       ResponseContentDisposition: 'attachment; filename="syllabus.pdf"',
     });
+  });
+});
+
+describe("S3StorageService.deleteObjects", () => {
+  it("deletes the given keys in one batch call", async () => {
+    // Given a service whose client accepts the delete
+    const send = vi
+      .spyOn(S3Client.prototype, "send")
+      .mockResolvedValue({} as never);
+    const service = new S3StorageService(testS3Config);
+
+    // When two keys are deleted
+    await service.deleteObjects(["media/a.png", "media/b.png"]);
+
+    // Then one DeleteObjects command names the bucket and both keys
+    expect(send).toHaveBeenCalledTimes(1);
+    const command = send.mock.calls[0][0] as DeleteObjectsCommand;
+    expect(command.input).toMatchObject({
+      Bucket: "test-bucket",
+      Delete: { Objects: [{ Key: "media/a.png" }, { Key: "media/b.png" }] },
+    });
+    send.mockRestore();
+  });
+
+  it("makes no call for an empty list", async () => {
+    const send = vi
+      .spyOn(S3Client.prototype, "send")
+      .mockResolvedValue({} as never);
+
+    await new S3StorageService(testS3Config).deleteObjects([]);
+
+    expect(send).not.toHaveBeenCalled();
+    send.mockRestore();
+  });
+
+  it("throws when S3 reports a failed key", async () => {
+    const send = vi.spyOn(S3Client.prototype, "send").mockResolvedValue({
+      Errors: [{ Key: "media/a.png", Message: "denied" }],
+    } as never);
+
+    await expect(
+      new S3StorageService(testS3Config).deleteObjects(["media/a.png"]),
+    ).rejects.toThrow("denied");
+    send.mockRestore();
   });
 });

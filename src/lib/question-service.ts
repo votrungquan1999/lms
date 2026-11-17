@@ -311,6 +311,12 @@ export interface AddQuestionOpts {
 
 // ── Document (flat, for MongoDB storage) ────────────────────────────────────
 
+/** The media fields of any stored question (test or Question Bank) the reference check reads. */
+interface MediaHolderDocument {
+  media: { key: string }[];
+  deletedAt: Date | null;
+}
+
 /**
  * Question document stored in the `question` collection.
  * Stored flat for simplicity; mapped to the discriminated union at read time.
@@ -346,6 +352,7 @@ export interface QuestionDocument {
 
 export class QuestionService {
   private readonly questions: Collection<QuestionDocument>;
+  private readonly poolQuestions: Collection<MediaHolderDocument>;
 
   /**
    * `testService` is the same school's tests, where every write looks up the
@@ -365,6 +372,30 @@ export class QuestionService {
     private readonly getAnswerService?: () => Promise<AnswerService>,
   ) {
     this.questions = db.collection<QuestionDocument>("question");
+    this.poolQuestions = db.collection<MediaHolderDocument>("pool_question");
+  }
+
+  /**
+   * Picks out the storage keys no live test question or Question Bank
+   * question still lists in its media. Questions inside deleted tests or
+   * courses still count, since their own `deletedAt` is null.
+   * @param keys - Candidate storage keys.
+   * @returns The keys nothing else holds, in input order.
+   */
+  async findUnreferencedMediaKeys(keys: string[]): Promise<string[]> {
+    if (keys.length === 0) return [];
+
+    const filter = { "media.key": { $in: keys }, deletedAt: null };
+    const [testHolders, poolHolders] = await Promise.all([
+      this.questions.find(filter, { projection: { media: 1 } }).toArray(),
+      this.poolQuestions.find(filter, { projection: { media: 1 } }).toArray(),
+    ]);
+    const held = new Set(
+      [...testHolders, ...poolHolders].flatMap((doc) =>
+        doc.media.map((entry) => entry.key),
+      ),
+    );
+    return keys.filter((key) => !held.has(key));
   }
 
   /**

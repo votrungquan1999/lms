@@ -102,6 +102,54 @@ let currentIsAdminEmail = false;
 // tests that exercise the AI path inject a stub via setupTestDb({ aiClient }).
 let currentAiClient: AiClient = new GeminiAiClient();
 
+/** Recording stand-in for S3: presigns fake URLs and remembers every delete. */
+export class FakeS3Storage {
+  /** Keys passed to `deleteObjects`, in call order. */
+  deletedKeys: string[] = [];
+  /** When set, the next and every later `deleteObjects` call rejects with it. */
+  deleteFailure: Error | null = null;
+
+  /**
+   * Fake presigned PUT URL for a key.
+   * @param key - The object key.
+   * @param _contentType - Ignored.
+   */
+  async getPresignedUploadUrl(key: string, _contentType: string) {
+    return { key, url: `https://fake-s3.local/put/${key}` };
+  }
+
+  /**
+   * Fake presigned GET URL for a key.
+   * @param key - The object key.
+   * @param _ttlSeconds - Ignored.
+   */
+  async getPresignedDownloadUrl(key: string, _ttlSeconds?: number) {
+    return `https://fake-s3.local/get/${key}`;
+  }
+
+  /**
+   * Records the deleted keys, or rejects when a failure was set.
+   * @param keys - The object keys to delete.
+   */
+  async deleteObjects(keys: string[]): Promise<void> {
+    if (this.deleteFailure) throw this.deleteFailure;
+    this.deletedKeys.push(...keys);
+  }
+}
+
+let currentFakeS3: FakeS3Storage | null = null;
+
+/**
+ * The current test's fake S3, for asserting deletes or making them fail.
+ * @returns The fake built by `setupTestDb`.
+ */
+export function getFakeS3(): FakeS3Storage {
+  if (!currentFakeS3) {
+    throw new Error("setupTestDb() must run before getFakeS3()");
+  }
+  return currentFakeS3;
+}
+
 /** The admin every test is signed in as unless it calls signInAs(). */
 function defaultSchoolAdminSession(): AdminSession {
   return new AdminSession({
@@ -143,14 +191,8 @@ function makeSharedServices(db: Db): SharedServices {
   const schoolService = new SchoolService(db);
   const schoolDirectory = new SchoolDirectory(db);
   // Deterministic fake S3 service — no AWS SDK pulled into jsdom (type-only import).
-  const s3StorageService = {
-    getPresignedUploadUrl: async (key: string, _contentType: string) => ({
-      key,
-      url: `https://fake-s3.local/put/${key}`,
-    }),
-    getPresignedDownloadUrl: async (key: string, _ttlSeconds?: number) =>
-      `https://fake-s3.local/get/${key}`,
-  } as unknown as S3StorageService;
+  currentFakeS3 = new FakeS3Storage();
+  const s3StorageService = currentFakeS3 as unknown as S3StorageService;
 
   return {
     pageGuard,

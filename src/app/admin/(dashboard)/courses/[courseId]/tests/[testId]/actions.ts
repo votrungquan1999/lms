@@ -5,9 +5,14 @@ import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import { pluralize } from "src/lib/pluralize";
+import { deleteUnreferencedMedia } from "src/lib/question-media-cleanup";
 import type { EditedMediaEntry } from "src/lib/question-media-merge";
 import type { UpdateQuestionInput } from "src/lib/question-service";
-import { getQuestionService, getTestService } from "src/lib/services-singleton";
+import {
+  getQuestionService,
+  getS3StorageService,
+  getTestService,
+} from "src/lib/services-singleton";
 import {
   editedMediaSchemaFor,
   type SubmittedMedia,
@@ -165,12 +170,30 @@ export async function updateQuestionAction(
           input.media = media;
         }
 
+        // Read before the save so the keys it drops can be computed after
+        const before =
+          media !== undefined
+            ? await questionService.getQuestion(data.testId, data.questionId)
+            : null;
+
         await questionService.updateQuestion(
           data.testId,
           data.questionId,
           input,
           adminUserId,
         );
+
+        if (media !== undefined && before) {
+          const savedKeys = new Set(media.map((entry) => entry.key));
+          const droppedKeys = before.media
+            .map((entry) => entry.key)
+            .filter((key) => !savedKeys.has(key));
+          await deleteUnreferencedMedia(
+            questionService,
+            await getS3StorageService(),
+            droppedKeys,
+          );
+        }
 
         revalidatePath(`/admin/courses/${data.courseId}/tests/${data.testId}`);
 
