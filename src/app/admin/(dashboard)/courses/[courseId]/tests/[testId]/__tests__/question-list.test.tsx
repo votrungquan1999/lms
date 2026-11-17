@@ -565,7 +565,7 @@ describe("Feature: a teacher deletes a question from a test", () => {
     expect(dialog).not.toHaveTextContent(/to zero/i);
   });
 
-  it("shows a delete control for an image_answer question too, which has no edit panel", async () => {
+  it("shows a delete control for an image_answer question too", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Course",

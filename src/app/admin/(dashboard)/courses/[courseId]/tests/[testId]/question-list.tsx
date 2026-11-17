@@ -93,13 +93,11 @@ export function QuestionList({
                 {needsAnswerKey(question) && (
                   <Badge variant="destructive">Needs an answer key</Badge>
                 )}
-                {(question.type === "free_text" || isMcQuestion(question)) && (
-                  <QuestionEditButton
-                    question={question}
-                    courseId={courseId}
-                    answeredCount={answeredCount}
-                  />
-                )}
+                <QuestionEditButton
+                  question={question}
+                  courseId={courseId}
+                  answeredCount={answeredCount}
+                />
                 <DeleteQuestionButton
                   questionId={question.id}
                   testId={question.testId}
