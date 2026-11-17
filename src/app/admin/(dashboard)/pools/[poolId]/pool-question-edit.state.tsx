@@ -3,6 +3,7 @@
 import { Trash2 } from "lucide-react";
 import { useActionState, useState } from "react";
 import { OptionalTextField } from "src/components/optional-text-field";
+import { QuestionEditModal } from "src/components/question-edit-modal.state";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,9 +35,16 @@ import {
   updatePoolQuestionAction,
 } from "../pool-question-actions";
 
-interface PoolQuestionEditPanelProps {
+interface PoolQuestionEditButtonProps {
   question: PoolQuestion;
   poolId: string;
+}
+
+interface PoolQuestionEditPanelProps extends PoolQuestionEditButtonProps {
+  /** Called after a successful save so the hosting modal can close. */
+  onSaved?: () => void;
+  /** Called by Cancel to leave the modal without saving. */
+  requestClose?: () => void;
 }
 
 /** One row of the options editor. `id` absent means a genuinely new option (D53). */
@@ -47,14 +55,15 @@ interface OptionDraft {
 }
 
 /**
- * Inline per-pool-question edit panel (Step 30 / D30 / D51) — a parallel
- * implementation to `QuestionEditPanel`, not a shared one. Pool questions
- * carry no student answers, so there is no confirmation modal here: every
- * save submits directly.
+ * Edit form for one Question Bank question, hosted in the Edit modal. A
+ * parallel implementation to `QuestionEditPanel`, not a shared one. Pool
+ * questions carry no student answers, so every save submits directly.
  */
 export function PoolQuestionEditPanel({
   question,
   poolId,
+  onSaved,
+  requestClose,
 }: PoolQuestionEditPanelProps) {
   const [selectedType, setSelectedType] = useState<QuestionType>(question.type);
   const isFreeText = selectedType === "free_text";
@@ -82,14 +91,16 @@ export function PoolQuestionEditPanel({
     question.type === "multi_select" ? question.mcGradingStrategy : undefined;
 
   const [state, formAction, isPending] = useActionState(
-    (
+    async (
       prevState: Awaited<ReturnType<typeof updatePoolQuestionAction>> | null,
       formData: FormData,
     ) => {
       if (isMc) {
         formData.set("options", JSON.stringify(options));
       }
-      return updatePoolQuestionAction(prevState, formData);
+      const result = await updatePoolQuestionAction(prevState, formData);
+      if (result.success) onSaved?.();
+      return result;
     },
     null,
   );
@@ -346,21 +357,51 @@ export function PoolQuestionEditPanel({
         />
       )}
 
-      <Button type="submit" disabled={isPending} size="sm">
-        {isPending ? "Saving..." : "Save"}
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={isPending} size="sm">
+          {isPending ? "Saving..." : "Save"}
+        </Button>
+        {requestClose && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={requestClose}
+          >
+            Cancel
+          </Button>
+        )}
+      </div>
 
-      {state?.success && (
-        <output className="block text-sm text-emerald-600">
-          {state.message}
-        </output>
-      )}
       {state && !state.success && (
         <div className="text-sm text-destructive" role="alert">
           {state.message}
         </div>
       )}
     </form>
+  );
+}
+
+/**
+ * Edit button for one Question Bank question: opens the shared Edit modal
+ * around `PoolQuestionEditPanel`.
+ * @param props - The question being edited and its pool id.
+ */
+export function PoolQuestionEditButton({
+  question,
+  poolId,
+}: PoolQuestionEditButtonProps) {
+  return (
+    <QuestionEditModal>
+      {({ onSaved, requestClose }) => (
+        <PoolQuestionEditPanel
+          question={question}
+          poolId={poolId}
+          onSaved={onSaved}
+          requestClose={requestClose}
+        />
+      )}
+    </QuestionEditModal>
   );
 }
 

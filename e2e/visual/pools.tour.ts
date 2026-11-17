@@ -116,7 +116,7 @@ async function idOf(
   });
 }
 
-/** The "Add Question" form; every other form on a pool page is an edit panel. */
+/** The "Add Question" form; every other form on a pool page lives in an Edit modal. */
 function addQuestionForm(page: Page): Locator {
   return page.locator("form").filter({ has: page.locator("#question-title") });
 }

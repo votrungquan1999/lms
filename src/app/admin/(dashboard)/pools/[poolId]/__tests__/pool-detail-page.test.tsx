@@ -51,7 +51,7 @@ describe("Feature: Pool detail page — question preview formatting", () => {
     render(ui);
 
     // Bold renders as an element, not literal asterisks — scoped to the
-    // rendered preview, since the edit panel below it legitimately keeps
+    // rendered preview, since the Edit modal legitimately keeps
     // the raw markdown source in its own (unrelated) textarea.
     const strongEl = screen.getByText("bold", { selector: "strong" });
     const preview = strongEl.closest(".prose");

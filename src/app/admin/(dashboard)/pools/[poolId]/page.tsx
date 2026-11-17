@@ -11,7 +11,7 @@ import {
 import { AddPoolQuestionForm } from "./add-pool-question-form";
 import {
   DeletePoolQuestionButton,
-  PoolQuestionEditPanel,
+  PoolQuestionEditButton,
 } from "./pool-question-edit.state";
 import { PoolQuestionKey } from "./pool-question-key.ui";
 
@@ -65,6 +65,7 @@ export default async function PoolDetailPage({
                   <Badge variant="secondary">
                     {QUESTION_TYPE_LABELS[question.type]}
                   </Badge>
+                  <PoolQuestionEditButton question={question} poolId={poolId} />
                   <DeletePoolQuestionButton
                     poolQuestionId={question.id}
                     poolId={poolId}
@@ -73,7 +74,6 @@ export default async function PoolDetailPage({
               }
             >
               <PoolQuestionKey question={question} />
-              <PoolQuestionEditPanel question={question} poolId={poolId} />
             </StudentQuestionCard>
           ))}
         </div>

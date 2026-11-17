@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type {
   PoolFreeTextQuestion,
   PoolMultiSelectQuestion,
+  PoolQuestion,
   PoolSingleSelectQuestion,
 } from "src/lib/pool-question-service";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,7 +14,7 @@ import {
 } from "../../pool-question-actions";
 import {
   DeletePoolQuestionButton,
-  PoolQuestionEditPanel,
+  PoolQuestionEditButton,
 } from "../pool-question-edit.state";
 
 beforeEach(() => {
@@ -24,6 +25,13 @@ vi.mock("../../pool-question-actions", () => ({
   updatePoolQuestionAction: vi.fn(),
   deletePoolQuestionAction: vi.fn(),
 }));
+
+/** Renders the question's Edit button, opens its modal and returns the dialog. */
+async function openEditModal(question: PoolQuestion): Promise<HTMLElement> {
+  render(<PoolQuestionEditButton question={question} poolId="pool-1" />);
+  await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+  return screen.findByRole("dialog", { name: /edit question/i });
+}
 
 /** Builds a minimal free_text pool question for the edit-panel tests. */
 function freeTextQuestion(
@@ -71,19 +79,21 @@ describe("Feature: Pool question edit panel (Step 30)", () => {
     });
     const question = freeTextQuestion();
 
-    render(<PoolQuestionEditPanel question={question} poolId="pool-1" />);
+    const dialog = await openEditModal(question);
 
-    expect(screen.getByDisplayValue("Explain gravity")).toBeInTheDocument();
+    expect(
+      within(dialog).getByDisplayValue("Explain gravity"),
+    ).toBeInTheDocument();
 
-    await user.clear(screen.getByDisplayValue("Explain gravity"));
+    await user.clear(within(dialog).getByDisplayValue("Explain gravity"));
     await user.type(
-      screen.getByLabelText(/title/i),
+      within(dialog).getByLabelText(/title/i),
       "Explain gravity (revised)",
     );
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await user.click(within(dialog).getByRole("button", { name: /^save$/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     const submitted = vi.mocked(updatePoolQuestionAction).mock
@@ -103,15 +113,15 @@ describe("Feature: Pool question edit panel (Step 30)", () => {
       { text: "London", isCorrect: false },
     ]);
 
-    render(<PoolQuestionEditPanel question={question} poolId="pool-1" />);
+    const dialog = await openEditModal(question);
 
-    expect(screen.getByDisplayValue("Paris")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("London")).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue("Paris")).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue("London")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await user.click(within(dialog).getByRole("button", { name: /^save$/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     const submitted = vi.mocked(updatePoolQuestionAction).mock
@@ -127,22 +137,22 @@ describe("Feature: Pool question edit panel (Step 30)", () => {
     ]);
   });
 
-  it("shows the same answer-display heading and wording as the test settings panel, without a pool-specific suffix", () => {
+  it("shows the same answer-display heading and wording as the test settings panel, without a pool-specific suffix", async () => {
     const question = freeTextQuestion();
 
-    render(<PoolQuestionEditPanel question={question} poolId="pool-1" />);
+    const dialog = await openEditModal(question);
 
     expect(
-      screen.getByText("How students see their answer"),
+      within(dialog).getByText("How students see their answer"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("radio", { name: "Use the test's setting" }),
+      within(dialog).getByRole("radio", { name: "Use the test's setting" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("radio", { name: "Side-by-side comparison" }),
+      within(dialog).getByRole("radio", { name: "Side-by-side comparison" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("radio", {
+      within(dialog).getByRole("radio", {
         name: "Correct answer written out plainly",
       }),
     ).toBeInTheDocument();
@@ -175,15 +185,19 @@ describe("Feature: Pool question edit panel — grading strategy", () => {
       ],
     };
 
-    render(<PoolQuestionEditPanel question={question} poolId="pool-1" />);
+    const dialog = await openEditModal(question);
 
-    expect(screen.getByRole("radio", { name: "Partial credit" })).toBeChecked();
+    expect(
+      within(dialog).getByRole("radio", { name: "Partial credit" }),
+    ).toBeChecked();
 
-    await user.click(screen.getByRole("radio", { name: "All-or-nothing" }));
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await user.click(
+      within(dialog).getByRole("radio", { name: "All-or-nothing" }),
+    );
+    await user.click(within(dialog).getByRole("button", { name: /^save$/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     const submitted = vi.mocked(updatePoolQuestionAction).mock
@@ -191,16 +205,16 @@ describe("Feature: Pool question edit panel — grading strategy", () => {
     expect(submitted.get("mcGradingStrategy")).toBe("all_or_nothing");
   });
 
-  it("hides the grading control for a single_select pool question", () => {
+  it("hides the grading control for a single_select pool question", async () => {
     const question = singleSelectQuestion([
       { text: "Paris", isCorrect: true },
       { text: "London", isCorrect: false },
     ]);
 
-    render(<PoolQuestionEditPanel question={question} poolId="pool-1" />);
+    const dialog = await openEditModal(question);
 
     expect(
-      screen.queryByRole("radio", { name: "All-or-nothing" }),
+      within(dialog).queryByRole("radio", { name: "All-or-nothing" }),
     ).not.toBeInTheDocument();
   });
 });
@@ -217,24 +231,24 @@ describe("Feature: Pool question edit panel — a refused save keeps what's on s
       { text: "London", isCorrect: false },
     ]);
 
-    render(<PoolQuestionEditPanel question={question} poolId="pool-1" />);
+    const dialog = await openEditModal(question);
 
-    await user.clear(screen.getByDisplayValue("Pick the capital"));
+    await user.clear(within(dialog).getByDisplayValue("Pick the capital"));
     await user.type(
-      screen.getByLabelText(/title/i),
+      within(dialog).getByLabelText(/title/i),
       "Pick the capital (revised)",
     );
-    const optionCheckbox = screen.getByRole("radio", {
+    const optionCheckbox = within(dialog).getByRole("radio", {
       name: /mark option 2 correct/i,
     });
     await user.click(optionCheckbox);
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await user.click(within(dialog).getByRole("button", { name: /^save$/i }));
 
-    await screen.findByRole("alert");
+    await within(dialog).findByRole("alert");
 
     // Read immediately after the refusal — retyping would append to
     // whatever a reset left behind, masking the bug this pins.
-    expect(screen.getByLabelText(/title/i)).toHaveValue(
+    expect(within(dialog).getByLabelText(/title/i)).toHaveValue(
       "Pick the capital (revised)",
     );
     expect(optionCheckbox).toBeChecked();
