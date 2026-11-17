@@ -9,7 +9,7 @@
 - [T1] tests/add-success-banner: the moment after a successful submit — green "Question … added successfully" banner on screen, form remounted blank
 - [T1] tests/unbroken-question: a question whose title and body are one pasted email-like string, rendered in the question list, the header count, and the success banner
 - [T1] tests/settings-practice-saved: Test Settings with Practice ticked and saved — "Settings saved", time-limit input disabled with its alternate helper text
-- [T1] tests/detail-seeded: seed-test-visible with its 3 questions (free_text, single_select, multi_select), answered-student counts, and every inline edit panel expanded
+- [T1] tests/detail-seeded: seed-test-visible with its 3 questions (free_text, single_select, multi_select), answered-student counts, each shown as the student card with its teacher strip and an Edit button in the header
 - [T1] tests/import-ai-initial: the AI import page before any file is chosen (picker only; the review list renders nothing)
 - [T2] tests/import-ai-review: after a real PDF upload — the mocked provider's canned single free-response draft, APPEND/REPLACE selector, and Import button
 

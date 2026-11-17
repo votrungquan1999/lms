@@ -9,7 +9,10 @@ import {
 } from "src/lib/question-labels";
 import { isMcQuestion, type Question } from "src/lib/question-service";
 import type { AnswerRevealMode } from "src/lib/test-service";
-import { DeleteQuestionButton, QuestionEditPanel } from "./question-edit.state";
+import {
+  DeleteQuestionButton,
+  QuestionEditButton,
+} from "./question-edit.state";
 
 /** Renders a free_text question's reveal-mode override as read-only text; absent means it inherits the test's own choice. */
 function answerRevealModeLabel(mode: AnswerRevealMode | undefined): string {
@@ -90,6 +93,13 @@ export function QuestionList({
                 {needsAnswerKey(question) && (
                   <Badge variant="destructive">Needs an answer key</Badge>
                 )}
+                {(question.type === "free_text" || isMcQuestion(question)) && (
+                  <QuestionEditButton
+                    question={question}
+                    courseId={courseId}
+                    answeredCount={answeredCount}
+                  />
+                )}
                 <DeleteQuestionButton
                   questionId={question.id}
                   testId={question.testId}
@@ -153,13 +163,6 @@ export function QuestionList({
                   </p>
                 )}
               </div>
-            )}
-            {(question.type === "free_text" || isMcQuestion(question)) && (
-              <QuestionEditPanel
-                question={question}
-                courseId={courseId}
-                answeredCount={answeredCount}
-              />
             )}
           </StudentQuestionCard>
         );

@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react";
 import type * as React from "react";
 import { useActionState, useRef, useState } from "react";
 import { OptionalTextField } from "src/components/optional-text-field";
+import { QuestionEditModal } from "src/components/question-edit-modal.state";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,11 +41,18 @@ import {
   updateQuestionAction,
 } from "./actions";
 
-interface QuestionEditPanelProps {
+interface QuestionEditButtonProps {
   question: Question;
   courseId: string;
   /** Distinct answered-student count for this question (Step 23) — gates the D50 confirmation. */
   answeredCount: number;
+}
+
+interface QuestionEditPanelProps extends QuestionEditButtonProps {
+  /** Called after a successful save (the Edit modal closes itself here). */
+  onSaved?: () => void;
+  /** When given, the form shows a Cancel button that calls it. */
+  requestClose?: () => void;
 }
 
 /** One row of the options editor. `id` absent means a genuinely new option (Step 27 / D53). */
@@ -210,7 +218,7 @@ function deriveChangedFieldLabels(
 }
 
 /**
- * Inline per-question edit panel, following `TestSettingsPanel`'s shape.
+ * Edit form for one question, hosted in the Edit modal (`QuestionEditButton`).
  * Title/content are always editable (Step 26 — no question type is
  * exempt). The reveal-mode override and model answer render only for
  * free_text questions (D8); explanation is a column shared by MC and
@@ -221,14 +229,16 @@ function deriveChangedFieldLabels(
  * specific change instead of submitting directly. The form keeps its normal
  * `action={formAction}` — confirming calls `formRef.current.requestSubmit()`
  * (a real DOM submit, so `useActionState` sees it exactly like a direct
- * click) rather than moving the form itself inside the dialog, since the
- * dialog's content is portaled and the panel's other fields must stay
- * visible on the card behind it.
+ * click) rather than moving the form itself inside the confirmation, since
+ * the confirmation's content is portaled and the form's fields must stay
+ * visible in the Edit modal behind it.
  */
 export function QuestionEditPanel({
   question,
   courseId,
   answeredCount,
+  onSaved,
+  requestClose,
 }: QuestionEditPanelProps) {
   // The teacher's live type selection (Step 28) — starts at the question's
   // stored type; switching it reshapes which fields render below, the way
@@ -260,9 +270,9 @@ export function QuestionEditPanel({
     optionDraftsOf(question),
   );
 
-  // A save that minted or dropped an option id comes back as fresh props.
-  // Re-derive the rows in place rather than remounting, so the save's
-  // confirmation and every other field survive the refresh.
+  // A page refresh while the form is open can bring fresh option ids.
+  // Re-derive the rows in place rather than remounting, so every other
+  // field the teacher typed survives the refresh.
   const optionsKey = questionOptionsKey(question);
   const [syncedOptionsKey, setSyncedOptionsKey] = useState(optionsKey);
   if (syncedOptionsKey !== optionsKey) {
@@ -273,14 +283,16 @@ export function QuestionEditPanel({
   const [state, formAction, isPending] = useActionState<
     UpdateQuestionState | null,
     FormData
-  >((prevState, formData) => {
+  >(async (prevState, formData) => {
     // Omit the field entirely when nothing about the options changed, so the
     // service's answer-key check stays skipped for an unrelated edit (D69).
     const storedOptions = isMcQuestion(question) ? question.options : [];
     if (isMc && !optionsUnchanged(options, storedOptions)) {
       formData.set("options", JSON.stringify(options));
     }
-    return updateQuestionAction(prevState, formData);
+    const result = await updateQuestionAction(prevState, formData);
+    if (result.success) onSaved?.();
+    return result;
   }, null);
   const formRef = useRef<HTMLFormElement>(null);
   const [pendingChangeLabels, setPendingChangeLabels] = useState<
@@ -594,9 +606,21 @@ export function QuestionEditPanel({
         />
       )}
 
-      <Button type="submit" disabled={isPending} size="sm">
-        {isPending ? "Saving..." : "Save"}
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={isPending} size="sm">
+          {isPending ? "Saving..." : "Save"}
+        </Button>
+        {requestClose && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={requestClose}
+          >
+            Cancel
+          </Button>
+        )}
+      </div>
 
       {state?.success && (
         <output className="block text-sm text-emerald-600">
@@ -649,9 +673,8 @@ interface DeleteQuestionButtonProps {
 
 /**
  * Delete control for a question (Step 29 / D37/D47). Rendered unconditionally
- * for every question type in `question-list.tsx` — unlike `QuestionEditPanel`,
- * which only exists for free_text/MC, delete must also reach `image_answer`
- * questions. The delete is soft; the confirmation names the real consequence
+ * for every question type in `question-list.tsx`, including `image_answer`.
+ * The delete is soft; the confirmation names the real consequence
  * (D33 vs this step's own hazard are NOT the same): a deleted question leaves
  * both halves of `getAverageScore`, so an affected student's overall score
  * CHANGES — it does not reset to zero.
@@ -725,5 +748,30 @@ export function DeleteQuestionButton({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Edit button for one test question: opens the shared Edit modal around
+ * `QuestionEditPanel`.
+ * @param props - The question being edited and its answered-student count.
+ */
+export function QuestionEditButton({
+  question,
+  courseId,
+  answeredCount,
+}: QuestionEditButtonProps) {
+  return (
+    <QuestionEditModal>
+      {({ onSaved, requestClose }) => (
+        <QuestionEditPanel
+          question={question}
+          courseId={courseId}
+          answeredCount={answeredCount}
+          onSaved={onSaved}
+          requestClose={requestClose}
+        />
+      )}
+    </QuestionEditModal>
   );
 }

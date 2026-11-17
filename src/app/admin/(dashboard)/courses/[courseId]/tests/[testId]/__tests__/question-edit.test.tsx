@@ -39,6 +39,19 @@ vi.mock("src/lib/auth-singleton", () => ({
   }),
 }));
 
+/** Opens the Edit modal of the page's only question and returns the dialog. */
+async function openEditModal(): Promise<HTMLElement> {
+  await userEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+  return screen.findByRole("dialog", { name: /edit question/i });
+}
+
+/** Waits for a successful save: the Edit modal closes itself. */
+async function expectSavedAndClosed() {
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+}
+
 /**
  * Feature: A teacher sees what a question holds and changes how it shows its
  * answer (Step 19) — without deleting the question and writing it again.
@@ -81,6 +94,7 @@ describe("Feature: Question edit panel — answer-reveal override", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     // Given: the question has no override yet — it inherits the test's
     // default. Scoped by id — the Add Question form on this same page
@@ -99,9 +113,7 @@ describe("Feature: Question edit panel — answer-reveal override", () => {
     await user.click(diffRadio);
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     // Then: the override is persisted, distinct from the test's own "plain" default
     const [updated] = await services.questionService.listQuestions(test.id);
@@ -179,6 +191,7 @@ describe("Feature: Question edit panel — answer-reveal override", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     const inheritRadio = document.getElementById(
       `reveal-inherit-${question.id}`,
@@ -187,9 +200,7 @@ describe("Feature: Question edit panel — answer-reveal override", () => {
     await user.click(inheritRadio);
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [updated] = await services.questionService.listQuestions(test.id);
     expect(updated).toMatchObject({
@@ -257,6 +268,7 @@ describe("Feature: Question edit panel — model answer and explanation", () => 
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     await user.type(
       editPanelField(question.id, "reference-answer"),
@@ -268,9 +280,7 @@ describe("Feature: Question edit panel — model answer and explanation", () => 
     );
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [updated] = await services.questionService.listQuestions(test.id);
     expect(updated).toMatchObject({
@@ -305,14 +315,13 @@ describe("Feature: Question edit panel — model answer and explanation", () => 
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     await user.clear(editPanelField(question.id, "reference-answer"));
     await user.clear(editPanelField(question.id, "explanation"));
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [updated] = (await services.questionService.listQuestions(
       test.id,
@@ -349,6 +358,7 @@ describe("Feature: Question edit panel — model answer and explanation", () => 
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     // No free-text-only controls on an MC question's own edit panel
     // (AddQuestionForm's own default-type Model Answer field is a separate,
@@ -366,9 +376,7 @@ describe("Feature: Question edit panel — model answer and explanation", () => 
     );
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [updated] = await services.questionService.listQuestions(test.id);
     expect(updated).toMatchObject({
@@ -429,6 +437,7 @@ describe("Feature: Question edit panel warns before saving an answered question"
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     await user.clear(editPanelField(question.id, "reference-answer"));
     await user.type(
@@ -454,9 +463,7 @@ describe("Feature: Question edit panel warns before saving an answered question"
       within(dialog).getByRole("button", { name: /save anyway/i }),
     );
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [afterConfirm] = (await services.questionService.listQuestions(
       test.id,
@@ -495,6 +502,7 @@ describe("Feature: Question edit panel warns before saving an answered question"
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     await user.clear(editPanelField(question.id, "reference-answer"));
     await user.type(
@@ -516,6 +524,85 @@ describe("Feature: Question edit panel warns before saving an answered question"
     expect(afterCancel.referenceAnswer).toBe(
       "Objects with mass attract each other.",
     );
+  });
+
+  it("keeps the Edit modal and its typing when the confirmation is cancelled or escaped, and saves on Save anyway", async () => {
+    const user = userEvent.setup();
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      title: "Explain gravity",
+      content: "In your own words.",
+      createdBy: "admin",
+    });
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: question.id,
+      studentId: "student-1",
+      answer: { type: "free_text", text: "My attempt" },
+    });
+    render(
+      await TestDetailPage({
+        params: Promise.resolve({ courseId: course.id, testId: test.id }),
+      }),
+    );
+    await openEditModal();
+    await user.clear(editPanelField(question.id, "title"));
+    await user.type(editPanelField(question.id, "title"), "Explain gravity v2");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    // When: the teacher cancels the confirmation
+    const confirm = await screen.findByRole("alertdialog");
+    await user.click(
+      within(confirm).getByRole("button", { name: /^cancel$/i }),
+    );
+
+    // Then: only the confirmation closes; the Edit modal keeps the typed title
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("dialog", { name: /edit question/i }),
+    ).toBeInTheDocument();
+    expect(editPanelField(question.id, "title")).toHaveValue(
+      "Explain gravity v2",
+    );
+    const [afterCancel] = await services.questionService.listQuestions(test.id);
+    expect(afterCancel.title).toBe("Explain gravity");
+
+    // When: the confirmation reopens and the teacher presses Escape
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await screen.findByRole("alertdialog");
+    await user.keyboard("{Escape}");
+
+    // Then: Escape closes only the top layer, the confirmation
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("dialog", { name: /edit question/i }),
+    ).toBeInTheDocument();
+
+    // When: the teacher saves again and confirms
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    const secondConfirm = await screen.findByRole("alertdialog");
+    await user.click(
+      within(secondConfirm).getByRole("button", { name: /save anyway/i }),
+    );
+
+    // Then: the title is stored and the Edit modal closes
+    await expectSavedAndClosed();
+    const [saved] = await services.questionService.listQuestions(test.id);
+    expect(saved.title).toBe("Explain gravity v2");
   });
 
   it("still shows the confirmation when Enter is pressed inside the Title field, not just on a Save click", async () => {
@@ -548,6 +635,7 @@ describe("Feature: Question edit panel warns before saving an answered question"
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     await user.clear(editPanelField(question.id, "title"));
     // Enter is an implicit form submission (Title is the only text-ish
@@ -597,14 +685,13 @@ describe("Feature: Question edit panel warns before saving an answered question"
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     // No fields touched — a real answered-student count alone must not gate.
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
   });
 });
 
@@ -649,6 +736,7 @@ describe("Feature: Question edit panel — title and content", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     // Given: the panel shows the question's current wording
     expect(editPanelField(question.id, "title")).toHaveValue("Explain gravity");
@@ -670,9 +758,7 @@ describe("Feature: Question edit panel — title and content", () => {
     );
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [updated] = await services.questionService.listQuestions(test.id);
     expect(updated.title).toBe("Explain gravity (revised)");
@@ -725,6 +811,7 @@ describe("Feature: Question edit panel — answer options", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     expect(screen.getByDisplayValue("Paris")).toBeInTheDocument();
     expect(screen.getByDisplayValue("London")).toBeInTheDocument();
@@ -758,6 +845,7 @@ describe("Feature: Question edit panel — answer options", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     // Hold the element handle rather than re-querying by (now ambiguous)
     // empty display value — several other inputs on the page start blank.
@@ -772,9 +860,7 @@ describe("Feature: Question edit panel — answer options", () => {
     await user.type(newOptionInput, "Berlin");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [updated] = (await services.questionService.listQuestions(
       test.id,
@@ -828,6 +914,7 @@ describe("Feature: Question edit panel — answer options", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     const parisInput = screen.getByDisplayValue("Paris");
     await user.clear(parisInput);
@@ -879,6 +966,7 @@ describe("Feature: Question edit panel — answer options", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     await user.clear(editPanelField(question.id, "title"));
     await user.type(editPanelField(question.id, "title"), "Pick one (revised)");
@@ -889,9 +977,7 @@ describe("Feature: Question edit panel — answer options", () => {
       within(dialog).getByRole("button", { name: /save anyway/i }),
     );
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [updated] = (await services.questionService.listQuestions(
       test.id,
@@ -936,14 +1022,13 @@ describe("Feature: Question edit panel — answer options", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     // No fields touched — a real answered-student count alone must not gate.
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
   });
 
   it("keeps an added option's id stable across a later save, so a student's pick on it survives", async () => {
@@ -975,6 +1060,7 @@ describe("Feature: Question edit panel — answer options", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     const { rerender } = render(page);
+    await openEditModal();
 
     // Add a third option and save.
     await user.click(screen.getByRole("button", { name: /add option/i }));
@@ -984,9 +1070,7 @@ describe("Feature: Question edit panel — answer options", () => {
     if (!newOptionInput) throw new Error("Expected a third option input");
     await user.type(newOptionInput, "Berlin");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [afterFirstSave] = (await services.questionService.listQuestions(
       test.id,
@@ -1004,12 +1088,13 @@ describe("Feature: Question edit panel — answer options", () => {
       answer: { type: "mc", selectedIds: [newOption.id] },
     });
 
-    // Mirrors the post-save server revalidation: the panel receives the
-    // freshly persisted question (with the new option's real id) as props.
+    // Mirrors the post-save server revalidation: reopening Edit mounts the
+    // form from the persisted question, which carries the new option's real id.
     const refreshedPage = await TestDetailPage({
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     rerender(refreshedPage);
+    await openEditModal();
 
     // A second save changes only the title — a real change to an answered
     // question, so a confirmation is expected, but it must name the title
@@ -1028,7 +1113,6 @@ describe("Feature: Question edit panel — answer options", () => {
       within(dialog).getByRole("button", { name: /save anyway/i }),
     );
 
-    // Waits on the stored title: the first save's "updated" status is still on screen.
     let afterSecondSave: SingleSelectQuestion | undefined;
     await waitFor(async () => {
       [afterSecondSave] = (await services.questionService.listQuestions(
@@ -1054,7 +1138,7 @@ describe("Feature: Question edit panel — answer options", () => {
     expect(afterSecondSave?.options.map((o) => o.id)).toContain(newOption.id);
   });
 
-  it("still shows the save confirmation and the added option once the saved question comes back", async () => {
+  it("closes after saving an added option, and reopening shows the option with its saved id", async () => {
     const user = userEvent.setup();
     const services = getTestServices();
     const course = await services.courseService.createCourse({
@@ -1077,12 +1161,10 @@ describe("Feature: Question edit panel — answer options", () => {
         { text: "London", isCorrect: false },
       ],
     });
+    const params = Promise.resolve({ courseId: course.id, testId: test.id });
 
-    const { rerender } = render(
-      await TestDetailPage({
-        params: Promise.resolve({ courseId: course.id, testId: test.id }),
-      }),
-    );
+    const { rerender } = render(await TestDetailPage({ params }));
+    await openEditModal();
 
     await user.click(screen.getByRole("button", { name: /add option/i }));
     const newOptionInput = document.getElementById(
@@ -1091,19 +1173,13 @@ describe("Feature: Question edit panel — answer options", () => {
     if (!newOptionInput) throw new Error("Expected a third option input");
     await user.type(newOptionInput, "Berlin");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent("Question updated");
-    });
+    await expectSavedAndClosed();
 
     // The save's own page refresh: the question now carries the new
     // option's freshly minted id.
-    rerender(
-      await TestDetailPage({
-        params: Promise.resolve({ courseId: course.id, testId: test.id }),
-      }),
-    );
+    rerender(await TestDetailPage({ params }));
+    await openEditModal();
 
-    expect(screen.getByRole("status")).toHaveTextContent("Question updated");
     expect(document.getElementById(`option-text-${question.id}-2`)).toHaveValue(
       "Berlin",
     );
@@ -1150,6 +1226,7 @@ describe("Feature: Question edit panel — question type", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     expect(screen.getByRole("radio", { name: /^free text$/i })).toBeChecked();
   });
@@ -1177,6 +1254,7 @@ describe("Feature: Question edit panel — question type", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     await user.click(screen.getByRole("radio", { name: /^single select$/i }));
 
@@ -1190,9 +1268,7 @@ describe("Feature: Question edit panel — question type", () => {
 
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [updated] = (await services.questionService.listQuestions(
       test.id,
@@ -1231,6 +1307,7 @@ describe("Feature: Question edit panel — question type", () => {
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     await user.click(screen.getByRole("radio", { name: /^image answer$/i }));
     await user.click(screen.getByRole("button", { name: /^save$/i }));
@@ -1286,6 +1363,7 @@ describe("Feature: Question edit panel — multi-select grading strategy", () =>
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     const partialRadio = document.getElementById(
       `grading-partial-${question.id}`,
@@ -1302,9 +1380,7 @@ describe("Feature: Question edit panel — multi-select grading strategy", () =>
     await user.click(allOrNothingRadio);
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [updated] = (await services.questionService.listQuestions(
       test.id,
@@ -1350,6 +1426,7 @@ describe("Feature: Question edit panel — multi-select grading strategy", () =>
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     const partialRadio = document.getElementById(
       `grading-partial-${question.id}`,
@@ -1373,9 +1450,7 @@ describe("Feature: Question edit panel — multi-select grading strategy", () =>
       within(dialog).getByRole("button", { name: /save anyway/i }),
     );
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/updated/i);
-    });
+    await expectSavedAndClosed();
 
     const [afterConfirm] = (await services.questionService.listQuestions(
       test.id,
@@ -1410,6 +1485,7 @@ describe("Feature: Question edit panel — multi-select grading strategy", () =>
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     expect(
       document.getElementById(`grading-all-or-nothing-${question.id}`),
@@ -1460,6 +1536,7 @@ describe("Feature: Question edit panel — a refused save keeps what's on screen
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     await user.clear(editPanelField(question.id, "title"));
     await user.type(
@@ -1485,6 +1562,11 @@ describe("Feature: Question edit panel — a refused save keeps what's on screen
         screen.getByText(/unauthorized: admin access required/i),
       ).toBeInTheDocument();
     });
+
+    // The refusal leaves the Edit modal open.
+    expect(
+      screen.getByRole("dialog", { name: /edit question/i }),
+    ).toBeInTheDocument();
 
     // Read immediately after the refusal — retyping would append to
     // whatever a reset left behind, masking the bug this pins.
@@ -1535,6 +1617,7 @@ describe("Feature: Question edit panel — a refused save keeps what's on screen
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
     });
     render(page);
+    await openEditModal();
 
     await user.clear(editPanelField(question.id, "title"));
     await user.type(
@@ -1565,6 +1648,11 @@ describe("Feature: Question edit panel — a refused save keeps what's on screen
         screen.getByText(/unauthorized: admin access required/i),
       ).toBeInTheDocument();
     });
+
+    // The refusal leaves the Edit modal open.
+    expect(
+      screen.getByRole("dialog", { name: /edit question/i }),
+    ).toBeInTheDocument();
 
     // Read immediately after the refusal — retyping would append to
     // whatever a reset left behind, masking the bug this pins.
