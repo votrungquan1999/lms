@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { StudentQuestionCard } from "src/components/student-question-card.ui";
 import { Badge } from "src/components/ui/badge";
+import { resolveQuestionLinks } from "src/lib/picture-links";
 import { QUESTION_TYPE_LABELS } from "src/lib/question-labels";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import {
@@ -35,7 +36,7 @@ export default async function PoolDetailPage({
 
   const poolQuestionService = await getPoolQuestionService(session.school.id);
   const questions = await attachQuestionMediaUrls(
-    await poolQuestionService.listPoolQuestions(poolId),
+    await poolQuestionService.listPoolQuestions(poolId, { raw: true }),
   );
 
   return (
@@ -56,26 +57,33 @@ export default async function PoolDetailPage({
 
       {questions.length > 0 && (
         <div className="space-y-3">
-          {questions.map((question) => (
-            <StudentQuestionCard
-              key={question.id}
-              question={question}
-              headerActions={
-                <>
-                  <Badge variant="secondary">
-                    {QUESTION_TYPE_LABELS[question.type]}
-                  </Badge>
-                  <PoolQuestionEditButton question={question} poolId={poolId} />
-                  <DeletePoolQuestionButton
-                    poolQuestionId={question.id}
-                    poolId={poolId}
-                  />
-                </>
-              }
-            >
-              <PoolQuestionKey question={question} />
-            </StudentQuestionCard>
-          ))}
+          {questions.map((storedQuestion) => {
+            // The preview shows resolved picture names; the Edit modal gets the stored text.
+            const question = resolveQuestionLinks(storedQuestion);
+            return (
+              <StudentQuestionCard
+                key={question.id}
+                question={question}
+                headerActions={
+                  <>
+                    <Badge variant="secondary">
+                      {QUESTION_TYPE_LABELS[question.type]}
+                    </Badge>
+                    <PoolQuestionEditButton
+                      question={storedQuestion}
+                      poolId={poolId}
+                    />
+                    <DeletePoolQuestionButton
+                      poolQuestionId={question.id}
+                      poolId={poolId}
+                    />
+                  </>
+                }
+              >
+                <PoolQuestionKey question={question} />
+              </StudentQuestionCard>
+            );
+          })}
         </div>
       )}
 

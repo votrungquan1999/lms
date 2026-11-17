@@ -1,9 +1,11 @@
 import type { Collection, Db } from "mongodb";
+import { resolveQuestionLinks } from "src/lib/picture-links";
 import type { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import type { PoolQuestionSnapshotInput } from "src/lib/question-compose";
 import {
-  type EditedMediaEntry,
-  mergeEditedMedia,
+  applyMediaChange,
+  assertPictureLinksHeld,
+  type MediaChange,
 } from "src/lib/question-media-merge";
 import type { QuestionPoolService } from "src/lib/question-pool-service";
 import {
@@ -14,6 +16,7 @@ import {
   type QuestionMediaDocument,
   type QuestionMediaInput,
   type QuestionType,
+  type UpdateQuestionResult,
 } from "src/lib/question-service";
 import type { AnswerRevealMode } from "src/lib/test-service";
 import { assertSchoolId } from "./assert-school-id";
@@ -62,6 +65,12 @@ interface BasePoolQuestion {
   weight: number;
   /** Ordered media attachments (empty when none). */
   media: QuestionMedia[];
+}
+
+/** Read options for Question Bank lookups. */
+export interface ReadPoolQuestionOptions {
+  /** Keep picture links as stored; for screens that edit the text. */
+  raw?: boolean;
 }
 
 export interface PoolFreeTextQuestion extends BasePoolQuestion {
@@ -190,10 +199,10 @@ export interface UpdatePoolQuestionInput {
    */
   mcGradingStrategy?: McGradingStrategy;
   /**
-   * The full ordered picture list after the edit; absent leaves pictures
-   * unchanged. Kept pictures are named by key only.
+   * Pictures to remove and new uploads to add (absent = unchanged), applied
+   * to the pictures the question holds when the save runs.
    */
-  media?: EditedMediaEntry[];
+  media?: MediaChange;
 }
 
 // ── Service ──────────────────────────────────────────────────────────────────
@@ -289,13 +298,18 @@ export class PoolQuestionService {
    * Returns every question in a pool of the bound school, ordered by `order`
    * ascending, then `id` so equal orders never swap. Excludes tombstones (D51/D47).
    */
-  async listPoolQuestions(poolId: string): Promise<PoolQuestion[]> {
+  async listPoolQuestions(
+    poolId: string,
+    options: ReadPoolQuestionOptions = {},
+  ): Promise<PoolQuestion[]> {
     const docs = await this.questions
       .find({ poolId, deletedAt: null, schoolId: this.schoolId })
       .sort({ order: 1, id: 1 })
       .toArray();
 
-    return docs.map((doc) => this.toPoolQuestion(doc));
+    return docs.map((doc) =>
+      options.raw ? this.toRawPoolQuestion(doc) : this.toPoolQuestion(doc),
+    );
   }
 
   /**
@@ -385,13 +399,14 @@ export class PoolQuestionService {
    * @param poolQuestionId - The pool question to update.
    * @param input - The fields to change.
    * @param updatedBy - The admin making the change.
+   * @returns The media keys the question actually lost.
    * @throws "Pool question not found" when it is missing or belongs to another school.
    */
   async updatePoolQuestion(
     poolQuestionId: string,
     input: UpdatePoolQuestionInput,
     updatedBy: string,
-  ): Promise<void> {
+  ): Promise<UpdateQuestionResult> {
     const before = await this.questions.findOne({
       id: poolQuestionId,
       schoolId: this.schoolId,
@@ -425,8 +440,11 @@ export class PoolQuestionService {
       set.mcGradingStrategy = input.mcGradingStrategy ?? null;
     }
 
+    let removedMediaKeys: string[] = [];
     if (input.media !== undefined) {
-      set.media = mergeEditedMedia(before.media ?? [], input.media);
+      const merged = applyMediaChange(before.media ?? [], input.media);
+      set.media = merged.media;
+      removedMediaKeys = merged.removedKeys;
     }
     const optionsProvided = "options" in input && input.options !== undefined;
     const typeChanging =
@@ -481,12 +499,27 @@ export class PoolQuestionService {
       }
     }
 
+    assertPictureLinksHeld(
+      [
+        set.title,
+        set.content,
+        ...(set.options ?? []).map((o) => o.text),
+      ].filter((text): text is string => text !== undefined),
+      [...(before.media ?? []), ...(set.media ?? [])],
+      [
+        before.title,
+        before.content,
+        ...(before.options ?? []).map((o) => o.text),
+      ],
+    );
+
     await this.questions.updateOne(
       { id: poolQuestionId, schoolId: this.schoolId },
       { $set: set },
     );
 
     await this.logRealChanges(before, set, updatedBy);
+    return { removedMediaKeys };
   }
 
   /**
@@ -616,11 +649,22 @@ export class PoolQuestionService {
   }
 
   /**
-   * Maps a stored pool question document to the client-facing discriminated
-   * union. Media is mapped with an empty `url` placeholder (minted later by the
-   * render layer). Stays `this`-free for use as a bare `.map` callback.
+   * Maps a stored pool question document to the client question with picture
+   * links shown as "Picture k"; a bound property so it works as a `.map` callback.
+   * @param doc - The stored pool question document.
+   * @returns The client-facing pool question.
    */
-  private toPoolQuestion(doc: PoolQuestionDocument): PoolQuestion {
+  private toPoolQuestion = (doc: PoolQuestionDocument): PoolQuestion =>
+    resolveQuestionLinks(this.toRawPoolQuestion(doc));
+
+  /**
+   * Maps a stored pool question document to the client-facing discriminated
+   * union, with picture links left as stored (for the Edit modal). Media is
+   * mapped with an empty `url` placeholder (minted later by the render layer).
+   * @param doc - The stored pool question document.
+   * @returns The client-facing pool question.
+   */
+  private toRawPoolQuestion(doc: PoolQuestionDocument): PoolQuestion {
     const base: BasePoolQuestion = {
       id: doc.id,
       poolId: doc.poolId,

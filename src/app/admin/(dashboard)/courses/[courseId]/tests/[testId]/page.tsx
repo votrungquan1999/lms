@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { StudentCardQuestion } from "src/components/student-question-card.ui";
 import { Button } from "src/components/ui/button";
 import { Separator } from "src/components/ui/separator";
+import { resolveQuestionLinks } from "src/lib/picture-links";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import { isMcQuestion, type Question } from "src/lib/question-service";
 import {
@@ -70,7 +71,7 @@ export default async function TestDetailPage({
 
   const questionService = await getQuestionService(session.school.id);
   const questions = await attachQuestionMediaUrls(
-    await questionService.listQuestions(testId),
+    await questionService.listQuestions(testId, { raw: true }),
   );
   // D44: no student-facing guard exists, so this count is the prominent
   // mitigation — the per-card badge alone is easy to miss on a long list.
@@ -183,7 +184,9 @@ export default async function TestDetailPage({
         ) : (
           <TestQuestionsView
             teacherView={questionList}
-            studentQuestions={questions.map(toStudentCard)}
+            studentQuestions={questions.map((question) =>
+              toStudentCard(resolveQuestionLinks(question)),
+            )}
           />
         )}
       </section>

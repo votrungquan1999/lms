@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { OptionalTextField } from "src/components/optional-text-field";
+import { PictureReferenceWarning } from "src/components/picture-reference-warning.ui";
 import { QuestionEditModal } from "src/components/question-edit-modal.state";
 import {
   AlertDialog,
@@ -27,6 +28,19 @@ import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
 import { Textarea } from "src/components/ui/textarea";
+import {
+  heldPictureNumbers,
+  linksToMarkers,
+  mapQuestionTexts,
+  markerKeysFor,
+  markersToLinks,
+  pictureNumbersByKey,
+  storedTextIfUnchanged,
+} from "src/lib/picture-links";
+import {
+  missingPictureMessage,
+  missingPictureReference,
+} from "src/lib/picture-references";
 import {
   ANSWER_REVEAL_MODE_HEADING,
   ANSWER_REVEAL_MODE_INHERIT_LABEL,
@@ -78,10 +92,14 @@ interface QuestionEditPanelProps extends QuestionEditButtonProps {
 }
 
 interface QuestionEditFormProps extends QuestionEditPanelProps {
+  /** Each picture key's `[image N]` number when the modal opened. */
+  openNumbers: ReadonlyMap<string, number>;
   /** The pictures and videos the question keeps so far (removals applied). */
   keptMedia: QuestionMedia[];
   /** Drops one kept picture or video by key. */
   onRemoveKept: (key: string) => void;
+  /** The question with its texts exactly as stored (links, not markers). */
+  storedQuestion: Question;
 }
 
 /** One row of the options editor. `id` absent means a genuinely new option (Step 27 / D53). */
@@ -104,6 +122,15 @@ function questionOptionsKey(question: Question): string {
   return isMcQuestion(question)
     ? `${question.id}:${question.options.map((o) => o.id).join(",")}`
     : question.id;
+}
+
+/**
+ * A question's stored options, or none for a non-MC question.
+ * @param question - Any question.
+ * @returns The options with their ids.
+ */
+function optionsOf(question: Question): { id: string; text: string }[] {
+  return isMcQuestion(question) ? question.options : [];
 }
 
 /**
@@ -277,6 +304,8 @@ function QuestionEditForm({
   savingRef,
   keptMedia,
   onRemoveKept,
+  openNumbers,
+  storedQuestion,
 }: QuestionEditFormProps) {
   const { selectedFiles } = useQuestionMediaPickerState();
   const { uploadSelectedFiles } = useQuestionMediaPickerActions();
@@ -349,15 +378,20 @@ function QuestionEditForm({
       formData.set("options", JSON.stringify(options));
     }
     // New files upload first so the one save below carries the final list
+    let uploaded: Awaited<ReturnType<typeof uploadSelectedFiles>> = [];
     if (picturesChanged) {
       try {
-        const uploaded = await uploadSelectedFiles();
+        uploaded = await uploadSelectedFiles();
+        // A diff, so a picture added meanwhile by another teacher survives
+        const keptKeys = new Set(keptMedia.map(({ key }) => key));
         formData.set(
           "media",
-          JSON.stringify([
-            ...keptMedia.map(({ key }) => ({ key })),
-            ...uploaded,
-          ]),
+          JSON.stringify({
+            removedKeys: storedQuestion.media
+              .map(({ key }) => key)
+              .filter((key) => !keptKeys.has(key)),
+            added: uploaded,
+          }),
         );
       } catch (error) {
         const message =
@@ -365,11 +399,71 @@ function QuestionEditForm({
         return { success: false, message };
       }
     }
+    // Typed [image N] markers become links; untouched fields keep their stored text
+    const keysByNumber = markerKeysFor(openNumbers, uploaded);
+    formData.set(
+      "title",
+      storedTextIfUnchanged(
+        formData.get("title")?.toString() ?? "",
+        question.title,
+        storedQuestion.title,
+        keysByNumber,
+      ),
+    );
+    formData.set(
+      "content",
+      storedTextIfUnchanged(
+        formData.get("content")?.toString() ?? "",
+        question.content,
+        storedQuestion.content,
+        keysByNumber,
+      ),
+    );
+    const optionsField = formData.get("options");
+    if (optionsField) {
+      const shownById = new Map(
+        optionsOf(question).map((o) => [o.id, o.text] as const),
+      );
+      const storedById = new Map(
+        optionsOf(storedQuestion).map((o) => [o.id, o.text] as const),
+      );
+      formData.set(
+        "options",
+        JSON.stringify(
+          (JSON.parse(optionsField.toString()) as OptionDraft[]).map((o) => ({
+            ...o,
+            text:
+              o.id !== undefined && shownById.has(o.id)
+                ? storedTextIfUnchanged(
+                    o.text,
+                    shownById.get(o.id) as string,
+                    storedById.get(o.id) as string,
+                    keysByNumber,
+                  )
+                : markersToLinks(o.text, keysByNumber),
+          })),
+        ),
+      );
+    }
     const result = await updateQuestionAction(prevState, formData);
     if (result.success) onSaved?.();
     return result;
   }
   const formRef = useRef<HTMLFormElement>(null);
+  // Title and content are uncontrolled, so their typed text is mirrored for the warning
+  const [typed, setTyped] = useState({
+    title: question.title,
+    content: question.content,
+  });
+  const missingPicture = missingPictureReference(
+    { ...typed, options: isMc ? options : [] },
+    heldPictureNumbers(
+      keptMedia.map((entry) => entry.key),
+      openNumbers,
+      selectedFiles.filter(({ file }) => !file.type.startsWith("video/"))
+        .length,
+    ),
+  );
 
   // Lets the modal ask, on a close request, whether anything differs from the stored question.
   useEffect(() => {
@@ -477,6 +571,13 @@ function QuestionEditForm({
       ref={formRef}
       action={formAction}
       onSubmit={handleSubmit}
+      onChange={(event) => {
+        const data = new FormData(event.currentTarget);
+        setTyped({
+          title: data.get("title")?.toString() ?? "",
+          content: data.get("content")?.toString() ?? "",
+        });
+      }}
       className="space-y-3 border-t pt-3"
     >
       <input type="hidden" name="questionId" value={question.id} />
@@ -697,9 +798,20 @@ function QuestionEditForm({
         )}
 
         <div className="space-y-2">
-          <KeptMediaList media={keptMedia} onRemove={onRemoveKept} />
+          <KeptMediaList
+            media={keptMedia}
+            numbers={openNumbers}
+            onRemove={onRemoveKept}
+          />
           <QuestionMediaFileInput id={`media-files-${question.id}`} />
-          <QuestionMediaFileList />
+          <QuestionMediaFileList
+            firstNumber={Math.max(0, ...openNumbers.values()) + 1}
+          />
+          <PictureReferenceWarning
+            message={
+              missingPicture ? missingPictureMessage(missingPicture) : null
+            }
+          />
         </div>
 
         {(isFreeText || isMc) && (
@@ -780,6 +892,15 @@ export function QuestionEditPanel(props: QuestionEditPanelProps) {
   const [keptMedia, setKeptMedia] = useState<QuestionMedia[]>(
     props.question.media,
   );
+  // Fixed at open so a typed [image N] keeps its meaning while pictures change
+  const [openNumbers] = useState(() =>
+    pictureNumbersByKey(props.question.media),
+  );
+  const [markerQuestion] = useState(() =>
+    mapQuestionTexts(props.question, (text) =>
+      linksToMarkers(text, openNumbers),
+    ),
+  );
 
   return (
     <QuestionMediaPickerProvider
@@ -787,6 +908,9 @@ export function QuestionEditPanel(props: QuestionEditPanelProps) {
     >
       <QuestionEditForm
         {...props}
+        question={markerQuestion}
+        storedQuestion={props.question}
+        openNumbers={openNumbers}
         keptMedia={keptMedia}
         onRemoveKept={(key) =>
           setKeptMedia((prev) => prev.filter((entry) => entry.key !== key))

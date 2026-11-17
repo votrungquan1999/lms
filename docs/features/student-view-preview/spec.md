@@ -15,7 +15,7 @@ Teachers can preview how students will see questions before or after import. A "
 **Behavior 2: Import screen Student view.** A teacher reviewing AI-drafted questions can flip to Student view and see each draft formatted and numbered as it will be saved, with answer choices clickable but nothing recorded.
 - **Shared components.** The student question card, answer controls, list and toggle live in `src/components/`; the student page and both previews use them.
 - **Draft adapter.** Drafts become student cards (id, order, title, content, type, options as id and text only, attached pictures); the answer key is left out.
-- **Toggle.** Starts on Teacher view; two buttons with `aria-pressed`. The teacher list stays mounted but hidden in Student view so open edits survive a flip; Student view renders only while selected.
+- **Toggle.** Starts on Teacher view; two buttons with `aria-pressed`. The teacher list stays mounted but hidden in Student view so its state (such as an open Edit modal's scroll and focus targets) survives a flip; Student view renders only while selected.
 - **Rejection reason.** In Student view, a rejected import shows its reason under the Import button as `Question N: title — reason`, where N is the card's own number. An empty or whitespace-only title drops the colon and title (`Question N — reason`). Teacher view shows `Question N — reason` on the rejected card, with the same N as its header. Applies to server rejections and picture-upload failures.
 - **New file resets the screen.** Parsing a new file remounts the review screen on Teacher view.
 - **Width.** The import screen's section is widened to `max-w-5xl`, the student test page's column.

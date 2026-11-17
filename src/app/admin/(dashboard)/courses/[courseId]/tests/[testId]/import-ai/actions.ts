@@ -15,6 +15,10 @@ import { logError } from "src/lib/observability/log-error";
 import { withSpan } from "src/lib/observability/with-span";
 import { pluralize } from "src/lib/pluralize";
 import {
+  findUnheldPictureLink,
+  INVALID_MEDIA_KEY_MESSAGE,
+} from "src/lib/question-media-merge";
+import {
   checkMcOptions,
   isMcQuestionType,
   MediaContentType,
@@ -414,6 +418,19 @@ function checkReviewedQuestions(
         parsed.data.title,
         media.error.issues[0].message,
       );
+    }
+
+    // A link may only name a picture this question carries
+    const foreignLink = findUnheldPictureLink(
+      [
+        parsed.data.title,
+        parsed.data.content,
+        ...(parsed.data.options ?? []).map((option) => option.text),
+      ],
+      media.data ?? [],
+    );
+    if (foreignLink !== null) {
+      return rejectQuestion(i, parsed.data.title, INVALID_MEDIA_KEY_MESSAGE);
     }
 
     if (isMcQuestionType(parsed.data.type)) {

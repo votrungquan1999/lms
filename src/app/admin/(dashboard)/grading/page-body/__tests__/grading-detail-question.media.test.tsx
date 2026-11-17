@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MediaContentType } from "src/lib/question-service";
 import type { Test } from "src/lib/test-service";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
@@ -76,5 +76,43 @@ describe("Feature: media renders in the admin grading view", () => {
       "https://fake-s3.local/get/media/a.png",
       "https://fake-s3.local/get/media/b.mp4",
     ]);
+  });
+});
+
+describe("Feature: picture links read as Picture k in the admin grading view", () => {
+  it("shows a linked title by the picture's current number, never the stored link", async () => {
+    // Given a question whose text links the second of two pictures
+    const picture = (key: string, order: number) => ({
+      key,
+      contentType: MediaContentType.PNG,
+      order,
+      size: 1000,
+      fileName: `${order}.png`,
+    });
+    const created = await getTestServices().questionService.addQuestion(
+      "test-1",
+      {
+        title: "Compare {{picture:media/b.png}}",
+        content: "",
+        createdBy: "admin-1",
+        media: [picture("media/a.png", 0), picture("media/b.png", 1)],
+      },
+    );
+
+    // When the grader opens that question's grading pane
+    render(
+      await GradingDetailQuestion({
+        test,
+        courseId: "course-1",
+        schoolId: TEST_SCHOOL_ID,
+        questionId: created.id,
+        students: [],
+        basePath: "/admin/grading/test-1",
+      }),
+    );
+
+    // Then the grader reads the label the student saw
+    expect(screen.getAllByText(/Compare Picture 2/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/\{\{picture:/)).not.toBeInTheDocument();
   });
 });

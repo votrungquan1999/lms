@@ -35,6 +35,10 @@ import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
+import {
+  missingPictureReference,
+  pictureReferenceText,
+} from "src/lib/picture-references";
 import { QUESTION_TYPE_LABELS } from "src/lib/question-labels";
 import { MAX_MEDIA_PER_QUESTION } from "src/lib/question-media-merge";
 import type { MediaContentType } from "src/lib/question-service";
@@ -48,10 +52,6 @@ import {
   useImportAi,
 } from "./import-ai-form.state";
 import { historyLabel } from "./import-ai-history";
-import {
-  missingPictureReference,
-  pictureReferenceText,
-} from "./picture-references";
 import { QuestionEditProvider } from "./question-edit.state";
 import { QuestionEditFields } from "./question-edit-fields.ui";
 import { QuestionPictures } from "./question-pictures.ui";

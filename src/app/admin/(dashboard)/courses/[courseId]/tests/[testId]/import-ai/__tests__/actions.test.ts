@@ -381,6 +381,29 @@ describe("Feature: the import takes only pictures this school uploaded", () => {
     },
   );
 
+  it("rejects text that links a picture the question does not carry, importing nothing", async () => {
+    const { courseId, testId } = await createTest();
+    const reviewed: ReviewedQuestion[] = [
+      {
+        title: "Q1: linked elsewhere",
+        content: `See {{picture:${schoolKey("other")}}}`,
+        type: "free_text",
+        media: [picture(schoolKey("a1"))],
+      },
+    ];
+
+    const result = await importAiQuestionsAction(testId, courseId, reviewed);
+
+    expect(result).toMatchObject({
+      success: false,
+      invalidQuestionIndex: 0,
+      invalidQuestionReason: "Invalid media key",
+    });
+    expect(
+      await getTestServices().questionService.listQuestions(testId),
+    ).toHaveLength(0);
+  });
+
   it("keeps the test's existing questions when Replace is rejected for a foreign picture", async () => {
     const { courseId, testId } = await createTest();
     const questionService = getTestServices().questionService;

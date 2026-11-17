@@ -6,7 +6,7 @@ import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import { pluralize } from "src/lib/pluralize";
 import { deleteUnreferencedMedia } from "src/lib/question-media-cleanup";
-import type { EditedMediaEntry } from "src/lib/question-media-merge";
+import type { MediaChange } from "src/lib/question-media-merge";
 import type { UpdateQuestionInput } from "src/lib/question-service";
 import {
   getQuestionService,
@@ -14,7 +14,7 @@ import {
   getTestService,
 } from "src/lib/services-singleton";
 import {
-  editedMediaSchemaFor,
+  mediaChangeSchemaFor,
   type SubmittedMedia,
   submittedMediaSchemaFor,
 } from "./question-media.schema";
@@ -70,7 +70,7 @@ export async function updateQuestionAction(
 
   // Present only when the teacher changed the picture list; absent leaves it alone.
   const mediaJson = formData.get("media")?.toString();
-  let media: EditedMediaEntry[] | undefined;
+  let media: MediaChange | undefined;
   if (mediaJson !== undefined) {
     let rawMedia: unknown;
     try {
@@ -78,7 +78,7 @@ export async function updateQuestionAction(
     } catch {
       return { success: false, message: "Invalid media format" };
     }
-    const parsedMedia = editedMediaSchemaFor(schoolId).safeParse(rawMedia);
+    const parsedMedia = mediaChangeSchemaFor(schoolId).safeParse(rawMedia);
     if (!parsedMedia.success) {
       return { success: false, message: parsedMedia.error.issues[0].message };
     }
@@ -170,28 +170,18 @@ export async function updateQuestionAction(
           input.media = media;
         }
 
-        // Read before the save so the keys it drops can be computed after
-        const before =
-          media !== undefined
-            ? await questionService.getQuestion(data.testId, data.questionId)
-            : null;
-
-        await questionService.updateQuestion(
+        const { removedMediaKeys } = await questionService.updateQuestion(
           data.testId,
           data.questionId,
           input,
           adminUserId,
         );
 
-        if (media !== undefined && before) {
-          const savedKeys = new Set(media.map((entry) => entry.key));
-          const droppedKeys = before.media
-            .map((entry) => entry.key)
-            .filter((key) => !savedKeys.has(key));
+        if (removedMediaKeys.length > 0) {
           await deleteUnreferencedMedia(
             questionService,
             await getS3StorageService(),
-            droppedKeys,
+            removedMediaKeys,
           );
         }
 

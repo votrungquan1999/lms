@@ -235,7 +235,46 @@ describe("Feature: AI document import — pictures are named by their place in t
     expect(within(questionCard("Câu 2")).queryByText(warning)).toBeNull();
   });
 
-  it('saves a picture choice as the "Picture k" students see, not the document\'s marker', async () => {
+  it("warns when a marker inside longer text names a picture the question no longer has, on the card and under the edit field", async () => {
+    const user = userEvent.setup();
+    const linked: ParsedQuestion = {
+      title: "Câu 1",
+      content: "Compare [image 5] closely",
+      type: "free_text",
+      imageNumbers: [4, 5],
+    };
+    const other: ParsedQuestion = {
+      title: "Câu 2",
+      content: "Mô tả",
+      type: "free_text",
+    };
+    await uploadDocument(user, [linked, other], 5);
+
+    // When the teacher moves picture 5 onto question 2
+    await user.click(
+      within(questionCard("Câu 1")).getByRole("button", {
+        name: "Move picture 5 to another question",
+      }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: /#2/ }));
+
+    // Then the card warns about the content
+    expect(
+      within(questionCard("Câu 1")).getByText(
+        /^The content names a picture this question no longer has/,
+      ),
+    ).toBeVisible();
+
+    // And the edit field says the same while typing
+    await user.click(
+      within(questionCard("Câu 1")).getByRole("button", { name: /^edit$/i }),
+    );
+    expect(screen.getByLabelText("Content")).toHaveAccessibleDescription(
+      "Names a picture this question does not have",
+    );
+  });
+
+  it("saves a picture choice as links to its pictures, not the document's marker or a frozen label", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
@@ -264,9 +303,9 @@ describe("Feature: AI document import — pictures are named by their place in t
     const [, , [saved]] = vi.mocked(importAiQuestionsAction).mock.calls[0];
     expect(saved.title).toBe("Câu 2");
     expect(saved.options?.map((option) => option.text)).toEqual([
-      "Picture 1",
-      "Picture 2",
-      "Picture 3",
+      "{{picture:media/questions/picture-4.png}}",
+      "{{picture:media/questions/picture-5.png}}",
+      "{{picture:media/questions/picture-6.png}}",
     ]);
     expect(saved.media?.map((media) => media.fileName)).toEqual([
       "picture-4.png",

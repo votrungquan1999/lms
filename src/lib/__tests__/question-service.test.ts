@@ -1910,3 +1910,88 @@ function freeTextSnapshot(title: string): PoolQuestionSnapshotInput {
     media: [],
   };
 }
+
+describe("picture links in saved question text", () => {
+  const keyA = "media/a.png";
+  const keyB = "media/b.png";
+  const picture = (key: string, order: number) => ({
+    key,
+    contentType: MediaContentType.PNG,
+    order,
+    size: 1,
+    fileName: `${order}.png`,
+  });
+
+  dbIt(
+    "reads title, content and options as Picture k by default and as stored with raw",
+    async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
+      const link = (key: string) => `{{picture:${key}}}`;
+      const added = await service.addQuestion("test-1", {
+        title: `Title ${link(keyB)}`,
+        content: `Content ${link(keyA)}`,
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: link(keyB), isCorrect: true },
+          { text: `${link(keyA)}${link(keyB)}`, isCorrect: false },
+          { text: link("media/gone.png"), isCorrect: false },
+        ],
+        media: [picture(keyA, 0), picture(keyB, 1)],
+      });
+
+      const [resolved] = await service.listQuestions("test-1");
+      const fetched = await service.getQuestion("test-1", added.id);
+      const [raw] = await service.listQuestions("test-1", { raw: true });
+      const rawFetched = await service.getQuestion("test-1", added.id, {
+        raw: true,
+      });
+
+      expect(resolved.title).toBe("Title Picture 2");
+      expect(resolved.content).toBe("Content Picture 1");
+      expect(
+        (resolved as SingleSelectQuestion).options.map((o) => o.text),
+      ).toEqual(["Picture 2", "Pictures 1, 2", "(picture removed)"]);
+      expect(fetched?.title).toBe("Title Picture 2");
+      expect(raw.title).toBe(`Title ${link(keyB)}`);
+      expect(rawFetched?.content).toBe(`Content ${link(keyA)}`);
+    },
+  );
+
+  dbIt(
+    "a test question composed from a linked Question Bank question shows the right labels",
+    async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      const service = new QuestionService(db, buildTestService(db));
+
+      await service.composeFromPools(
+        "test-1",
+        [
+          {
+            count: 1,
+            questions: [
+              {
+                title: "Pool",
+                content: `Look at {{picture:${keyB}}}`,
+                type: "free_text",
+                options: null,
+                weight: 1,
+                mcGradingStrategy: null,
+                explanation: null,
+                referenceAnswer: null,
+                answerRevealMode: null,
+                media: [picture(keyA, 0), picture(keyB, 1)],
+              },
+            ],
+          },
+        ],
+        "admin-1",
+        (items, count) => items.slice(0, count),
+      );
+
+      const [stored] = await service.listQuestions("test-1");
+      expect(stored.content).toBe("Look at Picture 2");
+    },
+  );
+});

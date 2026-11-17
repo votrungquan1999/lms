@@ -224,6 +224,39 @@ describe("Feature: AI document import — a teacher changes a draft's pictures i
     expect(picker).toBeEnabled();
   });
 
+  it("warns about [image N] by the modal's own pictures: a removed picture's number warns, an added picture's number does not", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user);
+    await user.click(
+      within(questionCard("Q1")).getByRole("button", { name: "Edit" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const title = within(dialog).getByLabelText(/title/i);
+    await user.clear(title);
+    await user.type(title, "[[image 1]");
+    expect(within(dialog).getByText("Shows as Picture 1")).toBeVisible();
+
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Remove picture 1 from this question",
+      }),
+    );
+    expect(
+      within(dialog).getByText("Names a picture this question does not have"),
+    ).toBeVisible();
+
+    await user.upload(
+      within(dialog).getByLabelText("Add a picture file"),
+      new File(["new"], "new.png", { type: "image/png" }),
+    );
+    await user.clear(title);
+    await user.type(title, "[[image 3]");
+    expect(
+      within(dialog).queryByText("Names a picture this question does not have"),
+    ).toBeNull();
+    expect(within(dialog).getByText("Shows as Picture 2")).toBeVisible();
+  });
+
   it("gives a re-picked file a fresh number, never the one of the file removed before it", async () => {
     const user = userEvent.setup();
     await uploadDocument(user);

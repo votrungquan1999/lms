@@ -1,5 +1,6 @@
 import { StudentQuestionCard } from "src/components/student-question-card.ui";
 import { Badge } from "src/components/ui/badge";
+import { resolveQuestionLinks } from "src/lib/picture-links";
 import {
   ANSWER_REVEAL_MODE_HEADING,
   ANSWER_REVEAL_MODE_INHERIT_LABEL,
@@ -75,7 +76,9 @@ export function QuestionList({
           No questions yet. Add one above or import from JSON.
         </p>
       )}
-      {questions.map((question) => {
+      {questions.map((storedQuestion) => {
+        // The preview shows resolved picture names; the Edit modal gets the stored text.
+        const question = resolveQuestionLinks(storedQuestion);
         const answeredCount = answeredCounts.get(question.id) ?? 0;
 
         return (
@@ -94,7 +97,7 @@ export function QuestionList({
                   <Badge variant="destructive">Needs an answer key</Badge>
                 )}
                 <QuestionEditButton
-                  question={question}
+                  question={storedQuestion}
                   courseId={courseId}
                   answeredCount={answeredCount}
                 />

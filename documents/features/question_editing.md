@@ -16,7 +16,9 @@ This feature lets a teacher edit every field a question can hold, including its 
 ### Admin — Editing a Question
 
 - [x] Admin can edit every field the add form can set: title, content, the free-text model answer and explanation, the answer-reveal override, the MC option list, and the question's type
-- [x] Excluded from editing: `weight` and `mcGradingStrategy` (neither has a form control anywhere in the app, so an edit panel would smuggle in new authoring capability, not correct an existing choice) and media/attachments (the picker only knows newly uploaded files, not ones already attached)
+- [x] Excluded from editing: `weight` and `mcGradingStrategy` (neither has a form control anywhere in the app, so an edit panel would smuggle in new authoring capability, not correct an existing choice)
+- [x] Editing happens in an Edit modal over the question's preview (test page, Question Bank and AI import review), which also removes existing pictures and videos and uploads new ones in the same save; files a save drops leave storage unless another question still holds them. Closing with unsaved changes asks "Discard your changes?", and the modal cannot be closed while a save runs
+- [x] Text that names a picture is written in the modal as `[image N]` and saved as a stable link to that picture, so removing or reordering pictures renumbers the "Picture k" students see; a link to a removed picture shows "(picture removed)" and the modal warns without blocking Save. See `docs/features/question-preview-edit-modal/spec.md`
 - [x] Title and content are editable for every question type — no type is exempt
 - [x] The answer-reveal override and free-text model answer are editable only on free-text questions; the explanation field is shared by MC and free-text
 - [x] A save that clears a field (blank textarea, or clearing the reveal override) writes an explicit absence, not "no change" — clearing the override returns the question to inheriting the test's setting
@@ -62,3 +64,6 @@ This feature lets a teacher edit every field a question can hold, including its 
 - **The change log has no UI.** It is written on every real change and is queryable, but nothing in the app displays it. Reading it today means querying the `questionChangeLog` collection directly.
 - **A deleted question cannot be restored through the application.** The tombstone stays in the database (that's what the soft delete is for — the underlying answer/grade data it stranded stays diagnosable), but there is no undelete action anywhere in the UI.
 - **A change log row about a stranded MC selection can only recover the option's text, not restore the student's answer to a working state.** The student's grade and `selectedIds` still point at an id that no longer resolves to a live option.
+- **A save that fails after new files uploaded leaves those files in storage.** A retry in the same modal reuses them; files of a failed save that is then abandoned (Cancel or Discard) stay in storage.
+- **Concurrent edits.** Picture changes merge (a picture another teacher added while the modal was open is kept; a merged result over 3 files is refused), but text is last write wins.
+- **A field the teacher did not change is saved exactly as stored.** Old text that literally says `[image 1]` is never rewritten into a picture link by an untouched Save.

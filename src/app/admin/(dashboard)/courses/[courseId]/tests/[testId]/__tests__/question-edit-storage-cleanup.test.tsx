@@ -70,7 +70,7 @@ function removeAllMediaForm(
   form.set("questionId", questionId);
   form.set("testId", testId);
   form.set("courseId", courseId);
-  form.set("media", "[]");
+  form.set("media", JSON.stringify({ removedKeys: [KEY_A], added: [] }));
   return form;
 }
 
@@ -293,9 +293,10 @@ describe("Feature: Storage cleanup after removing a picture", () => {
     form.set("courseId", course.id);
     form.set(
       "media",
-      JSON.stringify([
-        { key: `media/schools/${TEST_SCHOOL_ID}/questions/zz.png` },
-      ]),
+      JSON.stringify({
+        removedKeys: [],
+        added: [{ ...picture(KEY_A, 1), key: KEY_A }],
+      }),
     );
     const result = await updateQuestionAction(null, form);
 

@@ -88,12 +88,20 @@ export function QuestionMediaFileInput({
   );
 }
 
+interface QuestionMediaFileListProps {
+  /** When given, each selected picture shows the `[image N]` it will be typed as, from this number up. */
+  firstNumber?: number;
+}
+
 /**
  * Lists the currently selected media files, each with a remove control.
  * Renders nothing when no files are selected.
+ * @param props - Optional first picture number for typed references.
  * @returns The selected-file list, or null when empty.
  */
-export function QuestionMediaFileList(): React.ReactNode {
+export function QuestionMediaFileList({
+  firstNumber,
+}: QuestionMediaFileListProps): React.ReactNode {
   const { selectedFiles } = useQuestionMediaPickerState();
   const { removeFile } = useQuestionMediaPickerActions();
 
@@ -101,9 +109,20 @@ export function QuestionMediaFileList(): React.ReactNode {
 
   return (
     <ul className="space-y-1" aria-label="Selected media files">
-      {selectedFiles.map(({ id, file }) => (
+      {selectedFiles.map(({ id, file }, index) => (
         <li key={id} className="flex items-center gap-2">
-          <span className="flex-1 truncate text-sm">{file.name}</span>
+          <span className="flex-1 truncate text-sm">
+            {file.name}
+            {firstNumber !== undefined &&
+              !file.type.startsWith("video/") &&
+              ` (type [image ${
+                firstNumber +
+                selectedFiles
+                  .slice(0, index)
+                  .filter((other) => !other.file.type.startsWith("video/"))
+                  .length
+              }] in the text)`}
+          </span>
           <Button
             type="button"
             variant="ghost"

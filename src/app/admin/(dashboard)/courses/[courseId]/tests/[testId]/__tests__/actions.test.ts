@@ -280,16 +280,18 @@ describe("Feature: teacher attaches media to a question", () => {
     }
 
     it("refuses a new picture whose key another school minted, and keeps the stored pictures", async () => {
-      const { formData } = await seedAndBuildEdit([
-        { key: ownKey },
-        {
-          key: "media/schools/other-school/questions/00000000-0000-4000-8000-00000000bbbb.png",
-          contentType: MediaContentType.PNG,
-          order: 1,
-          size: 1000,
-          fileName: "foreign.png",
-        },
-      ]);
+      const { formData } = await seedAndBuildEdit({
+        removedKeys: [],
+        added: [
+          {
+            key: "media/schools/other-school/questions/00000000-0000-4000-8000-00000000bbbb.png",
+            contentType: MediaContentType.PNG,
+            order: 1,
+            size: 1000,
+            fileName: "foreign.png",
+          },
+        ],
+      });
 
       const result = await updateQuestionAction(null, formData);
 
@@ -299,26 +301,19 @@ describe("Feature: teacher attaches media to a question", () => {
       expect(stored.media.map((m) => m.key)).toEqual([ownKey]);
     });
 
-    it("refuses keeping a picture that belongs to another question, and keeps the stored pictures", async () => {
-      const otherKey = `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000cccc.png`;
-      await getTestServices().questionService.addQuestion("test-1", {
-        title: "Other question",
-        content: "Holds its own picture.",
-        createdBy: "admin-1",
-        media: [
+    it("refuses a new picture whose key the question already holds, and keeps the stored pictures", async () => {
+      const { questionId, formData } = await seedAndBuildEdit({
+        removedKeys: [],
+        added: [
           {
-            key: otherKey,
+            key: ownKey,
             contentType: MediaContentType.PNG,
-            order: 0,
+            order: 1,
             size: 1000,
-            fileName: "other.png",
+            fileName: "again.png",
           },
         ],
       });
-      const { questionId, formData } = await seedAndBuildEdit([
-        { key: ownKey },
-        { key: otherKey },
-      ]);
 
       const result = await updateQuestionAction(null, formData);
 
@@ -328,6 +323,46 @@ describe("Feature: teacher attaches media to a question", () => {
         questionId,
       );
       expect(stored?.media.map((m) => m.key)).toEqual([ownKey]);
+    });
+
+    it("ignores a removed key that belongs to another question, leaving both questions' pictures", async () => {
+      const otherKey = `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000cccc.png`;
+      const other = await getTestServices().questionService.addQuestion(
+        "test-1",
+        {
+          title: "Other question",
+          content: "Holds its own picture.",
+          createdBy: "admin-1",
+          media: [
+            {
+              key: otherKey,
+              contentType: MediaContentType.PNG,
+              order: 0,
+              size: 1000,
+              fileName: "other.png",
+            },
+          ],
+        },
+      );
+      const { questionId, formData } = await seedAndBuildEdit({
+        removedKeys: [otherKey],
+        added: [],
+      });
+
+      const result = await updateQuestionAction(null, formData);
+
+      expect(result.success).toBe(true);
+      const services = getTestServices().questionService;
+      expect(
+        (await services.getQuestion("test-1", questionId))?.media.map(
+          (m) => m.key,
+        ),
+      ).toEqual([ownKey]);
+      expect(
+        (await services.getQuestion("test-1", other.id))?.media.map(
+          (m) => m.key,
+        ),
+      ).toEqual([otherKey]);
     });
   });
 

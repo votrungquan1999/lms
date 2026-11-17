@@ -5,9 +5,9 @@ import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
+import { pictureReferenceHint } from "src/lib/picture-references";
 import type { EditableFields } from "./import-ai-draft";
 import { picturesOf, useImportAi } from "./import-ai-form.state";
-import { pictureReferenceHint } from "./picture-references";
 import {
   MIN_CHOICES,
   type QuestionEditDraft,
@@ -43,11 +43,12 @@ export function QuestionEditFields({
   // A multiple-choice draft the AI returned without choices starts with none.
   const choices = draft.options ?? [];
   // Locked while a new file is read, since its answer replaces this card; the typed text stays.
-  const { isReading, questions, pictures } = useImportAi();
-  const question = questions.find((q) => q.id === questionId);
-  const pictureNumbers = question
-    ? picturesOf(question, pictures).map((picture) => picture.number)
-    : [];
+  const { isReading, pictures } = useImportAi();
+  // The hints follow the buffer's pictures, which differ from the saved draft's until Save.
+  const pictureNumbers = picturesOf(draft, [
+    ...pictures,
+    ...draft.addedPictures,
+  ]).map((picture) => picture.number);
   const {
     setTitle,
     setContent,

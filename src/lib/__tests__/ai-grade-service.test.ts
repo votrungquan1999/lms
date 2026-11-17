@@ -7,6 +7,7 @@ import type {
 import type { AiGradeSuggestionDocument } from "src/lib/ai-grade-types";
 import type { AnswerDocument } from "src/lib/answer-service";
 import type { GradeDocument } from "src/lib/grade-service";
+import { MediaContentType } from "src/lib/question-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
 import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
@@ -2129,6 +2130,58 @@ describe("AiGradeService.generateForStudent - Step 4 (solution persistence)", ()
       expect(rows[0]!.solution).toBe(
         "def total(nums):\n    return sum(nums)\n",
       );
+    },
+  );
+});
+
+describe("AiGradeService.generateForStudent - picture links", () => {
+  dbIt(
+    "sends the AI the same Picture k label the student saw for a linked picture",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      const sent: AiGradeBatchInput[] = [];
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
+          sent.push(...items);
+          return items.map((item) => ({
+            questionId: item.questionId,
+            score: 50,
+            feedback: "",
+            solution: "",
+          }));
+        },
+      };
+      const { testService, questionService, answerService, aiGradeService } =
+        buildCoreServices(db, { aiClient: stubAiClient });
+      const test = await testService.createTest("course-1", {
+        title: "Linked",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const picture = (key: string, order: number) => ({
+        key,
+        contentType: MediaContentType.PNG,
+        order,
+        size: 1,
+        fileName: `${order}.png`,
+      });
+      const question = await questionService.addQuestion(test.id, {
+        title: "Q",
+        content: "Describe {{picture:media/b.png}}",
+        createdBy: "admin-1",
+        type: "free_text",
+        media: [picture("media/a.png", 0), picture("media/b.png", 1)],
+      });
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: question.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "A chart." },
+      });
+
+      await aiGradeService.generateForStudent(test.id, "student-1", "admin-1");
+
+      expect(sent[0].questionContent).toBe("Describe Picture 2");
     },
   );
 });

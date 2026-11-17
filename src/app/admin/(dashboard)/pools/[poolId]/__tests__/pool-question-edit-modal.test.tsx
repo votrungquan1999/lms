@@ -244,7 +244,7 @@ describe("Feature: Question Bank question Edit modal", () => {
     const form = new FormData();
     form.set("poolQuestionId", poolQuestion.id);
     form.set("poolId", pool.id);
-    form.set("media", "[]");
+    form.set("media", JSON.stringify({ removedKeys: [key], added: [] }));
     const result = await updatePoolQuestionAction(null, form);
 
     // Then: the picture left the Question Bank question, but its shared file stays in storage

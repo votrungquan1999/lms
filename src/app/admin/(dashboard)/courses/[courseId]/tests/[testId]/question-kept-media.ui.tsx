@@ -6,28 +6,31 @@ import type { QuestionMedia } from "src/lib/question-service";
 interface KeptMediaListProps {
   /** The question's current pictures and videos, in saved order. */
   media: QuestionMedia[];
+  /** Each picture's number when the modal opened; keeps `[image N]` stable while pictures are removed. */
+  numbers: ReadonlyMap<string, number>;
   /** Called with the key of the entry the teacher removes. */
   onRemove: (key: string) => void;
 }
 
 /**
  * Lists a question's current pictures and videos, each with a Remove control.
- * Pictures are numbered by position among pictures, as the preview names them.
+ * Pictures keep the number they had when the modal opened, the one a teacher
+ * types as `[image N]`.
  * @param props - The current media and the remove callback.
  * @returns The list, or null when the question has no media.
  */
 export function KeptMediaList({
   media,
+  numbers,
   onRemove,
 }: KeptMediaListProps): React.ReactNode {
   if (media.length === 0) return null;
 
-  let pictureNumber = 0;
   return (
     <ul className="space-y-2" aria-label="Current pictures and videos">
       {media.map((entry) => {
         const isVideo = entry.contentType.startsWith("video/");
-        if (!isVideo) pictureNumber += 1;
+        const pictureNumber = numbers.get(entry.key);
         const label = isVideo ? "video" : `picture ${pictureNumber}`;
         return (
           <li key={entry.key} className="flex items-center gap-2">
@@ -46,7 +49,15 @@ export function KeptMediaList({
                 className="h-16 rounded border border-border"
               />
             )}
-            <span className="flex-1 text-sm capitalize">{label}</span>
+            <span className="flex-1 text-sm">
+              <span className="capitalize">{label}</span>
+              {!isVideo && (
+                <span className="text-muted-foreground">
+                  {" "}
+                  (type [image {pictureNumber}] in the text)
+                </span>
+              )}
+            </span>
             <Button
               type="button"
               variant="ghost"

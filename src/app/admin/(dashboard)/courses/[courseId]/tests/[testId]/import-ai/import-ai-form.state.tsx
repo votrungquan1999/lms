@@ -15,6 +15,11 @@ import {
   AI_FAILURE_MESSAGES,
   AiFailureCause,
 } from "src/lib/ai/ai-failure-messages";
+import { markersToLinks } from "src/lib/picture-links";
+import {
+  missingPictureReference,
+  pictureReferenceText,
+} from "src/lib/picture-references";
 import {
   INVALID_MEDIA_KEY_MESSAGE,
   MAX_MEDIA_PER_QUESTION,
@@ -53,10 +58,6 @@ import {
   UPLOAD_CONCURRENCY,
   uploadPictures,
 } from "./import-ai-uploads";
-import {
-  missingPictureReference,
-  pictureReferenceText,
-} from "./picture-references";
 import { reportDocumentReadFailureAction } from "./read-failure-actions";
 
 /** A document picture, previewed on the review screen and uploaded on import. */
@@ -455,25 +456,27 @@ interface ImportAiContextValue
 /**
  * Strips the review-list-only fields (`id`, `edited`, `retryError`,
  * `importError`, `imageNumbers`), leaving exactly the shape the server action
- * accepts, with the question's pictures already uploaded. A text that is only
- * picture markers is saved as the "Picture k" students see.
+ * accepts, with the question's pictures already uploaded. Each `[image N]`
+ * marker is saved as a link to its uploaded picture, so the label students see
+ * follows the picture if it is later removed or reordered.
  * @param draft - One reviewed draft.
  * @param media - Its uploaded pictures.
- * @param pictureNumbers - The `[image N]` numbers of its pictures, in saved order.
+ * @param keysByNumber - The uploaded picture key for each `[image N]` number it holds.
  * @returns The question as the import action takes it.
  */
 function toReviewedQuestion(
   draft: ImportQuestionDraft,
   media: SubmittedMedia,
-  pictureNumbers: readonly number[],
+  keysByNumber: ReadonlyMap<number, string>,
 ): ReviewedQuestion {
+  const toLinks = (text: string) => markersToLinks(text, keysByNumber);
   return {
-    title: pictureReferenceText(draft.title, pictureNumbers),
-    content: pictureReferenceText(draft.content, pictureNumbers),
+    title: toLinks(draft.title),
+    content: toLinks(draft.content),
     type: draft.type,
     options: draft.options?.map((option) => ({
       ...option,
-      text: pictureReferenceText(option.text, pictureNumbers),
+      text: toLinks(option.text),
     })),
     referenceAnswer: draft.referenceAnswer,
     explanation: draft.explanation,
@@ -839,7 +842,12 @@ export function ImportAiProvider({
         shown
           .flatMap((picture) => media.get(picture.number) ?? [])
           .map((entry, order) => ({ ...entry, order })),
-        shown.map((picture) => picture.number),
+        new Map(
+          shown.flatMap((picture) => {
+            const entry = media.get(picture.number);
+            return entry ? [[picture.number, entry.key] as const] : [];
+          }),
+        ),
       );
     });
 

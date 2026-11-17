@@ -1,3 +1,7 @@
+import {
+  MediaContentType,
+  type SingleSelectQuestion,
+} from "src/lib/question-service";
 import { QuestionGradeStatus } from "src/lib/results-report-assembler";
 import { withTestDb } from "src/tests/create-test-db";
 import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
@@ -312,6 +316,61 @@ describe("ResultsReportAssembler.buildReport — per-test summary", () => {
       await expect(
         assembler.buildReport("missing-student", ["any-test"]),
       ).rejects.toThrow(/student/i);
+    },
+  );
+});
+
+describe("ResultsReportAssembler.buildReport — picture links", () => {
+  dbIt(
+    "reports a linked question title and a chosen option as the Picture k students saw",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      const {
+        assembler,
+        studentService,
+        testService,
+        questionService,
+        answerService,
+      } = makeAssembler(db);
+      const alice = await createAlice(studentService);
+      const test = await testService.createTest("course-1", {
+        title: "Linked",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const link = (key: string) => `{{picture:${key}}}`;
+      const picture = (key: string, order: number) => ({
+        key,
+        contentType: MediaContentType.PNG,
+        order,
+        size: 1,
+        fileName: `${order}.png`,
+      });
+      const question = await questionService.addQuestion(test.id, {
+        title: `Which is ${link("media/b.png")}?`,
+        content: "Pick one",
+        createdBy: "admin-1",
+        type: "single_select",
+        options: [
+          { text: link("media/a.png"), isCorrect: false },
+          { text: link("media/b.png"), isCorrect: true },
+        ],
+        media: [picture("media/a.png", 0), picture("media/b.png", 1)],
+      });
+      const stored = (await questionService.listQuestions(test.id))[0];
+      const chosen = (stored as SingleSelectQuestion).options[1].id;
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: question.id,
+        studentId: alice.id,
+        answer: { type: "mc", selectedIds: [chosen] },
+      });
+
+      const report = await assembler.buildReport(alice.id, [test.id]);
+
+      const [entry] = report.tests[0].questions;
+      expect(entry.title).toBe("Which is Picture 2?");
+      expect(entry.answer).toEqual(["Picture 2"]);
     },
   );
 });

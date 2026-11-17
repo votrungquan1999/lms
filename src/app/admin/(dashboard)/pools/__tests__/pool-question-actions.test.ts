@@ -448,29 +448,27 @@ describe("updatePoolQuestionAction — editing a pool question's pictures", () =
   it.each([
     {
       refusal: "a new picture whose key another school minted",
-      media: [
-        { key: ownKey },
-        {
-          ...newPicture,
-          key: "media/schools/school-b/questions/00000000-0000-4000-8000-00000000dddd.png",
-        },
-      ],
+      media: {
+        removedKeys: [],
+        added: [
+          {
+            ...newPicture,
+            key: "media/schools/school-b/questions/00000000-0000-4000-8000-00000000dddd.png",
+          },
+        ],
+      },
     },
     {
-      refusal: "keeping a picture another pool question holds",
-      media: [{ key: ownKey }, { key: otherKey }],
+      refusal: "a new picture whose key the question already holds",
+      media: { removedKeys: [], added: [{ ...newPicture, key: ownKey }] },
     },
     {
-      refusal: "keeping a key no question holds",
-      media: [
-        {
-          key: `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000eeee.png`,
-        },
-      ],
+      refusal: "listing the same new key twice",
+      media: { removedKeys: [], added: [newPicture, newPicture] },
     },
     {
-      refusal: "listing the same key twice",
-      media: [{ key: ownKey }, { ...newPicture, key: ownKey }],
+      refusal: "a new picture that is also listed as removed",
+      media: { removedKeys: [newPicture.key], added: [newPicture] },
     },
   ])(
     "refuses $refusal, keeps the stored pictures and deletes no file",
@@ -493,7 +491,7 @@ describe("updatePoolQuestionAction — editing a pool question's pictures", () =
         media: [storedPicture(otherKey)],
       });
 
-      // When: a save submits a picture list with a key the question may not hold
+      // When: a save submits a media change with a key the question may not take
       const result = await updatePoolQuestionAction(
         null,
         buildUpdatePoolQuestionFormData(question.id, {
@@ -510,6 +508,45 @@ describe("updatePoolQuestionAction — editing a pool question's pictures", () =
       expect(getFakeS3().deletedKeys).toEqual([]);
     },
   );
+
+  it("ignores a removed key the question does not hold, so another question's picture stays", async () => {
+    // Given: two pool questions, each holding its own picture
+    const services = getTestServices();
+    const question = await services.poolQuestionService.addPoolQuestion(
+      "pool-1",
+      {
+        title: "Read the chart",
+        content: "Describe it.",
+        createdBy: "admin-1",
+        media: [storedPicture(ownKey)],
+      },
+    );
+    await services.poolQuestionService.addPoolQuestion("pool-1", {
+      title: "Other chart",
+      content: "Describe it.",
+      createdBy: "admin-1",
+      media: [storedPicture(otherKey)],
+    });
+
+    // When: a save asks to remove the other question's picture
+    const result = await updatePoolQuestionAction(
+      null,
+      buildUpdatePoolQuestionFormData(question.id, {
+        media: JSON.stringify({ removedKeys: [otherKey], added: [] }),
+      }),
+    );
+
+    // Then: the save succeeds, both questions keep their pictures and no file is deleted
+    expect(result.success).toBe(true);
+    const stored = await db
+      .collection<PoolQuestionDocument>("pool_question")
+      .find({ id: { $ne: "" } })
+      .toArray();
+    expect(stored.flatMap((q) => q.media.map((m) => m.key)).sort()).toEqual(
+      [ownKey, otherKey].sort(),
+    );
+    expect(getFakeS3().deletedKeys).toEqual([]);
+  });
 });
 
 describe("deletePoolQuestionAction (Step 30)", () => {

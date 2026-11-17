@@ -18,7 +18,7 @@ const MARKER_RUN = /(?:\[[ \t]*image[ \t]*\d+[ \t]*\][ \t]*)+/gi;
  * @param text - Any text that may hold markers.
  * @returns The numbers, repeats included.
  */
-function markedNumbers(text: string): number[] {
+export function markedNumbers(text: string): number[] {
   return [...text.matchAll(MARKER)]
     .map((match) => Number(match[1]))
     .filter(Number.isSafeInteger);

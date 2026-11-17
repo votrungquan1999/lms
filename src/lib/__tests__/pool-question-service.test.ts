@@ -514,6 +514,56 @@ describe("updatePoolQuestion — a teacher corrects a pool question (Step 30 / D
       });
     },
   );
+  dbIt(
+    "refuses text linking a picture the question never held, or one of its videos, and keeps the stored text",
+    async ({ db }) => {
+      await insertRawPool(db, "pool-1");
+      const service = new PoolQuestionService(
+        db,
+        TEST_SCHOOL_ID,
+        new QuestionPoolService(db, TEST_SCHOOL_ID),
+      );
+      const question = await service.addPoolQuestion("pool-1", {
+        title: "Read the chart",
+        content: "Plain",
+        createdBy: "admin-1",
+        media: [
+          {
+            key: "media/a.png",
+            contentType: MediaContentType.PNG,
+            order: 0,
+            size: 1,
+            fileName: "a.png",
+          },
+          {
+            key: "media/v.mp4",
+            contentType: MediaContentType.MP4,
+            order: 1,
+            size: 1,
+            fileName: "v.mp4",
+          },
+        ],
+      });
+
+      await expect(
+        service.updatePoolQuestion(
+          question.id,
+          { content: "See {{picture:media/other.png}}" },
+          "admin-2",
+        ),
+      ).rejects.toThrow("Invalid media key");
+      await expect(
+        service.updatePoolQuestion(
+          question.id,
+          { content: "See {{picture:media/v.mp4}}" },
+          "admin-2",
+        ),
+      ).rejects.toThrow("Invalid media key");
+
+      const [stored] = await service.listPoolQuestions("pool-1", { raw: true });
+      expect(stored.content).toBe("Plain");
+    },
+  );
 });
 
 describe("deletePoolQuestion — a teacher removes a pool question (Step 30 / D37/D51)", () => {
@@ -591,7 +641,7 @@ describe("deletePoolQuestion — a teacher removes a pool question (Step 30 / D3
 describe("a school-bound service never changes another school's pool question", () => {
   const foreignWrites: [
     string,
-    (service: PoolQuestionService, id: string) => Promise<void>,
+    (service: PoolQuestionService, id: string) => Promise<unknown>,
   ][] = [
     [
       "updatePoolQuestion",

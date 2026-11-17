@@ -6,7 +6,7 @@ import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import type { UpdatePoolQuestionInput } from "src/lib/pool-question-service";
 import { deleteUnreferencedMedia } from "src/lib/question-media-cleanup";
-import type { EditedMediaEntry } from "src/lib/question-media-merge";
+import type { MediaChange } from "src/lib/question-media-merge";
 import {
   getPoolQuestionService,
   getQuestionPoolService,
@@ -14,7 +14,7 @@ import {
   getS3StorageService,
 } from "src/lib/services-singleton";
 import {
-  editedMediaSchemaFor,
+  mediaChangeSchemaFor,
   type SubmittedMedia,
   submittedMediaSchemaFor,
 } from "../courses/[courseId]/tests/[testId]/question-media.schema";
@@ -216,9 +216,9 @@ export async function updatePoolQuestionAction(
     return { success: false, message: parsed.error.issues[0].message };
   }
 
-  // Absent leaves pictures unchanged; present is the full ordered list
+  // Absent leaves pictures unchanged; present is the keys removed and the new uploads
   const mediaJson = formData.get("media")?.toString();
-  let media: EditedMediaEntry[] | undefined;
+  let media: MediaChange | undefined;
   if (mediaJson !== undefined) {
     let rawMedia: unknown;
     try {
@@ -226,7 +226,7 @@ export async function updatePoolQuestionAction(
     } catch {
       return { success: false, message: "Invalid media format" };
     }
-    const parsedMedia = editedMediaSchemaFor(schoolId).safeParse(rawMedia);
+    const parsedMedia = mediaChangeSchemaFor(schoolId).safeParse(rawMedia);
     if (!parsedMedia.success) {
       return { success: false, message: parsedMedia.error.issues[0].message };
     }
@@ -297,21 +297,18 @@ export async function updatePoolQuestionAction(
           input.media = media;
         }
 
-        await poolQuestionService.updatePoolQuestion(
-          data.poolQuestionId,
-          input,
-          adminUserId,
-        );
+        const { removedMediaKeys } =
+          await poolQuestionService.updatePoolQuestion(
+            data.poolQuestionId,
+            input,
+            adminUserId,
+          );
 
-        if (media !== undefined) {
-          const savedKeys = new Set(media.map((entry) => entry.key));
-          const droppedKeys = before.media
-            .map((entry) => entry.key)
-            .filter((key) => !savedKeys.has(key));
+        if (removedMediaKeys.length > 0) {
           await deleteUnreferencedMedia(
             await getQuestionService(schoolId),
             await getS3StorageService(),
-            droppedKeys,
+            removedMediaKeys,
           );
         }
 

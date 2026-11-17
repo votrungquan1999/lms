@@ -77,34 +77,19 @@ export function submittedMediaSchemaFor(schoolId: string) {
   );
 }
 
-/** A kept picture named by its key alone; strict so a full entry cannot take this path. */
-const keptMediaEntrySchema = z.strictObject({
-  key: z.string().min(1, "Media key is required"),
-});
-
 /**
- * The edited-media schema for a question save: each entry is a kept picture
- * (`{ key }`) or a newly uploaded one (full entry, school-checked like
- * `submittedMediaSchemaFor`). Ownership of kept keys is checked at merge time.
+ * The media-change schema for a question save: the keys the teacher removed
+ * and the newly uploaded files (school-checked like `submittedMediaSchemaFor`).
+ * Whether a removed key is still held is decided at merge time, against the
+ * question's current pictures.
  * @param schoolId - The school the question belongs to.
- * @returns A schema whose parsed data is the ordered edited list.
+ * @returns A schema whose parsed data is the removed keys and the new uploads.
  */
-export function editedMediaSchemaFor(schoolId: string) {
-  return z
-    .array(z.union([keptMediaEntrySchema, submittedMediaEntrySchema]))
-    .max(MAX_MEDIA_PER_QUESTION, "A question can have at most 3 media files")
-    .refine(
-      (items) =>
-        items.every(
-          (item) =>
-            !("contentType" in item) ||
-            (isValidQuestionMediaKey(item.key, schoolId) &&
-              item.key.endsWith(
-                `.${EXTENSION_BY_CONTENT_TYPE[item.contentType]}`,
-              )),
-        ),
-      { message: INVALID_MEDIA_KEY_MESSAGE },
-    );
+export function mediaChangeSchemaFor(schoolId: string) {
+  return z.strictObject({
+    removedKeys: z.array(z.string().min(1, "Media key is required")),
+    added: submittedMediaSchemaFor(schoolId),
+  });
 }
 
 /**

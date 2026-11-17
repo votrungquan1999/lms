@@ -1,5 +1,6 @@
 import type { Collection, Db } from "mongodb";
 import type { AnswerService } from "src/lib/answer-service";
+import { resolveQuestionLinks } from "src/lib/picture-links";
 import type { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import {
   type ComposePoolSelection,
@@ -8,8 +9,9 @@ import {
   shuffleAndTake,
 } from "src/lib/question-compose";
 import {
-  type EditedMediaEntry,
-  mergeEditedMedia,
+  applyMediaChange,
+  assertPictureLinksHeld,
+  type MediaChange,
 } from "src/lib/question-media-merge";
 import type { AnswerRevealMode, TestService } from "src/lib/test-service";
 
@@ -293,10 +295,16 @@ export interface UpdateQuestionInput {
    */
   mcGradingStrategy?: McGradingStrategy;
   /**
-   * The question's full ordered media list (absent = unchanged, `[]` = remove
-   * all). Kept pictures are named by key alone and take their stored details.
+   * Pictures to remove and new uploads to add (absent = unchanged). Applied to
+   * the pictures the question holds when the save runs.
    */
-  media?: EditedMediaEntry[];
+  media?: MediaChange;
+}
+
+/** What an update did beyond writing the fields. */
+export interface UpdateQuestionResult {
+  /** The media keys the question actually lost in this save. */
+  removedMediaKeys: string[];
 }
 
 /**
@@ -310,6 +318,12 @@ export interface AddQuestionOpts {
 }
 
 // ── Document (flat, for MongoDB storage) ────────────────────────────────────
+
+/** Read options for question lookups. */
+export interface ReadQuestionOptions {
+  /** Keep picture links as stored; for screens that edit the text. */
+  raw?: boolean;
+}
 
 /** The media fields of any stored question (test or Question Bank) the reference check reads. */
 interface MediaHolderDocument {
@@ -590,6 +604,7 @@ export class QuestionService {
    * @param questionId - The question to update.
    * @param input - The fields to change.
    * @param updatedBy - The admin making the change.
+   * @returns The media keys the question actually lost.
    * @throws "Test not found" or "Question not found" when the question isn't one of this school's test's own.
    */
   async updateQuestion(
@@ -597,7 +612,7 @@ export class QuestionService {
     questionId: string,
     input: UpdateQuestionInput,
     updatedBy: string,
-  ): Promise<void> {
+  ): Promise<UpdateQuestionResult> {
     await this.testService.requireTest(testId);
     // Matched on the test too, so a question can only be edited through its own test.
     const before = await this.questions.findOne({ id: questionId, testId });
@@ -629,8 +644,11 @@ export class QuestionService {
     if ("mcGradingStrategy" in input) {
       set.mcGradingStrategy = input.mcGradingStrategy ?? null;
     }
+    let removedMediaKeys: string[] = [];
     if (input.media !== undefined) {
-      set.media = mergeEditedMedia(before.media ?? [], input.media);
+      const merged = applyMediaChange(before.media ?? [], input.media);
+      set.media = merged.media;
+      removedMediaKeys = merged.removedKeys;
     }
     const optionsProvided = "options" in input && input.options !== undefined;
     const typeChanging =
@@ -694,9 +712,24 @@ export class QuestionService {
       }
     }
 
+    assertPictureLinksHeld(
+      [
+        set.title,
+        set.content,
+        ...(set.options ?? []).map((o) => o.text),
+      ].filter((text): text is string => text !== undefined),
+      [...(before.media ?? []), ...(set.media ?? [])],
+      [
+        before.title,
+        before.content,
+        ...(before.options ?? []).map((o) => o.text),
+      ],
+    );
+
     await this.questions.updateOne({ id: questionId, testId }, { $set: set });
 
     await this.logRealChanges(before, set, updatedBy);
+    return { removedMediaKeys };
   }
 
   /**
@@ -860,22 +893,29 @@ export class QuestionService {
   async getQuestion(
     testId: string,
     questionId: string,
+    options: ReadQuestionOptions = {},
   ): Promise<Question | null> {
     const doc = await this.questions.findOne({
       id: questionId,
       testId,
       deletedAt: null,
     });
-    return doc ? this.toQuestion(doc) : null;
+    if (!doc) return null;
+    return options.raw ? this.toRawQuestion(doc) : this.toQuestion(doc);
   }
 
-  async listQuestions(testId: string): Promise<Question[]> {
+  async listQuestions(
+    testId: string,
+    options: ReadQuestionOptions = {},
+  ): Promise<Question[]> {
     const docs = await this.questions
       .find({ testId, deletedAt: null })
       .sort({ order: 1, id: 1 })
       .toArray();
 
-    return docs.map(this.toQuestion);
+    return docs.map((doc) =>
+      options.raw ? this.toRawQuestion(doc) : this.toQuestion(doc),
+    );
   }
 
   /**
@@ -916,14 +956,22 @@ export class QuestionService {
   }
 
   /**
-   * Maps a stored question document to the client-facing discriminated union.
-   * Media is mapped with an empty `url` placeholder — the render-layer helper
-   * mints the presigned URL. Stays `this`-free so it can be used as a bare
-   * `docs.map(this.toQuestion)` callback.
+   * Maps a stored question document to the client question with picture links
+   * shown as "Picture k"; a bound property so it works as a bare `.map` callback.
    * @param doc - The stored question document.
    * @returns The client-facing question.
    */
-  private toQuestion(doc: QuestionDocument): Question {
+  private toQuestion = (doc: QuestionDocument): Question =>
+    resolveQuestionLinks(this.toRawQuestion(doc));
+
+  /**
+   * Maps a stored question document to the client-facing discriminated union,
+   * with picture links left as stored (for the Edit modal). Media is mapped
+   * with an empty `url` placeholder; the render-layer helper mints the URL.
+   * @param doc - The stored question document.
+   * @returns The client-facing question.
+   */
+  private toRawQuestion(doc: QuestionDocument): Question {
     const base: BaseQuestion = {
       id: doc.id,
       testId: doc.testId,
