@@ -76,6 +76,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 - Removing the only correct option is allowed; the card then shows a warning.
 - Save trims blank optional fields: a Model answer or Explanation that is empty or only spaces is saved as nothing.
 - The Edit modal also shows the draft's pictures with "Remove picture N from this question" and an image-only picker ("Add a picture file": PNG, JPEG or WebP, 10 MB each, at most 3 pictures counting those kept). A picked file gets the next free `[image N]` number and a local preview; nothing is uploaded until Import. Save records one undoable change covering the text and the pictures; Undo restores the old pictures and leaves an added picture in "Unused pictures". A Save that changed only pictures still marks the draft hand-edited, so Retry with AI warns first. Previews of files never saved are released on Cancel.
+- Closing the Edit modal (Escape, a click outside, the X or Cancel) with unsaved changes asks "Discard your changes?" with Keep editing and Discard; with no changes it closes at once, and typing a field back to its original value counts as no change. Removed or picked pictures count as changes. Discard drops the typing, so a reopened modal starts from the draft.
 - While the Edit modal is open, Import is disabled and shows "Save or cancel your open edits first"; the page behind the modal is inert, so the note is not reachable in practice.
 
 ## What a card shows

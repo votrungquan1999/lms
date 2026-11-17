@@ -2,7 +2,13 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  type RefObject,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import { MarkdownContent } from "src/components/markdown-content";
 import { QuestionEditModal } from "src/components/question-edit-modal.state";
 import {
@@ -617,19 +623,24 @@ function ImportQuestionsButton({
  * The edit form inside the Edit modal. It mounts only while the modal is open,
  * so each open starts from the draft and Import stays blocked meanwhile.
  * @param question - The draft being edited.
+ * @param dirtyCheckRef - Where the form registers its unsaved-changes check.
  * @param onSaved - Closes the modal after Save.
  * @param onCancel - Leaves without saving.
  */
 function ImportEditHost({
   question,
+  dirtyCheckRef,
   onSaved,
   onCancel,
 }: {
   question: ImportQuestionDraft;
+  dirtyCheckRef: RefObject<(() => boolean) | null>;
   onSaved: () => void;
   onCancel: () => void;
 }): React.ReactNode {
   const { saveEdit, setEditOpen } = useImportAi();
+  // The values at open, so a retry landing behind the modal does not count as a change.
+  const [initial] = useState(() => editableFieldsOf(question));
 
   // Cleanup also runs when the card goes away mid-edit, so a removed card never blocks Import.
   useEffect(() => {
@@ -638,9 +649,11 @@ function ImportEditHost({
   }, [question.id, setEditOpen]);
 
   return (
-    <QuestionEditProvider initial={editableFieldsOf(question)}>
+    <QuestionEditProvider initial={initial}>
       <QuestionEditFields
         questionId={question.id}
+        initial={initial}
+        dirtyCheckRef={dirtyCheckRef}
         onSave={({ addedPictures, ...draft }) => {
           // Blank optional fields become undefined so the draft stays retryable and importable; the textarea still needs "".
           saveEdit(
@@ -710,9 +723,10 @@ function QuestionCard({
             title={`Edit question ${number}`}
             triggerDisabled={isBusy}
           >
-            {({ onSaved, requestClose }) => (
+            {({ onSaved, requestClose, dirtyCheckRef }) => (
               <ImportEditHost
                 question={question}
+                dirtyCheckRef={dirtyCheckRef}
                 onSaved={onSaved}
                 onCancel={requestClose}
               />

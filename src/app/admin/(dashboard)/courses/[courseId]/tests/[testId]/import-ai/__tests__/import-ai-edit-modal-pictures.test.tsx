@@ -316,10 +316,31 @@ describe("Feature: AI document import — a teacher changes a draft's pictures i
     expect(picker).toBeDisabled();
 
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await user.click(await screen.findByRole("button", { name: "Discard" }));
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:new.png");
     expect(within(questionCard("Q1")).queryByAltText("Figure 3")).toBeNull();
+  });
+
+  it("counts a removed picture as an unsaved change when the modal is closed", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user);
+    await user.click(
+      within(questionCard("Q1")).getByRole("button", { name: "Edit" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Remove picture 1 from this question",
+      }),
+    );
+
+    await user.keyboard("{Escape}");
+
+    expect(
+      await screen.findByRole("alertdialog", { name: "Discard your changes?" }),
+    ).toBeInTheDocument();
   });
 });

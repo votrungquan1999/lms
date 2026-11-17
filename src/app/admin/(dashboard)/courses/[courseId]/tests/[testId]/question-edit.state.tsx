@@ -2,7 +2,13 @@
 
 import { Trash2 } from "lucide-react";
 import type * as React from "react";
-import { useActionState, useRef, useState } from "react";
+import {
+  type RefObject,
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { OptionalTextField } from "src/components/optional-text-field";
 import { QuestionEditModal } from "src/components/question-edit-modal.state";
 import {
@@ -65,6 +71,10 @@ interface QuestionEditPanelProps extends QuestionEditButtonProps {
   onSaved?: () => void;
   /** When given, the form shows a Cancel button that calls it. */
   requestClose?: () => void;
+  /** The form registers its "has unsaved changes" check here. */
+  dirtyCheckRef?: RefObject<(() => boolean) | null>;
+  /** Raised while a save runs, so the modal cannot be closed meanwhile. */
+  savingRef?: RefObject<boolean>;
 }
 
 interface QuestionEditFormProps extends QuestionEditPanelProps {
@@ -263,6 +273,8 @@ function QuestionEditForm({
   answeredCount,
   onSaved,
   requestClose,
+  dirtyCheckRef,
+  savingRef,
   keptMedia,
   onRemoveKept,
 }: QuestionEditFormProps) {
@@ -317,6 +329,19 @@ function QuestionEditForm({
     UpdateQuestionState | null,
     FormData
   >(async (prevState, formData) => {
+    if (savingRef) savingRef.current = true;
+    try {
+      return await saveQuestion(prevState, formData);
+    } finally {
+      if (savingRef) savingRef.current = false;
+    }
+  }, null);
+
+  /** Uploads new files, then sends the one save. */
+  async function saveQuestion(
+    prevState: UpdateQuestionState | null,
+    formData: FormData,
+  ): Promise<UpdateQuestionState> {
     // Omit the field entirely when nothing about the options changed, so the
     // service's answer-key check stays skipped for an unrelated edit (D69).
     const storedOptions = isMcQuestion(question) ? question.options : [];
@@ -343,8 +368,25 @@ function QuestionEditForm({
     const result = await updateQuestionAction(prevState, formData);
     if (result.success) onSaved?.();
     return result;
-  }, null);
+  }
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Lets the modal ask, on a close request, whether anything differs from the stored question.
+  useEffect(() => {
+    if (!dirtyCheckRef) return;
+    dirtyCheckRef.current = () =>
+      formRef.current !== null &&
+      deriveChangedFieldLabels(
+        question,
+        new FormData(formRef.current),
+        selectedType,
+        options,
+        picturesChanged,
+      ).length > 0;
+    return () => {
+      dirtyCheckRef.current = null;
+    };
+  }, [dirtyCheckRef, question, selectedType, options, picturesChanged]);
   const [pendingChangeLabels, setPendingChangeLabels] = useState<
     string[] | null
   >(null);
@@ -441,243 +483,252 @@ function QuestionEditForm({
       <input type="hidden" name="testId" value={question.testId} />
       <input type="hidden" name="courseId" value={courseId} />
 
-      <div className="space-y-1">
-        <Label htmlFor={`title-${question.id}`}>Title</Label>
-        <Input
-          id={`title-${question.id}`}
-          name="title"
-          type="text"
-          defaultValue={question.title}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor={`content-${question.id}`}>Content (Markdown)</Label>
-        <Textarea
-          id={`content-${question.id}`}
-          name="content"
-          rows={4}
-          className="font-mono text-sm"
-          defaultValue={question.content}
-        />
-      </div>
-
-      <div className="space-y-1">
-        <Label>Question type</Label>
-        <RadioGroup
-          name="type"
-          value={selectedType}
-          onValueChange={(value) => handleTypeSelect(value as QuestionType)}
-        >
-          <div className="flex items-center gap-2">
-            <RadioGroupItem
-              value="free_text"
-              id={`type-free-text-${question.id}`}
-            />
-            <Label htmlFor={`type-free-text-${question.id}`}>
-              {QUESTION_TYPE_LABELS.free_text}
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <RadioGroupItem
-              value="single_select"
-              id={`type-single-select-${question.id}`}
-            />
-            <Label htmlFor={`type-single-select-${question.id}`}>
-              {QUESTION_TYPE_LABELS.single_select}
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <RadioGroupItem
-              value="multi_select"
-              id={`type-multi-select-${question.id}`}
-            />
-            <Label htmlFor={`type-multi-select-${question.id}`}>
-              {QUESTION_TYPE_LABELS.multi_select}
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <RadioGroupItem
-              value="image_answer"
-              id={`type-image-answer-${question.id}`}
-            />
-            <Label htmlFor={`type-image-answer-${question.id}`}>
-              {QUESTION_TYPE_LABELS.image_answer}
-            </Label>
-          </div>
-        </RadioGroup>
-      </div>
-
-      {isFreeText && (
-        <>
-          <OptionalTextField
-            id={`reference-answer-${question.id}`}
-            name="referenceAnswer"
-            label="Model Answer"
-            placeholder="Write a sample correct answer…"
-            defaultValue={originalReferenceAnswer}
-          />
-          <div className="space-y-1">
-            <Label>{ANSWER_REVEAL_MODE_HEADING}</Label>
-            <RadioGroup
-              name="answerRevealMode"
-              defaultValue={originalAnswerRevealMode ?? "inherit"}
-            >
-              <div className="flex items-center gap-2">
-                <RadioGroupItem
-                  value="inherit"
-                  id={`reveal-inherit-${question.id}`}
-                />
-                <Label htmlFor={`reveal-inherit-${question.id}`}>
-                  {ANSWER_REVEAL_MODE_INHERIT_LABEL}
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem
-                  value="diff"
-                  id={`reveal-diff-${question.id}`}
-                />
-                <Label htmlFor={`reveal-diff-${question.id}`}>
-                  {ANSWER_REVEAL_MODE_LABELS.diff}
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem
-                  value="plain"
-                  id={`reveal-plain-${question.id}`}
-                />
-                <Label htmlFor={`reveal-plain-${question.id}`}>
-                  {ANSWER_REVEAL_MODE_LABELS.plain}
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
-        </>
-      )}
-
-      {isMc && (
-        <div className="space-y-3">
-          <Label>
-            Options{" "}
-            <span className="text-xs text-muted-foreground">
-              (
-              {selectedType === "single_select"
-                ? "pick one correct"
-                : "pick all correct"}
-              )
-            </span>
-          </Label>
-
-          {options.map((opt, idx) => (
-            <div
-              key={opt.id ?? `new-${idx}`}
-              className="flex items-center gap-2"
-            >
-              {selectedType === "single_select" ? (
-                <input
-                  type="radio"
-                  checked={opt.isCorrect}
-                  onChange={() => toggleOptionCorrect(idx)}
-                  className="shrink-0"
-                  aria-label={`Mark option ${idx + 1} correct`}
-                />
-              ) : (
-                <input
-                  type="checkbox"
-                  checked={opt.isCorrect}
-                  onChange={() => toggleOptionCorrect(idx)}
-                  className="shrink-0"
-                  aria-label={`Mark option ${idx + 1} correct`}
-                />
-              )}
-
-              <Input
-                id={`option-text-${question.id}-${idx}`}
-                value={opt.text}
-                onChange={(e) => updateOptionText(idx, e.target.value)}
-                placeholder={`Option ${idx + 1}`}
-                className="flex-1"
-              />
-
-              {options.length > 2 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeOption(idx)}
-                  className="text-destructive hover:text-destructive px-2"
-                >
-                  ✕
-                </Button>
-              )}
-            </div>
-          ))}
-
-          <Button type="button" variant="outline" size="sm" onClick={addOption}>
-            + Add Option
-          </Button>
-        </div>
-      )}
-
-      {selectedType === "multi_select" && (
+      {/* Locks every field while a save runs, so the saved values match what is on screen. */}
+      <fieldset disabled={isPending} className="min-w-0 space-y-3">
         <div className="space-y-1">
-          <Label>Grading</Label>
+          <Label htmlFor={`title-${question.id}`}>Title</Label>
+          <Input
+            id={`title-${question.id}`}
+            name="title"
+            type="text"
+            defaultValue={question.title}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`content-${question.id}`}>Content (Markdown)</Label>
+          <Textarea
+            id={`content-${question.id}`}
+            name="content"
+            rows={4}
+            className="font-mono text-sm"
+            defaultValue={question.content}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label>Question type</Label>
           <RadioGroup
-            name="mcGradingStrategy"
-            defaultValue={originalMcGradingStrategy ?? "all_or_nothing"}
+            name="type"
+            value={selectedType}
+            onValueChange={(value) => handleTypeSelect(value as QuestionType)}
           >
             <div className="flex items-center gap-2">
               <RadioGroupItem
-                value="all_or_nothing"
-                id={`grading-all-or-nothing-${question.id}`}
+                value="free_text"
+                id={`type-free-text-${question.id}`}
               />
-              <Label htmlFor={`grading-all-or-nothing-${question.id}`}>
-                {MC_GRADING_STRATEGY_LABELS.all_or_nothing}
+              <Label htmlFor={`type-free-text-${question.id}`}>
+                {QUESTION_TYPE_LABELS.free_text}
               </Label>
             </div>
             <div className="flex items-center gap-2">
               <RadioGroupItem
-                value="partial"
-                id={`grading-partial-${question.id}`}
+                value="single_select"
+                id={`type-single-select-${question.id}`}
               />
-              <Label htmlFor={`grading-partial-${question.id}`}>
-                {MC_GRADING_STRATEGY_LABELS.partial}
+              <Label htmlFor={`type-single-select-${question.id}`}>
+                {QUESTION_TYPE_LABELS.single_select}
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem
+                value="multi_select"
+                id={`type-multi-select-${question.id}`}
+              />
+              <Label htmlFor={`type-multi-select-${question.id}`}>
+                {QUESTION_TYPE_LABELS.multi_select}
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem
+                value="image_answer"
+                id={`type-image-answer-${question.id}`}
+              />
+              <Label htmlFor={`type-image-answer-${question.id}`}>
+                {QUESTION_TYPE_LABELS.image_answer}
               </Label>
             </div>
           </RadioGroup>
         </div>
-      )}
 
-      <div className="space-y-2">
-        <KeptMediaList media={keptMedia} onRemove={onRemoveKept} />
-        <QuestionMediaFileInput id={`media-files-${question.id}`} />
-        <QuestionMediaFileList />
-      </div>
-
-      {(isFreeText || isMc) && (
-        <OptionalTextField
-          id={`explanation-${question.id}`}
-          name="explanation"
-          label="Explanation"
-          placeholder="Explain what makes a good answer…"
-          defaultValue={originalExplanation}
-        />
-      )}
-
-      <div className="flex gap-2">
-        <Button type="submit" disabled={isPending} size="sm">
-          {isPending ? "Saving..." : "Save"}
-        </Button>
-        {requestClose && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={requestClose}
-          >
-            Cancel
-          </Button>
+        {isFreeText && (
+          <>
+            <OptionalTextField
+              id={`reference-answer-${question.id}`}
+              name="referenceAnswer"
+              label="Model Answer"
+              placeholder="Write a sample correct answer…"
+              defaultValue={originalReferenceAnswer}
+            />
+            <div className="space-y-1">
+              <Label>{ANSWER_REVEAL_MODE_HEADING}</Label>
+              <RadioGroup
+                name="answerRevealMode"
+                defaultValue={originalAnswerRevealMode ?? "inherit"}
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem
+                    value="inherit"
+                    id={`reveal-inherit-${question.id}`}
+                  />
+                  <Label htmlFor={`reveal-inherit-${question.id}`}>
+                    {ANSWER_REVEAL_MODE_INHERIT_LABEL}
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem
+                    value="diff"
+                    id={`reveal-diff-${question.id}`}
+                  />
+                  <Label htmlFor={`reveal-diff-${question.id}`}>
+                    {ANSWER_REVEAL_MODE_LABELS.diff}
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem
+                    value="plain"
+                    id={`reveal-plain-${question.id}`}
+                  />
+                  <Label htmlFor={`reveal-plain-${question.id}`}>
+                    {ANSWER_REVEAL_MODE_LABELS.plain}
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </>
         )}
-      </div>
+
+        {isMc && (
+          <div className="space-y-3">
+            <Label>
+              Options{" "}
+              <span className="text-xs text-muted-foreground">
+                (
+                {selectedType === "single_select"
+                  ? "pick one correct"
+                  : "pick all correct"}
+                )
+              </span>
+            </Label>
+
+            {options.map((opt, idx) => (
+              <div
+                key={opt.id ?? `new-${idx}`}
+                className="flex items-center gap-2"
+              >
+                {selectedType === "single_select" ? (
+                  <input
+                    type="radio"
+                    checked={opt.isCorrect}
+                    onChange={() => toggleOptionCorrect(idx)}
+                    className="shrink-0"
+                    aria-label={`Mark option ${idx + 1} correct`}
+                  />
+                ) : (
+                  <input
+                    type="checkbox"
+                    checked={opt.isCorrect}
+                    onChange={() => toggleOptionCorrect(idx)}
+                    className="shrink-0"
+                    aria-label={`Mark option ${idx + 1} correct`}
+                  />
+                )}
+
+                <Input
+                  id={`option-text-${question.id}-${idx}`}
+                  value={opt.text}
+                  onChange={(e) => updateOptionText(idx, e.target.value)}
+                  placeholder={`Option ${idx + 1}`}
+                  className="flex-1"
+                />
+
+                {options.length > 2 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeOption(idx)}
+                    className="text-destructive hover:text-destructive px-2"
+                  >
+                    ✕
+                  </Button>
+                )}
+              </div>
+            ))}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addOption}
+            >
+              + Add Option
+            </Button>
+          </div>
+        )}
+
+        {selectedType === "multi_select" && (
+          <div className="space-y-1">
+            <Label>Grading</Label>
+            <RadioGroup
+              name="mcGradingStrategy"
+              defaultValue={originalMcGradingStrategy ?? "all_or_nothing"}
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem
+                  value="all_or_nothing"
+                  id={`grading-all-or-nothing-${question.id}`}
+                />
+                <Label htmlFor={`grading-all-or-nothing-${question.id}`}>
+                  {MC_GRADING_STRATEGY_LABELS.all_or_nothing}
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem
+                  value="partial"
+                  id={`grading-partial-${question.id}`}
+                />
+                <Label htmlFor={`grading-partial-${question.id}`}>
+                  {MC_GRADING_STRATEGY_LABELS.partial}
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <KeptMediaList media={keptMedia} onRemove={onRemoveKept} />
+          <QuestionMediaFileInput id={`media-files-${question.id}`} />
+          <QuestionMediaFileList />
+        </div>
+
+        {(isFreeText || isMc) && (
+          <OptionalTextField
+            id={`explanation-${question.id}`}
+            name="explanation"
+            label="Explanation"
+            placeholder="Explain what makes a good answer…"
+            defaultValue={originalExplanation}
+          />
+        )}
+
+        <div className="flex gap-2">
+          <Button type="submit" disabled={isPending} size="sm">
+            {isPending ? "Saving..." : "Save"}
+          </Button>
+          {requestClose && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isPending}
+              onClick={requestClose}
+            >
+              Cancel
+            </Button>
+          )}
+        </div>
+      </fieldset>
 
       {state?.success && (
         <output className="block text-sm text-emerald-600">
@@ -845,13 +896,15 @@ export function QuestionEditButton({
 }: QuestionEditButtonProps) {
   return (
     <QuestionEditModal>
-      {({ onSaved, requestClose }) => (
+      {({ onSaved, requestClose, dirtyCheckRef, savingRef }) => (
         <QuestionEditPanel
           question={question}
           courseId={courseId}
           answeredCount={answeredCount}
           onSaved={onSaved}
           requestClose={requestClose}
+          dirtyCheckRef={dirtyCheckRef}
+          savingRef={savingRef}
         />
       )}
     </QuestionEditModal>

@@ -2,6 +2,16 @@
 
 import type * as React from "react";
 import { type RefObject, useRef, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "src/components/ui/alert-dialog";
 import { Button } from "src/components/ui/button";
 import {
   Dialog,
@@ -20,6 +30,8 @@ export interface QuestionEditModalControls {
   requestClose: () => void;
   /** The form registers a "has unsaved changes" check here. */
   dirtyCheckRef: RefObject<(() => boolean) | null>;
+  /** The form sets this while a save runs; every close request is ignored meanwhile. */
+  savingRef: RefObject<boolean>;
 }
 
 interface QuestionEditModalProps {
@@ -45,10 +57,22 @@ export function QuestionEditModal({
   children,
 }: QuestionEditModalProps) {
   const [open, setOpen] = useState(false);
+  const [isAskingToDiscard, setIsAskingToDiscard] = useState(false);
   const dirtyCheckRef = useRef<(() => boolean) | null>(null);
+  const savingRef = useRef(false);
+
+  /** Every way of leaving without saving (Escape, outside click, X, Cancel) ends here. */
+  function requestClose(): void {
+    if (savingRef.current) return;
+    if (dirtyCheckRef.current?.()) setIsAskingToDiscard(true);
+    else setOpen(false);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (next ? setOpen(true) : requestClose())}
+    >
       <DialogTrigger asChild>
         <Button
           type="button"
@@ -68,9 +92,35 @@ export function QuestionEditModal({
         </DialogHeader>
         {children({
           onSaved: () => setOpen(false),
-          requestClose: () => setOpen(false),
+          requestClose,
           dirtyCheckRef,
+          savingRef,
         })}
+        {/* Inside the dialog so its clicks never count as "outside" the modal. */}
+        <AlertDialog
+          open={isAskingToDiscard}
+          onOpenChange={setIsAskingToDiscard}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Discard your changes?</AlertDialogTitle>
+              <AlertDialogDescription>
+                What you changed in this question has not been saved.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setIsAskingToDiscard(false);
+                  setOpen(false);
+                }}
+              >
+                Discard
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

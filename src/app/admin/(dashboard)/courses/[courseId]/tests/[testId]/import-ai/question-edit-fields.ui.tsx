@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { Textarea } from "src/components/ui/textarea";
+import type { EditableFields } from "./import-ai-draft";
 import { picturesOf, useImportAi } from "./import-ai-form.state";
 import { pictureReferenceHint } from "./picture-references";
 import {
@@ -24,10 +25,16 @@ import { QuestionEditPictures } from "./question-edit-pictures.ui";
  */
 export function QuestionEditFields({
   questionId,
+  initial,
+  dirtyCheckRef,
   onSave,
   onCancel,
 }: {
   questionId: string;
+  /** The values the form opened with, for telling whether anything changed. */
+  initial: EditableFields;
+  /** The modal asks this on a close request. */
+  dirtyCheckRef: RefObject<(() => boolean) | null>;
   onSave: (draft: QuestionEditDraft) => void;
   onCancel: () => void;
 }): React.ReactNode {
@@ -60,6 +67,13 @@ export function QuestionEditFields({
   const titleHint = pictureReferenceHint(draft.title, pictureNumbers);
   const contentHint = pictureReferenceHint(draft.content, pictureNumbers);
   const addOptionRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    dirtyCheckRef.current = () => hasUnsavedChanges(initial, draft);
+    return () => {
+      dirtyCheckRef.current = null;
+    };
+  }, [dirtyCheckRef, initial, draft]);
 
   return (
     <div className="space-y-3">
@@ -212,4 +226,24 @@ function PictureHint({
       {hint}
     </p>
   );
+}
+
+/**
+ * Whether the buffer differs from the values the modal opened with.
+ * @param initial - The draft's fields at open.
+ * @param draft - The buffer now.
+ * @returns True when a field, the pictures or a picked file differ; a blank optional field equals a missing one.
+ */
+function hasUnsavedChanges(
+  initial: EditableFields,
+  draft: QuestionEditDraft,
+): boolean {
+  const { addedPictures, ...fields } = draft;
+  const comparable = (values: EditableFields) =>
+    JSON.stringify({
+      ...values,
+      referenceAnswer: values.referenceAnswer ?? "",
+      explanation: values.explanation ?? "",
+    });
+  return addedPictures.length > 0 || comparable(initial) !== comparable(fields);
 }
