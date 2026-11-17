@@ -155,20 +155,16 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
     expect(requestUploadSlotsAction).not.toHaveBeenCalled();
   });
 
-  it("keeps the teacher's open edit and saved edits while Student view shows, and student picks never touch the draft", async () => {
+  it("keeps the teacher's saved edits while Student view shows, and student picks never touch the draft", async () => {
     const user = userEvent.setup();
     await uploadDocument();
 
-    // Given an open edit on Capital with typed text, and a saved edit on Câu 14
-    await user.click(screen.getAllByRole("button", { name: /^edit$/i })[1]);
-    const capitalTitle = screen.getByLabelText(/title/i);
-    await user.clear(capitalTitle);
-    await user.type(capitalTitle, "Capital city");
+    // Given a saved edit on Câu 14
     await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
-    const [firstTitle] = screen.getAllByLabelText(/title/i);
+    const firstTitle = screen.getByLabelText(/title/i);
     await user.clear(firstTitle);
     await user.type(firstTitle, "Câu 14 edited");
-    await user.click(screen.getAllByRole("button", { name: /^save$/i })[0]);
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     // When the teacher flips to Student view, picks Rome, and flips back
     await user.click(screen.getByRole("button", { name: "Student view" }));
@@ -180,8 +176,7 @@ describe("Feature: teacher previews AI-drafted questions in Student view", () =>
     );
     await user.click(screen.getByRole("button", { name: "Teacher view" }));
 
-    // Then the open edit still holds its typed text and the saved edit shows
-    expect(screen.getByLabelText(/title/i)).toHaveValue("Capital city");
+    // Then the saved edit shows
     expect(screen.getByText(cardTitleText("Câu 14 edited"))).toBeVisible();
   });
 

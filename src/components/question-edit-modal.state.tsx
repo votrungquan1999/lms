@@ -23,6 +23,10 @@ export interface QuestionEditModalControls {
 }
 
 interface QuestionEditModalProps {
+  /** Dialog heading; defaults to "Edit question". */
+  title?: string;
+  /** Disables the Edit button, e.g. while the screen is busy. */
+  triggerDisabled?: boolean;
   /** Renders the form; it mounts only while the modal is open, so each open starts fresh. */
   children: (controls: QuestionEditModalControls) => React.ReactNode;
 }
@@ -31,22 +35,33 @@ interface QuestionEditModalProps {
  * Edit button plus the wide, scrolling "Edit question" modal that hosts a
  * question's edit form. The form lives inside the dialog content, so Radix
  * unmounts it on close and every open starts from the saved question.
+ * @param title - Dialog heading.
+ * @param triggerDisabled - Whether the Edit button is disabled.
  * @param children - Render function receiving the modal's controls.
  */
-export function QuestionEditModal({ children }: QuestionEditModalProps) {
+export function QuestionEditModal({
+  title = "Edit question",
+  triggerDisabled = false,
+  children,
+}: QuestionEditModalProps) {
   const [open, setOpen] = useState(false);
   const dirtyCheckRef = useRef<(() => boolean) | null>(null);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={triggerDisabled}
+        >
           Edit
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit question</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             Changes apply to the question once you save.
           </DialogDescription>

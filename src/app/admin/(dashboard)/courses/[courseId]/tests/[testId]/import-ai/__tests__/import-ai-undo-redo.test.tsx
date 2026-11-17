@@ -47,6 +47,7 @@ afterEach(() => {
 interface DraftSpec {
   title: string;
   imageNumbers?: number[];
+  explanation?: string;
 }
 
 /**
@@ -76,6 +77,7 @@ async function uploadDocument(
       content: `${draft.title} content`,
       type: "free_text" as const,
       imageNumbers: draft.imageNumbers,
+      explanation: draft.explanation,
     })),
   });
 
@@ -260,6 +262,34 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
     );
     await user.type(screen.getByLabelText(/what was wrong/i), "Wrong focus.");
     expect(screen.getByRole("button", { name: /^retry$/i })).toBeVisible();
+    expect(screen.queryByText(/hand-edited/i)).toBeNull();
+  });
+
+  it("records nothing when a draft with a whitespace-only explanation is saved unchanged", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [
+      { title: "Q1" },
+      { title: "Q2", explanation: "   " },
+    ]);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+    await user.click(screen.getByRole("button", { name: /^undo/i }));
+
+    await user.click(
+      within(questionCard("Q2")).getByRole("button", { name: "Edit" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    // Redo survives, so nothing was recorded
+    await user.click(screen.getByRole("button", { name: /^redo/i }));
+    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
+
+    // And Q2 is not marked hand-edited
+    await user.click(
+      within(questionCard("Q2")).getByRole("button", {
+        name: /retry with ai/i,
+      }),
+    );
+    await user.type(screen.getByLabelText(/what was wrong/i), "Wrong focus.");
     expect(screen.queryByText(/hand-edited/i)).toBeNull();
   });
 
@@ -462,32 +492,6 @@ describe("Feature: AI document import — undo and redo draft changes", () => {
     ).toBeChecked();
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
   });
-
-  it("keeps what is typed in an open edit form through Undo and Redo, and Save lands on top of the history", async () => {
-    const user = userEvent.setup();
-    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
-    await renameQuestion(user, "Q1", "Q1 reworded");
-    await user.click(
-      within(questionCard("Q2")).getByRole("button", { name: "Edit" }),
-    );
-    await user.type(screen.getByLabelText(/title/i), " typed");
-
-    await user.click(
-      screen.getByRole("button", { name: "Undo edit of Question 1" }),
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Redo edit of Question 1" }),
-    );
-
-    // The form kept its typing while the list changed underneath it
-    expect(screen.getByLabelText(/title/i)).toHaveValue("Q2 typed");
-    await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(screen.getByText(cardTitleText("Q2 typed"))).toBeInTheDocument();
-    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Undo edit of Question 2" }),
-    ).toBeEnabled();
-  });
 });
 
 describe("Feature: AI document import — undo and redo from the keyboard", () => {
@@ -527,34 +531,6 @@ describe("Feature: AI document import — undo and redo from the keyboard", () =
     await user.keyboard("{Meta>}{Shift>}Z{/Shift}{/Meta}");
 
     expect(screen.getByText(cardTitleText("Q2 reworded"))).toBeInTheDocument();
-  });
-
-  it("leaves Ctrl+Z to the browser's own typing undo inside a text box", async () => {
-    const user = userEvent.setup();
-    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
-    await renameQuestion(user, "Q1", "Q1 reworded");
-    await user.click(
-      within(questionCard("Q2")).getByRole("button", { name: "Edit" }),
-    );
-
-    const notPrevented = fireEvent.keyDown(screen.getByLabelText(/title/i), {
-      key: "z",
-      ctrlKey: true,
-    });
-    const alsoInTextarea = fireEvent.keyDown(
-      screen.getByLabelText(/content/i),
-      {
-        key: "z",
-        ctrlKey: true,
-      },
-    );
-
-    expect(notPrevented).toBe(true);
-    expect(alsoInTextarea).toBe(true);
-    expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Undo edit of Question 1" }),
-    ).toBeEnabled();
   });
 
   it("ignores the shortcut while the retry dialog is open", async () => {
@@ -625,6 +601,20 @@ describe("Feature: AI document import — undo and redo from the keyboard", () =
 
     expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /replace/i })).toBeChecked();
+  });
+
+  it("leaves Ctrl+Z to the browser in the unused picture's question menu", async () => {
+    const user = userEvent.setup();
+    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }], 1);
+    await renameQuestion(user, "Q1", "Q1 reworded");
+
+    const notPrevented = fireEvent.keyDown(
+      screen.getByLabelText("Question for picture 1"),
+      { key: "z", ctrlKey: true },
+    );
+
+    expect(notPrevented).toBe(true);
+    expect(screen.getByText(cardTitleText("Q1 reworded"))).toBeInTheDocument();
   });
 
   it("does nothing while a new file is read", async () => {

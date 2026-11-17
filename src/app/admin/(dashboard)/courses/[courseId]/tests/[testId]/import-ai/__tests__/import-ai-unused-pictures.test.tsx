@@ -330,30 +330,6 @@ describe("Feature: AI document import — pictures no question uses", () => {
     );
   });
 
-  it("keeps a picture added while a question's edit form was open when the teacher saves the edit", async () => {
-    const user = userEvent.setup();
-    await uploadDocument(3, [
-      { title: "Câu 14", imageNumbers: [1] },
-      { title: "Câu 15" },
-    ]);
-    await user.click(
-      within(questionCard("Câu 14")).getByRole("button", { name: "Edit" }),
-    );
-
-    await user.selectOptions(
-      screen.getByLabelText("Question for picture 2"),
-      "#1 Câu 14",
-    );
-    await user.click(screen.getByRole("button", { name: "Add picture 2" }));
-    await user.click(screen.getByRole("button", { name: "Save" }));
-
-    expect(
-      within(questionCard("Câu 14")).getByRole("img", { name: "Figure 2" }),
-    ).toBeInTheDocument();
-    const unused = screen.getByRole("region", { name: "Unused pictures" });
-    expect(within(unused).queryByAltText("Unused picture 2")).toBeNull();
-  });
-
   it("keeps Add and Remove disabled while the import uploads, so the uploaded pictures can't change", async () => {
     const user = userEvent.setup();
     let failUpload: () => void = () => {};

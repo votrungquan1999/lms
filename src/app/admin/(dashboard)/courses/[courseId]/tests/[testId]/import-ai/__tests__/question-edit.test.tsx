@@ -174,56 +174,6 @@ describe("Feature: AI document import — a teacher corrects a reviewed question
     const [, savedDraft] = vi.mocked(retryQuestionAction).mock.calls[0];
     expect(draftQuestionSchema.safeParse(savedDraft).success).toBe(true);
   });
-
-  it("scopes edit-field ids per question, so two open editors don't share a label target", async () => {
-    const user = userEvent.setup();
-    vi.mocked(extractDocx).mockResolvedValue({
-      text: "1. Explain photosynthesis.\n2. Pick the prime number.",
-      pictures: [],
-    });
-    vi.mocked(parseQuestionsAction).mockResolvedValue({
-      success: true,
-      message: "Extracted 2 question(s)",
-      questions: [
-        { title: "Q1", content: "Explain photosynthesis.", type: "free_text" },
-        {
-          title: "Q2",
-          content: "Pick the prime number.",
-          type: "single_select",
-          options: [
-            { text: "4", isCorrect: false },
-            { text: "7", isCorrect: true },
-          ],
-        },
-      ],
-    });
-
-    render(
-      <ImportAiProvider>
-        <ImportAiFilePicker />
-        <QuestionPreviewList
-          testId="test-1"
-          courseId="course-1"
-          existingQuestionCount={0}
-          answeredStudentCount={0}
-        />
-      </ImportAiProvider>,
-    );
-
-    await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
-    expect(await screen.findByText(cardTitleText("Q1"))).toBeInTheDocument();
-
-    // Open both cards' editors at once — nothing closes the other one.
-    await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
-    await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
-
-    // Click the SECOND card's "Title" label; it must focus Q2's own input.
-    const titleLabels = screen.getAllByText("Title");
-    expect(titleLabels).toHaveLength(2);
-    await user.click(titleLabels[1]);
-
-    expect(document.activeElement).toHaveValue("Q2");
-  });
 });
 
 describe("Feature: AI document import — Import waits until every open edit is saved or cancelled", () => {
@@ -266,11 +216,11 @@ describe("Feature: AI document import — Import waits until every open edit is 
 
     await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
 
+    // The page behind the modal is aria-hidden, so query it with hidden: true.
     expect(
-      screen.getByRole("button", { name: /import questions/i }),
+      screen.getByRole("button", { name: /import questions/i, hidden: true }),
     ).toBeDisabled();
     expect(screen.getByText(OPEN_EDITS_NOTE)).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it.each(["Save", "Cancel"])(
@@ -288,20 +238,6 @@ describe("Feature: AI document import — Import waits until every open edit is 
       expect(screen.queryByText(OPEN_EDITS_NOTE)).not.toBeInTheDocument();
     },
   );
-
-  it("keeps Import disabled while any one of two open edit forms remains open", async () => {
-    const user = userEvent.setup();
-    await uploadTwoQuestions(user);
-    await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
-    await user.click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
-
-    await user.click(screen.getAllByRole("button", { name: "Cancel" })[0]);
-
-    expect(
-      screen.getByRole("button", { name: /import questions/i }),
-    ).toBeDisabled();
-    expect(screen.getByText(OPEN_EDITS_NOTE)).toBeInTheDocument();
-  });
 
   it("keeps Edit disabled while the import is running", async () => {
     const user = userEvent.setup();

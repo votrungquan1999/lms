@@ -49,9 +49,7 @@ export function QuestionEditFields({
     toggleOptionCorrect,
   } = useQuestionEditActions();
 
-  // Scoped by questionId (matches RetryQuestionDialog's noteId) — isEditing is
-  // per-card state and nothing closes other editors, so two open editors must
-  // not collide on the same DOM id.
+  // Scoped by questionId (matches RetryQuestionDialog's noteId), so field ids stay unique on the page.
   const titleId = `edit-question-title-${questionId}`;
   const contentId = `edit-question-content-${questionId}`;
   const referenceAnswerId = `edit-question-reference-answer-${questionId}`;

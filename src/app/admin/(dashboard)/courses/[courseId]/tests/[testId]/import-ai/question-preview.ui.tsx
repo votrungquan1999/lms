@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { MarkdownContent } from "src/components/markdown-content";
+import { QuestionEditModal } from "src/components/question-edit-modal.state";
 import {
   type StudentCardQuestion,
   StudentQuestionCard,
@@ -25,7 +26,6 @@ import {
 } from "src/components/ui/alert-dialog";
 import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
-import { Card, CardContent } from "src/components/ui/card";
 import { Input } from "src/components/ui/input";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
@@ -614,9 +614,56 @@ function ImportQuestionsButton({
 }
 
 /**
- * One reviewable question: its read-only card, or — while a teacher is
- * correcting it — its edit form. Editing is scoped to this one card; the
- * rest of the list is untouched until Save writes back by this question's id.
+ * The edit form inside the Edit modal. It mounts only while the modal is open,
+ * so each open starts from the draft and Import stays blocked meanwhile.
+ * @param question - The draft being edited.
+ * @param onSaved - Closes the modal after Save.
+ * @param onCancel - Leaves without saving.
+ */
+function ImportEditHost({
+  question,
+  onSaved,
+  onCancel,
+}: {
+  question: ImportQuestionDraft;
+  onSaved: () => void;
+  onCancel: () => void;
+}): React.ReactNode {
+  const { saveEdit, setEditOpen } = useImportAi();
+
+  // Cleanup also runs when the card goes away mid-edit, so a removed card never blocks Import.
+  useEffect(() => {
+    setEditOpen(question.id, true);
+    return () => setEditOpen(question.id, false);
+  }, [question.id, setEditOpen]);
+
+  return (
+    <QuestionEditProvider initial={editableFieldsOf(question)}>
+      <QuestionEditFields
+        questionId={question.id}
+        onSave={(draft) => {
+          // Blank optional fields become undefined so the draft stays retryable and importable; the textarea still needs "".
+          saveEdit(question.id, {
+            ...draft,
+            referenceAnswer: draft.referenceAnswer?.trim()
+              ? draft.referenceAnswer
+              : undefined,
+            explanation: draft.explanation?.trim()
+              ? draft.explanation
+              : undefined,
+          });
+          onSaved();
+        }}
+        onCancel={onCancel}
+      />
+    </QuestionEditProvider>
+  );
+}
+
+/**
+ * One reviewable question: its read-only card, with its Edit modal. Editing is
+ * scoped to this one card; the rest of the list is untouched until Save
+ * writes back by this question's id.
  */
 function QuestionCard({
   question,
@@ -631,43 +678,7 @@ function QuestionCard({
   firstQuestionNumber: number;
   onDelete: () => void;
 }): React.ReactNode {
-  const { saveEdit, pictures, isBusy, setEditOpen } = useImportAi();
-  const [isEditing, setIsEditing] = useState(false);
-
-  // Cleanup also runs when the card goes away mid-edit, so a removed card never blocks Import.
-  useEffect(() => {
-    if (!isEditing) return;
-    setEditOpen(question.id, true);
-    return () => setEditOpen(question.id, false);
-  }, [isEditing, question.id, setEditOpen]);
-
-  if (isEditing) {
-    return (
-      <Card id={cardDomId(question.id)} tabIndex={-1}>
-        <CardContent className="space-y-3 pt-4">
-          <QuestionEditProvider initial={editableFieldsOf(question)}>
-            <QuestionEditFields
-              questionId={question.id}
-              onSave={(draft) => {
-                // Blank optional fields become undefined so the draft stays retryable and importable; the textarea still needs "".
-                saveEdit(question.id, {
-                  ...draft,
-                  referenceAnswer: draft.referenceAnswer?.trim()
-                    ? draft.referenceAnswer
-                    : undefined,
-                  explanation: draft.explanation?.trim()
-                    ? draft.explanation
-                    : undefined,
-                });
-                setIsEditing(false);
-              }}
-              onCancel={() => setIsEditing(false)}
-            />
-          </QuestionEditProvider>
-        </CardContent>
-      </Card>
-    );
-  }
+  const { pictures, isBusy } = useImportAi();
 
   const warning = answerKeyWarning(question);
   const pictureNumbers = picturesOf(question, pictures).map(
@@ -691,15 +702,18 @@ function QuestionCard({
           <Badge variant="outline">{QUESTION_TYPE_LABELS[question.type]}</Badge>
           {warning && <Badge variant="destructive">{warning}</Badge>}
           <RetryQuestionDialog question={question} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isBusy}
-            onClick={() => setIsEditing(true)}
+          <QuestionEditModal
+            title={`Edit question ${number}`}
+            triggerDisabled={isBusy}
           >
-            Edit
-          </Button>
+            {({ onSaved, requestClose }) => (
+              <ImportEditHost
+                question={question}
+                onSaved={onSaved}
+                onCancel={requestClose}
+              />
+            )}
+          </QuestionEditModal>
           <Button
             type="button"
             variant="outline"

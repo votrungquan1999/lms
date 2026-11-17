@@ -154,19 +154,6 @@ describe("Feature: AI document import — deleting a draft question", () => {
     expect(restored).toHaveFocus();
   });
 
-  it("keeps what is typed in another card's open edit form when the first question is deleted", async () => {
-    const user = userEvent.setup();
-    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
-    await user.click(
-      within(questionCard("Q2")).getByRole("button", { name: "Edit" }),
-    );
-    await user.type(screen.getByLabelText(/title/i), " typed");
-
-    await user.click(screen.getByRole("button", { name: "Delete question 1" }));
-
-    expect(screen.getByLabelText(/title/i)).toHaveValue("Q2 typed");
-  });
-
   it("stays in Student view when the teacher undoes a delete from there", async () => {
     const user = userEvent.setup();
     await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
@@ -179,33 +166,6 @@ describe("Feature: AI document import — deleting a draft question", () => {
 
     const student = screen.getByRole("region", { name: "Student view" });
     expect(within(student).getByText("Q1 content")).toBeInTheDocument();
-  });
-
-  it("deletes a draft on Redo even with its edit form open, dropping the typing and unlocking Import", async () => {
-    const user = userEvent.setup();
-    await uploadDocument(user, [{ title: "Q1" }, { title: "Q2" }]);
-    await user.click(screen.getByRole("button", { name: "Delete question 1" }));
-    await user.click(
-      screen.getByRole("button", { name: "Undo delete of Question 1" }),
-    );
-    await user.click(
-      within(questionCard("Q1")).getByRole("button", { name: "Edit" }),
-    );
-    await user.type(screen.getByLabelText(/title/i), " typed");
-
-    await user.click(
-      screen.getByRole("button", { name: "Redo delete of Question 1" }),
-    );
-
-    expect(screen.queryByLabelText(/title/i)).not.toBeInTheDocument();
-    expect(screen.queryByText("Q1 typed")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Import questions" }),
-    ).toBeEnabled();
-    await user.click(
-      screen.getByRole("button", { name: "Undo delete of Question 1" }),
-    );
-    expect(screen.getByText(cardTitleText("Q1"))).toBeInTheDocument();
   });
 
   it("lists a deleted draft's pictures as unused, and takes them back with Undo", async () => {

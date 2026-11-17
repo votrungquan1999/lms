@@ -274,31 +274,6 @@ describe("Feature: AI document import — moving a picture between questions", (
     expect(screen.queryByText(cardTitleText("Q2 retried"))).toBeNull();
   });
 
-  it("keeps a move onto a question whose edit form is open, and the form's Save lands on top", async () => {
-    const user = userEvent.setup();
-    await uploadDocument(
-      user,
-      [{ title: "Q1", imageNumbers: [1] }, { title: "Q2" }],
-      1,
-    );
-    await user.click(
-      within(questionCard("Q2")).getByRole("button", { name: "Edit" }),
-    );
-    await user.type(screen.getByLabelText(/title/i), " typed");
-
-    await openMoveMenu(user, "Q1", 1);
-    await user.click(await screen.findByRole("menuitem", { name: /#2/ }));
-    await user.click(screen.getByRole("button", { name: "Save" }));
-
-    const target = questionCard("Q2 typed");
-    expect(
-      within(target).getByRole("img", { name: "Figure 1" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Undo edit of Question 2" }),
-    ).toBeEnabled();
-  });
-
   it("leaves Ctrl+Z to the open Move menu instead of undoing behind it", async () => {
     const user = userEvent.setup();
     await uploadDocument(

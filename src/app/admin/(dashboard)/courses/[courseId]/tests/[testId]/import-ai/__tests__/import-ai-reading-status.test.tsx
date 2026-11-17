@@ -149,7 +149,7 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("dims and locks the old list, including an open edit form, while a second file is read", async () => {
+  it("dims and locks the old list while a second file is read", async () => {
     const user = userEvent.setup();
     renderScreen();
     vi.mocked(parseQuestionsAction).mockResolvedValueOnce(TWO_QUESTIONS);
@@ -159,8 +159,6 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
       screen.getByLabelText("Question for picture 2"),
       screen.getByRole("option", { name: /Q2/ }),
     );
-    await user.click(screen.getAllByRole("button", { name: "Edit" })[1]);
-    await user.type(screen.getByLabelText("Title"), " (corrected)");
     holdNextRead();
 
     await user.upload(screen.getByLabelText(/document/i), makeDocxFile());
@@ -172,8 +170,9 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     expect(
       screen.getByText(cardTitleText("Q1")).closest("[aria-busy]"),
     ).toHaveAttribute("aria-busy", "true");
-    // Q2's form is open, so Q1's Edit is the only one left on a card.
-    expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
+    for (const edit of screen.getAllByRole("button", { name: "Edit" })) {
+      expect(edit).toBeDisabled();
+    }
     for (const retry of screen.getAllByRole("button", {
       name: "Retry with AI",
     })) {
@@ -185,9 +184,6 @@ describe("Feature: AI document import — the teacher sees the AI is reading", (
     expect(
       screen.getByRole("button", { name: "Add picture 2" }),
     ).toBeDisabled();
-    expect(screen.getByLabelText("Title")).toBeDisabled();
-    expect(screen.getByLabelText("Title")).toHaveValue("Q2 (corrected)");
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
   it("locks the Add and Replace choice while a second file is read, and frees it when the read ends", async () => {

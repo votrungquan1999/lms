@@ -17,9 +17,9 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 
 - While a read runs, "Reading <file name>…" with a spinner shows under the file picker. It names the file because the native file input is cleared on every pick. The file picker is disabled.
 - If a list from an earlier file is on screen, the status adds "The list below is from your previous file." and that list (Teacher and Student view) is dimmed and marked busy.
-- While reading or importing, everything that changes the list is disabled: Edit, Delete, Retry with AI, picture Remove, Move, Add picture, Undo, Redo, the Add/Replace choice and Import. While a read runs, open edit forms lock their fields, Add option, Remove and Save but keep what was typed; their Cancel stays enabled. An import cannot start with a form open, so forms never need locking for it.
+- While reading or importing, everything that changes the list is disabled: Edit, Delete, Retry with AI, picture Remove, Move, Add picture, Undo, Redo, the Add/Replace choice and Import. The Edit modal is a dialog over an inert page, so a read or an import cannot start while it is open.
 - A retry does not show the reading status. It only shows "Retrying…" in its own dialog.
-- A successful read replaces the list, clears the history and all per-question errors, clears any old page-level import error and shows the new list in Teacher view with no edit forms open.
+- A successful read replaces the list, clears the history and all per-question errors, clears any old page-level import error and shows the new list in Teacher view with no Edit modal open.
 - If a read call never answers, the browser gives up after 300 seconds and shows the timeout message. That is the server's own AI limit (240 seconds, `AI_CALL_TIMEOUT_MS` in `src/lib/ai/ai-call-timeout.ts`, which both sides import) plus one minute.
 - A thrown read call (for example a dropped connection) shows the "busy" message and leaves the picker usable.
 
@@ -54,13 +54,12 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 - Undo and Redo buttons sit above the list. Their labels name the change, for example "Undo delete of Question 7", "Redo AI retry of Question 2", "Undo move of picture 1 from Question 1 to Question 3". With nothing to act on they read just "Undo" / "Redo" and are disabled.
 - A new change empties Redo, including a Retry-with-AI result.
 - Undo restores a deleted draft in its old position with its edits, hand-edit mark, pictures and per-question errors. Undoing a retry restores the draft's text as before the retry; its pictures are the same either way.
-- Not in the history: the Add/Replace choice, and which cards have an open edit form. A new read starts a fresh history.
-- Undo and Redo are disabled while a read or import runs, and allowed while a retry runs and while an edit form is open (Save then records a new change on top).
+- Not in the history: the Add/Replace choice, and which cards have an open Edit modal. A new read starts a fresh history.
+- Undo and Redo are disabled while a read or import runs, and allowed while a retry runs. The page is inert while the Edit modal is open, so Undo and Redo cannot be used until it closes.
 - Keyboard: Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z redoes. There is no Ctrl+Y.
 - The shortcuts are ignored while typing in a text input (text, search, email, url, tel, password, number), a textarea, a select or a contenteditable, so typing keeps the browser's own undo. The file input, radios and checkboxes do not block them.
 - The shortcuts are also ignored while any dialog, alert dialog or menu is open, with Alt held, with a held (repeating) key, and while busy.
-- Saving an edit form with nothing changed records nothing: no history entry, Redo kept, draft not marked hand-edited.
-- Redo of a delete while that draft's edit form is open deletes it and drops the unsaved typing.
+- Saving the Edit modal with nothing changed closes it and records nothing: no history entry, Redo kept, draft not marked hand-edited.
 
 ## Deleting a draft
 
@@ -70,13 +69,13 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 
 ## Editing a draft
 
-- Edit opens a form with Title, Content, and either Model answer (free-text) or Options (multiple choice), plus Explanation. The type cannot be changed here; a wrong type is fixed with Retry with AI.
+- Edit opens a modal ("Edit question N") with Title, Content, and either Model answer (free-text) or Options (multiple choice), plus Explanation. The type cannot be changed here; a wrong type is fixed with Retry with AI.
 - Options: each row has a correct-answer control, a text box and Remove. "Add option" adds a blank, unmarked row. Remove is disabled when 2 or fewer rows remain; after a Remove, focus goes to "Add option".
 - A multiple-choice draft with no options opens with no rows and "Add option". Saved untouched, it stays without options.
 - Single-answer questions use radios, and clicking any choice always makes it the only correct one (also when the choices were all marked). Multi-answer questions use checkboxes.
 - Removing the only correct option is allowed; the card then shows a warning.
 - Save trims blank optional fields: a Model answer or Explanation that is empty or only spaces is saved as nothing.
-- While any edit form is open, Import is disabled and shows "Save or cancel your open edits first".
+- While the Edit modal is open, Import is disabled and shows "Save or cancel your open edits first"; the page behind the modal is inert, so the note is not reachable in practice.
 
 ## What a card shows
 
@@ -118,7 +117,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 
 ## Importing
 
-- The Import button reads "Import questions" (Add) or "Replace questions" (Replace) and "Importing…" while writing. It is disabled while busy, while a retry runs, while an edit form is open, when there are no drafts, and in Add mode after an import call that never answered (see below).
+- The Import button reads "Import questions" (Add) or "Replace questions" (Replace) and "Importing…" while writing. It is disabled while busy, while a retry runs, while the Edit modal is open, when there are no drafts, and in Add mode after an import call that never answered (see below).
 - The server rejects an empty list, and validates the whole list before writing anything. It then checks that the test belongs to the teacher's current school (`resolveOwnedTest`) and writes every question through that school's question service. For title, content and each option text, spaces-only counts as empty; reasons are "title is empty", "content is empty", "option K is empty". The text is imported as typed.
 - A single-answer question may have no correct option or one, never two or more; a multi-answer question may have none or any number (the warnings above tell the teacher). The number of options is not checked at the AI-import door. Pictures are checked as in the manual add form, in the same pass before anything is written or deleted: every key must be one the teacher's current school minted (`media/schools/<schoolId>/questions/<uuid>.<ext>`) with the extension of its declared type (else "Invalid media key"), and only pictures are taken ("Only pictures can be imported" for a video). Only the known picture fields are stored.
 - A rejected question gets its message on its own card; a rejection with no question (for example unauthorised) shows as a banner under the button. The card message stays until the next Import click, a new read, or a Retry-with-AI result for that question.
@@ -142,7 +141,7 @@ Living spec for the review screen of "Import Questions with AI" in the LMS admin
 - New file over a list always asks first (even an untouched list): a read costs money and about a minute.
 - Delete is immediate with full undo/redo history, instead of a confirm per delete or a single latest-delete Undo.
 - Retry with AI keeps the question's pictures: the teacher places pictures by hand (one undoable click), so a paid AI call must not undo that. Undo reverses the whole retry.
-- Import is blocked while edit forms are open, rather than importing the last saved version.
+- Import is blocked while the Edit modal is open, rather than importing the last saved version.
 - Failure texts by cause, no provider name, so the teacher knows whether retrying can help.
 - Orphan-retry cancellation was not built: the retry dialog is modal, and closing it already cancels the retry.
 - Leaving during an import is allowed with honest wording instead of blocking.

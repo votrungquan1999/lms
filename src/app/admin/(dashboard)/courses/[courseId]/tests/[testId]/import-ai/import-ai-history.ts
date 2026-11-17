@@ -54,10 +54,25 @@ function applyChange(
  * Compares two drafts' editable fields by value.
  * @param a - One draft's editable fields.
  * @param b - The other's.
- * @returns Whether every field is equal.
+ * @returns Whether every field is equal; a blank optional field equals a missing one.
  */
 export function sameFields(a: EditableFields, b: EditableFields): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return JSON.stringify(withoutBlanks(a)) === JSON.stringify(withoutBlanks(b));
+}
+
+/**
+ * Drops a model answer or explanation that is only whitespace, since a save stores it as missing.
+ * @param fields - One draft's editable fields.
+ * @returns The fields with blank optional ones set to undefined.
+ */
+function withoutBlanks(fields: EditableFields): EditableFields {
+  return {
+    ...fields,
+    referenceAnswer: fields.referenceAnswer?.trim()
+      ? fields.referenceAnswer
+      : undefined,
+    explanation: fields.explanation?.trim() ? fields.explanation : undefined,
+  };
 }
 
 /**
