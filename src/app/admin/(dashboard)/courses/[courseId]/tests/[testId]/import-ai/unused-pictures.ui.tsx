@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "src/components/ui/button";
-import { MAX_MEDIA_PER_QUESTION } from "../question-media.schema";
+import { MAX_MEDIA_PER_QUESTION } from "src/lib/question-media-merge";
 import type { ReviewPicture } from "./import-ai-form.state";
 import { picturesOf, shownTitle, useImportAi } from "./import-ai-form.state";
 

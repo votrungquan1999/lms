@@ -7,6 +7,10 @@ import {
   type QuestionSampler,
   shuffleAndTake,
 } from "src/lib/question-compose";
+import {
+  type EditedMediaEntry,
+  mergeEditedMedia,
+} from "src/lib/question-media-merge";
 import type { AnswerRevealMode, TestService } from "src/lib/test-service";
 
 /**
@@ -288,6 +292,11 @@ export interface UpdateQuestionInput {
    * field on its own.
    */
   mcGradingStrategy?: McGradingStrategy;
+  /**
+   * The question's full ordered media list (absent = unchanged, `[]` = remove
+   * all). Kept pictures are named by key alone and take their stored details.
+   */
+  media?: EditedMediaEntry[];
 }
 
 /**
@@ -589,6 +598,9 @@ export class QuestionService {
     if ("mcGradingStrategy" in input) {
       set.mcGradingStrategy = input.mcGradingStrategy ?? null;
     }
+    if (input.media !== undefined) {
+      set.media = mergeEditedMedia(before.media ?? [], input.media);
+    }
     const optionsProvided = "options" in input && input.options !== undefined;
     const typeChanging =
       "type" in input && input.type !== undefined && input.type !== before.type;
@@ -680,6 +692,7 @@ export class QuestionService {
       "options",
       "type",
       "mcGradingStrategy",
+      "media",
     ] as const;
 
     const changedFields: string[] = [];

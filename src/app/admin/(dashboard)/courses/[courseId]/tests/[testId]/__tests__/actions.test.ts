@@ -243,6 +243,94 @@ describe("Feature: teacher attaches media to a question", () => {
     });
   });
 
+  describe("editing a question's media", () => {
+    const ownKey = `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000aaaa.png`;
+
+    /**
+     * Seeds a question holding one picture and builds an edit carrying `media`.
+     * @param media - The edited media list to submit.
+     * @returns The seeded question's id and the edit's form data.
+     */
+    async function seedAndBuildEdit(
+      media: unknown,
+    ): Promise<{ questionId: string; formData: FormData }> {
+      const question = await getTestServices().questionService.addQuestion(
+        "test-1",
+        {
+          title: "Read the chart",
+          content: "Describe it.",
+          createdBy: "admin-1",
+          media: [
+            {
+              key: ownKey,
+              contentType: MediaContentType.PNG,
+              order: 0,
+              size: 1000,
+              fileName: "own.png",
+            },
+          ],
+        },
+      );
+      const formData = new FormData();
+      formData.set("questionId", question.id);
+      formData.set("testId", "test-1");
+      formData.set("courseId", "course-1");
+      formData.set("media", JSON.stringify(media));
+      return { questionId: question.id, formData };
+    }
+
+    it("refuses a new picture whose key another school minted, and keeps the stored pictures", async () => {
+      const { formData } = await seedAndBuildEdit([
+        { key: ownKey },
+        {
+          key: "media/schools/other-school/questions/00000000-0000-4000-8000-00000000bbbb.png",
+          contentType: MediaContentType.PNG,
+          order: 1,
+          size: 1000,
+          fileName: "foreign.png",
+        },
+      ]);
+
+      const result = await updateQuestionAction(null, formData);
+
+      expect(result).toEqual({ success: false, message: "Invalid media key" });
+      const [stored] =
+        await getTestServices().questionService.listQuestions("test-1");
+      expect(stored.media.map((m) => m.key)).toEqual([ownKey]);
+    });
+
+    it("refuses keeping a picture that belongs to another question, and keeps the stored pictures", async () => {
+      const otherKey = `media/schools/${TEST_SCHOOL_ID}/questions/00000000-0000-4000-8000-00000000cccc.png`;
+      await getTestServices().questionService.addQuestion("test-1", {
+        title: "Other question",
+        content: "Holds its own picture.",
+        createdBy: "admin-1",
+        media: [
+          {
+            key: otherKey,
+            contentType: MediaContentType.PNG,
+            order: 0,
+            size: 1000,
+            fileName: "other.png",
+          },
+        ],
+      });
+      const { questionId, formData } = await seedAndBuildEdit([
+        { key: ownKey },
+        { key: otherKey },
+      ]);
+
+      const result = await updateQuestionAction(null, formData);
+
+      expect(result).toEqual({ success: false, message: "Invalid media key" });
+      const stored = await getTestServices().questionService.getQuestion(
+        "test-1",
+        questionId,
+      );
+      expect(stored?.media.map((m) => m.key)).toEqual([ownKey]);
+    });
+  });
+
   describe("creating a single_select question with an explanation", () => {
     it("persists the submitted explanation on the created question", async () => {
       const formData = new FormData();

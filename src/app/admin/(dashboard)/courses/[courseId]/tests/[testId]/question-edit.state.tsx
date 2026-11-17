@@ -28,10 +28,12 @@ import {
   MC_GRADING_STRATEGY_LABELS,
   QUESTION_TYPE_LABELS,
 } from "src/lib/question-labels";
+import { MAX_MEDIA_PER_QUESTION } from "src/lib/question-media-merge";
 import {
   isMcQuestion,
   isMcQuestionType,
   type Question,
+  type QuestionMedia,
   type QuestionType,
 } from "src/lib/question-service";
 import { submitWithoutReset } from "src/lib/submit-without-reset";
@@ -40,6 +42,16 @@ import {
   type UpdateQuestionState,
   updateQuestionAction,
 } from "./actions";
+import { KeptMediaList } from "./question-kept-media.ui";
+import {
+  QuestionMediaPickerProvider,
+  useQuestionMediaPickerActions,
+  useQuestionMediaPickerState,
+} from "./question-media-picker.state";
+import {
+  QuestionMediaFileInput,
+  QuestionMediaFileList,
+} from "./question-media-picker.ui";
 
 interface QuestionEditButtonProps {
   question: Question;
@@ -53,6 +65,13 @@ interface QuestionEditPanelProps extends QuestionEditButtonProps {
   onSaved?: () => void;
   /** When given, the form shows a Cancel button that calls it. */
   requestClose?: () => void;
+}
+
+interface QuestionEditFormProps extends QuestionEditPanelProps {
+  /** The pictures and videos the question keeps so far (removals applied). */
+  keptMedia: QuestionMedia[];
+  /** Drops one kept picture or video by key. */
+  onRemoveKept: (key: string) => void;
 }
 
 /** One row of the options editor. `id` absent means a genuinely new option (Step 27 / D53). */
@@ -145,8 +164,13 @@ function deriveChangedFieldLabels(
   formData: FormData,
   selectedType: QuestionType,
   currentOptions: OptionDraft[],
+  picturesChanged: boolean,
 ): string[] {
   const labels: string[] = [];
+
+  if (picturesChanged) {
+    labels.push("the pictures and videos");
+  }
 
   const typeChanged = selectedType !== question.type;
   if (typeChanged) {
@@ -233,13 +257,18 @@ function deriveChangedFieldLabels(
  * the confirmation's content is portaled and the form's fields must stay
  * visible in the Edit modal behind it.
  */
-export function QuestionEditPanel({
+function QuestionEditForm({
   question,
   courseId,
   answeredCount,
   onSaved,
   requestClose,
-}: QuestionEditPanelProps) {
+  keptMedia,
+  onRemoveKept,
+}: QuestionEditFormProps) {
+  const { selectedFiles } = useQuestionMediaPickerState();
+  const { uploadSelectedFiles } = useQuestionMediaPickerActions();
+
   // The teacher's live type selection (Step 28) — starts at the question's
   // stored type; switching it reshapes which fields render below, the way
   // `AddQuestionForm`'s sidebar does for a new question.
@@ -280,6 +309,10 @@ export function QuestionEditPanel({
     setOptions(optionDraftsOf(question));
   }
 
+  // Kept pictures are only ever removed, so a shorter list means a change
+  const picturesChanged =
+    keptMedia.length !== question.media.length || selectedFiles.length > 0;
+
   const [state, formAction, isPending] = useActionState<
     UpdateQuestionState | null,
     FormData
@@ -289,6 +322,23 @@ export function QuestionEditPanel({
     const storedOptions = isMcQuestion(question) ? question.options : [];
     if (isMc && !optionsUnchanged(options, storedOptions)) {
       formData.set("options", JSON.stringify(options));
+    }
+    // New files upload first so the one save below carries the final list
+    if (picturesChanged) {
+      try {
+        const uploaded = await uploadSelectedFiles();
+        formData.set(
+          "media",
+          JSON.stringify([
+            ...keptMedia.map(({ key }) => ({ key })),
+            ...uploaded,
+          ]),
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Upload failed";
+        return { success: false, message };
+      }
     }
     const result = await updateQuestionAction(prevState, formData);
     if (result.success) onSaved?.();
@@ -363,6 +413,7 @@ export function QuestionEditPanel({
       new FormData(event.currentTarget),
       selectedType,
       options,
+      picturesChanged,
     );
     if (answeredCount > 0 && changed.length > 0) {
       event.preventDefault();
@@ -596,6 +647,12 @@ export function QuestionEditPanel({
         </div>
       )}
 
+      <div className="space-y-2">
+        <KeptMediaList media={keptMedia} onRemove={onRemoveKept} />
+        <QuestionMediaFileInput id={`media-files-${question.id}`} />
+        <QuestionMediaFileList />
+      </div>
+
       {(isFreeText || isMc) && (
         <OptionalTextField
           id={`explanation-${question.id}`}
@@ -660,6 +717,31 @@ export function QuestionEditPanel({
         </AlertDialogContent>
       </AlertDialog>
     </form>
+  );
+}
+
+/**
+ * Edit form plus picture controls for one question. Owns the kept-media list
+ * so the new-file picker can be capped at what the question has room for.
+ * @param props - The question, its answered count and the modal hooks.
+ */
+export function QuestionEditPanel(props: QuestionEditPanelProps) {
+  const [keptMedia, setKeptMedia] = useState<QuestionMedia[]>(
+    props.question.media,
+  );
+
+  return (
+    <QuestionMediaPickerProvider
+      maxFiles={MAX_MEDIA_PER_QUESTION - keptMedia.length}
+    >
+      <QuestionEditForm
+        {...props}
+        keptMedia={keptMedia}
+        onRemoveKept={(key) =>
+          setKeptMedia((prev) => prev.filter((entry) => entry.key !== key))
+        }
+      />
+    </QuestionMediaPickerProvider>
   );
 }
 

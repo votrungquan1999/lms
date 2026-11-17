@@ -8,6 +8,11 @@ import {
   useQuestionMediaPickerState,
 } from "./question-media-picker.state";
 
+interface QuestionMediaFileInputProps {
+  /** Unique per form, since the add-question form shares the page. */
+  id?: string;
+}
+
 /**
  * Left sidebar that lists selectable question types and highlights the active
  * one. Display-only — selection state is owned by the parent form.
@@ -50,17 +55,20 @@ export function QuestionTypeSidebar<T extends string>({
 /**
  * File input for selecting question media. Selecting files adds them to the
  * picker; the input is reset so the same file can be re-selected after removal.
+ * @param props - Optional element id.
  * @returns The media file input element.
  */
-export function QuestionMediaFileInput(): React.ReactNode {
+export function QuestionMediaFileInput({
+  id = "media-files",
+}: QuestionMediaFileInputProps): React.ReactNode {
   const { addFiles } = useQuestionMediaPickerActions();
   const { validationError } = useQuestionMediaPickerState();
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="media-files">Media Files</Label>
+      <Label htmlFor={id}>Media Files</Label>
       <Input
-        id="media-files"
+        id={id}
         type="file"
         accept="image/png,image/jpeg,image/webp,video/mp4"
         multiple

@@ -1,9 +1,9 @@
 "use client";
 
-import { createContext, useContext, useReducer } from "react";
+import { createContext, useContext, useReducer, useRef } from "react";
+import { MAX_MEDIA_PER_QUESTION } from "src/lib/question-media-merge";
 import { MediaContentType } from "src/lib/question-service";
 import {
-  MAX_MEDIA_PER_QUESTION,
   MAX_MEDIA_SIZE_BYTES,
   type SubmittedMedia,
 } from "./question-media.schema";
@@ -53,6 +53,13 @@ function questionMediaPickerReducer(
   }
 }
 
+interface QuestionMediaPickerProviderProps {
+  /** Form subtree that consumes the picker context. */
+  children: React.ReactNode;
+  /** How many new files the picker accepts (fewer when the question keeps some). */
+  maxFiles?: number;
+}
+
 interface QuestionMediaPickerContextValue extends QuestionMediaPickerState {
   addFiles: (files: File[]) => void;
   removeFile: (id: string) => void;
@@ -64,19 +71,20 @@ const QuestionMediaPickerContext =
   createContext<QuestionMediaPickerContextValue | null>(null);
 
 /**
- * Provider holding the media picker state for the add-question form.
- * @param children - Form subtree that consumes the picker context.
+ * Provider holding the media picker state for the add-question and edit forms.
+ * @param props - The form subtree and how many new files it accepts.
  * @returns The provider element.
  */
 export function QuestionMediaPickerProvider({
   children,
-}: {
-  children: React.ReactNode;
-}): React.ReactNode {
+  maxFiles = MAX_MEDIA_PER_QUESTION,
+}: QuestionMediaPickerProviderProps): React.ReactNode {
   const [state, dispatch] = useReducer(
     questionMediaPickerReducer,
     initialState,
   );
+  // Files already uploaded, by picked-file id, so a retried save does not upload them again
+  const uploadedById = useRef(new Map<string, SubmittedMedia[number]>());
 
   /**
    * Validates and adds selected browser files to the picker. Each file is
@@ -98,10 +106,7 @@ export function QuestionMediaPickerProvider({
         error = "Each media file must be 10 MB or smaller";
         continue;
       }
-      if (
-        state.selectedFiles.length + accepted.length >=
-        MAX_MEDIA_PER_QUESTION
-      ) {
+      if (state.selectedFiles.length + accepted.length >= maxFiles) {
         error = "A question can have at most 3 media files";
         continue;
       }
@@ -116,44 +121,53 @@ export function QuestionMediaPickerProvider({
    * Uploads the selected files directly to S3: requests presigned slots, PUTs
    * each file to its slot with a matching content-type, and returns the ordered
    * media metadata to persist with the question. Throws if the slot request or
-   * any upload fails (single error boundary for the submit path).
+   * any upload fails (single error boundary for the submit path). Files an
+   * earlier attempt already uploaded are reused, not uploaded again.
    * @returns The ordered media entries for the created question.
    */
   async function uploadSelectedFiles(): Promise<SubmittedMedia> {
-    const files = state.selectedFiles.map(({ file }) => file);
-    if (files.length === 0) return [];
-
-    const slotResult = await requestUploadSlotsAction(
-      files.map((file) => ({
-        fileName: file.name,
-        contentType: file.type,
-        size: file.size,
-      })),
+    const pending = state.selectedFiles.filter(
+      ({ id }) => !uploadedById.current.has(id),
     );
-    if (!slotResult.success || !slotResult.slots) {
-      throw new Error(slotResult.message);
+
+    if (pending.length > 0) {
+      const files = pending.map(({ file }) => file);
+      const slotResult = await requestUploadSlotsAction(
+        files.map((file) => ({
+          fileName: file.name,
+          contentType: file.type,
+          size: file.size,
+        })),
+      );
+      if (!slotResult.success || !slotResult.slots) {
+        throw new Error(slotResult.message);
+      }
+
+      const { slots } = slotResult;
+      // Each file is remembered as soon as its own PUT succeeds
+      await Promise.all(
+        slots.map((slot, i) =>
+          fetch(slot.url, {
+            method: "PUT",
+            headers: { "Content-Type": files[i].type },
+            body: files[i],
+          }).then((res) => {
+            if (!res.ok) throw new Error(`Upload failed for ${files[i].name}`);
+            uploadedById.current.set(pending[i].id, {
+              fileName: files[i].name,
+              contentType: files[i].type as MediaContentType,
+              size: files[i].size,
+              key: slot.key,
+              order: slot.order,
+            });
+          }),
+        ),
+      );
     }
 
-    const { slots } = slotResult;
-    await Promise.all(
-      slots.map((slot, i) =>
-        fetch(slot.url, {
-          method: "PUT",
-          headers: { "Content-Type": files[i].type },
-          body: files[i],
-        }).then((res) => {
-          if (!res.ok) throw new Error(`Upload failed for ${files[i].name}`);
-        }),
-      ),
+    return state.selectedFiles.map(
+      ({ id }) => uploadedById.current.get(id) as SubmittedMedia[number],
     );
-
-    return slots.map((slot, i) => ({
-      fileName: files[i].name,
-      contentType: files[i].type as MediaContentType,
-      size: files[i].size,
-      key: slot.key,
-      order: slot.order,
-    }));
   }
 
   const value: QuestionMediaPickerContextValue = {
@@ -161,7 +175,10 @@ export function QuestionMediaPickerProvider({
     addFiles,
     removeFile: (id) => dispatch({ type: "REMOVE_FILE", id }),
     uploadSelectedFiles,
-    reset: () => dispatch({ type: "RESET" }),
+    reset: () => {
+      uploadedById.current.clear();
+      dispatch({ type: "RESET" });
+    },
   };
 
   return (

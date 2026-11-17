@@ -1,11 +1,9 @@
+import {
+  INVALID_MEDIA_KEY_MESSAGE,
+  MAX_MEDIA_PER_QUESTION,
+} from "src/lib/question-media-merge";
 import { MediaContentType } from "src/lib/question-service";
 import { z } from "zod";
-
-/** Maximum media files attachable to one question. */
-export const MAX_MEDIA_PER_QUESTION = 3;
-
-/** The refusal of a key this school could not have minted, or whose extension contradicts its type. */
-export const INVALID_MEDIA_KEY_MESSAGE = "Invalid media key";
 
 /** Maximum media file size in bytes (10 MB). */
 export const MAX_MEDIA_SIZE_BYTES = 10 * 1024 * 1024;
@@ -45,13 +43,13 @@ export const requestUploadSlotsSchema = z
  * Shape of the stored media entries submitted alongside a created question.
  * Private: it lacks the school check, so write paths use `submittedMediaSchemaFor`.
  */
+const submittedMediaEntrySchema = mediaItemSchema.extend({
+  key: z.string().min(1, "Media key is required"),
+  order: z.number().int().nonnegative(),
+});
+
 const submittedMediaSchema = z
-  .array(
-    mediaItemSchema.extend({
-      key: z.string().min(1, "Media key is required"),
-      order: z.number().int().nonnegative(),
-    }),
-  )
+  .array(submittedMediaEntrySchema)
   .max(MAX_MEDIA_PER_QUESTION, "A question can have at most 3 media files");
 
 /** Validated, ordered media entries persisted alongside a created question. */
@@ -77,6 +75,36 @@ export function submittedMediaSchemaFor(schoolId: string) {
       ),
     { message: INVALID_MEDIA_KEY_MESSAGE },
   );
+}
+
+/** A kept picture named by its key alone; strict so a full entry cannot take this path. */
+const keptMediaEntrySchema = z.strictObject({
+  key: z.string().min(1, "Media key is required"),
+});
+
+/**
+ * The edited-media schema for a question save: each entry is a kept picture
+ * (`{ key }`) or a newly uploaded one (full entry, school-checked like
+ * `submittedMediaSchemaFor`). Ownership of kept keys is checked at merge time.
+ * @param schoolId - The school the question belongs to.
+ * @returns A schema whose parsed data is the ordered edited list.
+ */
+export function editedMediaSchemaFor(schoolId: string) {
+  return z
+    .array(z.union([keptMediaEntrySchema, submittedMediaEntrySchema]))
+    .max(MAX_MEDIA_PER_QUESTION, "A question can have at most 3 media files")
+    .refine(
+      (items) =>
+        items.every(
+          (item) =>
+            !("contentType" in item) ||
+            (isValidQuestionMediaKey(item.key, schoolId) &&
+              item.key.endsWith(
+                `.${EXTENSION_BY_CONTENT_TYPE[item.contentType]}`,
+              )),
+        ),
+      { message: INVALID_MEDIA_KEY_MESSAGE },
+    );
 }
 
 /**

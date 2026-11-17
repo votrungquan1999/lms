@@ -5,9 +5,11 @@ import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import { pluralize } from "src/lib/pluralize";
+import type { EditedMediaEntry } from "src/lib/question-media-merge";
 import type { UpdateQuestionInput } from "src/lib/question-service";
 import { getQuestionService, getTestService } from "src/lib/services-singleton";
 import {
+  editedMediaSchemaFor,
   type SubmittedMedia,
   submittedMediaSchemaFor,
 } from "./question-media.schema";
@@ -59,6 +61,23 @@ export async function updateQuestionAction(
     } catch {
       return { success: false, message: "Invalid options format" };
     }
+  }
+
+  // Present only when the teacher changed the picture list; absent leaves it alone.
+  const mediaJson = formData.get("media")?.toString();
+  let media: EditedMediaEntry[] | undefined;
+  if (mediaJson !== undefined) {
+    let rawMedia: unknown;
+    try {
+      rawMedia = JSON.parse(mediaJson);
+    } catch {
+      return { success: false, message: "Invalid media format" };
+    }
+    const parsedMedia = editedMediaSchemaFor(schoolId).safeParse(rawMedia);
+    if (!parsedMedia.success) {
+      return { success: false, message: parsedMedia.error.issues[0].message };
+    }
+    media = parsedMedia.data;
   }
 
   const parsed = editQuestionSchema.safeParse({
@@ -140,6 +159,10 @@ export async function updateQuestionAction(
         }
         if (data.mcGradingStrategy !== undefined) {
           input.mcGradingStrategy = data.mcGradingStrategy;
+        }
+
+        if (media !== undefined) {
+          input.media = media;
         }
 
         await questionService.updateQuestion(

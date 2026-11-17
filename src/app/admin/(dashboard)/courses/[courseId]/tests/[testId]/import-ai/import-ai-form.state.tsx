@@ -18,8 +18,8 @@ import {
 import {
   INVALID_MEDIA_KEY_MESSAGE,
   MAX_MEDIA_PER_QUESTION,
-  type SubmittedMedia,
-} from "../question-media.schema";
+} from "src/lib/question-media-merge";
+import type { SubmittedMedia } from "../question-media.schema";
 import {
   type ImportMode,
   importAiQuestionsAction,
