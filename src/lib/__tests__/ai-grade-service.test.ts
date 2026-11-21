@@ -2010,6 +2010,87 @@ describe("AiGradeService.regenerateForQuestion - Step A1 (single-question scope)
       expect(grouped.get(q2.id)![0]!.score).toBe(90);
     },
   );
+
+  dbIt(
+    "given a question the teacher already graded, when regenerating that one question, then a fresh suggestion is appended and the teacher's grade is left as it was",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      let callIndex = 0;
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
+          const isRegenerate = callIndex > 0;
+          callIndex += 1;
+          return items.map((item) => ({
+            questionId: item.questionId,
+            score: isRegenerate ? 55 : 90,
+            feedback: isRegenerate ? "Reconsidered." : "Initial.",
+            solution: "",
+          }));
+        },
+      };
+
+      const services = buildCoreServices(db, { aiClient: stubAiClient });
+      const {
+        testService,
+        questionService,
+        answerService,
+        gradeService,
+        aiGradeService,
+      } = services;
+
+      const test = await testService.createTest("course-1", {
+        title: "Regenerate graded question",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Explain recursion.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "A function that calls itself." },
+      });
+
+      // Given: an AI suggestion, then the teacher's own grade on Q1.
+      await aiGradeService.generateForStudent(test.id, "student-1", "admin-1");
+      await gradeService.gradeQuestion({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        score: 70,
+        feedback: "Teacher feedback.",
+        gradedBy: "admin-1",
+      });
+
+      // When: the teacher regenerates Q1 alone.
+      const regenerated = await aiGradeService.regenerateForQuestion(
+        test.id,
+        "student-1",
+        q1.id,
+        "admin-1",
+        "Students use a base case first",
+      );
+
+      // Then: a fresh suggestion exists alongside the original one.
+      expect(regenerated).toHaveLength(1);
+      expect(regenerated[0]!.score).toBe(55);
+      const grouped = await aiGradeService.getSuggestionsForStudent(
+        test.id,
+        "student-1",
+      );
+      expect(grouped.get(q1.id)).toHaveLength(2);
+
+      // Then: the teacher's grade is untouched until they apply a suggestion.
+      const grade = await gradeService.getGrade(test.id, q1.id, "student-1");
+      expect(grade?.score).toBe(70);
+      expect(grade?.feedback).toBe("Teacher feedback.");
+    },
+  );
 });
 
 describe("AiGradeService.generateForStudent - Step 4 (solution persistence)", () => {

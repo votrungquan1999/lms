@@ -164,9 +164,10 @@ export class AiGradeService {
   /**
    * Regenerates the AI suggestion for a SINGLE free-text question, leaving every
    * other question's suggestions untouched. Appends a new row (history is
-   * append-only) and forwards the question's prior grade as context. Same skip
-   * rules as the batch path: a non-free-text, blank, or already-human-graded
-   * question yields no suggestion. Caller (action) validates `reason`.
+   * append-only) and forwards the question's prior grade as context. Runs even
+   * when the teacher already graded the question; their grade changes only on
+   * Apply. A non-free-text or blank answer yields no suggestion. Caller
+   * (action) validates `reason`.
    * @param testId - The test.
    * @param studentId - The student whose answer is being re-graded.
    * @param questionId - The single question to regenerate.
@@ -182,7 +183,8 @@ export class AiGradeService {
     reason: string,
   ): Promise<AiGradeSuggestion[]> {
     await this.testService.requireTest(testId);
-    const candidates = await this.buildCandidates(testId, studentId);
+    // The teacher picked this question, so their own grade never blocks it.
+    const candidates = await this.buildCandidates(testId, studentId, true);
     const scoped = candidates.filter((c) => c.questionId === questionId);
     if (scoped.length === 0) return [];
 
@@ -222,10 +224,17 @@ export class AiGradeService {
     );
   }
 
-  /** Shared filter: free_text ∩ non-blank-answer ∩ no-existing-grade. */
+  /**
+   * Shared filter: free_text ∩ non-blank-answer, and no existing teacher grade
+   * unless `includeGraded` is set.
+   * @param testId - The test.
+   * @param studentId - The student whose answers are filtered.
+   * @param includeGraded - Keep questions the teacher already graded.
+   */
   private async buildCandidates(
     testId: string,
     studentId: string,
+    includeGraded = false,
   ): Promise<Candidate[]> {
     const questions = await this.questionService.listQuestions(testId);
     const answers = await this.answerService.getLatestAnswers(
@@ -238,7 +247,7 @@ export class AiGradeService {
     const candidates: Candidate[] = [];
     for (const question of questions) {
       if (question.type !== "free_text") continue;
-      if (gradedQuestionIds.has(question.id)) continue;
+      if (!includeGraded && gradedQuestionIds.has(question.id)) continue;
 
       const studentAnswer = answers.find((a) => a.questionId === question.id);
       if (!studentAnswer || studentAnswer.answer.type !== "free_text") continue;
