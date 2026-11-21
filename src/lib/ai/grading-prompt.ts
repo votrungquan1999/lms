@@ -16,6 +16,8 @@ const SYSTEM_RULES = [
  * Builds the prompt sent to the LLM for one batch of free-text questions.
  * Handles both the initial-generation case and the regenerate case (when the
  * teacher has supplied a reason and the prior round's grades are included).
+ * On regenerate the teacher's note outranks the smallest-edit rule, and prior
+ * solutions are shown as rejected so the model rewrites rather than repeats.
  *
  * The output JSON shape is enforced by the Zod schema passed to
  * `generateText({ output: Output.object({ schema }) })`, so this prompt just
@@ -31,9 +33,15 @@ export function buildGradingPrompt(
 ): string {
   const sections: string[] = [SYSTEM_RULES];
 
-  if (opts?.reason && opts.reason.trim().length > 0) {
+  const reason = opts?.reason?.trim() ?? "";
+  if (reason.length > 0) {
+    // The note is how this class is taught, so it outranks every generic rule below.
     sections.push(
-      `The teacher rejected the prior round and asked you to regenerate with this reason: ${opts.reason.trim()}`,
+      [
+        "The teacher rejected the prior round and gave this note about how the class is taught:",
+        reason,
+        "This note overrides every other rule below. If it names a technique, idiom, or approach the students learn, each solution MUST use that technique wherever it applies, even when another approach is shorter.",
+      ].join("\n"),
     );
   }
 
@@ -45,6 +53,11 @@ export function buildGradingPrompt(
   sections.push(
     "For each item that is NOT fully correct, also produce a `solution`: a corrected version of the student's answer with the SMALLEST possible edit. Preserve the student's variable names, structure, and style wherever possible — change only what is wrong. If the student's answer is blank, off-topic, or incoherent, synthesize a minimal idiomatic solution from scratch. When an item is fully correct and you score it 100, omit the `solution` field entirely for that item — do not return a solution (and never return an empty one).",
   );
+  if (reason.length > 0) {
+    sections.push(
+      "The teacher's note above takes priority over the smallest-edit rule: keep the student's style, but switch to the technique the note names wherever it applies.",
+    );
+  }
 
   sections.push("Grade each of the following items:");
   for (const item of items) {
@@ -59,7 +72,9 @@ export function buildGradingPrompt(
         `Prior suggestion for this question: score=${prior.score}, feedback=${prior.feedback}`,
       );
       if (prior.solution && prior.solution.trim().length > 0) {
-        lines.push(`Prior suggested solution:\n${prior.solution}`);
+        lines.push(
+          `Rejected prior solution (do not repeat it; rewrite it to follow the teacher's note):\n${prior.solution}`,
+        );
       }
     }
     sections.push(lines.join("\n"));
