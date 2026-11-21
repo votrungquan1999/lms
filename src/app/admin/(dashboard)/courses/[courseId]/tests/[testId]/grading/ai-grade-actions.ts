@@ -137,7 +137,8 @@ export interface RegenerateSubmissionState {
  * appends NEW rows to `ai_grade` without mutating prior history. Teacher-graded
  * questions are included only when the `includeGraded` checkbox is ticked.
  * Revalidates admin paths only — suggestions stay admin-side until Apply
- * (Step 6) promotes them.
+ * (Step 6) promotes them. A round that regenerates nothing returns
+ * `success: false` with the reason.
  *
  * Returns state via the `useActionState` contract; never throws.
  */
@@ -183,13 +184,22 @@ export async function regenerateSubmissionAction(
         await assertGradingTarget(schoolId, parsed.data);
 
         const aiGradeService = await getAiGradeService(schoolId);
-        await aiGradeService.regenerateForStudent(
+        const regenerated = await aiGradeService.regenerateForStudent(
           parsed.data.testId,
           parsed.data.studentId,
           adminUserId,
           parsed.data.reason,
           parsed.data.includeGraded,
         );
+        // An empty round means nothing was in scope; say why instead of claiming success.
+        if (regenerated.length === 0) {
+          return {
+            success: false,
+            message: parsed.data.includeGraded
+              ? "This student has no written answers to regenerate."
+              : "Every question already has your grade. Tick the box to regenerate them anyway.",
+          };
+        }
 
         revalidatePath(
           `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,

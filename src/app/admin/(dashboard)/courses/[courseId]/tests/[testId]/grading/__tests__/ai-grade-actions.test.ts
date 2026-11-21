@@ -193,6 +193,42 @@ describe("Feature: regenerateSubmissionAction honours the include-graded checkbo
       false,
     );
   });
+
+  it("tells the teacher every question is already graded, instead of a fake success, when nothing was regenerated", async () => {
+    // Every question already has the teacher's grade, so nothing is in scope.
+    regenerateForStudent.mockResolvedValue([]);
+    const fd = new FormData();
+    fd.set("testId", "test-1");
+    fd.set("courseId", "course-1");
+    fd.set("studentId", "stu-1");
+    fd.set("reason", "Students use a base case first");
+
+    const state = await regenerateSubmissionAction(null, fd);
+
+    expect(state).toEqual({
+      success: false,
+      message:
+        "Every question already has your grade. Tick the box to regenerate them anyway.",
+    });
+  });
+
+  it("tells the teacher there is nothing to regenerate when even graded questions were included", async () => {
+    // No written answer is left to grade, even counting graded ones.
+    regenerateForStudent.mockResolvedValue([]);
+    const fd = new FormData();
+    fd.set("testId", "test-1");
+    fd.set("courseId", "course-1");
+    fd.set("studentId", "stu-1");
+    fd.set("reason", "Students use a base case first");
+    fd.set("includeGraded", "on");
+
+    const state = await regenerateSubmissionAction(null, fd);
+
+    expect(state).toEqual({
+      success: false,
+      message: "This student has no written answers to regenerate.",
+    });
+  });
 });
 
 describe("Feature: autoGradeSubmissionAction surfaces LLM/Zod failure as the pinned error message (Step 9)", () => {
