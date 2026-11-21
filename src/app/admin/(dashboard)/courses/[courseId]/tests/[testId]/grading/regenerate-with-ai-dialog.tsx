@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "src/components/ui/button";
+import { Checkbox } from "src/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,8 @@ interface RegenerateWithAiDialogProps {
  * via `useActionState`. The reason `<Textarea>` is required client-side via
  * `minLength`/`maxLength` and re-validated server-side by Zod
  * (`.trim().min(1).max(500)`).
+ * An unticked-by-default checkbox lets the teacher also regenerate questions
+ * they already graded.
  *
  * Open/close is local `useState` (no `useEffect`). On a successful submit the
  * dialog stays open and surfaces the success message; the page revalidation
@@ -81,6 +84,13 @@ export function RegenerateWithAiDialog({
               maxLength={500}
               placeholder="e.g. The AI was too lenient on partial credit."
             />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox id="regenerate-include-graded" name="includeGraded" />
+            <Label htmlFor="regenerate-include-graded">
+              Also regenerate questions I've already graded
+            </Label>
           </div>
 
           <Button type="submit" disabled={isPending} className="w-full">

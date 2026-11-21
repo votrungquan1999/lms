@@ -118,6 +118,11 @@ const regenerateSchema = z.object({
   courseId: z.string().min(1),
   studentId: z.string().min(1),
   reason: z.string().trim().min(1, "Reason is required").max(500),
+  // A ticked checkbox submits "on"; an unticked one is absent from the form.
+  includeGraded: z
+    .literal("on")
+    .nullable()
+    .transform((v) => v === "on"),
 });
 
 export interface RegenerateSubmissionState {
@@ -129,9 +134,10 @@ export interface RegenerateSubmissionState {
  * Server action: regenerates AI suggestions for a single student's
  * submission. Requires a non-empty trimmed reason (Zod-enforced, capped at
  * 500 chars). Delegates to `AiGradeService.regenerateForStudent`, which
- * appends NEW rows to `ai_grade` without mutating prior history. Revalidates
- * admin paths only — suggestions stay admin-side until Apply (Step 6)
- * promotes them.
+ * appends NEW rows to `ai_grade` without mutating prior history. Teacher-graded
+ * questions are included only when the `includeGraded` checkbox is ticked.
+ * Revalidates admin paths only — suggestions stay admin-side until Apply
+ * (Step 6) promotes them.
  *
  * Returns state via the `useActionState` contract; never throws.
  */
@@ -157,6 +163,7 @@ export async function regenerateSubmissionAction(
     courseId: formData.get("courseId"),
     studentId: formData.get("studentId"),
     reason: formData.get("reason"),
+    includeGraded: formData.get("includeGraded"),
   });
 
   if (!parsed.success) {
@@ -181,6 +188,7 @@ export async function regenerateSubmissionAction(
           parsed.data.studentId,
           adminUserId,
           parsed.data.reason,
+          parsed.data.includeGraded,
         );
 
         revalidatePath(

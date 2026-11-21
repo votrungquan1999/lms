@@ -350,6 +350,85 @@ describe("AiGradeService.regenerateForStudent - Step 5", () => {
       );
     },
   );
+  dbIt(
+    "given one graded and one ungraded question, when regenerating all with graded questions included, then both get a fresh suggestion",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
+          return items.map((item) => ({
+            questionId: item.questionId,
+            score: 75,
+            feedback: "ok",
+            solution: "",
+          }));
+        },
+      };
+
+      const services = buildCoreServices(db, { aiClient: stubAiClient });
+      const {
+        testService,
+        questionService,
+        answerService,
+        gradeService,
+        aiGradeService,
+      } = services;
+
+      const test = await testService.createTest("course-1", {
+        title: "Regenerate all incl. graded",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const graded = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Explain recursion.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      const ungraded = await questionService.addQuestion(test.id, {
+        title: "Q2",
+        content: "Explain Big O.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      for (const q of [graded, ungraded]) {
+        await answerService.submitAnswer({
+          testId: test.id,
+          questionId: q.id,
+          studentId: "student-1",
+          answer: { type: "free_text", text: "Some answer." },
+        });
+      }
+      await gradeService.gradeQuestion({
+        testId: test.id,
+        questionId: graded.id,
+        studentId: "student-1",
+        score: 40,
+        feedback: "Teacher feedback.",
+        gradedBy: "admin-1",
+      });
+
+      // When: the teacher ticks "include graded" on Regenerate all.
+      const regenerated = await aiGradeService.regenerateForStudent(
+        test.id,
+        "student-1",
+        "admin-1",
+        "Students use a base case first",
+        true,
+      );
+
+      // Then: both questions get a suggestion; the teacher's grade is unchanged.
+      expect(regenerated.map((s) => s.questionId).sort()).toEqual(
+        [graded.id, ungraded.id].sort(),
+      );
+      const grade = await gradeService.getGrade(
+        test.id,
+        graded.id,
+        "student-1",
+      );
+      expect(grade?.score).toBe(40);
+    },
+  );
 });
 
 describe("AiGradeService.applySuggestion - Step 6 (apply-over-human-grade refusal)", () => {

@@ -113,6 +113,12 @@ export class AiGradeService {
   /**
    * Regenerates AI suggestions. Appends NEW rows per still-in-scope free-text
    * question. History is append-only. Caller (action) validates `reason`.
+   * @param testId - The test.
+   * @param studentId - The student whose answers are re-graded.
+   * @param byAdminId - The admin triggering the regenerate.
+   * @param reason - Why the teacher is regenerating (forwarded to the AI client).
+   * @param includeGraded - Also regenerate questions the teacher already
+   *   graded; their grade changes only on Apply.
    * @throws "Test not found" when the test isn't this school's.
    */
   async regenerateForStudent(
@@ -120,9 +126,14 @@ export class AiGradeService {
     studentId: string,
     byAdminId: string,
     reason: string,
+    includeGraded = false,
   ): Promise<AiGradeSuggestion[]> {
     await this.testService.requireTest(testId);
-    const candidates = await this.buildCandidates(testId, studentId);
+    const candidates = await this.buildCandidates(
+      testId,
+      studentId,
+      includeGraded,
+    );
     if (candidates.length === 0) return [];
 
     const priorGrades: AiGradeBatchPriorGrade[] = [];

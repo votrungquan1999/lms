@@ -59,3 +59,32 @@ describe("Feature: AutoGradeWithAiButton — morphs to Regenerate when suggestio
     });
   });
 });
+
+describe("Feature: Regenerate all can include questions the teacher already graded", () => {
+  it("starts unticked and submits includeGraded=on only once the teacher ticks it", async () => {
+    render(
+      <AutoGradeWithAiButton
+        testId="test-1"
+        courseId="course-1"
+        studentId="stu-1"
+        status={TestStatus.Submitted}
+        hasExistingSuggestions={true}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /regenerate/i }));
+
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Also regenerate questions I've already graded",
+    });
+    const form = checkbox.closest("form") as HTMLFormElement;
+
+    // Unticked by default: the form sends nothing for it.
+    expect(checkbox).not.toBeChecked();
+    expect(new FormData(form).get("includeGraded")).toBeNull();
+
+    // Ticked: the form sends "on", which the action reads.
+    await user.click(checkbox);
+    expect(new FormData(form).get("includeGraded")).toBe("on");
+  });
+});

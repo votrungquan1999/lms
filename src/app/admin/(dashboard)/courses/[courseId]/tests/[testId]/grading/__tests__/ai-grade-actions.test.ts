@@ -146,6 +146,55 @@ describe("Feature: regenerateSubmissionAction rejects a missing/whitespace reaso
   });
 });
 
+describe("Feature: regenerateSubmissionAction honours the include-graded checkbox", () => {
+  beforeEach(() => {
+    regenerateForStudent.mockReset();
+    requireAdminSession.mockReset();
+    requireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("asks the service to include graded questions only when the checkbox is ticked", async () => {
+    regenerateForStudent.mockResolvedValue([{ id: "sugg-new" }]);
+    const formWith = (ticked: boolean) => {
+      const fd = new FormData();
+      fd.set("testId", "test-1");
+      fd.set("courseId", "course-1");
+      fd.set("studentId", "stu-1");
+      fd.set("reason", "Students use a base case first");
+      // A ticked checkbox submits "on"; an unticked one submits nothing.
+      if (ticked) fd.set("includeGraded", "on");
+      return fd;
+    };
+
+    await regenerateSubmissionAction(null, formWith(true));
+    await regenerateSubmissionAction(null, formWith(false));
+
+    expect(regenerateForStudent).toHaveBeenNthCalledWith(
+      1,
+      "test-1",
+      "stu-1",
+      "admin-1",
+      "Students use a base case first",
+      true,
+    );
+    expect(regenerateForStudent).toHaveBeenNthCalledWith(
+      2,
+      "test-1",
+      "stu-1",
+      "admin-1",
+      "Students use a base case first",
+      false,
+    );
+  });
+});
+
 describe("Feature: autoGradeSubmissionAction surfaces LLM/Zod failure as the pinned error message (Step 9)", () => {
   beforeEach(() => {
     generateForStudent.mockReset();
