@@ -6,7 +6,10 @@ import {
   AiGradeJobStatus,
   AiGradeJobTrigger,
 } from "src/lib/ai-grade-job-service";
-import { CollectOutcomeKind } from "src/lib/ai-grade-types";
+import {
+  CollectOutcomeKind,
+  StartRoundOutcomeKind,
+} from "src/lib/ai-grade-types";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
 import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
@@ -18,7 +21,10 @@ const RUNNER_JOB_ID = "0123456789abcdef01234567";
 const RUNNER_URL = "https://runner.test";
 
 /** A fetch the fake runner answers with. */
-type FakeFetch = (input: string | URL | Request) => Promise<Response>;
+type FakeFetch = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
 
 /** Builds the full runner job the fake runner returns. */
 function runnerJobBody(status: string, resultText: string) {
@@ -217,4 +223,174 @@ describe("AiGradeService.collectRunnerResult - two checks of the same finished j
       ).toBe(1);
     },
   );
+});
+
+describe("AiGradeService.collectRunnerResult - a job that did not produce suggestions", () => {
+  /**
+   * A runner whose status and full-job answers are fixed by the test.
+   * @param statusReply - Answers the status read.
+   * @param jobReply - Answers the full read.
+   */
+  function scriptedFetch(
+    statusReply: () => Response,
+    jobReply: () => Response,
+  ): (questionId: string) => FakeFetch {
+    return () => async (input) =>
+      String(input).endsWith("?view=status") ? statusReply() : jobReply();
+  }
+
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status });
+
+  const finishedJob = (status: string, extra: Record<string, unknown>) => ({
+    id: RUNNER_JOB_ID,
+    status,
+    result: null,
+    error: null,
+    ...extra,
+  });
+
+  const cases: {
+    name: string;
+    fetchFor: (questionId: string) => FakeFetch;
+    errorKind: string;
+    errorMessage: string;
+  }[] = [
+    {
+      name: "the runner cancelled the job",
+      fetchFor: scriptedFetch(
+        () => json({ status: "cancelled" }),
+        () => json({}),
+      ),
+      errorKind: "cancelled",
+      errorMessage: "The runner job was cancelled",
+    },
+    {
+      name: "the runner does not know the job",
+      fetchFor: scriptedFetch(
+        () => json({ error: "not found" }, 404),
+        () => json({}),
+      ),
+      errorKind: "not_found",
+      errorMessage: "The runner has no such job",
+    },
+    {
+      name: "the runner loses the job between the status read and the full read",
+      fetchFor: scriptedFetch(
+        () => json({ status: "succeeded" }),
+        () => json({ error: "not found" }, 404),
+      ),
+      errorKind: "not_found",
+      errorMessage: "The runner has no such job",
+    },
+    {
+      name: "a succeeded job carries no result",
+      fetchFor: scriptedFetch(
+        () => json({ status: "succeeded" }),
+        () => json(finishedJob("succeeded", {})),
+      ),
+      errorKind: "bad_result",
+      errorMessage: "missing_result",
+    },
+    {
+      name: "the result is prose",
+      fetchFor: scriptedFetch(
+        () => json({ status: "succeeded" }),
+        () =>
+          json(
+            finishedJob("succeeded", {
+              result: { text: "Here are the grades: great work" },
+            }),
+          ),
+      ),
+      errorKind: "bad_result",
+      errorMessage: "not_json",
+    },
+    {
+      name: "the result grades a different question than the snapshot's",
+      fetchFor: scriptedFetch(
+        () => json({ status: "succeeded" }),
+        () =>
+          json(
+            finishedJob("succeeded", {
+              result: {
+                text: JSON.stringify({
+                  grades: [{ questionId: "other", score: 50, feedback: "ok" }],
+                }),
+              },
+            }),
+          ),
+      ),
+      errorKind: "bad_result",
+      errorMessage: "missing_candidate",
+    },
+  ];
+
+  for (const c of cases) {
+    dbIt(
+      `marks the job failed and saves nothing when ${c.name}`,
+      async ({ db }) => {
+        // Given a pending job in that state at the runner
+        const { services, test } = await seedPendingRunnerJob(db, c.fetchFor);
+
+        // When the result is collected
+        const outcome = await services.aiGradeService.collectRunnerResult(
+          test.id,
+          "student-1",
+        );
+
+        // Then the job is failed with the kind and a short reason, and no suggestion exists
+        expect(outcome).toEqual({
+          kind: CollectOutcomeKind.MarkedFailed,
+          errorKind: c.errorKind,
+        });
+        const job = await services.aiGradeJobService.getLatestForStudent(
+          test.id,
+          "student-1",
+        );
+        expect(job).toMatchObject({
+          status: AiGradeJobStatus.Failed,
+          errorKind: c.errorKind,
+          errorMessage: c.errorMessage,
+        });
+        expect(
+          await db.collection("ai_grade").countDocuments({ testId: test.id }),
+        ).toBe(0);
+      },
+    );
+  }
+
+  dbIt("accepts a new round once the failed job has ended", async ({ db }) => {
+    // Given a job that failed at the runner
+    const { services, test } = await seedPendingRunnerJob(
+      db,
+      (_questionId) => async (input, init?: RequestInit) => {
+        const url = String(input);
+        if (init?.method === "POST")
+          return json({ id: "fedcba987654321001234567" }, 201);
+        return url.endsWith("?view=status")
+          ? json({ status: "failed" })
+          : json(
+              finishedJob("failed", {
+                error: { kind: "timeout", message: "Ran out of time" },
+              }),
+            );
+      },
+    );
+    await services.aiGradeService.collectRunnerResult(test.id, "student-1");
+
+    // When the teacher starts another round
+    const outcome = await services.aiGradeService.startRound({
+      trigger: AiGradeJobTrigger.AutoGrade,
+      testId: test.id,
+      courseId: "course-1",
+      studentId: "student-1",
+      reason: null,
+      includeGraded: false,
+      byAdminId: "admin-1",
+    });
+
+    // Then a new pending job is queued
+    expect(outcome.kind).toBe(StartRoundOutcomeKind.Queued);
+  });
 });

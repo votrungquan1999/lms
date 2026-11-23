@@ -7,7 +7,6 @@ import {
   type AutoGradeSubmissionState,
   autoGradeSubmissionAction,
 } from "./ai-grade-actions";
-import { AiGradingInProgressNote } from "./ai-grading-in-progress-note.ui";
 import { RegenerateWithAiDialog } from "./regenerate-with-ai-dialog";
 
 interface AutoGradeWithAiButtonProps {
@@ -16,7 +15,7 @@ interface AutoGradeWithAiButtonProps {
   studentId: string;
   status: TestStatus;
   hasExistingSuggestions: boolean;
-  /** When the submission's pending AI grading job started; null when none is pending. */
+  /** When the submission's pending AI grading job started; null when none is pending. Disables the triggers; the page shows the note. */
   aiGradingStartedAt?: Date | null;
 }
 
@@ -54,17 +53,12 @@ export function AutoGradeWithAiButton({
 
   if (hasExistingSuggestions) {
     return (
-      <>
-        <RegenerateWithAiDialog
-          testId={testId}
-          courseId={courseId}
-          studentId={studentId}
-          disabled={aiGradingStartedAt !== null}
-        />
-        {aiGradingStartedAt !== null && (
-          <AiGradingInProgressNote startedAt={aiGradingStartedAt} />
-        )}
-      </>
+      <RegenerateWithAiDialog
+        testId={testId}
+        courseId={courseId}
+        studentId={studentId}
+        disabled={aiGradingStartedAt !== null}
+      />
     );
   }
 
@@ -81,9 +75,6 @@ export function AutoGradeWithAiButton({
       >
         {isPending ? "Auto-grading…" : "Auto-grade with AI"}
       </Button>
-      {aiGradingStartedAt !== null && (
-        <AiGradingInProgressNote startedAt={aiGradingStartedAt} />
-      )}
       {state?.message && (
         <p
           className={`text-sm ${

@@ -1,3 +1,5 @@
+import { AiGradingFailedNote } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grading-failed-note.ui";
+import { AiGradingInProgressNote } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grading-in-progress-note.ui";
 import { AiSuggestionPanel } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-suggestion-panel";
 import { AutoGradeWithAiButton } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/auto-grade-with-ai-button";
 import {
@@ -18,7 +20,10 @@ import {
   CardTitle,
 } from "src/components/ui/card";
 import { AiGradeJobStatus } from "src/lib/ai-grade-job-service";
-import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
+import {
+  type AiGradeSuggestion,
+  CollectOutcomeKind,
+} from "src/lib/ai-grade-types";
 import type { AnnotationEntry } from "src/lib/annotation-service";
 import {
   type AnswerImage,
@@ -138,7 +143,10 @@ export async function GradingDetailStudent({
 
   const aiGradeService = await getAiGradeService(schoolId);
   // Before the first suggestions read, so a finished job shows up in this render.
-  await aiGradeService.collectRunnerResult(testId, student.id);
+  const collected = await aiGradeService.collectRunnerResult(
+    testId,
+    student.id,
+  );
   const aiSuggestionsByQuestion = await aiGradeService.getSuggestionsForStudent(
     testId,
     student.id,
@@ -147,13 +155,32 @@ export async function GradingDetailStudent({
   const latestAiJob = await (
     await getAiGradeJobService(schoolId)
   ).getLatestForStudent(testId, student.id);
-  // Same gate as the AI trigger: a student who left Submitted shows no job state.
+  // The notes and the refresher follow the job, not the submission status: a
+  // fully hand-graded submission still has a job whose result will arrive.
+  // Practice tests never get an AI job.
+  // A render that lost the claim saw the job end before the winner's rows were
+  // readable, so it counts as in progress for one more refresh.
   const aiGradingStartedAt =
     !test.isPractice &&
-    status === TestStatus.Submitted &&
-    latestAiJob?.status === AiGradeJobStatus.Pending
+    latestAiJob !== null &&
+    (latestAiJob.status === AiGradeJobStatus.Pending ||
+      collected.kind === CollectOutcomeKind.ClaimedElsewhere)
       ? latestAiJob.createdAt
       : null;
+
+  // A later round (e.g. Gemini, which leaves no job row) supersedes the failed job.
+  const hasSuggestionNewerThanJob =
+    latestAiJob !== null &&
+    [...aiSuggestionsByQuestion.values()]
+      .flat()
+      .some((suggestion) => suggestion.generatedAt > latestAiJob.createdAt);
+  const aiGradingFailed =
+    !test.isPractice &&
+    latestAiJob?.status === AiGradeJobStatus.Failed &&
+    !hasSuggestionNewerThanJob;
+  // Remounts the AI triggers when the job changes, so a "started" message from
+  // a click on the previous job does not linger.
+  const aiJobStateKey = `${latestAiJob?.id ?? "none"}:${latestAiJob?.status ?? "none"}`;
 
   const gradedCount = grades.length;
   const answeredCount = latestAnswers.length;
@@ -220,6 +247,7 @@ export async function GradingDetailStudent({
               )}
               {!test.isPractice && status === TestStatus.Submitted && (
                 <AutoGradeWithAiButton
+                  key={aiJobStateKey}
                   testId={testId}
                   courseId={courseId}
                   studentId={student.id}
@@ -228,6 +256,10 @@ export async function GradingDetailStudent({
                   aiGradingStartedAt={aiGradingStartedAt}
                 />
               )}
+              {aiGradingStartedAt !== null && (
+                <AiGradingInProgressNote startedAt={aiGradingStartedAt} />
+              )}
+              {aiGradingFailed && <AiGradingFailedNote />}
               {aiGradingStartedAt !== null && <PendingAiGradingRefresher />}
               <ReleaseGradeForStudentControl
                 test={test}
@@ -345,6 +377,7 @@ export async function GradingDetailStudent({
               >
                 {aiSuggestions.length > 0 && (
                   <AiSuggestionPanel
+                    key={aiJobStateKey}
                     testId={testId}
                     courseId={courseId}
                     studentId={student.id}

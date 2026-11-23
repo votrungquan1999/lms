@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { AiClient, AiGradeBatchInput } from "src/lib/ai/ai-client";
+import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
+import { ready } from "src/lib/ai/runner-settings";
 import { AiGradeJobTrigger } from "src/lib/ai-grade-job-service";
 import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
@@ -56,7 +59,13 @@ interface SeededSubmission {
 async function seedSubmission(options: {
   withSuggestions: boolean;
   withPendingJob?: boolean;
-}): Promise<{ seed: SeededSubmission; renderPage: () => Promise<void> }> {
+  /** The teacher grades every answer by hand, which moves the submission to Graded. */
+  handGraded?: boolean;
+}): Promise<{
+  seed: SeededSubmission;
+  renderPage: () => Promise<void>;
+  buildPage: () => Promise<React.ReactElement>;
+}> {
   const services = getTestServices();
   const course = await services.courseService.createCourse({
     title: "Course",
@@ -113,6 +122,29 @@ async function seedSubmission(options: {
       byAdminId: "admin-1",
     });
   }
+  if (options.handGraded) {
+    await services.gradeService.gradeQuestion({
+      testId: test.id,
+      questionId: question.id,
+      studentId: student.id,
+      score: 70,
+      feedback: "Mine",
+      gradedBy: "admin-1",
+    });
+  }
+
+  const buildPage = async () =>
+    GradingDetailStudent({
+      test,
+      courseId: course.id,
+      schoolId: TEST_SCHOOL_ID,
+      student: {
+        id: student.id,
+        name: student.name,
+        username: student.username,
+      },
+      basePath: `/admin/grading/${test.id}`,
+    });
 
   return {
     seed: {
@@ -123,20 +155,9 @@ async function seedSubmission(options: {
       answerId: answer.id,
     },
     renderPage: async () => {
-      render(
-        await GradingDetailStudent({
-          test,
-          courseId: course.id,
-          schoolId: TEST_SCHOOL_ID,
-          student: {
-            id: student.id,
-            name: student.name,
-            username: student.username,
-          },
-          basePath: `/admin/grading/${test.id}`,
-        }),
-      );
+      render(await buildPage());
     },
+    buildPage,
   };
 }
 
@@ -189,6 +210,24 @@ describe("Feature: a teacher sees AI grading in progress and cannot start anothe
     expect(screen.getAllByTestId("ai-grading-in-progress")).toHaveLength(1);
   });
 
+  it("still shows the note, the self-refresh and disabled per-question regenerate when the teacher hand-graded everything while the job runs", async () => {
+    // Given a fully hand-graded submission, so its status is Graded, with a job still pending
+    const { renderPage } = await seedSubmission({
+      withSuggestions: true,
+      handGraded: true,
+    });
+
+    // When the teacher opens the grading page
+    await renderPage();
+
+    // Then the page still follows the job: note, self-refresh and a disabled regenerate
+    expect(screen.getAllByTestId("ai-grading-in-progress")).toHaveLength(1);
+    expect(
+      screen.getByTestId("pending-ai-grading-refresher"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("ai-regenerate-question-trigger")).toBeDisabled();
+  });
+
   it("keeps the page refreshing only while a job is pending", async () => {
     // Given a submission with a pending job
     const pending = await seedSubmission({ withSuggestions: false });
@@ -214,5 +253,53 @@ describe("Feature: a teacher sees AI grading in progress and cannot start anothe
 
     // Then nothing refreshes it
     expect(screen.queryByTestId("pending-ai-grading-refresher")).toBeNull();
+  });
+});
+
+describe("Feature: the teacher's click confirmation does not outlive the job it announced", () => {
+  const fakeFetch = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fakeFetch.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ id: RUNNER_JOB_ID, status: "queued" }), {
+          status: 201,
+        }),
+    );
+    const client = new BackgroundClaudeRunnerClient(
+      { url: "https://runner.test", key: "bcr_svc_testkey" },
+      { fetch: fakeFetch },
+    );
+    await setupTestDb({
+      aiClient: stubAiClient,
+      runnerClientProvider: () => ready(client),
+    });
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("clears the green 'AI grading started' message once the page shows the in-progress note", async () => {
+    // Given a submitted student the teacher has not sent to the runner yet
+    const { buildPage } = await seedSubmission({
+      withSuggestions: false,
+      withPendingJob: false,
+    });
+    const { rerender } = render(await buildPage());
+
+    // When the teacher clicks Auto-grade and sees the confirmation
+    await userEvent.click(
+      screen.getByRole("button", { name: /auto-grade with ai/i }),
+    );
+    expect(await screen.findByText(/AI grading started/)).toBeInTheDocument();
+
+    // And the page re-renders with the job now pending
+    rerender(await buildPage());
+
+    // Then the in-progress note stands alone, without the confirmation beside it
+    expect(screen.getByTestId("ai-grading-in-progress")).toBeInTheDocument();
+    expect(screen.queryByText(/AI grading started/)).toBeNull();
   });
 });

@@ -46,6 +46,9 @@ import type { QuestionService } from "src/lib/question-service";
 import type { TestService } from "src/lib/test-service";
 import { normalizeText } from "src/lib/text-normalization";
 
+/** The longest runner error message kept on a job row. */
+const MAX_ERROR_MESSAGE_CHARS = 500;
+
 /** Internal candidate row for the generate/regenerate skip-filter. */
 interface Candidate {
   questionId: string;
@@ -298,23 +301,45 @@ export class AiGradeService {
     }
 
     const status = await runner.client.readStatus(job.runnerJobId);
+    if (status.kind === RunnerReadOutcomeKind.NotFound) {
+      return this.failJob(job, "not_found", "The runner has no such job");
+    }
     if (status.kind !== RunnerReadOutcomeKind.Found) {
       return { kind: CollectOutcomeKind.StillWaiting, runnerStatus: null };
     }
-    if (status.body.status !== "succeeded") {
-      return {
-        kind: CollectOutcomeKind.StillWaiting,
-        runnerStatus: status.body.status,
-      };
+    const runnerStatus = status.body.status;
+    if (runnerStatus === "queued" || runnerStatus === "running") {
+      return { kind: CollectOutcomeKind.StillWaiting, runnerStatus };
+    }
+    if (runnerStatus === "cancelled") {
+      return this.failJob(job, "cancelled", "The runner job was cancelled");
     }
 
     const full = await runner.client.readJob(job.runnerJobId);
-    if (full.kind !== RunnerReadOutcomeKind.Found || !full.body.result) {
+    if (full.kind === RunnerReadOutcomeKind.NotFound) {
+      return this.failJob(job, "not_found", "The runner has no such job");
+    }
+    if (full.kind !== RunnerReadOutcomeKind.Found) {
       return { kind: CollectOutcomeKind.StillWaiting, runnerStatus: null };
     }
-    const parsed = parseRunnerGradingResult(full.body.result.text);
-    if (!("grades" in parsed)) {
-      return { kind: CollectOutcomeKind.StillWaiting, runnerStatus: null };
+    if (runnerStatus === "failed") {
+      return this.failJob(
+        job,
+        full.body.error?.kind ?? "unknown",
+        full.body.error?.message ?? "The runner job failed",
+      );
+    }
+
+    // Succeeded: every reason below is decided before the claim, so a render never throws on a bad result.
+    const text = full.body.result?.text;
+    if (!text) return this.failJob(job, "bad_result", "missing_result");
+    const parsed = parseRunnerGradingResult(text);
+    if ("reason" in parsed) {
+      return this.failJob(job, "bad_result", parsed.reason);
+    }
+    const gradedIds = new Set(parsed.grades.map((g) => g.questionId));
+    if (job.candidates.some((c) => !gradedIds.has(c.questionId))) {
+      return this.failJob(job, "bad_result", "missing_candidate");
     }
 
     // Claim before inserting: of two racing checks only one gets the job and saves the rows.
@@ -327,6 +352,26 @@ export class AiGradeService {
 
     const saved = await this.completeRunnerJob(claimed, parsed.grades);
     return { kind: CollectOutcomeKind.Saved, count: saved.length };
+  }
+
+  /**
+   * Ends a job as failed, once, without writing suggestions.
+   * @param job - The pending job.
+   * @param errorKind - The runner's error kind, or a LMS-side kind such as `bad_result`.
+   * @param errorMessage - Stored on the row only, truncated: it may quote prompt or answer text.
+   */
+  private async failJob(
+    job: AiGradeJob,
+    errorKind: string,
+    errorMessage: string,
+  ): Promise<CollectOutcome> {
+    const claimed = await this.jobService.claimFinal(job.runnerJobId, {
+      status: AiGradeJobStatus.Failed,
+      errorKind,
+      errorMessage: errorMessage.slice(0, MAX_ERROR_MESSAGE_CHARS),
+    });
+    if (!claimed) return { kind: CollectOutcomeKind.ClaimedElsewhere };
+    return { kind: CollectOutcomeKind.MarkedFailed, errorKind };
   }
 
   /**

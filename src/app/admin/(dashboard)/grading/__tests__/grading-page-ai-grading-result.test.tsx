@@ -56,8 +56,13 @@ interface RunnerCall {
  * the job carrying `resultText`.
  * @param status - The job status the runner reports.
  * @param resultText - Reads the text of the finished job's result when asked, so it can name seeded ids.
+ * @param fullOverrides - Fields that replace the full job's, e.g. an error in place of the result.
  */
-function fakeRunner(status: string, resultText: () => string) {
+function fakeRunner(
+  status: string,
+  resultText: () => string,
+  fullOverrides: Record<string, unknown> = {},
+) {
   const calls: RunnerCall[] = [];
   const fetchFake = vi.fn(
     async (input: string | URL | Request, init?: RequestInit) => {
@@ -102,6 +107,7 @@ function fakeRunner(status: string, resultText: () => string) {
             files: [],
             waitReason: null,
             waitUntil: null,
+            ...fullOverrides,
           };
       return new Response(JSON.stringify(body), { status: 200 });
     },
@@ -224,9 +230,10 @@ describe("Feature: a teacher finds the runner's finished suggestions when the gr
       gradedAgainstAnswerId: seed.answer.id,
     });
 
-    // And the same render shows the suggestion, not the in-progress note
+    // And the same render shows the suggestion, with neither the in-progress nor the failure note
     expect(screen.getAllByTestId("ai-suggestion-row")).toHaveLength(1);
     expect(screen.queryByTestId("ai-grading-in-progress")).toBeNull();
+    expect(screen.queryByTestId("ai-grading-failed")).toBeNull();
 
     // And the job is finished
     const job = await services.aiGradeJobService.getLatestForStudent(
@@ -331,4 +338,53 @@ describe("Feature: a teacher finds the runner's finished suggestions when the gr
       expect(job?.status).toBe(AiGradeJobStatus.Pending);
     },
   );
+
+  it("marks the job failed, saves nothing and offers a retry when the runner job failed", async () => {
+    // Given a pending job the runner reports as failed with a timeout
+    const runner = fakeRunner("failed", () => "unused", {
+      result: null,
+      error: { kind: "timeout", message: "Ran out of time" },
+    });
+    const client = new BackgroundClaudeRunnerClient(
+      { url: RUNNER_URL, key: RUNNER_KEY },
+      { fetch: runner.fetchFake, timeoutMs: { create: 50, read: 500 } },
+    );
+    await setupTestDb({
+      aiClient: unusedAiClient,
+      runnerClientProvider: () => ready(client),
+    });
+    const seed = await seedPendingJob();
+
+    // When the teacher opens the grading page
+    await renderPage(seed);
+
+    // Then the job is failed with the runner's error kind, and no suggestion exists
+    const services = getTestServices();
+    const job = await services.aiGradeJobService.getLatestForStudent(
+      seed.test.id,
+      seed.student.id,
+    );
+    expect(job).toMatchObject({
+      status: AiGradeJobStatus.Failed,
+      errorKind: "timeout",
+      errorMessage: "Ran out of time",
+    });
+    expect(
+      (
+        await services.aiGradeService.getSuggestionsForStudent(
+          seed.test.id,
+          seed.student.id,
+        )
+      ).size,
+    ).toBe(0);
+
+    // And the page says the attempt did not finish and Auto-grade can be clicked again
+    expect(screen.getByTestId("ai-grading-failed")).toHaveTextContent(
+      "The last AI grading attempt did not finish. You can try again.",
+    );
+    expect(screen.queryByTestId("ai-grading-in-progress")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /auto-grade with ai/i }),
+    ).toBeEnabled();
+  });
 });

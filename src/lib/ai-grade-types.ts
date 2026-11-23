@@ -125,6 +125,8 @@ export enum CollectOutcomeKind {
   StillWaiting = "still_waiting",
   /** The runner's suggestions were saved. */
   Saved = "saved",
+  /** The job ended without usable suggestions. */
+  MarkedFailed = "marked_failed",
   /** Another check ended the job first, so this one saved nothing. */
   ClaimedElsewhere = "claimed_elsewhere",
 }
@@ -134,4 +136,5 @@ export type CollectOutcome =
   | { kind: CollectOutcomeKind.NoPendingJob }
   | { kind: CollectOutcomeKind.StillWaiting; runnerStatus: string | null }
   | { kind: CollectOutcomeKind.Saved; count: number }
+  | { kind: CollectOutcomeKind.MarkedFailed; errorKind: string }
   | { kind: CollectOutcomeKind.ClaimedElsewhere };
