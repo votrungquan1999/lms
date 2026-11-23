@@ -7,6 +7,7 @@ import {
   OverallFeedbackForm,
   RequestRedoButton,
 } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
+import { PendingAiGradingRefresher } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/pending-ai-grading-refresher.ui";
 import { ReleaseGradeForStudentControl } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/release-grade-for-student";
 import { AnnotationTool } from "src/app/admin/(dashboard)/grading/page-body/annotation-tool";
 import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
@@ -144,7 +145,10 @@ export async function GradingDetailStudent({
   const latestAiJob = await (
     await getAiGradeJobService(schoolId)
   ).getLatestForStudent(testId, student.id);
+  // Same gate as the AI trigger: a student who left Submitted shows no job state.
   const aiGradingStartedAt =
+    !test.isPractice &&
+    status === TestStatus.Submitted &&
     latestAiJob?.status === AiGradeJobStatus.Pending
       ? latestAiJob.createdAt
       : null;
@@ -222,6 +226,7 @@ export async function GradingDetailStudent({
                   aiGradingStartedAt={aiGradingStartedAt}
                 />
               )}
+              {aiGradingStartedAt !== null && <PendingAiGradingRefresher />}
               <ReleaseGradeForStudentControl
                 test={test}
                 courseId={courseId}

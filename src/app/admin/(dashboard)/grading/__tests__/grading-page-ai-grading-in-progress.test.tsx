@@ -13,6 +13,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GradingDetailStudent } from "../page-body/grading-detail-student";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
+vi.mock(
+  "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/pending-ai-grading-refresher.ui",
+  () => ({
+    PendingAiGradingRefresher: () => (
+      <span data-testid="pending-ai-grading-refresher" />
+    ),
+  }),
+);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("src/lib/auth-singleton", () => ({
@@ -47,6 +55,7 @@ interface SeededSubmission {
 /** Seeds a submitted student with one written answer, optionally with a finished earlier AI round. */
 async function seedSubmission(options: {
   withSuggestions: boolean;
+  withPendingJob?: boolean;
 }): Promise<{ seed: SeededSubmission; renderPage: () => Promise<void> }> {
   const services = getTestServices();
   const course = await services.courseService.createCourse({
@@ -90,18 +99,20 @@ async function seedSubmission(options: {
       "admin-1",
     );
   }
-  await services.aiGradeJobService.create({
-    courseId: course.id,
-    testId: test.id,
-    studentId: student.id,
-    questionId: null,
-    trigger: AiGradeJobTrigger.AutoGrade,
-    runnerJobId: RUNNER_JOB_ID,
-    candidates: [{ questionId: question.id, answerId: answer.id }],
-    reason: null,
-    includeGraded: false,
-    byAdminId: "admin-1",
-  });
+  if (options.withPendingJob ?? true) {
+    await services.aiGradeJobService.create({
+      courseId: course.id,
+      testId: test.id,
+      studentId: student.id,
+      questionId: null,
+      trigger: AiGradeJobTrigger.AutoGrade,
+      runnerJobId: RUNNER_JOB_ID,
+      candidates: [{ questionId: question.id, answerId: answer.id }],
+      reason: null,
+      includeGraded: false,
+      byAdminId: "admin-1",
+    });
+  }
 
   return {
     seed: {
@@ -176,5 +187,32 @@ describe("Feature: a teacher sees AI grading in progress and cannot start anothe
     ).toBeDisabled();
     expect(screen.getByTestId("ai-regenerate-question-trigger")).toBeDisabled();
     expect(screen.getAllByTestId("ai-grading-in-progress")).toHaveLength(1);
+  });
+
+  it("keeps the page refreshing only while a job is pending", async () => {
+    // Given a submission with a pending job
+    const pending = await seedSubmission({ withSuggestions: false });
+
+    // When the teacher opens the grading page
+    await pending.renderPage();
+
+    // Then the self-refresh is mounted
+    expect(
+      screen.getByTestId("pending-ai-grading-refresher"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not refresh a page with no pending job", async () => {
+    // Given a submission that was never sent to the runner
+    const idle = await seedSubmission({
+      withSuggestions: false,
+      withPendingJob: false,
+    });
+
+    // When the teacher opens the grading page
+    await idle.renderPage();
+
+    // Then nothing refreshes it
+    expect(screen.queryByTestId("pending-ai-grading-refresher")).toBeNull();
   });
 });
