@@ -34,6 +34,7 @@ hardenAiEnvironment();
 const AI_PROVIDER_HOSTS = new Set([
   "api.anthropic.com",
   "generativelanguage.googleapis.com",
+  "runner.quanvo.dev",
 ]);
 const realFetch = globalThis.fetch;
 

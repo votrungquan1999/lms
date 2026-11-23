@@ -137,6 +137,8 @@ export async function GradingDetailStudent({
   );
 
   const aiGradeService = await getAiGradeService(schoolId);
+  // Before the first suggestions read, so a finished job shows up in this render.
+  await aiGradeService.collectRunnerResult(testId, student.id);
   const aiSuggestionsByQuestion = await aiGradeService.getSuggestionsForStudent(
     testId,
     student.id,

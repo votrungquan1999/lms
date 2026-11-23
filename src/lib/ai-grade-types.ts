@@ -110,3 +110,28 @@ export type StartRoundOutcome =
   | { kind: StartRoundOutcomeKind.Completed; suggestions: AiGradeSuggestion[] }
   | { kind: StartRoundOutcomeKind.NothingToGrade }
   | { kind: StartRoundOutcomeKind.AlreadyPending };
+
+/** Raw model name saved on suggestion rows the runner graded. */
+export const RUNNER_MODEL_NAME = "claude-sonnet";
+
+/** Audit string written to `gradedBy` on runner-graded suggestion rows. */
+export const RUNNER_GRADER_ID = `ai:${RUNNER_MODEL_NAME}`;
+
+/** How checking a pending runner job ended. */
+export enum CollectOutcomeKind {
+  /** The submission has no job still running. */
+  NoPendingJob = "no_pending_job",
+  /** The runner has not finished the job. */
+  StillWaiting = "still_waiting",
+  /** The runner's suggestions were saved. */
+  Saved = "saved",
+  /** Another check ended the job first, so this one saved nothing. */
+  ClaimedElsewhere = "claimed_elsewhere",
+}
+
+/** The result of checking a pending runner job. */
+export type CollectOutcome =
+  | { kind: CollectOutcomeKind.NoPendingJob }
+  | { kind: CollectOutcomeKind.StillWaiting; runnerStatus: string | null }
+  | { kind: CollectOutcomeKind.Saved; count: number }
+  | { kind: CollectOutcomeKind.ClaimedElsewhere };

@@ -81,6 +81,13 @@ export interface CreateAiGradeJobInput {
   byAdminId: string;
 }
 
+/** How a job ended, written when it is claimed as final. */
+export interface AiGradeJobFinalState {
+  status: AiGradeJobStatus.Succeeded | AiGradeJobStatus.Failed;
+  errorKind: string | null;
+  errorMessage: string | null;
+}
+
 /** AiGradeJobService: one school's rows in the `ai_grade_job` collection. */
 export class AiGradeJobService {
   private readonly jobs: Collection<AiGradeJobDocument>;
@@ -155,6 +162,29 @@ export class AiGradeJobService {
       .sort({ createdAt: -1, id: -1 })
       .limit(1)
       .next();
+    return doc ? this.toAiGradeJob(doc) : null;
+  }
+
+  /**
+   * Ends a pending job, once. Only the caller whose update finds the job still
+   * pending gets it back, so two renders can never both save its round.
+   * @param runnerJobId - The runner's id for the job.
+   * @param final - How the job ended.
+   * @returns The ended job, or null when it was already final.
+   */
+  async claimFinal(
+    runnerJobId: string,
+    final: AiGradeJobFinalState,
+  ): Promise<AiGradeJob | null> {
+    const doc = await this.jobs.findOneAndUpdate(
+      {
+        schoolId: this.schoolId,
+        runnerJobId,
+        status: AiGradeJobStatus.Pending,
+      },
+      { $set: { ...final, finishedAt: this.now() } },
+      { returnDocument: "after" },
+    );
     return doc ? this.toAiGradeJob(doc) : null;
   }
 

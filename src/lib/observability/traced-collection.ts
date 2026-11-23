@@ -7,6 +7,7 @@ import { withSpan } from "src/lib/observability/with-span";
  */
 const DIRECT_TERMINALS = new Set([
   "findOne",
+  "findOneAndUpdate",
   "insertOne",
   "insertMany",
   "updateOne",

@@ -5,15 +5,21 @@ import type {
   AiGradeBatchOutput,
   AiGradeBatchPriorGrade,
 } from "src/lib/ai/ai-client";
-import { RunnerCreateOutcomeKind } from "src/lib/ai/background-claude-runner-client";
+import {
+  RunnerCreateOutcomeKind,
+  RunnerReadOutcomeKind,
+} from "src/lib/ai/background-claude-runner-client";
 import { buildRunnerGradingPrompt } from "src/lib/ai/runner-grading-prompt";
+import { parseRunnerGradingResult } from "src/lib/ai/runner-grading-result";
 import {
   type RunnerClientProvider,
   RunnerClientResolutionKind,
   RunnerSettingsError,
 } from "src/lib/ai/runner-settings";
 import {
+  type AiGradeJob,
   type AiGradeJobService,
+  AiGradeJobStatus,
   AiGradeJobTrigger,
 } from "src/lib/ai-grade-job-service";
 import {
@@ -21,6 +27,10 @@ import {
   AI_MODEL_NAME,
   type AiGradeSuggestion,
   type AiGradeSuggestionDocument,
+  type CollectOutcome,
+  CollectOutcomeKind,
+  RUNNER_GRADER_ID,
+  RUNNER_MODEL_NAME,
   type StartRoundOutcome,
   StartRoundOutcomeKind,
   type StartRoundRequest,
@@ -269,6 +279,77 @@ export class AiGradeService {
   }
 
   /**
+   * Checks the submission's pending runner job and ends it when the runner is done.
+   * Every runner failure is a typed outcome, so a page render never throws on one.
+   * @param testId - The test.
+   * @param studentId - The student.
+   */
+  async collectRunnerResult(
+    testId: string,
+    studentId: string,
+  ): Promise<CollectOutcome> {
+    const job = await this.jobService.getLatestForStudent(testId, studentId);
+    if (job?.status !== AiGradeJobStatus.Pending) {
+      return { kind: CollectOutcomeKind.NoPendingJob };
+    }
+    const runner = this.runnerClientProvider();
+    if (runner.kind !== RunnerClientResolutionKind.Ready) {
+      return { kind: CollectOutcomeKind.NoPendingJob };
+    }
+
+    const status = await runner.client.readStatus(job.runnerJobId);
+    if (status.kind !== RunnerReadOutcomeKind.Found) {
+      return { kind: CollectOutcomeKind.StillWaiting, runnerStatus: null };
+    }
+    if (status.body.status !== "succeeded") {
+      return {
+        kind: CollectOutcomeKind.StillWaiting,
+        runnerStatus: status.body.status,
+      };
+    }
+
+    const full = await runner.client.readJob(job.runnerJobId);
+    if (full.kind !== RunnerReadOutcomeKind.Found || !full.body.result) {
+      return { kind: CollectOutcomeKind.StillWaiting, runnerStatus: null };
+    }
+    const parsed = parseRunnerGradingResult(full.body.result.text);
+    if (!("grades" in parsed)) {
+      return { kind: CollectOutcomeKind.StillWaiting, runnerStatus: null };
+    }
+
+    // Claim before inserting: of two racing checks only one gets the job and saves the rows.
+    const claimed = await this.jobService.claimFinal(job.runnerJobId, {
+      status: AiGradeJobStatus.Succeeded,
+      errorKind: null,
+      errorMessage: null,
+    });
+    if (!claimed) return { kind: CollectOutcomeKind.ClaimedElsewhere };
+
+    const saved = await this.completeRunnerJob(claimed, parsed.grades);
+    return { kind: CollectOutcomeKind.Saved, count: saved.length };
+  }
+
+  /**
+   * Saves a finished runner job's grades as suggestion rows labelled as graded by Claude.
+   * @param job - The claimed job, which carries the snapshot the grades answer.
+   * @param grades - The grades parsed from the runner's result.
+   */
+  private async completeRunnerJob(
+    job: AiGradeJob,
+    grades: AiGradeBatchOutput[],
+  ): Promise<AiGradeSuggestion[]> {
+    return this.persistSuggestions(
+      job.testId,
+      job.studentId,
+      job.byAdminId,
+      job.candidates,
+      grades,
+      job.reason,
+      { model: RUNNER_MODEL_NAME, gradedBy: RUNNER_GRADER_ID },
+    );
+  }
+
+  /**
    * The answers one trigger puts in scope.
    * @param request - The round being started.
    */
@@ -479,9 +560,13 @@ export class AiGradeService {
     testId: string,
     studentId: string,
     byAdminId: string,
-    candidates: Candidate[],
+    candidates: { questionId: string; answerId: string }[],
     aiResults: AiGradeBatchOutput[],
     regenerateReason: string | null,
+    label: { model: string; gradedBy: string } = {
+      model: AI_MODEL_NAME,
+      gradedBy: AI_GRADER_ID,
+    },
   ): Promise<AiGradeSuggestion[]> {
     const resultByQuestionId = new Map(aiResults.map((r) => [r.questionId, r]));
 
@@ -507,8 +592,8 @@ export class AiGradeService {
             ? undefined
             : normalizeText(result.solution),
         gradedAgainstAnswerId: candidate.answerId,
-        model: AI_MODEL_NAME,
-        gradedBy: AI_GRADER_ID,
+        model: label.model,
+        gradedBy: label.gradedBy,
         generatedByAdminId: byAdminId,
         generatedAt: now,
         regenerateReason,

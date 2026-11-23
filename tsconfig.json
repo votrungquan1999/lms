@@ -30,7 +30,9 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     "tmp/next-e2e-real-ai/types/**/*.ts",
-    "tmp/next-e2e-real-ai/dev/types/**/*.ts"
+    "tmp/next-e2e-real-ai/dev/types/**/*.ts",
+    "tmp/next-e2e-real-runner/types/**/*.ts",
+    "tmp/next-e2e-real-runner/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules", "scripts", "tmp"]
 }

@@ -1,0 +1,12 @@
+```json
+{
+  "grades": [
+    {
+      "questionId": "QUESTION_ID",
+      "score": 85,
+      "feedback": "Correct idea; mention the base case.",
+      "solution": "A function that calls itself until a base case stops it."
+    }
+  ]
+}
+```

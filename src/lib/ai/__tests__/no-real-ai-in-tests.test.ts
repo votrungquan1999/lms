@@ -94,4 +94,14 @@ describe("AI providers in test runs", () => {
       key_fingerprint: FAKE_KEY_FINGERPRINT,
     });
   });
+
+  it("blocks a request to the background Claude runner", () => {
+    // Given a test that injects no fetch fake
+
+    // When something calls the real runner host through the global fetch
+    const call = () => fetch("https://runner.quanvo.dev/api/jobs");
+
+    // Then the request is blocked before leaving the machine
+    expect(call).toThrow("Blocked request to AI provider runner.quanvo.dev");
+  });
 });

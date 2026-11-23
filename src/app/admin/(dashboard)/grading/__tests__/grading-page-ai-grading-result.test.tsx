@@ -1,0 +1,334 @@
+// @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { render, screen } from "@testing-library/react";
+import type { AiGradeBatchInput } from "src/lib/ai/ai-client";
+import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
+import { ready } from "src/lib/ai/runner-settings";
+import {
+  AiGradeJobStatus,
+  AiGradeJobTrigger,
+} from "src/lib/ai-grade-job-service";
+import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import {
+  getTestServices,
+  servicesSingletonMockFactory,
+  setupTestDb,
+  teardownTestDb,
+} from "src/tests/render-server-page";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GradingDetailStudent } from "../page-body/grading-detail-student";
+
+vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
+vi.mock(
+  "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/pending-ai-grading-refresher.ui",
+  () => ({ PendingAiGradingRefresher: () => null }),
+);
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
+vi.mock("src/lib/auth-singleton", () => ({
+  getAuthService: vi.fn(async () => ({
+    requireAdminSession: vi
+      .fn()
+      .mockResolvedValue({ userId: "admin-1", school: TEST_SCHOOL }),
+  })),
+}));
+
+const RUNNER_JOB_ID = "0123456789abcdef01234567";
+const RUNNER_URL = "https://runner.test";
+const RUNNER_KEY = "bcr_svc_test_key";
+
+/** The Gemini stub must stay unused: the runner grades this round. */
+const unusedAiClient = {
+  async gradeFreeTextBatch(_items: AiGradeBatchInput[]) {
+    throw new Error("Gemini must not grade a runner round");
+  },
+};
+
+/** One request the fake runner saw. */
+interface RunnerCall {
+  method: string;
+  url: string;
+  authorization: string | null;
+}
+
+/**
+ * A fake runner that answers status reads with `status` and full reads with
+ * the job carrying `resultText`.
+ * @param status - The job status the runner reports.
+ * @param resultText - Reads the text of the finished job's result when asked, so it can name seeded ids.
+ */
+function fakeRunner(status: string, resultText: () => string) {
+  const calls: RunnerCall[] = [];
+  const fetchFake = vi.fn(
+    async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({
+        method: init?.method ?? "GET",
+        url,
+        authorization: new Headers(init?.headers).get("authorization"),
+      });
+      const body = url.endsWith("?view=status")
+        ? { status }
+        : {
+            id: RUNNER_JOB_ID,
+            status,
+            prompt: "p",
+            model: "sonnet",
+            source: "service",
+            createdAt: "2026-11-24T10:00:00.000Z",
+            startedAt: "2026-11-24T10:00:01.000Z",
+            finishedAt: "2026-11-24T10:01:00.000Z",
+            result: {
+              text: resultText(),
+              durationMs: 59000,
+              numTurns: 1,
+              sessionId: "s",
+            },
+            error: null,
+            usage: [
+              {
+                model: "claude-sonnet-4-5",
+                attempt: 1,
+                partial: false,
+                inputTokens: 100,
+                outputTokens: 50,
+                cacheReadInputTokens: 0,
+                cacheCreationInputTokens: 0,
+                thinkingTokens: 0,
+                webSearchRequests: 0,
+                costUSD: 0.01,
+              },
+            ],
+            files: [],
+            waitReason: null,
+            waitUntil: null,
+          };
+      return new Response(JSON.stringify(body), { status: 200 });
+    },
+  );
+  return { fetchFake, calls };
+}
+
+/** Seeds a submitted student with one written answer and a pending runner job. */
+async function seedPendingJob() {
+  const services = getTestServices();
+  const course = await services.courseService.createCourse({
+    title: "Course",
+    description: "",
+    createdBy: "admin",
+  });
+  const test = await services.testService.createTest(course.id, {
+    title: "Test",
+    description: "",
+    createdBy: "admin",
+  });
+  const question = await services.questionService.addQuestion(test.id, {
+    type: "free_text",
+    title: "Q1",
+    content: "Explain recursion",
+    createdBy: "admin",
+  });
+  const student = await services.studentService.createStudentDocument({
+    authUserId: "auth-1",
+    username: "stu",
+    name: "Stu",
+    createdBy: "admin",
+  });
+  await services.enrollmentService.enrollStudent(
+    course.id,
+    student.id,
+    "admin",
+  );
+  const answer = await services.answerService.submitAnswer({
+    testId: test.id,
+    questionId: question.id,
+    studentId: student.id,
+    answer: { type: "free_text", text: "A function that calls itself." },
+  });
+  await services.testSubmissionService.submitTest(test.id, student.id);
+  await services.aiGradeJobService.create({
+    courseId: course.id,
+    testId: test.id,
+    studentId: student.id,
+    questionId: null,
+    trigger: AiGradeJobTrigger.AutoGrade,
+    runnerJobId: RUNNER_JOB_ID,
+    candidates: [{ questionId: question.id, answerId: answer.id }],
+    reason: null,
+    includeGraded: false,
+    byAdminId: "admin-1",
+  });
+  return { test, course, student, question, answer };
+}
+
+/** Renders the grading detail for a seeded submission. */
+async function renderPage(seed: Awaited<ReturnType<typeof seedPendingJob>>) {
+  render(
+    await GradingDetailStudent({
+      test: seed.test,
+      courseId: seed.course.id,
+      schoolId: TEST_SCHOOL_ID,
+      student: {
+        id: seed.student.id,
+        name: seed.student.name,
+        username: seed.student.username,
+      },
+      basePath: `/admin/grading/${seed.test.id}`,
+    }),
+  );
+}
+
+describe("Feature: a teacher finds the runner's finished suggestions when the grading page renders", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("saves one Claude-labelled round and shows it when the runner job has succeeded", async () => {
+    // Given a pending job the runner has finished with a fenced JSON result
+    let questionId = "";
+    const runner = fakeRunner("succeeded", () =>
+      readFileSync(
+        "src/lib/ai/__tests__/fixtures/runner-result.txt",
+        "utf8",
+      ).replaceAll("QUESTION_ID", questionId),
+    );
+    const client = new BackgroundClaudeRunnerClient(
+      { url: RUNNER_URL, key: RUNNER_KEY },
+      { fetch: runner.fetchFake, timeoutMs: { create: 50, read: 500 } },
+    );
+    await setupTestDb({
+      aiClient: unusedAiClient,
+      runnerClientProvider: () => ready(client),
+    });
+    const seed = await seedPendingJob();
+    questionId = seed.question.id;
+
+    // When the teacher opens the grading page
+    await renderPage(seed);
+
+    // Then the round is saved once, labelled as graded by Claude
+    const services = getTestServices();
+    const suggestions = await services.aiGradeService.getSuggestionsForStudent(
+      seed.test.id,
+      seed.student.id,
+    );
+    const rows = suggestions.get(seed.question.id) ?? [];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      model: "claude-sonnet",
+      score: 85,
+      gradedAgainstAnswerId: seed.answer.id,
+    });
+
+    // And the same render shows the suggestion, not the in-progress note
+    expect(screen.getAllByTestId("ai-suggestion-row")).toHaveLength(1);
+    expect(screen.queryByTestId("ai-grading-in-progress")).toBeNull();
+
+    // And the job is finished
+    const job = await services.aiGradeJobService.getLatestForStudent(
+      seed.test.id,
+      seed.student.id,
+    );
+    expect(job?.status).toBe(AiGradeJobStatus.Succeeded);
+    expect(job?.finishedAt).not.toBeNull();
+
+    // And the runner was asked for the status, then the full job, with the key
+    expect(runner.calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      `GET ${RUNNER_URL}/api/jobs/${RUNNER_JOB_ID}?view=status`,
+      `GET ${RUNNER_URL}/api/jobs/${RUNNER_JOB_ID}`,
+    ]);
+    expect(
+      runner.calls.every((c) => c.authorization === `Bearer ${RUNNER_KEY}`),
+    ).toBe(true);
+  });
+
+  it("saves and shows a suggestion for a question the teacher graded meanwhile, leaving the teacher's grade untouched", async () => {
+    // Given a pending job and a teacher who grades the question by hand before the result lands
+    let questionId = "";
+    const runner = fakeRunner("succeeded", () =>
+      readFileSync(
+        "src/lib/ai/__tests__/fixtures/runner-result.txt",
+        "utf8",
+      ).replaceAll("QUESTION_ID", questionId),
+    );
+    const client = new BackgroundClaudeRunnerClient(
+      { url: RUNNER_URL, key: RUNNER_KEY },
+      { fetch: runner.fetchFake, timeoutMs: { create: 50, read: 500 } },
+    );
+    await setupTestDb({
+      aiClient: unusedAiClient,
+      runnerClientProvider: () => ready(client),
+    });
+    const seed = await seedPendingJob();
+    questionId = seed.question.id;
+    const services = getTestServices();
+    await services.gradeService.gradeQuestion({
+      testId: seed.test.id,
+      questionId,
+      studentId: seed.student.id,
+      score: 60,
+      feedback: "Teacher feedback",
+      gradedBy: "admin-1",
+    });
+
+    // When the teacher opens the grading page and the result is collected
+    await renderPage(seed);
+
+    // Then the AI suggestion is saved and shown
+    expect(screen.getAllByTestId("ai-suggestion-row")).toHaveLength(1);
+    const suggestions = await services.aiGradeService.getSuggestionsForStudent(
+      seed.test.id,
+      seed.student.id,
+    );
+    expect(suggestions.get(questionId)?.[0]).toMatchObject({ score: 85 });
+
+    // And the teacher's own grade is exactly as they left it
+    expect(
+      await services.gradeService.getGrade(
+        seed.test.id,
+        questionId,
+        seed.student.id,
+      ),
+    ).toMatchObject({ score: 60, feedback: "Teacher feedback" });
+  });
+
+  it.each(["queued", "running"])(
+    "keeps the job pending and reads no result while the runner reports %s",
+    async (runnerStatus) => {
+      // Given a pending job the runner has not finished
+      const runner = fakeRunner(runnerStatus, () => "unused");
+      const client = new BackgroundClaudeRunnerClient(
+        { url: RUNNER_URL, key: RUNNER_KEY },
+        { fetch: runner.fetchFake, timeoutMs: { create: 50, read: 500 } },
+      );
+      await setupTestDb({
+        aiClient: unusedAiClient,
+        runnerClientProvider: () => ready(client),
+      });
+      const seed = await seedPendingJob();
+
+      // When the teacher opens the grading page
+      await renderPage(seed);
+
+      // Then the page still says grading is in progress and shows no suggestion
+      expect(screen.getByTestId("ai-grading-in-progress")).toBeInTheDocument();
+      expect(screen.queryByTestId("ai-suggestion-row")).toBeNull();
+
+      // And only the status was read
+      expect(runner.calls.map((c) => c.url)).toEqual([
+        `${RUNNER_URL}/api/jobs/${RUNNER_JOB_ID}?view=status`,
+      ]);
+
+      // And the job is still pending
+      const job = await getTestServices().aiGradeJobService.getLatestForStudent(
+        seed.test.id,
+        seed.student.id,
+      );
+      expect(job?.status).toBe(AiGradeJobStatus.Pending);
+    },
+  );
+});

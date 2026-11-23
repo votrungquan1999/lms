@@ -13,6 +13,7 @@ export const MOCK_QUESTION_TITLE = "MSW mock: AI call intercepted";
 const AI_PROVIDER_HOSTS = new Set([
   "api.anthropic.com",
   "generativelanguage.googleapis.com",
+  "runner.quanvo.dev",
 ]);
 
 /** A phrase unique to the e2e spec's generated PDF page text. */
