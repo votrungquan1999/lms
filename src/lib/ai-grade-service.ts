@@ -1,14 +1,29 @@
 import type { Collection, Db } from "mongodb";
 import type {
   AiClient,
+  AiGradeBatchOptions,
   AiGradeBatchOutput,
   AiGradeBatchPriorGrade,
 } from "src/lib/ai/ai-client";
+import { RunnerCreateOutcomeKind } from "src/lib/ai/background-claude-runner-client";
+import { buildRunnerGradingPrompt } from "src/lib/ai/runner-grading-prompt";
+import {
+  type RunnerClientProvider,
+  RunnerClientResolutionKind,
+  RunnerSettingsError,
+} from "src/lib/ai/runner-settings";
+import {
+  type AiGradeJobService,
+  AiGradeJobTrigger,
+} from "src/lib/ai-grade-job-service";
 import {
   AI_GRADER_ID,
   AI_MODEL_NAME,
   type AiGradeSuggestion,
   type AiGradeSuggestionDocument,
+  type StartRoundOutcome,
+  StartRoundOutcomeKind,
+  type StartRoundRequest,
 } from "src/lib/ai-grade-types";
 import type { AnswerService } from "src/lib/answer-service";
 import {
@@ -48,6 +63,8 @@ export class AiGradeService {
    * @param answerService - The same school's answers.
    * @param gradeService - The same school's grades, where Apply writes.
    * @param testService - The same school's tests, where every write looks up its test.
+   * @param runnerClientProvider - Resolves the runner client when a round runs, never at construction.
+   * @param jobService - The same school's grading jobs.
    */
   constructor(
     db: Db,
@@ -56,6 +73,8 @@ export class AiGradeService {
     private readonly answerService: AnswerService,
     private readonly gradeService: GradeService,
     private readonly testService: TestService,
+    private readonly runnerClientProvider: RunnerClientProvider,
+    private readonly jobService: AiGradeJobService,
   ) {
     this.suggestions = db.collection<AiGradeSuggestionDocument>("ai_grade");
     this.grades = db.collection<GradeDocument>("grade");
@@ -92,22 +111,7 @@ export class AiGradeService {
     const candidates = await this.buildCandidates(testId, studentId);
     if (candidates.length === 0) return [];
 
-    const aiResults = await this.aiClient.gradeFreeTextBatch(
-      candidates.map((c) => ({
-        questionId: c.questionId,
-        questionContent: c.questionContent,
-        studentAnswer: c.studentAnswer,
-      })),
-    );
-
-    return this.persistSuggestions(
-      testId,
-      studentId,
-      byAdminId,
-      candidates,
-      aiResults,
-      null,
-    );
+    return this.gradeWithGemini(testId, studentId, byAdminId, candidates);
   }
 
   /**
@@ -136,40 +140,10 @@ export class AiGradeService {
     );
     if (candidates.length === 0) return [];
 
-    const priorGrades: AiGradeBatchPriorGrade[] = [];
-    for (const candidate of candidates) {
-      const prior = await this.getLatestSuggestion(
-        testId,
-        candidate.questionId,
-        studentId,
-      );
-      if (prior) {
-        priorGrades.push({
-          questionId: candidate.questionId,
-          score: prior.score,
-          feedback: prior.feedback,
-          solution: prior.solution,
-        });
-      }
-    }
-
-    const aiResults = await this.aiClient.gradeFreeTextBatch(
-      candidates.map((c) => ({
-        questionId: c.questionId,
-        questionContent: c.questionContent,
-        studentAnswer: c.studentAnswer,
-      })),
-      { reason, priorGrades },
-    );
-
-    return this.persistSuggestions(
-      testId,
-      studentId,
-      byAdminId,
-      candidates,
-      aiResults,
+    return this.gradeWithGemini(testId, studentId, byAdminId, candidates, {
       reason,
-    );
+      priorGrades: await this.priorGradesFor(testId, studentId, candidates),
+    });
   }
 
   /**
@@ -199,8 +173,131 @@ export class AiGradeService {
     const scoped = candidates.filter((c) => c.questionId === questionId);
     if (scoped.length === 0) return [];
 
+    return this.gradeWithGemini(testId, studentId, byAdminId, scoped, {
+      reason,
+      priorGrades: await this.priorGradesFor(testId, studentId, scoped),
+    });
+  }
+
+  /**
+   * Starts one grading round for a teacher's click. With a ready runner the
+   * round becomes a pending job and the suggestions arrive later; with no
+   * runner configured Gemini grades on the spot.
+   * @param request - Which trigger, whose submission, and the teacher's input.
+   * @throws "Test not found" when the test isn't this school's.
+   * @throws RunnerSettingsError when a runner setting is unusable.
+   */
+  async startRound(request: StartRoundRequest): Promise<StartRoundOutcome> {
+    await this.testService.requireTest(request.testId);
+
+    const candidates = await this.candidatesFor(request);
+    if (candidates.length === 0) {
+      return { kind: StartRoundOutcomeKind.NothingToGrade };
+    }
+
+    // Auto-grade has no earlier round to explain, so it carries no regenerate context.
+    const opts: AiGradeBatchOptions | undefined =
+      request.trigger === AiGradeJobTrigger.AutoGrade
+        ? undefined
+        : {
+            reason: request.reason ?? "",
+            priorGrades: await this.priorGradesFor(
+              request.testId,
+              request.studentId,
+              candidates,
+            ),
+          };
+
+    const runner = this.runnerClientProvider();
+    switch (runner.kind) {
+      case RunnerClientResolutionKind.Disabled:
+        return {
+          kind: StartRoundOutcomeKind.Completed,
+          suggestions: await this.gradeWithGemini(
+            request.testId,
+            request.studentId,
+            request.byAdminId,
+            candidates,
+            opts,
+          ),
+        };
+      case RunnerClientResolutionKind.Invalid:
+        throw new RunnerSettingsError(runner.variable);
+      case RunnerClientResolutionKind.Ready: {
+        const created = await runner.client.createJob(
+          buildRunnerGradingPrompt(
+            candidates.map((c) => ({
+              questionId: c.questionId,
+              questionContent: c.questionContent,
+              studentAnswer: c.studentAnswer,
+            })),
+            opts,
+          ),
+        );
+        if (created.kind !== RunnerCreateOutcomeKind.Created) {
+          throw new Error(`Runner create ${created.kind}: ${created.cause}`);
+        }
+        const job = await this.jobService.create({
+          courseId: request.courseId,
+          testId: request.testId,
+          studentId: request.studentId,
+          questionId: request.questionId ?? null,
+          trigger: request.trigger,
+          runnerJobId: created.jobId,
+          candidates: candidates.map((c) => ({
+            questionId: c.questionId,
+            answerId: c.answerId,
+          })),
+          reason: request.reason,
+          includeGraded: request.includeGraded,
+          byAdminId: request.byAdminId,
+        });
+        return { kind: StartRoundOutcomeKind.Queued, job };
+      }
+    }
+  }
+
+  /**
+   * The answers one trigger puts in scope.
+   * @param request - The round being started.
+   */
+  private async candidatesFor(
+    request: StartRoundRequest,
+  ): Promise<Candidate[]> {
+    switch (request.trigger) {
+      case AiGradeJobTrigger.AutoGrade:
+        return this.buildCandidates(request.testId, request.studentId, false);
+      case AiGradeJobTrigger.RegenerateAll:
+        return this.buildCandidates(
+          request.testId,
+          request.studentId,
+          request.includeGraded,
+        );
+      case AiGradeJobTrigger.RegenerateQuestion: {
+        // The teacher picked this question, so their own grade never blocks it.
+        const all = await this.buildCandidates(
+          request.testId,
+          request.studentId,
+          true,
+        );
+        return all.filter((c) => c.questionId === request.questionId);
+      }
+    }
+  }
+
+  /**
+   * The latest earlier suggestion per candidate, sent as context on a regenerate.
+   * @param testId - The test.
+   * @param studentId - The student.
+   * @param candidates - The answers being graded.
+   */
+  private async priorGradesFor(
+    testId: string,
+    studentId: string,
+    candidates: Candidate[],
+  ): Promise<AiGradeBatchPriorGrade[]> {
     const priorGrades: AiGradeBatchPriorGrade[] = [];
-    for (const candidate of scoped) {
+    for (const candidate of candidates) {
       const prior = await this.getLatestSuggestion(
         testId,
         candidate.questionId,
@@ -215,23 +312,42 @@ export class AiGradeService {
         });
       }
     }
+    return priorGrades;
+  }
 
-    const aiResults = await this.aiClient.gradeFreeTextBatch(
-      scoped.map((c) => ({
-        questionId: c.questionId,
-        questionContent: c.questionContent,
-        studentAnswer: c.studentAnswer,
-      })),
-      { reason, priorGrades },
-    );
+  /**
+   * Grades the candidates through the Gemini client and saves the suggestions.
+   * @param testId - The test.
+   * @param studentId - The student.
+   * @param byAdminId - The admin who triggered the round.
+   * @param candidates - The answers to grade.
+   * @param opts - Regenerate context; absent on a first pass.
+   */
+  private async gradeWithGemini(
+    testId: string,
+    studentId: string,
+    byAdminId: string,
+    candidates: Candidate[],
+    opts?: AiGradeBatchOptions,
+  ): Promise<AiGradeSuggestion[]> {
+    const items = candidates.map((c) => ({
+      questionId: c.questionId,
+      questionContent: c.questionContent,
+      studentAnswer: c.studentAnswer,
+    }));
+    // The client records any round given options as a regenerate, so a first pass passes none.
+    const aiResults =
+      opts === undefined
+        ? await this.aiClient.gradeFreeTextBatch(items)
+        : await this.aiClient.gradeFreeTextBatch(items, opts);
 
     return this.persistSuggestions(
       testId,
       studentId,
       byAdminId,
-      scoped,
+      candidates,
       aiResults,
-      reason,
+      opts?.reason ?? null,
     );
   }
 

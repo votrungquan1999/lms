@@ -5,6 +5,11 @@ import type {
   AiGradeBatchOptions,
   AiGradeBatchOutput,
 } from "src/lib/ai/ai-client";
+import {
+  type RunnerClientProvider,
+  RunnerClientResolutionKind,
+} from "src/lib/ai/runner-settings";
+import { AiGradeJobService } from "src/lib/ai-grade-job-service";
 import { AiGradeService } from "src/lib/ai-grade-service";
 import { AnnotationService } from "src/lib/annotation-service";
 import { AnswerService } from "src/lib/answer-service";
@@ -34,6 +39,7 @@ export interface CoreServices {
   testSubmissionService: TestSubmissionService;
   testStartService: TestStartService;
   aiGradeService: AiGradeService;
+  aiGradeJobService: AiGradeJobService;
 }
 
 /**
@@ -42,6 +48,8 @@ export interface CoreServices {
 export interface BuildCoreServicesOptions {
   /** Inject a deterministic stub for service-level tests. */
   aiClient?: AiClient;
+  /** Inject a runner client resolution; the default is no runner, so grading stays on the AI client. */
+  runnerClientProvider?: RunnerClientProvider;
   /** Inject a controlled clock for deadline-enforcement tests. */
   now?: () => Date;
 }
@@ -121,6 +129,7 @@ export function buildCoreServices(
   );
 
   const aiClient: AiClient = opts.aiClient ?? new NoopAiClient();
+  const aiGradeJobService = new AiGradeJobService(db, TEST_SCHOOL_ID);
   const aiGradeService = new AiGradeService(
     db,
     aiClient,
@@ -128,6 +137,9 @@ export function buildCoreServices(
     answerService,
     gradeService,
     testService,
+    opts.runnerClientProvider ??
+      (() => ({ kind: RunnerClientResolutionKind.Disabled })),
+    aiGradeJobService,
   );
 
   return {
@@ -141,5 +153,6 @@ export function buildCoreServices(
     testSubmissionService,
     testStartService,
     aiGradeService,
+    aiGradeJobService,
   };
 }

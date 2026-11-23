@@ -1,17 +1,52 @@
 "use server";
 
+import type { Span } from "@opentelemetry/api";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import {
   AiGradeOutcome,
   recordAiAcceptance,
 } from "src/lib/ai/ai-acceptance-telemetry";
+import { AiGradeJobTrigger } from "src/lib/ai-grade-job-service";
+import {
+  type StartRoundOutcome,
+  StartRoundOutcomeKind,
+} from "src/lib/ai-grade-types";
 import { getAuthService } from "src/lib/auth-singleton";
 import { logError } from "src/lib/observability/log-error";
 import { withSpan } from "src/lib/observability/with-span";
 import { getAiGradeService } from "src/lib/services-singleton";
 import { z } from "zod";
 import { assertGradingTarget } from "../test-parent-check";
+
+const AI_GRADING_STARTED_MESSAGE =
+  "AI grading started. Suggestions will appear here when it finishes.";
+
+/**
+ * Records on the action's span which path graded the round.
+ * @param span - The action's span.
+ * @param outcome - What the service returned.
+ */
+function annotateRound(span: Span, outcome: StartRoundOutcome): void {
+  if (outcome.kind === StartRoundOutcomeKind.Queued) {
+    span.setAttribute("lms.ai.runner_job_id", outcome.job.runnerJobId);
+    span.setAttribute("lms.ai.grading_path", "runner");
+  } else if (outcome.kind === StartRoundOutcomeKind.Completed) {
+    span.setAttribute("lms.ai.grading_path", "gemini");
+  }
+}
+
+/**
+ * Revalidates the admin pages that show a student's AI suggestions.
+ * @param courseId - The course the grading page sits under.
+ * @param testId - The graded test.
+ */
+function revalidateGradingPaths(courseId: string, testId: string): void {
+  revalidatePath(`/admin/courses/${courseId}/tests/${testId}/grading`);
+  revalidatePath("/admin/grading");
+  revalidatePath(`/admin/grading/${testId}`);
+  revalidatePath("/admin/dashboard");
+}
 
 const autoGradeSchema = z.object({
   testId: z.string().min(1),
@@ -70,7 +105,7 @@ export async function autoGradeSubmissionAction(
         "lms.course.id": parsed.data.courseId,
         "lms.student.id": parsed.data.studentId,
       },
-      async () => {
+      async (span) => {
         await assertGradingTarget(schoolId, parsed.data);
 
         const aiGradeService = await getAiGradeService(schoolId);
@@ -88,20 +123,22 @@ export async function autoGradeSubmissionAction(
           };
         }
 
-        await aiGradeService.generateForStudent(
-          parsed.data.testId,
-          parsed.data.studentId,
-          adminUserId,
-        );
+        const outcome = await aiGradeService.startRound({
+          trigger: AiGradeJobTrigger.AutoGrade,
+          testId: parsed.data.testId,
+          courseId: parsed.data.courseId,
+          studentId: parsed.data.studentId,
+          reason: null,
+          includeGraded: false,
+          byAdminId: adminUserId,
+        });
+        annotateRound(span, outcome);
 
-        revalidatePath(
-          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-        );
-        revalidatePath("/admin/grading");
-        revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath("/admin/dashboard");
+        revalidateGradingPaths(parsed.data.courseId, parsed.data.testId);
 
-        return { success: true, message: "AI suggestions generated" };
+        return outcome.kind === StartRoundOutcomeKind.Queued
+          ? { success: true, message: AI_GRADING_STARTED_MESSAGE }
+          : { success: true, message: "AI suggestions generated" };
       },
     );
   } catch (error) {
@@ -133,8 +170,9 @@ export interface RegenerateSubmissionState {
 /**
  * Server action: regenerates AI suggestions for a single student's
  * submission. Requires a non-empty trimmed reason (Zod-enforced, capped at
- * 500 chars). Delegates to `AiGradeService.regenerateForStudent`, which
- * appends NEW rows to `ai_grade` without mutating prior history. Teacher-graded
+ * 500 chars). Delegates to `AiGradeService.startRound`: with a runner the round
+ * becomes a pending job, otherwise new `ai_grade` rows are appended on the spot
+ * without mutating prior history. Teacher-graded
  * questions are included only when the `includeGraded` checkbox is ticked.
  * Revalidates admin paths only — suggestions stay admin-side until Apply
  * (Step 6) promotes them. A round that regenerates nothing returns
@@ -180,19 +218,22 @@ export async function regenerateSubmissionAction(
         "lms.course.id": parsed.data.courseId,
         "lms.student.id": parsed.data.studentId,
       },
-      async () => {
+      async (span) => {
         await assertGradingTarget(schoolId, parsed.data);
 
         const aiGradeService = await getAiGradeService(schoolId);
-        const regenerated = await aiGradeService.regenerateForStudent(
-          parsed.data.testId,
-          parsed.data.studentId,
-          adminUserId,
-          parsed.data.reason,
-          parsed.data.includeGraded,
-        );
+        const outcome = await aiGradeService.startRound({
+          trigger: AiGradeJobTrigger.RegenerateAll,
+          testId: parsed.data.testId,
+          courseId: parsed.data.courseId,
+          studentId: parsed.data.studentId,
+          reason: parsed.data.reason,
+          includeGraded: parsed.data.includeGraded,
+          byAdminId: adminUserId,
+        });
+        annotateRound(span, outcome);
         // An empty round means nothing was in scope; say why instead of claiming success.
-        if (regenerated.length === 0) {
+        if (outcome.kind === StartRoundOutcomeKind.NothingToGrade) {
           return {
             success: false,
             message: parsed.data.includeGraded
@@ -201,14 +242,11 @@ export async function regenerateSubmissionAction(
           };
         }
 
-        revalidatePath(
-          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-        );
-        revalidatePath("/admin/grading");
-        revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath("/admin/dashboard");
+        revalidateGradingPaths(parsed.data.courseId, parsed.data.testId);
 
-        return { success: true, message: "AI suggestions regenerated" };
+        return outcome.kind === StartRoundOutcomeKind.Queued
+          ? { success: true, message: AI_GRADING_STARTED_MESSAGE }
+          : { success: true, message: "AI suggestions regenerated" };
       },
     );
   } catch (error) {
@@ -236,8 +274,8 @@ export interface RegenerateQuestionState {
 /**
  * Server action: regenerates the AI suggestion for a SINGLE question of one
  * student's submission. Requires a non-empty trimmed reason (Zod-enforced,
- * capped at 500 chars). Delegates to `AiGradeService.regenerateForQuestion`,
- * which appends one new `ai_grade` row for that question only. Revalidates
+ * capped at 500 chars). Delegates to `AiGradeService.startRound` scoped to that
+ * question: a runner job, or one new `ai_grade` row on the spot. Revalidates
  * admin paths only — suggestions stay admin-side until Apply promotes them.
  *
  * Returns state via the `useActionState` contract; never throws.
@@ -281,26 +319,27 @@ export async function regenerateQuestionAction(
         "lms.student.id": parsed.data.studentId,
         "lms.question.id": parsed.data.questionId,
       },
-      async () => {
+      async (span) => {
         await assertGradingTarget(schoolId, parsed.data);
 
         const aiGradeService = await getAiGradeService(schoolId);
-        await aiGradeService.regenerateForQuestion(
-          parsed.data.testId,
-          parsed.data.studentId,
-          parsed.data.questionId,
-          adminUserId,
-          parsed.data.reason,
-        );
+        const outcome = await aiGradeService.startRound({
+          trigger: AiGradeJobTrigger.RegenerateQuestion,
+          testId: parsed.data.testId,
+          courseId: parsed.data.courseId,
+          studentId: parsed.data.studentId,
+          questionId: parsed.data.questionId,
+          reason: parsed.data.reason,
+          includeGraded: true,
+          byAdminId: adminUserId,
+        });
+        annotateRound(span, outcome);
 
-        revalidatePath(
-          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-        );
-        revalidatePath("/admin/grading");
-        revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath("/admin/dashboard");
+        revalidateGradingPaths(parsed.data.courseId, parsed.data.testId);
 
-        return { success: true, message: "AI suggestions regenerated" };
+        return outcome.kind === StartRoundOutcomeKind.Queued
+          ? { success: true, message: AI_GRADING_STARTED_MESSAGE }
+          : { success: true, message: "AI suggestions regenerated" };
       },
     );
   } catch (error) {

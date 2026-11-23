@@ -1,4 +1,5 @@
 import { type Db, MongoClient } from "mongodb";
+import { AiGradeJobStatus } from "./ai-grade-job-service";
 import { loadConfig } from "./config";
 import { JoinRequestStatus } from "./course-join-request-service";
 import { tracedDb } from "./observability/traced-collection";
@@ -119,5 +120,24 @@ export async function ensureIndexes(db: Db): Promise<void> {
     db
       .collection("course_join_request")
       .createIndex({ schoolId: 1, status: 1, requestedAt: 1, _id: 1 }),
+
+    // One runner job is one row.
+    db
+      .collection("ai_grade_job")
+      .createIndex({ runnerJobId: 1 }, { unique: true }),
+    db
+      .collection("ai_grade_job")
+      .createIndex({ testId: 1, studentId: 1, status: 1 }),
+    // Two near-simultaneous clicks must never leave two pending rows: the
+    // page checks only the latest job, so a second one would never be collected.
+    db
+      .collection("ai_grade_job")
+      .createIndex(
+        { testId: 1, studentId: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { status: AiGradeJobStatus.Pending },
+        },
+      ),
   ]);
 }

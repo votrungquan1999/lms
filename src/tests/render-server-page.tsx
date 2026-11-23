@@ -3,6 +3,11 @@ import type { Db, MongoClient } from "mongodb";
 import { MongoClient as MongoClientCtor } from "mongodb";
 import type { AiClient } from "src/lib/ai/ai-client";
 import { GeminiAiClient } from "src/lib/ai/ai-client";
+import {
+  type RunnerClientProvider,
+  RunnerClientResolutionKind,
+} from "src/lib/ai/runner-settings";
+import { AiGradeJobService } from "src/lib/ai-grade-job-service";
 import { AiGradeService } from "src/lib/ai-grade-service";
 import { AnnotationService } from "src/lib/annotation-service";
 import { AnswerService } from "src/lib/answer-service";
@@ -35,6 +40,7 @@ import { TEST_SCHOOL, TEST_SCHOOL_ID } from "./create-test-db";
  * Returned by setupServerPageTest and exposed to mock factories via getTestServices.
  */
 export interface TestServices {
+  aiGradeJobService: AiGradeJobService;
   aiGradeService: AiGradeService;
   annotationService: AnnotationService;
   answerService: AnswerService;
@@ -63,6 +69,7 @@ export interface TestServices {
 
 /** Services built for one school — one set per school in the harness. */
 interface SchoolBoundServices {
+  aiGradeJobService: AiGradeJobService;
   aiGradeService: AiGradeService;
   annotationService: AnnotationService;
   answerService: AnswerService;
@@ -101,6 +108,11 @@ let currentIsAdminEmail = false;
 // Defaults to the real Gemini wrapper (unchanged pre-existing behavior);
 // tests that exercise the AI path inject a stub via setupTestDb({ aiClient }).
 let currentAiClient: AiClient = new GeminiAiClient();
+// The runner client resolution every school's AiGradeService is built with;
+// default is no runner, so existing tests stay on the AI client.
+let currentRunnerClientProvider: RunnerClientProvider = () => ({
+  kind: RunnerClientResolutionKind.Disabled,
+});
 
 /** Recording stand-in for S3: presigns fake URLs and remembers every delete. */
 export class FakeS3Storage {
@@ -273,6 +285,7 @@ function makeSchoolServices(
     testService,
     questionService,
   );
+  const aiGradeJobService = new AiGradeJobService(db, schoolId);
   const aiGradeService = new AiGradeService(
     db,
     currentAiClient,
@@ -280,12 +293,15 @@ function makeSchoolServices(
     answerService,
     gradeService,
     testService,
+    currentRunnerClientProvider,
+    aiGradeJobService,
   );
   const redoRequestService = new RedoRequestService(db, testService);
   const annotationService = new AnnotationService(db, testService);
   const testFeedbackService = new TestFeedbackService(db, testService);
 
   return {
+    aiGradeJobService,
     aiGradeService,
     annotationService,
     answerService,
@@ -310,6 +326,8 @@ function makeSchoolServices(
 export interface SetupTestDbOptions {
   /** Overrides the AI client every school's AiGradeService is built with. */
   aiClient?: AiClient;
+  /** Overrides how every school's AiGradeService resolves the runner client. */
+  runnerClientProvider?: RunnerClientProvider;
 }
 
 /**
@@ -324,6 +342,9 @@ export async function setupTestDb(options: SetupTestDbOptions = {}): Promise<{
   services: TestServices;
 }> {
   currentAiClient = options.aiClient ?? new GeminiAiClient();
+  currentRunnerClientProvider =
+    options.runnerClientProvider ??
+    (() => ({ kind: RunnerClientResolutionKind.Disabled }));
   const mongoUri = process.env.MONGODB_URI ?? "mongodb://localhost:27017";
   const dbName = `lms-test-${randomUUID()}`;
 
@@ -428,6 +449,8 @@ function servicesForSchool(schoolId: string): TestServices {
  */
 export function servicesSingletonMockFactory() {
   return {
+    getAiGradeJobService: async (schoolId: string) =>
+      servicesForSchool(schoolId).aiGradeJobService,
     getAiGradeService: async (schoolId: string) =>
       servicesForSchool(schoolId).aiGradeService,
     getAnnotationService: async (schoolId: string) =>

@@ -1,6 +1,15 @@
 import { headers } from "next/headers";
 import { GeminiAiClient, type QuestionParseClient } from "./ai/ai-client";
+import { BackgroundClaudeRunnerClient } from "./ai/background-claude-runner-client";
 import { ImportAiClient } from "./ai/import-ai-client";
+import {
+  type RunnerClientResolution,
+  RunnerClientResolutionKind,
+  RunnerSettingsKind,
+  ready,
+  runnerSettings,
+} from "./ai/runner-settings";
+import { AiGradeJobService } from "./ai-grade-job-service";
 import { AiGradeService } from "./ai-grade-service";
 import { AnnotationService } from "./annotation-service";
 import { AnswerService } from "./answer-service";
@@ -37,6 +46,7 @@ import { UserRoleService } from "./user-role-service";
 
 // One instance per school: a school-bound service never serves another school,
 // and a dependent is only ever built from its own school's instances.
+const aiGradeJobServices = new Map<string, AiGradeJobService>();
 const aiGradeServices = new Map<string, AiGradeService>();
 const annotationServices = new Map<string, AnnotationService>();
 const answerServices = new Map<string, AnswerService>();
@@ -118,6 +128,39 @@ export async function getPageGuard(): Promise<PageGuard> {
 }
 
 /**
+ * Resolves the runner client from the environment at call time. A new client
+ * per call is cheap (no connection state) and keeps "read per call" true even
+ * though the service holding this function is cached per school.
+ */
+function resolveRunnerClient(): RunnerClientResolution {
+  const settings = runnerSettings();
+  switch (settings.kind) {
+    case RunnerSettingsKind.Disabled:
+      return { kind: RunnerClientResolutionKind.Disabled };
+    case RunnerSettingsKind.Invalid:
+      return {
+        kind: RunnerClientResolutionKind.Invalid,
+        variable: settings.variable,
+      };
+    case RunnerSettingsKind.Enabled:
+      return ready(new BackgroundClaudeRunnerClient(settings.settings));
+  }
+}
+
+/**
+ * Returns the school's `AiGradeJobService`.
+ * @param schoolId - The verified session's school.
+ */
+export async function getAiGradeJobService(
+  schoolId: string,
+): Promise<AiGradeJobService> {
+  return forSchool(aiGradeJobServices, schoolId, async () => {
+    const db = await getDatabase();
+    return tracedService(new AiGradeJobService(db, schoolId), "aiGradeJob");
+  });
+}
+
+/**
  * Returns the school's `AiGradeService` wired against the live Gemini client.
  * Tests inject a stub via `buildCoreServices(db, { aiClient })` — they never
  * call this getter.
@@ -140,6 +183,8 @@ export async function getAiGradeService(
         answerService,
         gradeService,
         testService,
+        resolveRunnerClient,
+        await getAiGradeJobService(schoolId),
       ),
       "aiGrade",
     );

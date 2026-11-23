@@ -21,13 +21,11 @@ vi.mock("src/lib/auth-singleton", () => ({
 
 // Mutable per-test mocks for AiGradeService. The first call to
 // `hasAnySuggestionsForStudent` returns false (no rows yet); the action then
-// invokes `generateForStudent` once and the first call returns success. On the
-// second action invocation, `hasAnySuggestionsForStudent` returns true and the
-// action must short-circuit BEFORE the LLM call.
-const generateForStudent = vi.fn();
+// starts a round once and the first call returns success. On the second action
+// invocation, `hasAnySuggestionsForStudent` returns true and the action must
+// short-circuit BEFORE starting a round.
+const startRound = vi.fn();
 const hasAnySuggestionsForStudent = vi.fn();
-const regenerateForStudent = vi.fn();
-const regenerateForQuestion = vi.fn();
 const applySuggestion = vi.fn();
 // Parent-check stubs — a fixed test-1/course-1/q-1, always enrolled, so
 // every literal id this file already uses resolves as the admin's own.
@@ -41,10 +39,8 @@ const isEnrolled = vi.fn().mockResolvedValue(true);
 
 vi.mock("src/lib/services-singleton", () => ({
   getAiGradeService: vi.fn(async () => ({
-    generateForStudent,
+    startRound,
     hasAnySuggestionsForStudent,
-    regenerateForStudent,
-    regenerateForQuestion,
     applySuggestion,
   })),
   getTestService: vi.fn(async () => ({ getTest })),
@@ -52,6 +48,8 @@ vi.mock("src/lib/services-singleton", () => ({
   getEnrollmentService: vi.fn(async () => ({ isEnrolled })),
 }));
 
+import { AiGradeJobTrigger } from "src/lib/ai-grade-job-service";
+import { StartRoundOutcomeKind } from "src/lib/ai-grade-types";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   applyAiSuggestionAction,
@@ -62,19 +60,21 @@ import {
 
 describe("Feature: autoGradeSubmissionAction rejects a duplicate initial click", () => {
   beforeEach(() => {
-    generateForStudent.mockReset();
+    startRound.mockReset();
     hasAnySuggestionsForStudent.mockReset();
-    regenerateForStudent.mockReset();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("returns success on the first click and rejects the second click with the Regenerate-hint message without calling generateForStudent again", async () => {
+  it("returns success on the first click and rejects the second click with the Regenerate-hint message without starting a second round", async () => {
     // Given — first call: no suggestions exist yet, the service creates 2 rows
     hasAnySuggestionsForStudent.mockResolvedValueOnce(false);
-    generateForStudent.mockResolvedValueOnce([{ id: "s-1" }, { id: "s-2" }]);
+    startRound.mockResolvedValueOnce({
+      kind: StartRoundOutcomeKind.Completed,
+      suggestions: [{ id: "s-1" }, { id: "s-2" }],
+    });
 
     // Given — second call: suggestions now exist
     hasAnySuggestionsForStudent.mockResolvedValueOnce(true);
@@ -104,9 +104,8 @@ describe("Feature: autoGradeSubmissionAction rejects a duplicate initial click",
 
 describe("Feature: regenerateSubmissionAction rejects a missing/whitespace reason", () => {
   beforeEach(() => {
-    generateForStudent.mockReset();
+    startRound.mockReset();
     hasAnySuggestionsForStudent.mockReset();
-    regenerateForStudent.mockReset();
   });
 
   afterEach(() => {
@@ -148,7 +147,7 @@ describe("Feature: regenerateSubmissionAction rejects a missing/whitespace reaso
 
 describe("Feature: regenerateSubmissionAction honours the include-graded checkbox", () => {
   beforeEach(() => {
-    regenerateForStudent.mockReset();
+    startRound.mockReset();
     requireAdminSession.mockReset();
     requireAdminSession.mockResolvedValue({
       userId: "admin-1",
@@ -161,7 +160,10 @@ describe("Feature: regenerateSubmissionAction honours the include-graded checkbo
   });
 
   it("asks the service to include graded questions only when the checkbox is ticked", async () => {
-    regenerateForStudent.mockResolvedValue([{ id: "sugg-new" }]);
+    startRound.mockResolvedValue({
+      kind: StartRoundOutcomeKind.Completed,
+      suggestions: [{ id: "sugg-new" }],
+    });
     const formWith = (ticked: boolean) => {
       const fd = new FormData();
       fd.set("testId", "test-1");
@@ -176,27 +178,31 @@ describe("Feature: regenerateSubmissionAction honours the include-graded checkbo
     await regenerateSubmissionAction(null, formWith(true));
     await regenerateSubmissionAction(null, formWith(false));
 
-    expect(regenerateForStudent).toHaveBeenNthCalledWith(
+    expect(startRound).toHaveBeenNthCalledWith(
       1,
-      "test-1",
-      "stu-1",
-      "admin-1",
-      "Students use a base case first",
-      true,
+      expect.objectContaining({
+        trigger: AiGradeJobTrigger.RegenerateAll,
+        testId: "test-1",
+        studentId: "stu-1",
+        byAdminId: "admin-1",
+        reason: "Students use a base case first",
+        includeGraded: true,
+      }),
     );
-    expect(regenerateForStudent).toHaveBeenNthCalledWith(
+    expect(startRound).toHaveBeenNthCalledWith(
       2,
-      "test-1",
-      "stu-1",
-      "admin-1",
-      "Students use a base case first",
-      false,
+      expect.objectContaining({
+        trigger: AiGradeJobTrigger.RegenerateAll,
+        includeGraded: false,
+      }),
     );
   });
 
   it("tells the teacher every question is already graded, instead of a fake success, when nothing was regenerated", async () => {
     // Every question already has the teacher's grade, so nothing is in scope.
-    regenerateForStudent.mockResolvedValue([]);
+    startRound.mockResolvedValue({
+      kind: StartRoundOutcomeKind.NothingToGrade,
+    });
     const fd = new FormData();
     fd.set("testId", "test-1");
     fd.set("courseId", "course-1");
@@ -214,7 +220,9 @@ describe("Feature: regenerateSubmissionAction honours the include-graded checkbo
 
   it("tells the teacher there is nothing to regenerate when even graded questions were included", async () => {
     // No written answer is left to grade, even counting graded ones.
-    regenerateForStudent.mockResolvedValue([]);
+    startRound.mockResolvedValue({
+      kind: StartRoundOutcomeKind.NothingToGrade,
+    });
     const fd = new FormData();
     fd.set("testId", "test-1");
     fd.set("courseId", "course-1");
@@ -233,9 +241,8 @@ describe("Feature: regenerateSubmissionAction honours the include-graded checkbo
 
 describe("Feature: autoGradeSubmissionAction surfaces LLM/Zod failure as the pinned error message (Step 9)", () => {
   beforeEach(() => {
-    generateForStudent.mockReset();
+    startRound.mockReset();
     hasAnySuggestionsForStudent.mockReset();
-    regenerateForStudent.mockReset();
     revalidatePathMock.mockReset();
   });
 
@@ -243,12 +250,10 @@ describe("Feature: autoGradeSubmissionAction surfaces LLM/Zod failure as the pin
     vi.restoreAllMocks();
   });
 
-  it("returns success:false with the verbatim pinned message AND does NOT call revalidatePath when generateForStudent throws", async () => {
-    // Given — no prior suggestions exist; service.generateForStudent throws.
+  it("returns success:false with the verbatim pinned message AND does NOT call revalidatePath when startRound throws", async () => {
+    // Given — no prior suggestions exist; service.startRound throws.
     hasAnySuggestionsForStudent.mockResolvedValueOnce(false);
-    generateForStudent.mockRejectedValueOnce(
-      new Error("simulated LLM failure"),
-    );
+    startRound.mockRejectedValueOnce(new Error("simulated LLM failure"));
 
     const fd = new FormData();
     fd.set("testId", "test-1");
@@ -269,7 +274,7 @@ describe("Feature: autoGradeSubmissionAction surfaces LLM/Zod failure as the pin
 
 describe("Feature: regenerateQuestionAction (Step A2 — single-question regenerate)", () => {
   beforeEach(() => {
-    regenerateForQuestion.mockReset();
+    startRound.mockReset();
     revalidatePathMock.mockReset();
     requireAdminSession.mockReset();
     requireAdminSession.mockResolvedValue({
@@ -284,7 +289,10 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
 
   it("on happy-path success: regenerates the one targeted question, revalidates the 4 admin paths (not the student path), and returns the pinned success message", async () => {
     // Given — valid form fields incl. questionId + reason; service resolves.
-    regenerateForQuestion.mockResolvedValueOnce([{ id: "sugg-new" }]);
+    startRound.mockResolvedValueOnce({
+      kind: StartRoundOutcomeKind.Completed,
+      suggestions: [{ id: "sugg-new" }],
+    });
 
     const fd = new FormData();
     fd.set("testId", "test-1");
@@ -302,13 +310,16 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
 
     // Then — service called with the SPECIFIC question + admin + reason (pins
     // per-question scoping: questionId is the 3rd arg).
-    expect(regenerateForQuestion).toHaveBeenCalledWith(
-      "test-1",
-      "stu-1",
-      "q-1",
-      "admin-1",
-      "Reconsider the partial-credit cutoff",
-    );
+    expect(startRound).toHaveBeenCalledWith({
+      trigger: AiGradeJobTrigger.RegenerateQuestion,
+      testId: "test-1",
+      courseId: "course-1",
+      studentId: "stu-1",
+      questionId: "q-1",
+      byAdminId: "admin-1",
+      reason: "Reconsider the partial-credit cutoff",
+      includeGraded: true,
+    });
 
     // Then — only the 4 admin paths revalidated; NOT the student path
     // (suggestions stay admin-side until Apply).
@@ -324,7 +335,7 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
     );
   });
 
-  it("rejects a missing/whitespace reason with a user-visible error and does NOT call regenerateForQuestion", async () => {
+  it("rejects a missing/whitespace reason with a user-visible error and does NOT start a round", async () => {
     // Given — whitespace-only reason (trips Zod .trim().min(1)).
     const fdWhitespace = new FormData();
     fdWhitespace.set("testId", "test-1");
@@ -339,7 +350,7 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
     // Then — refusal with a user-visible message; service never reached.
     expect(whitespaceState.success).toBe(false);
     expect(whitespaceState.message.length).toBeGreaterThan(0);
-    expect(regenerateForQuestion).not.toHaveBeenCalled();
+    expect(startRound).not.toHaveBeenCalled();
 
     // Given — reason field omitted entirely.
     const fdMissing = new FormData();
@@ -354,10 +365,10 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
     // Then — refusal again; service still never reached.
     expect(missingState.success).toBe(false);
     expect(missingState.message.length).toBeGreaterThan(0);
-    expect(regenerateForQuestion).not.toHaveBeenCalled();
+    expect(startRound).not.toHaveBeenCalled();
   });
 
-  it("rejects with the pinned unauth message when requireAdminSession throws, and does NOT call regenerateForQuestion or revalidatePath", async () => {
+  it("rejects with the pinned unauth message when requireAdminSession throws, and does NOT call startRound or revalidatePath", async () => {
     // Given — auth fails.
     requireAdminSession.mockRejectedValueOnce(new Error("no session"));
 
@@ -374,7 +385,7 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
     // Then — pinned unauthorized message; service + revalidate never reached.
     expect(state.success).toBe(false);
     expect(state.message).toBe("Unauthorized: admin access required");
-    expect(regenerateForQuestion).not.toHaveBeenCalled();
+    expect(startRound).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 });
@@ -467,7 +478,7 @@ describe("Feature: a failed AI action's log line links to its trace", () => {
       }),
     );
     hasAnySuggestionsForStudent.mockReset();
-    generateForStudent.mockReset();
+    startRound.mockReset();
   });
 
   afterEach(() => {
@@ -478,7 +489,7 @@ describe("Feature: a failed AI action's log line links to its trace", () => {
   it("prints the failed action's trace id alongside the error, so the log can be matched to the trace in Grafana", async () => {
     // Given — the grading call fails inside the action's span.
     hasAnySuggestionsForStudent.mockResolvedValueOnce(false);
-    generateForStudent.mockRejectedValueOnce(new Error("simulated failure"));
+    startRound.mockRejectedValueOnce(new Error("simulated failure"));
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});

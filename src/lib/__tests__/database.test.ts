@@ -74,6 +74,19 @@ describe("Feature: Production database boot wires the safety indexes", () => {
           status: "pending",
         });
 
+        // ...and the grading-job pending-uniqueness index exists
+        const jobIndexes = await listIndexesOrEmpty(db, "ai_grade_job");
+        const pendingJobIndex = jobIndexes.find(
+          (index) =>
+            index.key.testId === 1 && index.key.studentId === 1 && index.unique,
+        );
+        expect(pendingJobIndex?.partialFilterExpression).toEqual({
+          status: "pending",
+        });
+        expect(
+          jobIndexes.find((index) => index.key.runnerJobId === 1)?.unique,
+        ).toBe(true);
+
         // ...and the enrollment unique index exists
         const enrollmentIndexes = await listIndexesOrEmpty(db, "enrollment");
         const enrollmentUniqueIndex = enrollmentIndexes.find(

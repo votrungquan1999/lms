@@ -11,6 +11,9 @@ export function hardenAiEnvironment(): void {
   process.env.ANTHROPIC_API_KEY = "vitest-fake-key";
   // The Anthropic SDK reads this: a shell value would send requests past the fetch guard's host list.
   delete process.env.ANTHROPIC_BASE_URL;
+  // A shell runner key would route grading to the real runner.
+  delete process.env.BCR_SERVICE_KEY;
+  delete process.env.BCR_URL;
   process.env.GOOGLE_GENERATIVE_AI_API_KEY = "vitest-fake-key";
   process.env.AI_USAGE_FILE = path.join(
     mkdtempSync(path.join(tmpdir(), "vitest-ai-usage-")),

@@ -1,3 +1,8 @@
+import type {
+  AiGradeJob,
+  AiGradeJobTrigger,
+} from "src/lib/ai-grade-job-service";
+
 /**
  * Model identifier persisted with each suggestion row. Used in both the
  * `model` column (raw model name) and the `gradedBy` audit column
@@ -73,3 +78,32 @@ export interface AiGradeSuggestion {
   appliedAt: Date | null;
   appliedBy: string | null;
 }
+
+/** What a teacher's grading click asks the service to start. */
+export interface StartRoundRequest {
+  trigger: AiGradeJobTrigger;
+  testId: string;
+  courseId: string;
+  studentId: string;
+  /** Set only for the single-question trigger. */
+  questionId?: string;
+  reason: string | null;
+  includeGraded: boolean;
+  byAdminId: string;
+}
+
+/** How a started round ended up. */
+export enum StartRoundOutcomeKind {
+  /** The runner accepted the job; suggestions arrive later. */
+  Queued = "queued",
+  /** Gemini graded the round on the spot. */
+  Completed = "completed",
+  /** No answer was in scope, so nothing was started. */
+  NothingToGrade = "nothing_to_grade",
+}
+
+/** The result of starting a grading round. */
+export type StartRoundOutcome =
+  | { kind: StartRoundOutcomeKind.Queued; job: AiGradeJob }
+  | { kind: StartRoundOutcomeKind.Completed; suggestions: AiGradeSuggestion[] }
+  | { kind: StartRoundOutcomeKind.NothingToGrade };
