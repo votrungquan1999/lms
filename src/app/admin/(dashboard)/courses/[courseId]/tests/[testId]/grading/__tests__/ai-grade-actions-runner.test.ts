@@ -108,10 +108,12 @@ describe("Feature: a teacher who starts AI grading is told it has started", () =
         feedback: "Good",
       })),
     );
-    fakeFetch.mockResolvedValue(
-      new Response(JSON.stringify({ id: RUNNER_JOB_ID, status: "queued" }), {
-        status: 201,
-      }),
+    // A fresh Response per call: a body can be read only once.
+    fakeFetch.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ id: RUNNER_JOB_ID, status: "queued" }), {
+          status: 201,
+        }),
     );
     const aiClient: AiClient = { gradeFreeTextBatch };
     const client = new BackgroundClaudeRunnerClient(
@@ -251,5 +253,67 @@ describe("Feature: a teacher who starts AI grading is told it has started", () =
     });
     expect(fakeFetch).toHaveBeenCalledTimes(1);
     expect(gradeFreeTextBatch).not.toHaveBeenCalled();
+  });
+
+  it("refuses a second round while the first job is still pending, without calling the runner again", async () => {
+    // Given a submission whose first Auto-grade click queued a job
+    const seed = await seedSubmittedStudent();
+    await autoGradeSubmissionAction(null, formFor(seed));
+    const firstJob =
+      await getTestServices().aiGradeJobService.getLatestForStudent(
+        seed.testId,
+        seed.studentId,
+      );
+
+    // When the teacher starts every kind of round again
+    const regenerateForm = formFor(seed);
+    regenerateForm.set("reason", "Try again");
+    const questionForm = formFor(seed);
+    questionForm.set("questionId", seed.questionId);
+    questionForm.set("reason", "Try again");
+    const states = [
+      await autoGradeSubmissionAction(null, formFor(seed)),
+      await regenerateSubmissionAction(null, regenerateForm),
+      await regenerateQuestionAction(null, questionForm),
+    ];
+
+    // Then each is refused with the same message
+    for (const state of states) {
+      expect(state).toEqual({
+        success: false,
+        message: "AI grading is already in progress for this submission.",
+      });
+    }
+
+    // And the runner was never asked again and the first job is still the latest
+    expect(fakeFetch).toHaveBeenCalledTimes(1);
+    const latest =
+      await getTestServices().aiGradeJobService.getLatestForStudent(
+        seed.testId,
+        seed.studentId,
+      );
+    expect(latest?.id).toBe(firstJob?.id);
+  });
+
+  it("tells a stale Auto-grade click that grading is in progress, not that suggestions exist, while a regenerate job is pending", async () => {
+    // Given a submission with suggestions and a regenerate job pending on the runner
+    const seed = await seedSubmittedStudent();
+    await getTestServices().aiGradeService.generateForStudent(
+      seed.testId,
+      seed.studentId,
+      "admin-1",
+    );
+    const regenerateForm = formFor(seed);
+    regenerateForm.set("reason", "Try again");
+    await regenerateSubmissionAction(null, regenerateForm);
+
+    // When the teacher's page, still showing the Auto-grade button, submits it
+    const state = await autoGradeSubmissionAction(null, formFor(seed));
+
+    // Then the in-progress message is shown
+    expect(state).toEqual({
+      success: false,
+      message: "AI grading is already in progress for this submission.",
+    });
   });
 });

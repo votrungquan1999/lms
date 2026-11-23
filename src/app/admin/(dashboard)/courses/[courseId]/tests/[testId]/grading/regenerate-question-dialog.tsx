@@ -22,6 +22,8 @@ interface RegenerateQuestionDialogProps {
   courseId: string;
   studentId: string;
   questionId: string;
+  /** True while a grading job is pending: the trigger and the submit button stay disabled. */
+  disabled?: boolean;
 }
 
 /**
@@ -37,6 +39,7 @@ export function RegenerateQuestionDialog({
   courseId,
   studentId,
   questionId,
+  disabled = false,
 }: RegenerateQuestionDialogProps) {
   const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState<
@@ -53,6 +56,7 @@ export function RegenerateQuestionDialog({
           type="button"
           size="sm"
           variant="ghost"
+          disabled={disabled}
           data-testid="ai-regenerate-question-trigger"
         >
           Regenerate this answer
@@ -85,7 +89,11 @@ export function RegenerateQuestionDialog({
             />
           </div>
 
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button
+            type="submit"
+            disabled={isPending || disabled}
+            className="w-full"
+          >
             {isPending ? "Regenerating…" : "Regenerate this answer"}
           </Button>
 

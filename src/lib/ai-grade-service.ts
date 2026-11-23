@@ -184,11 +184,22 @@ export class AiGradeService {
    * round becomes a pending job and the suggestions arrive later; with no
    * runner configured Gemini grades on the spot.
    * @param request - Which trigger, whose submission, and the teacher's input.
+   * @returns AlreadyPending, without starting anything, when a job is still running for the submission.
    * @throws "Test not found" when the test isn't this school's.
    * @throws RunnerSettingsError when a runner setting is unusable.
    */
   async startRound(request: StartRoundRequest): Promise<StartRoundOutcome> {
     await this.testService.requireTest(request.testId);
+
+    // One job per submission: a second round would never be collected.
+    if (
+      await this.jobService.hasPendingForStudent(
+        request.testId,
+        request.studentId,
+      )
+    ) {
+      return { kind: StartRoundOutcomeKind.AlreadyPending };
+    }
 
     const candidates = await this.candidatesFor(request);
     if (candidates.length === 0) {

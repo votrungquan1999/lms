@@ -33,6 +33,8 @@ interface AiSuggestionPanelProps {
    * render. Useful for tests; defaults to false in production usage.
    */
   defaultHistoryOpen?: boolean;
+  /** True while a grading job is pending: the regenerate trigger is disabled. */
+  regenerateDisabled?: boolean;
 }
 
 interface SuggestionRowProps {
@@ -63,6 +65,7 @@ export function AiSuggestionPanel({
   suggestions,
   latestAnswerId = null,
   defaultHistoryOpen = false,
+  regenerateDisabled = false,
 }: AiSuggestionPanelProps) {
   const [historyOpen, setHistoryOpen] = useState(defaultHistoryOpen);
 
@@ -94,6 +97,7 @@ export function AiSuggestionPanel({
           courseId={courseId}
           studentId={studentId}
           questionId={questionId}
+          disabled={regenerateDisabled}
         />
       </div>
       <SuggestionRow

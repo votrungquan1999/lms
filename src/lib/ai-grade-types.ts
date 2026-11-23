@@ -100,10 +100,13 @@ export enum StartRoundOutcomeKind {
   Completed = "completed",
   /** No answer was in scope, so nothing was started. */
   NothingToGrade = "nothing_to_grade",
+  /** The submission already has a job running; nothing was started. */
+  AlreadyPending = "already_pending",
 }
 
 /** The result of starting a grading round. */
 export type StartRoundOutcome =
   | { kind: StartRoundOutcomeKind.Queued; job: AiGradeJob }
   | { kind: StartRoundOutcomeKind.Completed; suggestions: AiGradeSuggestion[] }
-  | { kind: StartRoundOutcomeKind.NothingToGrade };
+  | { kind: StartRoundOutcomeKind.NothingToGrade }
+  | { kind: StartRoundOutcomeKind.AlreadyPending };

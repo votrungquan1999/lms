@@ -7,6 +7,7 @@ import {
   type AutoGradeSubmissionState,
   autoGradeSubmissionAction,
 } from "./ai-grade-actions";
+import { AiGradingInProgressNote } from "./ai-grading-in-progress-note.ui";
 import { RegenerateWithAiDialog } from "./regenerate-with-ai-dialog";
 
 interface AutoGradeWithAiButtonProps {
@@ -15,6 +16,8 @@ interface AutoGradeWithAiButtonProps {
   studentId: string;
   status: TestStatus;
   hasExistingSuggestions: boolean;
+  /** When the submission's pending AI grading job started; null when none is pending. */
+  aiGradingStartedAt?: Date | null;
 }
 
 /**
@@ -40,6 +43,7 @@ export function AutoGradeWithAiButton({
   studentId,
   status,
   hasExistingSuggestions,
+  aiGradingStartedAt = null,
 }: AutoGradeWithAiButtonProps) {
   const [state, formAction, isPending] = useActionState<
     AutoGradeSubmissionState | null,
@@ -50,11 +54,17 @@ export function AutoGradeWithAiButton({
 
   if (hasExistingSuggestions) {
     return (
-      <RegenerateWithAiDialog
-        testId={testId}
-        courseId={courseId}
-        studentId={studentId}
-      />
+      <>
+        <RegenerateWithAiDialog
+          testId={testId}
+          courseId={courseId}
+          studentId={studentId}
+          disabled={aiGradingStartedAt !== null}
+        />
+        {aiGradingStartedAt !== null && (
+          <AiGradingInProgressNote startedAt={aiGradingStartedAt} />
+        )}
+      </>
     );
   }
 
@@ -63,9 +73,17 @@ export function AutoGradeWithAiButton({
       <input type="hidden" name="testId" value={testId} />
       <input type="hidden" name="courseId" value={courseId} />
       <input type="hidden" name="studentId" value={studentId} />
-      <Button type="submit" size="sm" variant="outline" disabled={isPending}>
+      <Button
+        type="submit"
+        size="sm"
+        variant="outline"
+        disabled={isPending || aiGradingStartedAt !== null}
+      >
         {isPending ? "Auto-grading…" : "Auto-grade with AI"}
       </Button>
+      {aiGradingStartedAt !== null && (
+        <AiGradingInProgressNote startedAt={aiGradingStartedAt} />
+      )}
       {state?.message && (
         <p
           className={`text-sm ${

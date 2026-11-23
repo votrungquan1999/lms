@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "src/components/ui/card";
+import { AiGradeJobStatus } from "src/lib/ai-grade-job-service";
 import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
 import type { AnnotationEntry } from "src/lib/annotation-service";
 import {
@@ -24,6 +25,7 @@ import {
 } from "src/lib/answer-image-urls";
 import { isMcQuestion } from "src/lib/question-service";
 import {
+  getAiGradeJobService,
   getAiGradeService,
   getAnnotationService,
   getAnswerService,
@@ -139,6 +141,14 @@ export async function GradingDetailStudent({
     student.id,
   );
 
+  const latestAiJob = await (
+    await getAiGradeJobService(schoolId)
+  ).getLatestForStudent(testId, student.id);
+  const aiGradingStartedAt =
+    latestAiJob?.status === AiGradeJobStatus.Pending
+      ? latestAiJob.createdAt
+      : null;
+
   const gradedCount = grades.length;
   const answeredCount = latestAnswers.length;
   // A question is only "blank" once the student can no longer answer it.
@@ -209,6 +219,7 @@ export async function GradingDetailStudent({
                   studentId={student.id}
                   status={status}
                   hasExistingSuggestions={aiSuggestionsByQuestion.size > 0}
+                  aiGradingStartedAt={aiGradingStartedAt}
                 />
               )}
               <ReleaseGradeForStudentControl
@@ -335,6 +346,7 @@ export async function GradingDetailStudent({
                     latestAnswerId={
                       latestAnswerIdByQuestion.get(question.id) ?? null
                     }
+                    regenerateDisabled={aiGradingStartedAt !== null}
                   />
                 )}
               </FreeTextQuestionGradeForm>

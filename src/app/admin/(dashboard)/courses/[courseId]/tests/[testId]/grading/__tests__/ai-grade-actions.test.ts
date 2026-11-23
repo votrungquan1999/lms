@@ -36,6 +36,8 @@ const getQuestion = vi.fn(async (_testId: string, questionId: string) =>
   questionId === "q-1" ? { id: questionId } : null,
 );
 const isEnrolled = vi.fn().mockResolvedValue(true);
+// No job is pending in this file's scenarios.
+const hasPendingForStudent = vi.fn().mockResolvedValue(false);
 
 vi.mock("src/lib/services-singleton", () => ({
   getAiGradeService: vi.fn(async () => ({
@@ -43,6 +45,7 @@ vi.mock("src/lib/services-singleton", () => ({
     hasAnySuggestionsForStudent,
     applySuggestion,
   })),
+  getAiGradeJobService: vi.fn(async () => ({ hasPendingForStudent })),
   getTestService: vi.fn(async () => ({ getTest })),
   getQuestionService: vi.fn(async () => ({ getQuestion })),
   getEnrollmentService: vi.fn(async () => ({ isEnrolled })),

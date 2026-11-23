@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TestStatus } from "src/lib/test-status-service";
 import { describe, expect, it, vi } from "vitest";
@@ -86,5 +86,39 @@ describe("Feature: Regenerate all can include questions the teacher already grad
     // Ticked: the form sends "on", which the action reads.
     await user.click(checkbox);
     expect(new FormData(form).get("includeGraded")).toBe("on");
+  });
+});
+
+describe("Feature: a Regenerate all dialog left open cannot submit once AI grading is pending", () => {
+  it("disables the open dialog's submit button when the page learns a job is pending", async () => {
+    const buttonWith = (aiGradingStartedAt: Date | null) => (
+      <AutoGradeWithAiButton
+        testId="test-1"
+        courseId="course-1"
+        studentId="stu-1"
+        status={TestStatus.Submitted}
+        hasExistingSuggestions={true}
+        aiGradingStartedAt={aiGradingStartedAt}
+      />
+    );
+
+    // Given — the teacher opened Regenerate all while no job was pending
+    const { rerender } = render(buttonWith(null));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /regenerate all/i }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("button", { name: /regenerate all/i }),
+    ).toBeEnabled();
+
+    // When — the page re-renders with a pending job, as it does right after a successful submit
+    rerender(buttonWith(new Date("2026-11-24T08:00:00Z")));
+
+    // Then — the dialog is still open but can no longer submit
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: /regenerate all/i,
+      }),
+    ).toBeDisabled();
   });
 });

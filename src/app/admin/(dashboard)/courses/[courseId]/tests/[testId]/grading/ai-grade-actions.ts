@@ -15,10 +15,15 @@ import {
 import { getAuthService } from "src/lib/auth-singleton";
 import { logError } from "src/lib/observability/log-error";
 import { withSpan } from "src/lib/observability/with-span";
-import { getAiGradeService } from "src/lib/services-singleton";
+import {
+  getAiGradeJobService,
+  getAiGradeService,
+} from "src/lib/services-singleton";
 import { z } from "zod";
 import { assertGradingTarget } from "../test-parent-check";
 
+const AI_GRADING_ALREADY_PENDING_MESSAGE =
+  "AI grading is already in progress for this submission.";
 const AI_GRADING_STARTED_MESSAGE =
   "AI grading started. Suggestions will appear here when it finishes.";
 
@@ -110,6 +115,20 @@ export async function autoGradeSubmissionAction(
 
         const aiGradeService = await getAiGradeService(schoolId);
 
+        // Before the suggestions check: a stale Auto-grade click while a regenerate job
+        // runs would otherwise be told suggestions exist instead of that grading is running.
+        if (
+          await (await getAiGradeJobService(schoolId)).hasPendingForStudent(
+            parsed.data.testId,
+            parsed.data.studentId,
+          )
+        ) {
+          return {
+            success: false,
+            message: AI_GRADING_ALREADY_PENDING_MESSAGE,
+          };
+        }
+
         const alreadyExists = await aiGradeService.hasAnySuggestionsForStudent(
           parsed.data.testId,
           parsed.data.studentId,
@@ -133,6 +152,12 @@ export async function autoGradeSubmissionAction(
           byAdminId: adminUserId,
         });
         annotateRound(span, outcome);
+        if (outcome.kind === StartRoundOutcomeKind.AlreadyPending) {
+          return {
+            success: false,
+            message: AI_GRADING_ALREADY_PENDING_MESSAGE,
+          };
+        }
 
         revalidateGradingPaths(parsed.data.courseId, parsed.data.testId);
 
@@ -232,6 +257,12 @@ export async function regenerateSubmissionAction(
           byAdminId: adminUserId,
         });
         annotateRound(span, outcome);
+        if (outcome.kind === StartRoundOutcomeKind.AlreadyPending) {
+          return {
+            success: false,
+            message: AI_GRADING_ALREADY_PENDING_MESSAGE,
+          };
+        }
         // An empty round means nothing was in scope; say why instead of claiming success.
         if (outcome.kind === StartRoundOutcomeKind.NothingToGrade) {
           return {
@@ -334,6 +365,12 @@ export async function regenerateQuestionAction(
           byAdminId: adminUserId,
         });
         annotateRound(span, outcome);
+        if (outcome.kind === StartRoundOutcomeKind.AlreadyPending) {
+          return {
+            success: false,
+            message: AI_GRADING_ALREADY_PENDING_MESSAGE,
+          };
+        }
 
         revalidateGradingPaths(parsed.data.courseId, parsed.data.testId);
 

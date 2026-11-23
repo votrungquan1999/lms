@@ -22,6 +22,8 @@ interface RegenerateWithAiDialogProps {
   testId: string;
   courseId: string;
   studentId: string;
+  /** True while a grading job is pending: the trigger and the submit button stay disabled. */
+  disabled?: boolean;
 }
 
 /**
@@ -45,6 +47,7 @@ export function RegenerateWithAiDialog({
   testId,
   courseId,
   studentId,
+  disabled = false,
 }: RegenerateWithAiDialogProps) {
   const [open, setOpen] = useState(false);
 
@@ -56,7 +59,7 @@ export function RegenerateWithAiDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" size="sm" variant="outline">
+        <Button type="button" size="sm" variant="outline" disabled={disabled}>
           Regenerate all
         </Button>
       </DialogTrigger>
@@ -93,7 +96,11 @@ export function RegenerateWithAiDialog({
             </Label>
           </div>
 
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button
+            type="submit"
+            disabled={isPending || disabled}
+            className="w-full"
+          >
             {isPending ? "Regenerating…" : "Regenerate all"}
           </Button>
 

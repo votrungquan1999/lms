@@ -120,6 +120,27 @@ export class AiGradeJobService {
   }
 
   /**
+   * Whether the student has a job still running on the test.
+   * @param testId - The test.
+   * @param studentId - The student.
+   */
+  async hasPendingForStudent(
+    testId: string,
+    studentId: string,
+  ): Promise<boolean> {
+    const count = await this.jobs.countDocuments(
+      {
+        schoolId: this.schoolId,
+        testId,
+        studentId,
+        status: AiGradeJobStatus.Pending,
+      },
+      { limit: 1 },
+    );
+    return count > 0;
+  }
+
+  /**
    * Returns the student's newest job on a test, or null.
    * @param testId - The test.
    * @param studentId - The student.

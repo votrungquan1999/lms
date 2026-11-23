@@ -182,6 +182,43 @@ describe("Feature: AiSuggestionPanel per-question regenerate control (Step A3)",
   });
 });
 
+describe("Feature: a Regenerate this answer dialog left open cannot submit once AI grading is pending", () => {
+  it("disables the open dialog's submit button when the panel learns a job is pending", () => {
+    const suggestions: AiGradeSuggestion[] = [
+      buildSuggestion({ id: "sugg-1", questionId: "q-42" }),
+    ];
+    const panelWith = (regenerateDisabled: boolean) => (
+      <AiSuggestionPanel
+        testId="test-1"
+        courseId="course-1"
+        studentId="student-1"
+        questionId="q-42"
+        suggestions={suggestions}
+        regenerateDisabled={regenerateDisabled}
+      />
+    );
+
+    // Given: the teacher opened Regenerate this answer while no job was pending.
+    const { rerender } = render(panelWith(false));
+    fireEvent.click(screen.getByTestId("ai-regenerate-question-trigger"));
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: /regenerate this answer/i,
+      }),
+    ).toBeEnabled();
+
+    // When: the page re-renders with a pending job, as it does right after a successful submit.
+    rerender(panelWith(true));
+
+    // Then: the dialog is still open but can no longer submit.
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: /regenerate this answer/i,
+      }),
+    ).toBeDisabled();
+  });
+});
+
 describe("Feature: AiSuggestionPanel solution preview", () => {
   it("given a suggestion whose solution field is set, when the panel renders, then the row exposes a solution preview block containing the solution text; a sibling row with no solution renders no preview block", () => {
     const suggestions: AiGradeSuggestion[] = [
