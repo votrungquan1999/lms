@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
+import { context, trace } from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 import type { Db } from "mongodb";
 import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
+import { RunnerCheckAction, RunnerEventKind } from "src/lib/ai/runner-event";
 import {
   type RunnerClientResolution,
   RunnerClientResolutionKind,
@@ -14,10 +21,12 @@ import {
   CollectOutcomeKind,
   StartRoundOutcomeKind,
 } from "src/lib/ai-grade-types";
+import { withSpan } from "src/lib/observability/with-span";
+import { registerAsyncContextManager } from "src/tests/async-context-manager";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
 import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
 
@@ -37,6 +46,18 @@ function runnerJobBody(status: string, resultText: string) {
     status,
     result: { text: resultText, durationMs: 1, numTurns: 1, sessionId: "s" },
     error: null,
+    usage: [
+      {
+        model: "claude-sonnet-4-5",
+        inputTokens: 100,
+        outputTokens: 50,
+        cacheReadInputTokens: 10,
+        cacheCreationInputTokens: 5,
+        thinkingTokens: 7,
+        costUSD: 0.02,
+      },
+      { model: "claude-haiku-4-5", inputTokens: 1, costUSD: 0.01 },
+    ],
   };
 }
 
@@ -70,7 +91,7 @@ function fakeRunnerFetch(
  * Seeds a submitted student with one written answer and a pending runner job.
  * @param db - The test database.
  * @param makeFetch - Builds the fake runner fetch once the question id exists.
- * @param options - `readTimeoutMs` shortens the client's read timeout; `resolve` replaces how the provider answers.
+ * @param options - `readTimeoutMs` shortens the client's read timeout; `resolve` replaces how the provider answers; `extraCandidates` snapshots that many more questions the first answer's job also covers.
  */
 async function seedPendingRunnerJob(
   db: Db,
@@ -78,6 +99,7 @@ async function seedPendingRunnerJob(
   options: {
     readTimeoutMs?: number;
     resolve?: (ready: RunnerClientResolution) => RunnerClientResolution;
+    extraCandidates?: number;
   } = {},
 ) {
   await insertRawCourses(db, ["course-1"]);
@@ -115,6 +137,22 @@ async function seedPendingRunnerJob(
     studentId: "student-1",
     answer: { type: "free_text", text: "A function that calls itself." },
   });
+  const candidates = [{ questionId: question.id, answerId: answer.id }];
+  for (let i = 0; i < (options.extraCandidates ?? 0); i++) {
+    const extra = await services.questionService.addQuestion(test.id, {
+      title: `Extra ${i}`,
+      content: "Explain iteration",
+      createdBy: "admin-1",
+      type: "free_text",
+    });
+    const extraAnswer = await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: extra.id,
+      studentId: "student-1",
+      answer: { type: "free_text", text: "A loop." },
+    });
+    candidates.push({ questionId: extra.id, answerId: extraAnswer.id });
+  }
   await services.aiGradeJobService.create({
     courseId: "course-1",
     testId: test.id,
@@ -122,7 +160,7 @@ async function seedPendingRunnerJob(
     questionId: null,
     trigger: AiGradeJobTrigger.AutoGrade,
     runnerJobId: RUNNER_JOB_ID,
-    candidates: [{ questionId: question.id, answerId: answer.id }],
+    candidates,
     reason: "regrade please",
     includeGraded: false,
     byAdminId: "admin-1",
@@ -371,6 +409,69 @@ describe("AiGradeService.collectRunnerResult - a job that did not produce sugges
     );
   }
 
+  dbIt(
+    "marks the job failed and saves nothing when the result grades only some of the snapshot's questions",
+    async ({ db }) => {
+      // Given a snapshot of three questions and a runner result grading just the first
+      const { services, test } = await seedPendingRunnerJob(
+        db,
+        (questionId) => fakeRunnerFetch("succeeded", questionId),
+        { extraCandidates: 2 },
+      );
+
+      // When the result is collected
+      const outcome = await services.aiGradeService.collectRunnerResult(
+        test.id,
+        "student-1",
+      );
+
+      // Then the job fails as a bad result and no suggestion exists
+      expect(outcome).toEqual({
+        kind: CollectOutcomeKind.MarkedFailed,
+        errorKind: "bad_result",
+      });
+      const job = await services.aiGradeJobService.getLatestForStudent(
+        test.id,
+        "student-1",
+      );
+      expect(job).toMatchObject({
+        status: AiGradeJobStatus.Failed,
+        errorMessage: "missing_candidate",
+      });
+      expect(
+        await db.collection("ai_grade").countDocuments({ testId: test.id }),
+      ).toBe(0);
+    },
+  );
+
+  dbIt(
+    "stores at most 500 characters of the runner's error message",
+    async ({ db }) => {
+      // Given a runner job that failed with a 600-character message
+      const { services, test } = await seedPendingRunnerJob(
+        db,
+        () => async (input) =>
+          String(input).endsWith("?view=status")
+            ? json({ status: "failed" })
+            : json(
+                finishedJob("failed", {
+                  error: { kind: "timeout", message: "x".repeat(600) },
+                }),
+              ),
+      );
+
+      // When the result is collected
+      await services.aiGradeService.collectRunnerResult(test.id, "student-1");
+
+      // Then the stored message is cut to 500 characters
+      const job = await services.aiGradeJobService.getLatestForStudent(
+        test.id,
+        "student-1",
+      );
+      expect(job?.errorMessage).toBe("x".repeat(500));
+    },
+  );
+
   dbIt("accepts a new round once the failed job has ended", async ({ db }) => {
     // Given a job that failed at the runner
     const { services, test } = await seedPendingRunnerJob(
@@ -550,6 +651,326 @@ describe("AiGradeService.collectRunnerResult - a runner that cannot be reached",
         .find({ testId: test.id })
         .toArray();
       expect(rows.map((r) => r.questionId)).toEqual([question.id]);
+    },
+  );
+});
+
+describe("AiGradeService.collectRunnerResult - the record of each check", () => {
+  let exporter: InMemorySpanExporter;
+
+  beforeEach(() => {
+    registerAsyncContextManager();
+    exporter = new InMemorySpanExporter();
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({
+        spanProcessors: [new SimpleSpanProcessor(exporter)],
+      }),
+    );
+  });
+
+  afterEach(() => {
+    trace.disable();
+    context.disable();
+  });
+
+  /**
+   * Runs one check inside a span, like the traced service does in production.
+   * @param services - The built services.
+   * @param testId - The test.
+   */
+  async function checkInSpan(
+    services: Awaited<ReturnType<typeof seedPendingRunnerJob>>["services"],
+    testId: string,
+  ) {
+    await withSpan("aiGrade.collectRunnerResult", {}, () =>
+      services.aiGradeService.collectRunnerResult(testId, "student-1"),
+    );
+    const spans = exporter
+      .getFinishedSpans()
+      .filter((span) => span.name === "aiGrade.collectRunnerResult");
+    exporter.reset();
+    return spans[0];
+  }
+
+  dbIt(
+    "records the ending check on the span with usage and in the job's history",
+    async ({ db }) => {
+      // Given a pending job the runner has finished
+      const { services, test } = await seedPendingRunnerJob(db, (questionId) =>
+        fakeRunnerFetch("succeeded", questionId),
+      );
+
+      // When the check that ends it runs
+      const span = await checkInSpan(services, test.id);
+
+      // Then the span names the job, what the runner said, what the LMS did and the usage
+      expect(span?.attributes).toMatchObject({
+        "lms.ai.runner_job_id": RUNNER_JOB_ID,
+        "lms.ai.runner.status": "succeeded",
+        "lms.ai.runner.action": "saved_suggestions",
+        "lms.ai.runner.saved_count": 1,
+        "gen_ai.usage.input_tokens": 101,
+        "gen_ai.usage.output_tokens": 50,
+        "gen_ai.usage.cache_read.input_tokens": 10,
+        "gen_ai.usage.cache_creation.input_tokens": 5,
+        "lms.ai.usage.thinking_tokens": 7,
+        "lms.ai.runner.cost_usd": 0.03,
+        "gen_ai.response.model": "claude-sonnet-4-5,claude-haiku-4-5",
+      });
+
+      // And the job's history gained exactly one entry for the ending check
+      const job = await services.aiGradeJobService.getLatestForStudent(
+        test.id,
+        "student-1",
+      );
+      expect(job?.events).toEqual([
+        {
+          at: expect.any(Date),
+          kind: "check",
+          runnerJobId: RUNNER_JOB_ID,
+          runnerStatus: "succeeded",
+          action: "saved_suggestions",
+          savedCount: 1,
+        },
+      ]);
+    },
+  );
+
+  dbIt(
+    "counts only the rows saved in the history when the result names extra questions",
+    async ({ db }) => {
+      // Given a finished job whose result also grades a question that is not in the snapshot
+      const { services, test } = await seedPendingRunnerJob(
+        db,
+        (questionId) => {
+          const text = JSON.stringify({
+            grades: [questionId, "not-in-the-snapshot"].map((id) => ({
+              questionId: id,
+              score: 85,
+              feedback: "Fine.",
+            })),
+          });
+          return async (input) => {
+            const body = String(input).endsWith("?view=status")
+              ? { status: "succeeded" }
+              : runnerJobBody("succeeded", text);
+            return new Response(JSON.stringify(body), { status: 200 });
+          };
+        },
+      );
+
+      // When the ending check runs
+      await checkInSpan(services, test.id);
+
+      // Then one row is saved and the history says one
+      const rows = await db
+        .collection("ai_grade")
+        .find({ testId: test.id })
+        .toArray();
+      expect(rows).toHaveLength(1);
+      const job = await services.aiGradeJobService.getLatestForStudent(
+        test.id,
+        "student-1",
+      );
+      expect(job?.events).toEqual([
+        expect.objectContaining({
+          action: "saved_suggestions",
+          savedCount: 1,
+        }),
+      ]);
+    },
+  );
+
+  /**
+   * A fake runner that answers each status read from `script` in turn.
+   * @param script - `unreachable` fails the request; any other value is the status reported.
+   */
+  function scriptedFetch(script: string[]): FakeFetch {
+    let call = 0;
+    return async () => {
+      const answer = script[call++] ?? "unreachable";
+      if (answer === "unreachable") throw new TypeError("fetch failed");
+      return new Response(JSON.stringify({ status: answer }), { status: 200 });
+    };
+  }
+
+  dbIt(
+    "records every check on its span but adds one history entry per runner status change",
+    async ({ db }) => {
+      // Given a job the runner reports running, then unreachable twice, then running again
+      // The provider builds a client per call, so one scripted fetch is shared.
+      const runner = scriptedFetch([
+        "running",
+        "running",
+        "running",
+        "unreachable",
+        "unreachable",
+        "running",
+      ]);
+      const { services, test } = await seedPendingRunnerJob(db, () => runner);
+
+      // When six checks run
+      const spans = [];
+      for (let i = 0; i < 6; i++)
+        spans.push(await checkInSpan(services, test.id));
+
+      // Then each check's span names the action it took
+      expect(
+        spans.map((span) => span?.attributes["lms.ai.runner.action"]),
+      ).toEqual([
+        "still_waiting",
+        "still_waiting",
+        "still_waiting",
+        "skipped_unreachable",
+        "skipped_unreachable",
+        "still_waiting",
+      ]);
+      expect(spans[3]?.attributes["lms.ai.runner.unreachable_cause"]).toBe(
+        "TypeError",
+      );
+
+      // And the history holds one entry per change of what the runner showed
+      const job = await services.aiGradeJobService.getLatestForStudent(
+        test.id,
+        "student-1",
+      );
+      expect(
+        job?.events.map((event) => [
+          event.kind === "check" ? event.runnerStatus : null,
+          event.action,
+        ]),
+      ).toEqual([
+        ["running", "still_waiting"],
+        ["unreachable", "skipped_unreachable"],
+        ["running", "still_waiting"],
+      ]);
+    },
+  );
+
+  dbIt(
+    "records a failed job's ending check with the runner's error kind",
+    async ({ db }) => {
+      // Given a job the runner reports failed
+      const { services, test } = await seedPendingRunnerJob(
+        db,
+        () => async (input) =>
+          new Response(
+            JSON.stringify(
+              String(input).endsWith("?view=status")
+                ? { status: "failed" }
+                : {
+                    id: RUNNER_JOB_ID,
+                    status: "failed",
+                    result: null,
+                    error: { kind: "claude_error", message: "private detail" },
+                  },
+            ),
+            { status: 200 },
+          ),
+      );
+
+      // When the check runs
+      const span = await checkInSpan(services, test.id);
+
+      // Then span and history carry the error kind but never its message
+      expect(span?.attributes).toMatchObject({
+        "lms.ai.runner.status": "failed",
+        "lms.ai.runner.action": "marked_failed",
+        "lms.ai.runner.error_kind": "claude_error",
+      });
+      expect(JSON.stringify(span?.attributes)).not.toContain("private detail");
+      const job = await services.aiGradeJobService.getLatestForStudent(
+        test.id,
+        "student-1",
+      );
+      expect(job?.events).toEqual([
+        {
+          at: expect.any(Date),
+          kind: "check",
+          runnerJobId: RUNNER_JOB_ID,
+          runnerStatus: "failed",
+          action: "marked_failed",
+          errorKind: "claude_error",
+        },
+      ]);
+    },
+  );
+
+  dbIt(
+    "records claimed_elsewhere on the losing check's span and leaves the winner's entry alone",
+    async ({ db }) => {
+      // Given a finished job that another check ends between this check's reads
+      let services: Awaited<
+        ReturnType<typeof seedPendingRunnerJob>
+      >["services"];
+      const seeded = await seedPendingRunnerJob(db, (questionId) =>
+        fakeRunnerFetch("succeeded", questionId, async (url) => {
+          if (url.endsWith("?view=status")) return;
+          await services.aiGradeJobService.claimFinal(
+            RUNNER_JOB_ID,
+            {
+              status: AiGradeJobStatus.Succeeded,
+              errorKind: null,
+              errorMessage: null,
+            },
+            {
+              at: new Date(),
+              kind: RunnerEventKind.Check,
+              runnerJobId: RUNNER_JOB_ID,
+              runnerStatus: "succeeded",
+              action: RunnerCheckAction.SavedSuggestions,
+              savedCount: 1,
+            },
+          );
+        }),
+      );
+      services = seeded.services;
+
+      // When this check runs
+      const span = await checkInSpan(services, seeded.test.id);
+
+      // Then its span says it lost the claim
+      expect(span?.attributes["lms.ai.runner.action"]).toBe(
+        "claimed_elsewhere",
+      );
+
+      // And the history holds only the winner's entry
+      const job = await services.aiGradeJobService.getLatestForStudent(
+        seeded.test.id,
+        "student-1",
+      );
+      expect(job?.events.map((event) => event.action)).toEqual([
+        "saved_suggestions",
+      ]);
+    },
+  );
+
+  dbIt(
+    "writes nothing to a job that is already final when a late still_waiting check arrives",
+    async ({ db }) => {
+      // Given a job that has ended
+      const { services, test } = await seedPendingRunnerJob(db, (questionId) =>
+        fakeRunnerFetch("succeeded", questionId),
+      );
+      await services.aiGradeService.collectRunnerResult(test.id, "student-1");
+
+      // When a late check that saw running tries to record itself
+      await services.aiGradeJobService.recordCheck(RUNNER_JOB_ID, {
+        at: new Date(),
+        kind: RunnerEventKind.Check,
+        runnerJobId: RUNNER_JOB_ID,
+        runnerStatus: "running",
+        action: RunnerCheckAction.StillWaiting,
+      });
+
+      // Then the history still ends with the ending check
+      const job = await services.aiGradeJobService.getLatestForStudent(
+        test.id,
+        "student-1",
+      );
+      expect(job?.events.map((event) => event.action)).toEqual([
+        "saved_suggestions",
+      ]);
     },
   );
 });

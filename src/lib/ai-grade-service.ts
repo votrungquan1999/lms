@@ -1,3 +1,4 @@
+import { type Span, trace } from "@opentelemetry/api";
 import type { Collection, Db } from "mongodb";
 import type {
   AiClient,
@@ -11,6 +12,16 @@ import {
   RunnerReadOutcomeKind,
   RunnerRefusedError,
 } from "src/lib/ai/background-claude-runner-client";
+import {
+  RunnerCheckAction,
+  type RunnerCheckEvent,
+  RunnerCreateAction,
+  type RunnerCreateEvent,
+  RunnerEventKind,
+  recordRunnerEvent,
+  runnerUsageAttributes,
+  UNREACHABLE_RUNNER_STATUS,
+} from "src/lib/ai/runner-event";
 import { buildRunnerGradingPrompt } from "src/lib/ai/runner-grading-prompt";
 import { parseRunnerGradingResult } from "src/lib/ai/runner-grading-result";
 import {
@@ -250,6 +261,7 @@ export class AiGradeService {
           ),
         };
       case RunnerClientResolutionKind.Invalid:
+        this.recordCreate({ action: RunnerCreateAction.SettingsError });
         throw new RunnerSettingsError(runner.variable);
       case RunnerClientResolutionKind.Ready: {
         const created = await runner.client.createJob(
@@ -264,6 +276,11 @@ export class AiGradeService {
         );
         // No job row exists yet, so the same snapshot can go straight to Gemini.
         if (created.kind === RunnerCreateOutcomeKind.Unreachable) {
+          // Recorded before Gemini runs so a Gemini failure still leaves it.
+          this.recordCreate({
+            action: RunnerCreateAction.Unreachable,
+            unreachableCause: created.cause,
+          });
           return {
             kind: StartRoundOutcomeKind.Completed,
             suggestions: await this.gradeWithGemini(
@@ -278,8 +295,17 @@ export class AiGradeService {
         }
         // The caller's outer catch turns this into the pinned failure message.
         if (created.kind === RunnerCreateOutcomeKind.Refused) {
+          this.recordCreate({
+            action: RunnerCreateAction.Refused,
+            refusedStatus: created.status,
+          });
           throw new RunnerRefusedError(created.status);
         }
+        // Recorded before the row insert: the runner already holds the job, so a failed insert must not hide it.
+        const createEvent = this.recordCreate({
+          action: RunnerCreateAction.Created,
+          runnerJobId: created.jobId,
+        });
         const job = await this.jobService.create({
           courseId: request.courseId,
           testId: request.testId,
@@ -294,10 +320,28 @@ export class AiGradeService {
           reason: request.reason,
           includeGraded: request.includeGraded,
           byAdminId: request.byAdminId,
+          createEvent,
         });
         return { kind: StartRoundOutcomeKind.Queued, job };
       }
     }
+  }
+
+  /**
+   * Records how a job create ended on the span active for the round and the log.
+   * @param create - The outcome and its facts; `at` and `kind` are added.
+   * @returns The event, which a created job also stores as its first history entry.
+   */
+  private recordCreate(
+    create: Omit<RunnerCreateEvent, "at" | "kind">,
+  ): RunnerCreateEvent {
+    const event: RunnerCreateEvent = {
+      at: new Date(),
+      kind: RunnerEventKind.Create,
+      ...create,
+    };
+    recordRunnerEvent(trace.getActiveSpan(), event);
+    return event;
   }
 
   /**
@@ -314,111 +358,246 @@ export class AiGradeService {
     if (job?.status !== AiGradeJobStatus.Pending) {
       return { kind: CollectOutcomeKind.NoPendingJob };
     }
+    // The span of this check, so every exit below leaves its record on it.
+    const span = trace.getActiveSpan();
+    span?.setAttribute("lms.ai.runner_job_id", job.runnerJobId);
     const runner = this.runnerClientProvider();
     // A pending job with no usable client waits for settings to return; the page must still render.
-    if (runner.kind === RunnerClientResolutionKind.Disabled) {
-      return {
-        kind: CollectOutcomeKind.SkippedUnreachable,
-        cause: "RunnerDisabled",
-      };
-    }
-    if (runner.kind === RunnerClientResolutionKind.Invalid) {
-      return {
-        kind: CollectOutcomeKind.SkippedUnreachable,
-        cause: "RunnerSettingsError",
-      };
+    if (runner.kind !== RunnerClientResolutionKind.Ready) {
+      return this.waiting(
+        span,
+        job,
+        UNREACHABLE_RUNNER_STATUS,
+        runner.kind === RunnerClientResolutionKind.Disabled
+          ? "RunnerDisabled"
+          : "RunnerSettingsError",
+      );
     }
 
     const status = await runner.client.readStatus(job.runnerJobId);
     if (status.kind === RunnerReadOutcomeKind.NotFound) {
-      return this.failJob(job, "not_found", "The runner has no such job");
+      return this.failJob(span, job, "not_found", "The runner has no such job");
     }
     if (status.kind !== RunnerReadOutcomeKind.Found) {
-      return this.skippedFor(status);
+      return this.skippedFor(span, job, status);
     }
     const runnerStatus = status.body.status;
     if (runnerStatus === "queued" || runnerStatus === "running") {
+      await this.recordCheck(span, job, {
+        runnerStatus,
+        action: RunnerCheckAction.StillWaiting,
+      });
       return { kind: CollectOutcomeKind.StillWaiting, runnerStatus };
     }
     if (runnerStatus === "cancelled") {
-      return this.failJob(job, "cancelled", "The runner job was cancelled");
+      return this.failJob(
+        span,
+        job,
+        "cancelled",
+        "The runner job was cancelled",
+        runnerStatus,
+      );
     }
 
     const full = await runner.client.readJob(job.runnerJobId);
     if (full.kind === RunnerReadOutcomeKind.NotFound) {
-      return this.failJob(job, "not_found", "The runner has no such job");
+      return this.failJob(span, job, "not_found", "The runner has no such job");
     }
     if (full.kind !== RunnerReadOutcomeKind.Found) {
-      return this.skippedFor(full);
+      return this.skippedFor(span, job, full);
     }
     if (runnerStatus === "failed") {
       return this.failJob(
+        span,
         job,
         full.body.error?.kind ?? "unknown",
         full.body.error?.message ?? "The runner job failed",
+        runnerStatus,
       );
     }
 
     // Succeeded: every reason below is decided before the claim, so a render never throws on a bad result.
     const text = full.body.result?.text;
-    if (!text) return this.failJob(job, "bad_result", "missing_result");
+    if (!text) {
+      return this.failJob(
+        span,
+        job,
+        "bad_result",
+        "missing_result",
+        runnerStatus,
+      );
+    }
     const parsed = parseRunnerGradingResult(text);
     if ("reason" in parsed) {
-      return this.failJob(job, "bad_result", parsed.reason);
+      return this.failJob(span, job, "bad_result", parsed.reason, runnerStatus);
     }
     const gradedIds = new Set(parsed.grades.map((g) => g.questionId));
     if (job.candidates.some((c) => !gradedIds.has(c.questionId))) {
-      return this.failJob(job, "bad_result", "missing_candidate");
+      return this.failJob(
+        span,
+        job,
+        "bad_result",
+        "missing_candidate",
+        runnerStatus,
+      );
     }
 
     // Claim before inserting: of two racing checks only one gets the job and saves the rows.
-    const claimed = await this.jobService.claimFinal(job.runnerJobId, {
-      status: AiGradeJobStatus.Succeeded,
-      errorKind: null,
-      errorMessage: null,
+    const endingCheck = this.checkEvent(job, {
+      runnerStatus,
+      action: RunnerCheckAction.SavedSuggestions,
+      // One row per snapshot candidate; extra graded ids in the result are never saved.
+      savedCount: job.candidates.length,
     });
-    if (!claimed) return { kind: CollectOutcomeKind.ClaimedElsewhere };
+    const claimed = await this.jobService.claimFinal(
+      job.runnerJobId,
+      {
+        status: AiGradeJobStatus.Succeeded,
+        errorKind: null,
+        errorMessage: null,
+      },
+      endingCheck,
+    );
+    if (!claimed) return this.claimedElsewhere(span, job, runnerStatus);
+    recordRunnerEvent(span, endingCheck);
+    span?.setAttributes(runnerUsageAttributes(full.body.usage));
 
     const saved = await this.completeRunnerJob(claimed, parsed.grades);
     return { kind: CollectOutcomeKind.Saved, count: saved.length };
   }
 
   /**
-   * The outcome for a read that did not produce a body: the job stays pending.
-   * @param read - A read outcome that is neither found nor not found.
+   * Builds the history entry for one check of a job.
+   * @param job - The pending job being checked.
+   * @param check - What the runner said and what the LMS did.
    */
-  private skippedFor(
-    read: Exclude<
-      RunnerReadOutcome<unknown>,
-      { kind: RunnerReadOutcomeKind.Found | RunnerReadOutcomeKind.NotFound }
-    >,
-  ): CollectOutcome {
+  private checkEvent(
+    job: AiGradeJob,
+    check: Omit<RunnerCheckEvent, "at" | "kind" | "runnerJobId">,
+  ): RunnerCheckEvent {
     return {
-      kind: CollectOutcomeKind.SkippedUnreachable,
-      cause:
-        read.kind === RunnerReadOutcomeKind.Unreachable
-          ? read.cause
-          : `refused_${read.status}`,
+      at: new Date(),
+      kind: RunnerEventKind.Check,
+      runnerJobId: job.runnerJobId,
+      ...check,
     };
   }
 
   /**
+   * Records a check that leaves the job pending: on the span and log always,
+   * on the job's history only when the runner status changed.
+   * @param span - The check's span.
+   * @param job - The pending job.
+   * @param check - What the runner said and what the LMS did.
+   */
+  private async recordCheck(
+    span: Span | undefined,
+    job: AiGradeJob,
+    check: Omit<RunnerCheckEvent, "at" | "kind" | "runnerJobId">,
+  ): Promise<void> {
+    const event = this.checkEvent(job, check);
+    recordRunnerEvent(span, event);
+    await this.jobService.recordCheck(job.runnerJobId, event);
+  }
+
+  /**
+   * Leaves the job pending because the runner could not be asked.
+   * @param span - The check's span.
+   * @param job - The pending job.
+   * @param runnerStatus - The status to record.
+   * @param cause - An error name or status label, never a message.
+   */
+  private async waiting(
+    span: Span | undefined,
+    job: AiGradeJob,
+    runnerStatus: string,
+    cause: string,
+  ): Promise<CollectOutcome> {
+    await this.recordCheck(span, job, {
+      runnerStatus,
+      action: RunnerCheckAction.SkippedUnreachable,
+      unreachableCause: cause,
+    });
+    return { kind: CollectOutcomeKind.SkippedUnreachable, cause };
+  }
+
+  /**
+   * Records that another check ended the job first; span and log only, since
+   * the winner's entry already closes the row's history.
+   * @param span - The check's span.
+   * @param job - The job this check found already final.
+   * @param runnerStatus - What this check saw.
+   */
+  private claimedElsewhere(
+    span: Span | undefined,
+    job: AiGradeJob,
+    runnerStatus: string,
+  ): CollectOutcome {
+    recordRunnerEvent(
+      span,
+      this.checkEvent(job, {
+        runnerStatus,
+        action: RunnerCheckAction.ClaimedElsewhere,
+      }),
+    );
+    return { kind: CollectOutcomeKind.ClaimedElsewhere };
+  }
+
+  /**
+   * The outcome for a read that did not produce a body: the job stays pending.
+   * @param span - The check's span.
+   * @param job - The pending job.
+   * @param read - A read outcome that is neither found nor not found.
+   */
+  private async skippedFor(
+    span: Span | undefined,
+    job: AiGradeJob,
+    read: Exclude<
+      RunnerReadOutcome<unknown>,
+      { kind: RunnerReadOutcomeKind.Found | RunnerReadOutcomeKind.NotFound }
+    >,
+  ): Promise<CollectOutcome> {
+    return this.waiting(
+      span,
+      job,
+      UNREACHABLE_RUNNER_STATUS,
+      read.kind === RunnerReadOutcomeKind.Unreachable
+        ? read.cause
+        : `refused_${read.status}`,
+    );
+  }
+
+  /**
    * Ends a job as failed, once, without writing suggestions.
+   * @param span - The check's span.
    * @param job - The pending job.
    * @param errorKind - The runner's error kind, or a LMS-side kind such as `bad_result`.
    * @param errorMessage - Stored on the row only, truncated: it may quote prompt or answer text.
+   * @param runnerStatus - The status the runner reported; `not_found` when it has no such job.
    */
   private async failJob(
+    span: Span | undefined,
     job: AiGradeJob,
     errorKind: string,
     errorMessage: string,
+    runnerStatus = "not_found",
   ): Promise<CollectOutcome> {
-    const claimed = await this.jobService.claimFinal(job.runnerJobId, {
-      status: AiGradeJobStatus.Failed,
+    const endingCheck = this.checkEvent(job, {
+      runnerStatus,
+      action: RunnerCheckAction.MarkedFailed,
       errorKind,
-      errorMessage: errorMessage.slice(0, MAX_ERROR_MESSAGE_CHARS),
     });
-    if (!claimed) return { kind: CollectOutcomeKind.ClaimedElsewhere };
+    const claimed = await this.jobService.claimFinal(
+      job.runnerJobId,
+      {
+        status: AiGradeJobStatus.Failed,
+        errorKind,
+        errorMessage: errorMessage.slice(0, MAX_ERROR_MESSAGE_CHARS),
+      },
+      endingCheck,
+    );
+    if (!claimed) return this.claimedElsewhere(span, job, runnerStatus);
+    recordRunnerEvent(span, endingCheck);
     return { kind: CollectOutcomeKind.MarkedFailed, errorKind };
   }
 

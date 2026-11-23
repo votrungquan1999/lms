@@ -1,3 +1,4 @@
+import { RunnerCheckAction, RunnerEventKind } from "src/lib/ai/runner-event";
 import {
   AiGradeJobService,
   AiGradeJobStatus,
@@ -60,6 +61,38 @@ describe("Feature: AiGradeJobService stores one pending job per submission", () 
       await expect(
         service.create(jobInput({ runnerJobId: "bbbbbbbbbbbbbbbbbbbbbbbb" })),
       ).rejects.toMatchObject({ code: 11000 });
+    },
+  );
+});
+
+describe("Feature: a job keeps a bounded history of runner exchanges", () => {
+  dbIt(
+    "keeps only the newest 50 entries of a job whose runner status keeps flipping",
+    async ({ db }) => {
+      // Given a pending job
+      const service = new AiGradeJobService(db, TEST_SCHOOL_ID);
+      const job = await service.create(jobInput());
+
+      // When 60 checks alternate between two statuses, each a change
+      for (let i = 0; i < 60; i++) {
+        await service.recordCheck(job.runnerJobId, {
+          at: new Date(2026, 10, 24, 8, 0, i),
+          kind: RunnerEventKind.Check,
+          runnerJobId: job.runnerJobId,
+          runnerStatus: i % 2 === 0 ? "running" : "unreachable",
+          action: RunnerCheckAction.StillWaiting,
+          savedCount: i,
+        });
+      }
+
+      // Then the history holds the last 50, oldest first
+      const latest = await service.getLatestForStudent("test-1", "student-1");
+      expect(latest?.events).toHaveLength(50);
+      expect(
+        latest?.events.map((event) =>
+          event.kind === RunnerEventKind.Check ? event.savedCount : null,
+        ),
+      ).toEqual(Array.from({ length: 50 }, (_, i) => i + 10));
     },
   );
 });

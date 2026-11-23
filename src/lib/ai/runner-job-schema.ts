@@ -22,6 +22,17 @@ export const runnerJobStatusReplySchema = z.object({
   status: runnerJobStatusSchema,
 });
 
+/** One model's token use and cost within a runner job; every field is optional so a missing one never fails the read. */
+const runnerUsageEntrySchema = z.object({
+  model: z.string().nullish(),
+  inputTokens: z.number().nullish(),
+  outputTokens: z.number().nullish(),
+  cacheReadInputTokens: z.number().nullish(),
+  cacheCreationInputTokens: z.number().nullish(),
+  thinkingTokens: z.number().nullish(),
+  costUSD: z.number().nullish(),
+});
+
 /** The parts of a runner job the LMS reads; unknown keys are stripped. */
 export const runnerJobSchema = z.object({
   id: z.string(),
@@ -37,6 +48,7 @@ export const runnerJobSchema = z.object({
       message: z.string(),
     })
     .nullable(),
+  usage: z.array(runnerUsageEntrySchema).nullish(),
 });
 
 /** A full runner job as the LMS reads it. */

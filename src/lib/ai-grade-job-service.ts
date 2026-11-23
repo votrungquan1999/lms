@@ -1,4 +1,9 @@
 import type { Collection, Db } from "mongodb";
+import type {
+  RunnerCheckEvent,
+  RunnerCreateEvent,
+  RunnerEvent,
+} from "src/lib/ai/runner-event";
 import { assertSchoolId } from "./assert-school-id";
 
 /** The states an AI grading job moves through. */
@@ -44,6 +49,10 @@ export interface AiGradeJobDocument {
   errorMessage: string | null;
   createdAt: Date;
   finishedAt: Date | null;
+  /** The runner exchanges worth keeping, oldest first, at most `MAX_EVENTS`. */
+  events: RunnerEvent[];
+  /** The runner status the last recorded check saw; null before the first check. */
+  lastSeenRunnerStatus: string | null;
 }
 
 /** Client-facing grading job. */
@@ -65,6 +74,7 @@ export interface AiGradeJob {
   errorMessage: string | null;
   createdAt: Date;
   finishedAt: Date | null;
+  events: RunnerEvent[];
 }
 
 /** What a new pending job records; the service adds id, school, status and time. */
@@ -79,7 +89,12 @@ export interface CreateAiGradeJobInput {
   reason: string | null;
   includeGraded: boolean;
   byAdminId: string;
+  /** How the create ended; becomes the first entry of the job's history. */
+  createEvent?: RunnerCreateEvent;
 }
+
+/** The most history entries a job keeps; a flapping job drops its oldest first. */
+const MAX_EVENTS = 50;
 
 /** How a job ended, written when it is claimed as final. */
 export interface AiGradeJobFinalState {
@@ -112,15 +127,18 @@ export class AiGradeJobService {
    * @throws A duplicate-key error when the submission already has a pending job.
    */
   async create(input: CreateAiGradeJobInput): Promise<AiGradeJob> {
+    const { createEvent, ...snapshot } = input;
     const doc: AiGradeJobDocument = {
       id: crypto.randomUUID(),
       schoolId: this.schoolId,
-      ...input,
+      ...snapshot,
       status: AiGradeJobStatus.Pending,
       errorKind: null,
       errorMessage: null,
       createdAt: this.now(),
       finishedAt: null,
+      events: createEvent ? [createEvent] : [],
+      lastSeenRunnerStatus: null,
     };
     await this.jobs.insertOne(doc);
     return this.toAiGradeJob(doc);
@@ -170,11 +188,13 @@ export class AiGradeJobService {
    * pending gets it back, so two renders can never both save its round.
    * @param runnerJobId - The runner's id for the job.
    * @param final - How the job ended.
+   * @param endingCheck - The check that ended it; always recorded in the history.
    * @returns The ended job, or null when it was already final.
    */
   async claimFinal(
     runnerJobId: string,
     final: AiGradeJobFinalState,
+    endingCheck: RunnerCheckEvent,
   ): Promise<AiGradeJob | null> {
     const doc = await this.jobs.findOneAndUpdate(
       {
@@ -182,10 +202,42 @@ export class AiGradeJobService {
         runnerJobId,
         status: AiGradeJobStatus.Pending,
       },
-      { $set: { ...final, finishedAt: this.now() } },
+      {
+        $set: {
+          ...final,
+          finishedAt: this.now(),
+          lastSeenRunnerStatus: endingCheck.runnerStatus,
+        },
+        $push: { events: { $each: [endingCheck], $slice: -MAX_EVENTS } },
+      },
       { returnDocument: "after" },
     );
     return doc ? this.toAiGradeJob(doc) : null;
+  }
+
+  /**
+   * Adds a check to the history of a still-pending job, only when the runner
+   * status it saw differs from the last one recorded. One filtered update keeps
+   * the rule atomic across racing renders; a final job is never rewritten.
+   * @param runnerJobId - The runner's id for the job.
+   * @param event - The check; `unreachable` counts as a status.
+   */
+  async recordCheck(
+    runnerJobId: string,
+    event: RunnerCheckEvent,
+  ): Promise<void> {
+    await this.jobs.updateOne(
+      {
+        schoolId: this.schoolId,
+        runnerJobId,
+        status: AiGradeJobStatus.Pending,
+        lastSeenRunnerStatus: { $ne: event.runnerStatus },
+      },
+      {
+        $set: { lastSeenRunnerStatus: event.runnerStatus },
+        $push: { events: { $each: [event], $slice: -MAX_EVENTS } },
+      },
+    );
   }
 
   private toAiGradeJob(doc: AiGradeJobDocument): AiGradeJob {
@@ -207,6 +259,7 @@ export class AiGradeJobService {
       errorMessage: doc.errorMessage,
       createdAt: doc.createdAt,
       finishedAt: doc.finishedAt,
+      events: doc.events,
     };
   }
 }

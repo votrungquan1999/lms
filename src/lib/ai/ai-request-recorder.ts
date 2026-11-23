@@ -249,7 +249,7 @@ function cutShortOutcome(error: unknown): AiRequestOutcome {
  * never pass for real traffic.
  * @returns The environment tag and whether the AI reply was mocked.
  */
-function runEnvironment(): { environment: string; mock?: boolean } {
+export function runEnvironment(): { environment: string; mock?: boolean } {
   // First: a test run must never pass for deploy, mock or demo traffic, even
   // when its shell has those variables set.
   if (process.env.VITEST) return { environment: "test" };

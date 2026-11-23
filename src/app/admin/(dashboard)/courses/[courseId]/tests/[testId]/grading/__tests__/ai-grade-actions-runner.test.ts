@@ -1,9 +1,10 @@
-import { trace } from "@opentelemetry/api";
+import { context, trace } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
+import type { Db } from "mongodb";
 import type { AiClient, AiGradeBatchInput } from "src/lib/ai/ai-client";
 import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
 import { RunnerClientResolutionKind, ready } from "src/lib/ai/runner-settings";
@@ -12,6 +13,8 @@ import {
   AiGradeJobTrigger,
 } from "src/lib/ai-grade-job-service";
 import { StartRoundOutcomeKind } from "src/lib/ai-grade-types";
+import { ensureIndexes } from "src/lib/database";
+import { registerAsyncContextManager } from "src/tests/async-context-manager";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
@@ -108,6 +111,7 @@ describe("Feature: a teacher who starts AI grading is told it has started", () =
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.spyOn(console, "log").mockImplementation(() => {});
     gradeFreeTextBatch.mockImplementation(async (items: AiGradeBatchInput[]) =>
       items.map((item) => ({
         questionId: item.questionId,
@@ -131,6 +135,7 @@ describe("Feature: a teacher who starts AI grading is told it has started", () =
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await teardownTestDb();
   });
 
@@ -344,6 +349,7 @@ describe("Feature: when the runner cannot be reached at the start, Gemini grades
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, "log").mockImplementation(() => {});
     gradeFreeTextBatch.mockImplementation(async (items: AiGradeBatchInput[]) =>
       items.map((item) => ({
         questionId: item.questionId,
@@ -549,6 +555,7 @@ describe("Feature: when the runner refuses the job, the teacher is told grading 
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, "log").mockImplementation(() => {});
     gradeFreeTextBatch.mockImplementation(async (items: AiGradeBatchInput[]) =>
       items.map((item) => ({
         questionId: item.questionId,
@@ -626,4 +633,225 @@ describe("Feature: when the runner refuses the job, the teacher is told grading 
       ).toBe(false);
     });
   }
+});
+
+describe("Feature: the owner can see how every job create ended", () => {
+  const gradeFreeTextBatch = vi.fn();
+  let exporter: InMemorySpanExporter;
+
+  /**
+   * Boots the services with a runner client over `fakeFetch`.
+   * @param fakeFetch - The runner's HTTP.
+   * @returns The test database, for a test that needs its indexes.
+   */
+  async function bootWithRunner(
+    fakeFetch: typeof globalThis.fetch,
+  ): Promise<Db> {
+    const aiClient: AiClient = { gradeFreeTextBatch };
+    const client = new BackgroundClaudeRunnerClient(
+      { url: "https://runner.test", key: "bcr_svc_testkey" },
+      { fetch: fakeFetch, timeoutMs: { create: 20, read: 20 } },
+    );
+    const { db } = await setupTestDb({
+      aiClient,
+      runnerClientProvider: () => ready(client),
+    });
+    return db;
+  }
+
+  /** The action's span: services are not traced in tests, so the start-round work runs under it. */
+  function actionSpan() {
+    return exporter
+      .getFinishedSpans()
+      .find((span) => span.name === "action.autoGradeSubmissionAction");
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    gradeFreeTextBatch.mockImplementation(async (items: AiGradeBatchInput[]) =>
+      items.map((item) => ({
+        questionId: item.questionId,
+        score: 80,
+        feedback: "Good",
+      })),
+    );
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    registerAsyncContextManager();
+    exporter = new InMemorySpanExporter();
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({
+        spanProcessors: [new SimpleSpanProcessor(exporter)],
+      }),
+    );
+  });
+
+  afterEach(async () => {
+    trace.disable();
+    context.disable();
+    vi.restoreAllMocks();
+    await teardownTestDb();
+  });
+
+  it("records the created outcome and runner job id on the round's span and in the job's history", async () => {
+    // Given a runner that accepts the job
+    await bootWithRunner(
+      async () =>
+        new Response(JSON.stringify({ id: RUNNER_JOB_ID, status: "queued" }), {
+          status: 201,
+        }),
+    );
+    const seed = await seedSubmittedStudent();
+
+    // When the teacher clicks Auto-grade with AI
+    await autoGradeSubmissionAction(null, formFor(seed));
+
+    // Then the span active while the round started names the outcome and the job
+    expect(actionSpan()?.attributes).toMatchObject({
+      "lms.ai.runner.create_outcome": "created",
+      "lms.ai.runner_job_id": RUNNER_JOB_ID,
+      "lms.ai.grading_path": "runner",
+    });
+
+    // And the job row's history opens with the create entry
+    const job = await getTestServices().aiGradeJobService.getLatestForStudent(
+      seed.testId,
+      seed.studentId,
+    );
+    expect(job?.events).toEqual([
+      {
+        at: expect.any(Date),
+        kind: "create",
+        action: "created",
+        runnerJobId: RUNNER_JOB_ID,
+      },
+    ]);
+  });
+
+  it("keeps the created outcome and the runner's job id on the span when the job row cannot be inserted", async () => {
+    // Given a second click whose pending row lands while the runner accepts this one
+    const WINNING_JOB_ID = "fedcba9876543210fedcba98";
+    const runnerFetch = vi.fn<typeof globalThis.fetch>();
+    const db = await bootWithRunner(runnerFetch);
+    await ensureIndexes(db);
+    const seed = await seedSubmittedStudent();
+    runnerFetch.mockImplementation(async () => {
+      await getTestServices().aiGradeJobService.create({
+        courseId: seed.courseId,
+        testId: seed.testId,
+        studentId: seed.studentId,
+        questionId: null,
+        trigger: AiGradeJobTrigger.AutoGrade,
+        runnerJobId: WINNING_JOB_ID,
+        candidates: [{ questionId: seed.questionId, answerId: seed.answerId }],
+        reason: null,
+        includeGraded: false,
+        byAdminId: "admin-1",
+      });
+      return new Response(
+        JSON.stringify({ id: RUNNER_JOB_ID, status: "queued" }),
+        { status: 201 },
+      );
+    });
+
+    // When the teacher's click loses the race for the one pending row
+    const state = await autoGradeSubmissionAction(null, formFor(seed));
+
+    // Then the teacher sees the pinned failure
+    expect(state).toEqual({
+      success: false,
+      message: "AI grading failed. Please try again.",
+    });
+
+    // And the span still names the job the runner now holds, so the owner can find it
+    expect(actionSpan()?.attributes).toMatchObject({
+      "lms.ai.runner.create_outcome": "created",
+      "lms.ai.runner_job_id": RUNNER_JOB_ID,
+    });
+    // The span stores an error that has a `code` by that code; 11000 is MongoDB's duplicate key.
+    const exceptionTypes = actionSpan()?.events.map(
+      (event) => event.attributes?.["exception.type"],
+    );
+    expect(exceptionTypes).toContain("11000");
+
+    // And the winning click's row is untouched
+    const job = await getTestServices().aiGradeJobService.getLatestForStudent(
+      seed.testId,
+      seed.studentId,
+    );
+    expect(job?.runnerJobId).toBe(WINNING_JOB_ID);
+  });
+
+  it("keeps the unreachable outcome and its cause on the span when the Gemini fallback then fails", async () => {
+    // Given an unreachable runner and a Gemini that throws
+    await bootWithRunner(async () => {
+      throw new TypeError("fetch failed for https://runner.test");
+    });
+    gradeFreeTextBatch.mockRejectedValue(new Error("gemini down"));
+    const seed = await seedSubmittedStudent();
+
+    // When the teacher clicks Auto-grade with AI
+    const state = await autoGradeSubmissionAction(null, formFor(seed));
+
+    // Then the teacher sees the pinned failure
+    expect(state.success).toBe(false);
+
+    // And the span still says how the create ended, error name only
+    expect(actionSpan()?.attributes).toMatchObject({
+      "lms.ai.runner.create_outcome": "unreachable",
+      "lms.ai.runner.unreachable_cause": "TypeError",
+    });
+    expect(JSON.stringify(actionSpan()?.attributes)).not.toContain(
+      "runner.test",
+    );
+  });
+
+  it("records the refused status on the span and the RunnerRefusedError as its exception", async () => {
+    // Given a runner whose queue is full
+    await bootWithRunner(async () => new Response("full", { status: 429 }));
+    const seed = await seedSubmittedStudent();
+
+    // When the teacher clicks Auto-grade with AI
+    await autoGradeSubmissionAction(null, formFor(seed));
+
+    // Then the span carries the outcome and the status
+    expect(actionSpan()?.attributes).toMatchObject({
+      "lms.ai.runner.create_outcome": "refused",
+      "lms.ai.runner.refused_status": 429,
+    });
+
+    // And the exception recorded on it names the refusal
+    const exceptionTypes = actionSpan()?.events.map(
+      (event) => event.attributes?.["exception.type"],
+    );
+    expect(exceptionTypes).toContain("RunnerRefusedError");
+  });
+
+  it("records a settings error when the runner address is unusable", async () => {
+    // Given a runner key with an address that is not an https URL
+    await setupTestDb({
+      aiClient: { gradeFreeTextBatch },
+      runnerClientProvider: () => ({
+        kind: RunnerClientResolutionKind.Invalid,
+        variable: "BCR_URL",
+      }),
+    });
+    const seed = await seedSubmittedStudent();
+
+    // When the teacher clicks Auto-grade with AI
+    const state = await autoGradeSubmissionAction(null, formFor(seed));
+
+    // Then the pinned failure is shown without a Gemini call
+    expect(state.success).toBe(false);
+    expect(gradeFreeTextBatch).not.toHaveBeenCalled();
+
+    // And the span names the outcome and the settings error
+    expect(actionSpan()?.attributes).toMatchObject({
+      "lms.ai.runner.create_outcome": "settings_error",
+    });
+    const exceptionTypes = actionSpan()?.events.map(
+      (event) => event.attributes?.["exception.type"],
+    );
+    expect(exceptionTypes).toContain("RunnerSettingsError");
+  });
 });
