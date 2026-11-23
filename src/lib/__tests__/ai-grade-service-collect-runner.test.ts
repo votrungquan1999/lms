@@ -10,12 +10,15 @@ import { CollectOutcomeKind } from "src/lib/ai-grade-types";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
 import { insertRawCourses } from "src/tests/raw-enrollment-seeds";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
 
 const RUNNER_JOB_ID = "0123456789abcdef01234567";
 const RUNNER_URL = "https://runner.test";
+
+/** A fetch the fake runner answers with. */
+type FakeFetch = (input: string | URL | Request) => Promise<Response>;
 
 /** Builds the full runner job the fake runner returns. */
 function runnerJobBody(status: string, resultText: string) {
@@ -32,40 +35,50 @@ function runnerJobBody(status: string, resultText: string) {
  * is the fixture with the question id filled in.
  * @param status - The job status the runner reports.
  * @param questionId - The id the fixture's grade names.
+ * @param beforeAnswer - Runs before each answer, so a test can hold reads back.
  */
-function fakeRunnerClient(status: string, questionId: string) {
+function fakeRunnerFetch(
+  status: string,
+  questionId: string,
+  beforeAnswer: (url: string) => Promise<void> = async () => undefined,
+): FakeFetch {
   const text = readFileSync(
     "src/lib/ai/__tests__/fixtures/runner-result.txt",
     "utf8",
   ).replaceAll("QUESTION_ID", questionId);
-  const fetchFake = vi.fn(async (input: string | URL | Request) => {
-    const body = String(input).endsWith("?view=status")
+  return async (input) => {
+    const url = String(input);
+    await beforeAnswer(url);
+    const body = url.endsWith("?view=status")
       ? { status }
       : runnerJobBody(status, text);
     return new Response(JSON.stringify(body), { status: 200 });
-  });
-  const client = new BackgroundClaudeRunnerClient(
-    { url: RUNNER_URL, key: "bcr_svc_key" },
-    { fetch: fetchFake, timeoutMs: { create: 50, read: 500 } },
-  );
-  return { client, fetchFake };
+  };
 }
 
 /**
  * Seeds a submitted student with one written answer and a pending runner job.
  * @param db - The test database.
- * @param status - What the fake runner reports for the job.
+ * @param makeFetch - Builds the fake runner fetch once the question id exists.
  */
-async function seedPendingRunnerJob(db: Db, status: string) {
+async function seedPendingRunnerJob(
+  db: Db,
+  makeFetch: (questionId: string) => FakeFetch,
+) {
   await insertRawCourses(db, ["course-1"]);
-  // The fake needs the question id the seeding creates, so the provider reads it lazily.
+  // The fake names the seeded question, so the provider reads its id lazily.
   let questionId = "";
-  let runner = fakeRunnerClient(status, questionId);
   const services = buildCoreServices(db, {
-    runnerClientProvider: () => {
-      runner = fakeRunnerClient(status, questionId);
-      return ready(runner.client);
-    },
+    runnerClientProvider: () =>
+      ready(
+        new BackgroundClaudeRunnerClient(
+          { url: RUNNER_URL, key: "bcr_svc_key" },
+          {
+            fetch: makeFetch(questionId),
+            timeoutMs: { create: 50, read: 2000 },
+          },
+        ),
+      ),
   });
   const test = await services.testService.createTest("course-1", {
     title: "T",
@@ -97,13 +110,7 @@ async function seedPendingRunnerJob(db: Db, status: string) {
     includeGraded: false,
     byAdminId: "admin-1",
   });
-  return {
-    services,
-    test,
-    question,
-    answer,
-    runnerFetch: () => runner.fetchFake,
-  };
+  return { services, test, question, answer };
 }
 
 describe("AiGradeService.collectRunnerResult - a succeeded runner job", () => {
@@ -113,7 +120,7 @@ describe("AiGradeService.collectRunnerResult - a succeeded runner job", () => {
       // Given a pending job the runner has finished
       const { services, test, question, answer } = await seedPendingRunnerJob(
         db,
-        "succeeded",
+        (questionId) => fakeRunnerFetch("succeeded", questionId),
       );
 
       // When the result is collected
@@ -146,6 +153,68 @@ describe("AiGradeService.collectRunnerResult - a succeeded runner job", () => {
       );
       expect(job?.status).toBe(AiGradeJobStatus.Succeeded);
       expect(job?.finishedAt).toBeInstanceOf(Date);
+    },
+  );
+});
+
+describe("AiGradeService.collectRunnerResult - two checks of the same finished job", () => {
+  dbIt(
+    "saves the round once: one check saves, the other finds it claimed",
+    async ({ db }) => {
+      // Given a finished job and a runner that holds each kind of read until both checks have asked
+      const waiting: Record<string, (() => void)[]> = {};
+      const bothAsked = (kind: string) =>
+        new Promise<void>((resolve) => {
+          waiting[kind] = [...(waiting[kind] ?? []), resolve];
+          if (waiting[kind].length === 2) {
+            for (const release of waiting[kind]) release();
+          }
+        });
+      const { services, test } = await seedPendingRunnerJob(db, (questionId) =>
+        fakeRunnerFetch("succeeded", questionId, (url) =>
+          bothAsked(url.endsWith("?view=status") ? "status" : "job"),
+        ),
+      );
+
+      // When both checks run at the same time
+      const outcomes = await Promise.all([
+        services.aiGradeService.collectRunnerResult(test.id, "student-1"),
+        services.aiGradeService.collectRunnerResult(test.id, "student-1"),
+      ]);
+
+      // Then exactly one saves and the other finds the job already claimed
+      expect(outcomes.map((o) => o.kind).sort()).toEqual([
+        CollectOutcomeKind.ClaimedElsewhere,
+        CollectOutcomeKind.Saved,
+      ]);
+
+      // And the round exists once
+      expect(
+        await db.collection("ai_grade").countDocuments({ testId: test.id }),
+      ).toBe(1);
+    },
+  );
+
+  dbIt(
+    "finds no pending job on a later check, leaving the round as saved",
+    async ({ db }) => {
+      // Given a job whose result a first check already saved
+      const { services, test } = await seedPendingRunnerJob(db, (questionId) =>
+        fakeRunnerFetch("succeeded", questionId),
+      );
+      await services.aiGradeService.collectRunnerResult(test.id, "student-1");
+
+      // When another check runs
+      const outcome = await services.aiGradeService.collectRunnerResult(
+        test.id,
+        "student-1",
+      );
+
+      // Then it has nothing to do and saves nothing more
+      expect(outcome).toEqual({ kind: CollectOutcomeKind.NoPendingJob });
+      expect(
+        await db.collection("ai_grade").countDocuments({ testId: test.id }),
+      ).toBe(1);
     },
   );
 });
