@@ -196,7 +196,8 @@ export class AiGradeService {
   /**
    * Starts one grading round for a teacher's click. With a ready runner the
    * round becomes a pending job and the suggestions arrive later; with no
-   * runner configured Gemini grades on the spot.
+   * runner configured Gemini grades on the spot, and so does it when the
+   * runner cannot be reached to create the job.
    * @param request - Which trigger, whose submission, and the teacher's input.
    * @returns AlreadyPending, without starting anything, when a job is still running for the submission.
    * @throws "Test not found" when the test isn't this school's.
@@ -259,6 +260,20 @@ export class AiGradeService {
             opts,
           ),
         );
+        // No job row exists yet, so the same snapshot can go straight to Gemini.
+        if (created.kind === RunnerCreateOutcomeKind.Unreachable) {
+          return {
+            kind: StartRoundOutcomeKind.Completed,
+            suggestions: await this.gradeWithGemini(
+              request.testId,
+              request.studentId,
+              request.byAdminId,
+              candidates,
+              opts,
+            ),
+            fallbackCause: created.cause,
+          };
+        }
         if (created.kind !== RunnerCreateOutcomeKind.Created) {
           throw new Error(`Runner create ${created.kind}: ${created.cause}`);
         }

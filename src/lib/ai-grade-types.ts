@@ -107,7 +107,12 @@ export enum StartRoundOutcomeKind {
 /** The result of starting a grading round. */
 export type StartRoundOutcome =
   | { kind: StartRoundOutcomeKind.Queued; job: AiGradeJob }
-  | { kind: StartRoundOutcomeKind.Completed; suggestions: AiGradeSuggestion[] }
+  | {
+      kind: StartRoundOutcomeKind.Completed;
+      suggestions: AiGradeSuggestion[];
+      /** Set when the runner could not be reached and Gemini graded instead: the error name only. */
+      fallbackCause?: string;
+    }
   | { kind: StartRoundOutcomeKind.NothingToGrade }
   | { kind: StartRoundOutcomeKind.AlreadyPending };
 

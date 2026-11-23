@@ -1,10 +1,17 @@
+import { trace } from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 import type { AiClient, AiGradeBatchInput } from "src/lib/ai/ai-client";
 import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
-import { ready } from "src/lib/ai/runner-settings";
+import { RunnerClientResolutionKind, ready } from "src/lib/ai/runner-settings";
 import {
   AiGradeJobStatus,
   AiGradeJobTrigger,
 } from "src/lib/ai-grade-job-service";
+import { StartRoundOutcomeKind } from "src/lib/ai-grade-types";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
@@ -315,5 +322,211 @@ describe("Feature: a teacher who starts AI grading is told it has started", () =
       success: false,
       message: "AI grading is already in progress for this submission.",
     });
+  });
+});
+
+describe("Feature: when the runner cannot be reached at the start, Gemini grades on the spot", () => {
+  const gradeFreeTextBatch = vi.fn();
+  let exporter: InMemorySpanExporter;
+
+  /**
+   * Boots the services with a runner client over `fakeFetch`.
+   * @param fakeFetch - The runner's HTTP, which a test makes fail.
+   */
+  async function bootWithRunner(fakeFetch: typeof globalThis.fetch) {
+    const aiClient: AiClient = { gradeFreeTextBatch };
+    const client = new BackgroundClaudeRunnerClient(
+      { url: "https://runner.test", key: "bcr_svc_testkey" },
+      { fetch: fakeFetch, timeoutMs: { create: 20, read: 20 } },
+    );
+    await setupTestDb({ aiClient, runnerClientProvider: () => ready(client) });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    gradeFreeTextBatch.mockImplementation(async (items: AiGradeBatchInput[]) =>
+      items.map((item) => ({
+        questionId: item.questionId,
+        score: 80,
+        feedback: "Good",
+      })),
+    );
+    exporter = new InMemorySpanExporter();
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({
+        spanProcessors: [new SimpleSpanProcessor(exporter)],
+      }),
+    );
+  });
+
+  afterEach(async () => {
+    trace.disable();
+    vi.restoreAllMocks();
+    await teardownTestDb();
+  });
+
+  it("grades through Gemini right away, with no job, when the request fails at the network", async () => {
+    // Given a submitted student and a runner whose request fails
+    await bootWithRunner(async () => {
+      throw new TypeError("fetch failed");
+    });
+    const seed = await seedSubmittedStudent();
+
+    // When the teacher clicks Auto-grade with AI
+    const state = await autoGradeSubmissionAction(null, formFor(seed));
+
+    // Then the teacher gets today's on-the-spot success
+    expect(state).toEqual({
+      success: true,
+      message: "AI suggestions generated",
+    });
+
+    // And Gemini graded the same answers the runner prompt would have carried
+    expect(gradeFreeTextBatch).toHaveBeenCalledTimes(1);
+    expect(gradeFreeTextBatch.mock.calls[0]).toEqual([
+      [
+        {
+          questionId: seed.questionId,
+          questionContent: "Explain recursion",
+          studentAnswer: "A function that calls itself.",
+        },
+      ],
+    ]);
+
+    // And the suggestion exists now, labelled as Gemini's, with no job row
+    const services = getTestServices();
+    const suggestions = await services.aiGradeService.getSuggestionsForStudent(
+      seed.testId,
+      seed.studentId,
+    );
+    expect(suggestions.get(seed.questionId)?.[0]).toMatchObject({
+      model: "gemini-3.5-flash",
+      score: 80,
+    });
+    expect(
+      await services.aiGradeJobService.getLatestForStudent(
+        seed.testId,
+        seed.studentId,
+      ),
+    ).toBeNull();
+
+    // And the action's span says the fallback graded it
+    const actionSpan = exporter
+      .getFinishedSpans()
+      .find((span) => span.name === "action.autoGradeSubmissionAction");
+    expect(actionSpan?.attributes["lms.ai.grading_path"]).toBe(
+      "gemini_fallback",
+    );
+  });
+
+  const unreachableRunners: {
+    name: string;
+    fetch: typeof globalThis.fetch;
+    cause: string;
+  }[] = [
+    {
+      name: "the request fails at the network",
+      fetch: async () => {
+        throw new TypeError("fetch failed");
+      },
+      cause: "TypeError",
+    },
+    {
+      name: "the runner answers 503",
+      fetch: async () => new Response("down", { status: 503 }),
+      cause: "status_503",
+    },
+    {
+      name: "the runner never answers within the create timeout",
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(init.signal?.reason),
+          );
+        }),
+      cause: "TimeoutError",
+    },
+  ];
+
+  for (const runner of unreachableRunners) {
+    it(`completes through Gemini and reports the error name only when ${runner.name}`, async () => {
+      // Given a submitted student and a runner in that state
+      await bootWithRunner(runner.fetch);
+      const seed = await seedSubmittedStudent();
+
+      // When a round is started
+      const services = getTestServices();
+      const outcome = await services.aiGradeService.startRound({
+        trigger: AiGradeJobTrigger.AutoGrade,
+        testId: seed.testId,
+        courseId: seed.courseId,
+        studentId: seed.studentId,
+        reason: null,
+        includeGraded: false,
+        byAdminId: "admin-1",
+      });
+
+      // Then Gemini completed it and the outcome carries the cause
+      expect(outcome).toMatchObject({
+        kind: StartRoundOutcomeKind.Completed,
+        fallbackCause: runner.cause,
+      });
+
+      // And no job was recorded, so nothing blocks the next round
+      expect(
+        await services.aiGradeJobService.hasPendingForStudent(
+          seed.testId,
+          seed.studentId,
+        ),
+      ).toBe(false);
+    });
+  }
+
+  it("tells the teacher grading failed when the runner is unreachable and Gemini fails too", async () => {
+    // Given an unreachable runner and a Gemini that throws
+    await bootWithRunner(async () => {
+      throw new TypeError("fetch failed");
+    });
+    gradeFreeTextBatch.mockRejectedValue(new Error("gemini down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const seed = await seedSubmittedStudent();
+
+    // When the teacher clicks Auto-grade with AI
+    const state = await autoGradeSubmissionAction(null, formFor(seed));
+
+    // Then the pinned failure message is shown and nothing is saved
+    expect(state).toEqual({
+      success: false,
+      message: "AI grading failed. Please try again.",
+    });
+    expect(
+      await getTestServices().aiGradeService.hasAnySuggestionsForStudent(
+        seed.testId,
+        seed.studentId,
+      ),
+    ).toBe(false);
+  });
+
+  it("never calls the runner when its settings are absent", async () => {
+    // Given a submitted student and no runner configured
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await setupTestDb({
+      aiClient: { gradeFreeTextBatch },
+      runnerClientProvider: () => ({
+        kind: RunnerClientResolutionKind.Disabled,
+      }),
+    });
+    const seed = await seedSubmittedStudent();
+
+    // When the teacher clicks Auto-grade with AI
+    const state = await autoGradeSubmissionAction(null, formFor(seed));
+
+    // Then Gemini graded it on the spot and no runner request was made
+    expect(state).toEqual({
+      success: true,
+      message: "AI suggestions generated",
+    });
+    expect(gradeFreeTextBatch).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

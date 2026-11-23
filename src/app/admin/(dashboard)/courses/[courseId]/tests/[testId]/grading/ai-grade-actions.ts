@@ -37,7 +37,10 @@ function annotateRound(span: Span, outcome: StartRoundOutcome): void {
     span.setAttribute("lms.ai.runner_job_id", outcome.job.runnerJobId);
     span.setAttribute("lms.ai.grading_path", "runner");
   } else if (outcome.kind === StartRoundOutcomeKind.Completed) {
-    span.setAttribute("lms.ai.grading_path", "gemini");
+    span.setAttribute(
+      "lms.ai.grading_path",
+      outcome.fallbackCause ? "gemini_fallback" : "gemini",
+    );
   }
 }
 
