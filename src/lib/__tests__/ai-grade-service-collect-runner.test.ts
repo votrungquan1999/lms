@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import type { Db } from "mongodb";
 import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
-import { ready } from "src/lib/ai/runner-settings";
+import {
+  type RunnerClientResolution,
+  RunnerClientResolutionKind,
+  ready,
+} from "src/lib/ai/runner-settings";
 import {
   AiGradeJobStatus,
   AiGradeJobTrigger,
@@ -66,25 +70,32 @@ function fakeRunnerFetch(
  * Seeds a submitted student with one written answer and a pending runner job.
  * @param db - The test database.
  * @param makeFetch - Builds the fake runner fetch once the question id exists.
+ * @param options - `readTimeoutMs` shortens the client's read timeout; `resolve` replaces how the provider answers.
  */
 async function seedPendingRunnerJob(
   db: Db,
   makeFetch: (questionId: string) => FakeFetch,
+  options: {
+    readTimeoutMs?: number;
+    resolve?: (ready: RunnerClientResolution) => RunnerClientResolution;
+  } = {},
 ) {
   await insertRawCourses(db, ["course-1"]);
   // The fake names the seeded question, so the provider reads its id lazily.
   let questionId = "";
   const services = buildCoreServices(db, {
-    runnerClientProvider: () =>
-      ready(
+    runnerClientProvider: () => {
+      const resolution = ready(
         new BackgroundClaudeRunnerClient(
           { url: RUNNER_URL, key: "bcr_svc_key" },
           {
             fetch: makeFetch(questionId),
-            timeoutMs: { create: 50, read: 2000 },
+            timeoutMs: { create: 50, read: options.readTimeoutMs ?? 2000 },
           },
         ),
-      ),
+      );
+      return options.resolve?.(resolution) ?? resolution;
+    },
   });
   const test = await services.testService.createTest("course-1", {
     title: "T",
@@ -393,4 +404,152 @@ describe("AiGradeService.collectRunnerResult - a job that did not produce sugges
     // Then a new pending job is queued
     expect(outcome.kind).toBe(StartRoundOutcomeKind.Queued);
   });
+});
+
+describe("AiGradeService.collectRunnerResult - a runner that cannot be reached", () => {
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status });
+
+  /** A fake that never answers until the client's timeout aborts the request. */
+  const hangUntilAborted: FakeFetch = (_input, init) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () =>
+        reject(init.signal?.reason),
+      );
+    });
+
+  const cases: {
+    name: string;
+    fetchFor: (questionId: string) => FakeFetch;
+    cause: string;
+    options?: Parameters<typeof seedPendingRunnerJob>[2];
+  }[] = [
+    {
+      name: "the request fails at the network",
+      fetchFor: () => async () => {
+        throw new TypeError("fetch failed");
+      },
+      cause: "TypeError",
+    },
+    {
+      name: "the runner answers 503",
+      fetchFor: () => async () => json({ error: "down" }, 503),
+      cause: "status_503",
+    },
+    {
+      name: "the runner rejects the service key",
+      fetchFor: () => async () => json({ error: "unauthorized" }, 401),
+      cause: "refused_401",
+    },
+    {
+      name: "the status read succeeds but the full read fails",
+      fetchFor: () => async (input) => {
+        if (String(input).endsWith("?view=status")) {
+          return json({ status: "succeeded" });
+        }
+        throw new TypeError("fetch failed");
+      },
+      cause: "TypeError",
+    },
+    {
+      name: "the runner never answers within the read timeout",
+      fetchFor: () => hangUntilAborted,
+      cause: "TimeoutError",
+      options: { readTimeoutMs: 20 },
+    },
+    {
+      name: "a runner setting is unusable",
+      fetchFor: () => async () => json({ status: "succeeded" }),
+      cause: "RunnerSettingsError",
+      options: {
+        resolve: () => ({
+          kind: RunnerClientResolutionKind.Invalid,
+          variable: "BACKGROUND_CLAUDE_RUNNER_URL",
+        }),
+      },
+    },
+    {
+      name: "the runner is turned off",
+      fetchFor: () => async () => json({ status: "succeeded" }),
+      cause: "RunnerDisabled",
+      options: {
+        resolve: () => ({ kind: RunnerClientResolutionKind.Disabled }),
+      },
+    },
+  ];
+
+  for (const c of cases) {
+    dbIt(
+      `skips the check and leaves the job pending when ${c.name}`,
+      async ({ db }) => {
+        // Given a pending job and a runner in that state
+        const { services, test } = await seedPendingRunnerJob(
+          db,
+          c.fetchFor,
+          c.options,
+        );
+
+        // When the result is collected
+        const outcome = await services.aiGradeService.collectRunnerResult(
+          test.id,
+          "student-1",
+        );
+
+        // Then the check is skipped, naming the error only
+        expect(outcome).toEqual({
+          kind: CollectOutcomeKind.SkippedUnreachable,
+          cause: c.cause,
+        });
+
+        // And the job is still pending, with no suggestion saved
+        const job = await services.aiGradeJobService.getLatestForStudent(
+          test.id,
+          "student-1",
+        );
+        expect(job?.status).toBe(AiGradeJobStatus.Pending);
+        expect(job?.finishedAt).toBeNull();
+        expect(
+          await db.collection("ai_grade").countDocuments({ testId: test.id }),
+        ).toBe(0);
+      },
+    );
+  }
+
+  dbIt(
+    "saves the round on a later check once the runner answers again",
+    async ({ db }) => {
+      // Given a pending job and a runner that is down for the first check
+      let isUp = false;
+      const { services, test, question } = await seedPendingRunnerJob(
+        db,
+        (questionId) => {
+          const healthy = fakeRunnerFetch("succeeded", questionId);
+          return async (input, init) => {
+            if (!isUp) throw new TypeError("fetch failed");
+            return healthy(input, init);
+          };
+        },
+      );
+      const first = await services.aiGradeService.collectRunnerResult(
+        test.id,
+        "student-1",
+      );
+
+      // When the runner is back and the page checks again
+      isUp = true;
+      const second = await services.aiGradeService.collectRunnerResult(
+        test.id,
+        "student-1",
+      );
+
+      // Then the first check was skipped and the second saves the round
+      expect(first.kind).toBe(CollectOutcomeKind.SkippedUnreachable);
+      expect(second).toEqual({ kind: CollectOutcomeKind.Saved, count: 1 });
+      const rows = await db
+        .collection("ai_grade")
+        .find({ testId: test.id })
+        .toArray();
+      expect(rows.map((r) => r.questionId)).toEqual([question.id]);
+    },
+  );
 });

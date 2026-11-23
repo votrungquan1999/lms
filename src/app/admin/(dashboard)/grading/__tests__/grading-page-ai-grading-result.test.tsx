@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { AiGradeBatchInput } from "src/lib/ai/ai-client";
 import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
+import { RunnerCheckAction, RunnerEventKind } from "src/lib/ai/runner-event";
 import { ready } from "src/lib/ai/runner-settings";
 import {
   AiGradeJobStatus,
@@ -21,7 +22,11 @@ import { GradingDetailStudent } from "../page-body/grading-detail-student";
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock(
   "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/pending-ai-grading-refresher.ui",
-  () => ({ PendingAiGradingRefresher: () => null }),
+  () => ({
+    PendingAiGradingRefresher: () => (
+      <span data-testid="pending-ai-grading-refresher" />
+    ),
+  }),
 );
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
@@ -386,5 +391,140 @@ describe("Feature: a teacher finds the runner's finished suggestions when the gr
     expect(
       screen.getByRole("button", { name: /auto-grade with ai/i }),
     ).toBeEnabled();
+  });
+
+  it("still renders the page with the in-progress note and the job pending when the runner cannot be reached", async () => {
+    // Given a pending job and a runner whose requests fail at the network
+    const unreachable = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    const client = new BackgroundClaudeRunnerClient(
+      { url: RUNNER_URL, key: RUNNER_KEY },
+      { fetch: unreachable, timeoutMs: { create: 50, read: 500 } },
+    );
+    await setupTestDb({
+      aiClient: unusedAiClient,
+      runnerClientProvider: () => ready(client),
+    });
+    const seed = await seedPendingJob();
+
+    // When the teacher opens the grading page
+    await renderPage(seed);
+
+    // Then the page still says grading is in progress, with the trigger disabled
+    expect(screen.getByTestId("ai-grading-in-progress")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /auto-grade with ai/i }),
+    ).toBeDisabled();
+    expect(screen.queryByTestId("ai-suggestion-row")).toBeNull();
+
+    // And the job is untouched, so a later check can pick the result up
+    const job = await getTestServices().aiGradeJobService.getLatestForStudent(
+      seed.test.id,
+      seed.student.id,
+    );
+    expect(job?.status).toBe(AiGradeJobStatus.Pending);
+    expect(job?.finishedAt).toBeNull();
+  });
+
+  it("hides the failure note once a later Gemini round has saved newer suggestions", async () => {
+    // Given a job the runner failed, whose note the first render shows
+    const runner = fakeRunner("failed", () => "unused", {
+      result: null,
+      error: { kind: "timeout", message: "Ran out of time" },
+    });
+    const client = new BackgroundClaudeRunnerClient(
+      { url: RUNNER_URL, key: RUNNER_KEY },
+      { fetch: runner.fetchFake, timeoutMs: { create: 50, read: 500 } },
+    );
+    await setupTestDb({
+      aiClient: {
+        async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
+          return items.map((item) => ({
+            questionId: item.questionId,
+            score: 80,
+            feedback: "Good",
+          }));
+        },
+      },
+      runnerClientProvider: () => ready(client),
+    });
+    const seed = await seedPendingJob();
+    await renderPage(seed);
+    expect(screen.getByTestId("ai-grading-failed")).toBeInTheDocument();
+    cleanup();
+
+    // When a later round grades through Gemini, leaving the failed job as the latest job
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await getTestServices().aiGradeService.generateForStudent(
+      seed.test.id,
+      seed.student.id,
+      "admin-1",
+    );
+    await renderPage(seed);
+
+    // Then the page shows the new suggestion and no "did not finish" note
+    expect(screen.getAllByTestId("ai-suggestion-row")).toHaveLength(1);
+    expect(screen.queryByTestId("ai-grading-failed")).toBeNull();
+  });
+
+  it("keeps the page refreshing for one more render when another tab won the claim on the finished job", async () => {
+    // Given a finished job that another tab claims between this render's status read and its claim
+    let claimedBefore = false;
+    const claimByOtherTab = async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("?view=status")) {
+        return new Response(JSON.stringify({ status: "succeeded" }), {
+          status: 200,
+        });
+      }
+      if (!claimedBefore) {
+        claimedBefore = true;
+        await getTestServices().aiGradeJobService.claimFinal(
+          RUNNER_JOB_ID,
+          {
+            status: AiGradeJobStatus.Succeeded,
+            errorKind: null,
+            errorMessage: null,
+          },
+          {
+            at: new Date(),
+            kind: RunnerEventKind.Check,
+            runnerJobId: RUNNER_JOB_ID,
+            runnerStatus: "succeeded",
+            action: RunnerCheckAction.SavedSuggestions,
+            savedCount: 0,
+          },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          id: RUNNER_JOB_ID,
+          status: "succeeded",
+          result: { text: "{}", durationMs: 1, numTurns: 1, sessionId: "s" },
+          error: null,
+          usage: [],
+        }),
+        { status: 200 },
+      );
+    };
+    const client = new BackgroundClaudeRunnerClient(
+      { url: RUNNER_URL, key: RUNNER_KEY },
+      { fetch: claimByOtherTab, timeoutMs: { create: 50, read: 500 } },
+    );
+    await setupTestDb({
+      aiClient: unusedAiClient,
+      runnerClientProvider: () => ready(client),
+    });
+    const seed = await seedPendingJob();
+
+    // When this tab's page renders and loses the claim, before the winner's rows exist
+    await renderPage(seed);
+
+    // Then the page still counts as in progress and refreshes, so the winner's rows appear without a reload
+    expect(screen.getByTestId("ai-grading-in-progress")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("pending-ai-grading-refresher"),
+    ).toBeInTheDocument();
   });
 });

@@ -123,6 +123,8 @@ export enum CollectOutcomeKind {
   NoPendingJob = "no_pending_job",
   /** The runner has not finished the job. */
   StillWaiting = "still_waiting",
+  /** The runner could not be asked, so the job stays pending for a later check. */
+  SkippedUnreachable = "skipped_unreachable",
   /** The runner's suggestions were saved. */
   Saved = "saved",
   /** The job ended without usable suggestions. */
@@ -135,6 +137,7 @@ export enum CollectOutcomeKind {
 export type CollectOutcome =
   | { kind: CollectOutcomeKind.NoPendingJob }
   | { kind: CollectOutcomeKind.StillWaiting; runnerStatus: string | null }
+  | { kind: CollectOutcomeKind.SkippedUnreachable; cause: string }
   | { kind: CollectOutcomeKind.Saved; count: number }
   | { kind: CollectOutcomeKind.MarkedFailed; errorKind: string }
   | { kind: CollectOutcomeKind.ClaimedElsewhere };

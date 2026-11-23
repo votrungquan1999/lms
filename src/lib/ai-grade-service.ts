@@ -7,6 +7,7 @@ import type {
 } from "src/lib/ai/ai-client";
 import {
   RunnerCreateOutcomeKind,
+  type RunnerReadOutcome,
   RunnerReadOutcomeKind,
 } from "src/lib/ai/background-claude-runner-client";
 import { buildRunnerGradingPrompt } from "src/lib/ai/runner-grading-prompt";
@@ -296,8 +297,18 @@ export class AiGradeService {
       return { kind: CollectOutcomeKind.NoPendingJob };
     }
     const runner = this.runnerClientProvider();
-    if (runner.kind !== RunnerClientResolutionKind.Ready) {
-      return { kind: CollectOutcomeKind.NoPendingJob };
+    // A pending job with no usable client waits for settings to return; the page must still render.
+    if (runner.kind === RunnerClientResolutionKind.Disabled) {
+      return {
+        kind: CollectOutcomeKind.SkippedUnreachable,
+        cause: "RunnerDisabled",
+      };
+    }
+    if (runner.kind === RunnerClientResolutionKind.Invalid) {
+      return {
+        kind: CollectOutcomeKind.SkippedUnreachable,
+        cause: "RunnerSettingsError",
+      };
     }
 
     const status = await runner.client.readStatus(job.runnerJobId);
@@ -305,7 +316,7 @@ export class AiGradeService {
       return this.failJob(job, "not_found", "The runner has no such job");
     }
     if (status.kind !== RunnerReadOutcomeKind.Found) {
-      return { kind: CollectOutcomeKind.StillWaiting, runnerStatus: null };
+      return this.skippedFor(status);
     }
     const runnerStatus = status.body.status;
     if (runnerStatus === "queued" || runnerStatus === "running") {
@@ -320,7 +331,7 @@ export class AiGradeService {
       return this.failJob(job, "not_found", "The runner has no such job");
     }
     if (full.kind !== RunnerReadOutcomeKind.Found) {
-      return { kind: CollectOutcomeKind.StillWaiting, runnerStatus: null };
+      return this.skippedFor(full);
     }
     if (runnerStatus === "failed") {
       return this.failJob(
@@ -352,6 +363,25 @@ export class AiGradeService {
 
     const saved = await this.completeRunnerJob(claimed, parsed.grades);
     return { kind: CollectOutcomeKind.Saved, count: saved.length };
+  }
+
+  /**
+   * The outcome for a read that did not produce a body: the job stays pending.
+   * @param read - A read outcome that is neither found nor not found.
+   */
+  private skippedFor(
+    read: Exclude<
+      RunnerReadOutcome<unknown>,
+      { kind: RunnerReadOutcomeKind.Found | RunnerReadOutcomeKind.NotFound }
+    >,
+  ): CollectOutcome {
+    return {
+      kind: CollectOutcomeKind.SkippedUnreachable,
+      cause:
+        read.kind === RunnerReadOutcomeKind.Unreachable
+          ? read.cause
+          : `refused_${read.status}`,
+    };
   }
 
   /**
