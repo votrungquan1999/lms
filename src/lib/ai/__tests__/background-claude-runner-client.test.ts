@@ -1,9 +1,16 @@
+import { context, trace } from "@opentelemetry/api";
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 import {
   BackgroundClaudeRunnerClient,
   RunnerCreateOutcomeKind,
   RunnerReadOutcomeKind,
 } from "src/lib/ai/background-claude-runner-client";
-import { describe, expect, it, vi } from "vitest";
+import { registerAsyncContextManager } from "src/tests/async-context-manager";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const SETTINGS = { url: "https://runner.test", key: "bcr_svc_key" };
 const JOB_ID = "0123456789abcdef01234567";
@@ -14,6 +21,21 @@ function clientWith(fetchFake: typeof globalThis.fetch) {
     fetch: fetchFake,
     timeoutMs: { create: 50, read: 50 },
   });
+}
+
+/** A fetch that answers with headers at once, then sends a partial body and never finishes; the stream errors when the request's time limit aborts it. */
+function stallingBodyFetch(status: number): typeof globalThis.fetch {
+  return vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"id":'));
+        init?.signal?.addEventListener("abort", () =>
+          controller.error(init.signal?.reason),
+        );
+      },
+    });
+    return new Response(body, { status });
+  }) as unknown as typeof globalThis.fetch;
 }
 
 describe("Feature: the runner client classifies the answer to a job create", () => {
@@ -31,7 +53,7 @@ describe("Feature: the runner client classifies the answer to a job create", () 
     });
   });
 
-  it("is unreachable with a status cause when the runner answers anything but 201", async () => {
+  it("is unreachable with a status cause when the runner answers 5xx", async () => {
     const client = clientWith(
       vi.fn(async () => new Response("down", { status: 503 })),
     );
@@ -42,13 +64,39 @@ describe("Feature: the runner client classifies the answer to a job create", () 
     });
   });
 
-  it("is unreachable with a bad_body cause when a 201 body is not the create reply", async () => {
+  it("is unreachable with a status cause when the runner answers exactly 500", async () => {
+    const client = clientWith(
+      vi.fn(async () => new Response("boom", { status: 500 })),
+    );
+
+    expect(await client.createJob("prompt")).toEqual({
+      kind: RunnerCreateOutcomeKind.Unreachable,
+      cause: "status_500",
+    });
+  });
+
+  it.each([202, 302, 400, 401, 403, 404, 405, 408, 413, 429])(
+    "is refused with the status when the runner answers %i",
+    async (status) => {
+      const client = clientWith(
+        vi.fn(async () => new Response("no", { status })),
+      );
+
+      expect(await client.createJob("prompt")).toEqual({
+        kind: RunnerCreateOutcomeKind.Refused,
+        status,
+      });
+    },
+  );
+
+  it("is refused with a bad_body cause when a 201 body is not the create reply", async () => {
     const client = clientWith(
       vi.fn(async () => new Response("not json", { status: 201 })),
     );
 
     expect(await client.createJob("prompt")).toEqual({
-      kind: RunnerCreateOutcomeKind.Unreachable,
+      kind: RunnerCreateOutcomeKind.Refused,
+      status: 201,
       cause: "bad_body",
     });
   });
@@ -86,6 +134,15 @@ describe("Feature: the runner client classifies the answer to a job create", () 
     });
   });
 
+  it("is unreachable with TimeoutError when a 201 body stalls after the headers", async () => {
+    const client = clientWith(stallingBodyFetch(201));
+
+    expect(await client.createJob("prompt")).toEqual({
+      kind: RunnerCreateOutcomeKind.Unreachable,
+      cause: "TimeoutError",
+    });
+  });
+
   it("rethrows any other failure so a blocked request fails loudly instead of falling back", async () => {
     const client = clientWith(
       vi.fn(async () => {
@@ -94,6 +151,38 @@ describe("Feature: the runner client classifies the answer to a job create", () 
     );
 
     await expect(client.createJob("prompt")).rejects.toThrow("Blocked request");
+  });
+});
+
+describe("Feature: the runner client records a refused create on its span", () => {
+  let exporter: InMemorySpanExporter;
+
+  beforeEach(() => {
+    registerAsyncContextManager();
+    exporter = new InMemorySpanExporter();
+    trace.setGlobalTracerProvider(
+      new BasicTracerProvider({
+        spanProcessors: [new SimpleSpanProcessor(exporter)],
+      }),
+    );
+  });
+
+  afterEach(() => {
+    trace.disable();
+    context.disable();
+  });
+
+  it("puts the refused status on the createJob span", async () => {
+    const client = clientWith(
+      vi.fn(async () => new Response("no", { status: 403 })),
+    );
+
+    await client.createJob("prompt");
+
+    const span = exporter
+      .getFinishedSpans()
+      .find((s) => s.name === "runner.createJob");
+    expect(span?.attributes["lms.ai.runner.refused_status"]).toBe(403);
   });
 });
 
@@ -197,6 +286,15 @@ describe("Feature: the runner client classifies the answer to a job read", () =>
           }),
       ),
     );
+
+    expect(await client.readStatus(JOB_ID)).toEqual({
+      kind: RunnerReadOutcomeKind.Unreachable,
+      cause: "TimeoutError",
+    });
+  });
+
+  it("is unreachable when the body of a 200 stalls after the headers", async () => {
+    const client = clientWith(stallingBodyFetch(200));
 
     expect(await client.readStatus(JOB_ID)).toEqual({
       kind: RunnerReadOutcomeKind.Unreachable,

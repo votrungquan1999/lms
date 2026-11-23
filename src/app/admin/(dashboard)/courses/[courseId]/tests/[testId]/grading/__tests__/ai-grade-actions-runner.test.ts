@@ -530,3 +530,100 @@ describe("Feature: when the runner cannot be reached at the start, Gemini grades
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("Feature: when the runner refuses the job, the teacher is told grading failed and Gemini is not used", () => {
+  const gradeFreeTextBatch = vi.fn();
+
+  /**
+   * Boots the services with a runner client over `fakeFetch`.
+   * @param fakeFetch - The runner's HTTP, answering a refusal.
+   */
+  async function bootWithRunner(fakeFetch: typeof globalThis.fetch) {
+    const aiClient: AiClient = { gradeFreeTextBatch };
+    const client = new BackgroundClaudeRunnerClient(
+      { url: "https://runner.test", key: "bcr_svc_testkey" },
+      { fetch: fakeFetch, timeoutMs: { create: 20, read: 20 } },
+    );
+    await setupTestDb({ aiClient, runnerClientProvider: () => ready(client) });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    gradeFreeTextBatch.mockImplementation(async (items: AiGradeBatchInput[]) =>
+      items.map((item) => ({
+        questionId: item.questionId,
+        score: 80,
+        feedback: "Good",
+      })),
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await teardownTestDb();
+  });
+
+  const refusals: { name: string; answer: () => Response }[] = [
+    ...[400, 401, 403, 404, 413, 429].map((status) => ({
+      name: `the runner answers ${status}`,
+      answer: () =>
+        new Response(JSON.stringify({ error: "refused" }), { status }),
+    })),
+    {
+      name: "the runner answers with a redirect",
+      answer: () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: "https://elsewhere.test/api/jobs" },
+        }),
+    },
+    {
+      name: "the runner answers 201 with a body that cannot be read",
+      answer: () => new Response("not json", { status: 201 }),
+    },
+  ];
+
+  for (const refusal of refusals) {
+    it(`shows the pinned failure and leaves no job, no suggestions and no Gemini call when ${refusal.name}`, async () => {
+      // Given a submitted student and a runner in that state
+      await bootWithRunner(async () => refusal.answer());
+      const seed = await seedSubmittedStudent();
+
+      // When the teacher clicks Auto-grade with AI
+      const state = await autoGradeSubmissionAction(null, formFor(seed));
+
+      // Then the pinned failure message is shown
+      expect(state).toEqual({
+        success: false,
+        message: "AI grading failed. Please try again.",
+      });
+
+      // And Gemini was not asked, so the submission is not graded twice
+      expect(gradeFreeTextBatch).not.toHaveBeenCalled();
+
+      // And no job row exists, so a retry is allowed at once
+      const services = getTestServices();
+      expect(
+        await services.aiGradeJobService.getLatestForStudent(
+          seed.testId,
+          seed.studentId,
+        ),
+      ).toBeNull();
+      expect(
+        await services.aiGradeJobService.hasPendingForStudent(
+          seed.testId,
+          seed.studentId,
+        ),
+      ).toBe(false);
+
+      // And no suggestion rows were saved
+      expect(
+        await services.aiGradeService.hasAnySuggestionsForStudent(
+          seed.testId,
+          seed.studentId,
+        ),
+      ).toBe(false);
+    });
+  }
+});

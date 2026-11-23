@@ -9,6 +9,7 @@ import {
   RunnerCreateOutcomeKind,
   type RunnerReadOutcome,
   RunnerReadOutcomeKind,
+  RunnerRefusedError,
 } from "src/lib/ai/background-claude-runner-client";
 import { buildRunnerGradingPrompt } from "src/lib/ai/runner-grading-prompt";
 import { parseRunnerGradingResult } from "src/lib/ai/runner-grading-result";
@@ -202,6 +203,7 @@ export class AiGradeService {
    * @returns AlreadyPending, without starting anything, when a job is still running for the submission.
    * @throws "Test not found" when the test isn't this school's.
    * @throws RunnerSettingsError when a runner setting is unusable.
+   * @throws RunnerRefusedError when the runner declines to create the job.
    */
   async startRound(request: StartRoundRequest): Promise<StartRoundOutcome> {
     await this.testService.requireTest(request.testId);
@@ -274,8 +276,9 @@ export class AiGradeService {
             fallbackCause: created.cause,
           };
         }
-        if (created.kind !== RunnerCreateOutcomeKind.Created) {
-          throw new Error(`Runner create ${created.kind}: ${created.cause}`);
+        // The caller's outer catch turns this into the pinned failure message.
+        if (created.kind === RunnerCreateOutcomeKind.Refused) {
+          throw new RunnerRefusedError(created.status);
         }
         const job = await this.jobService.create({
           courseId: request.courseId,

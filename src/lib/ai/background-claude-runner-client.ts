@@ -21,7 +21,22 @@ export enum RunnerCreateOutcomeKind {
 export type RunnerCreateOutcome =
   | { kind: RunnerCreateOutcomeKind.Created; jobId: string }
   | { kind: RunnerCreateOutcomeKind.Unreachable; cause: string }
-  | { kind: RunnerCreateOutcomeKind.Refused; cause: string };
+  | {
+      kind: RunnerCreateOutcomeKind.Refused;
+      status: number;
+      cause?: "bad_body";
+    };
+
+/** The runner refused to create a job; carries the status only, never a body or URL. */
+export class RunnerRefusedError extends Error {
+  /**
+   * @param status - The HTTP status the runner answered.
+   */
+  constructor(readonly status: number) {
+    super(`Runner refused job create: ${status}`);
+    this.name = "RunnerRefusedError";
+  }
+}
 
 /** Outcome kinds of reading a job from the runner. */
 export enum RunnerReadOutcomeKind {
@@ -48,6 +63,18 @@ export interface RunnerTimeouts {
 export interface RunnerClientOptions {
   fetch?: typeof globalThis.fetch;
   timeoutMs?: RunnerTimeouts;
+}
+
+/** A completed exchange: the status, plus the body text when the caller asked for it for that status. */
+interface RunnerExchange {
+  status: number;
+  text: string | null;
+}
+
+/** An exchange that failed at the network level or ran past its time limit. */
+interface RunnerExchangeFailure {
+  failed: true;
+  cause: string;
 }
 
 const DEFAULT_TIMEOUTS: RunnerTimeouts = { create: 15_000, read: 5_000 };
@@ -88,6 +115,8 @@ export class BackgroundClaudeRunnerClient {
         span.setAttribute("lms.ai.runner.create_outcome", outcome.kind);
         if (outcome.kind === RunnerCreateOutcomeKind.Created) {
           span.setAttribute("lms.ai.runner_job_id", outcome.jobId);
+        } else if (outcome.kind === RunnerCreateOutcomeKind.Refused) {
+          span.setAttribute("lms.ai.runner.refused_status", outcome.status);
         } else {
           span.setAttribute("lms.ai.runner.unreachable_cause", outcome.cause);
         }
@@ -144,24 +173,19 @@ export class BackgroundClaudeRunnerClient {
     path: string,
     schema: T,
   ): Promise<RunnerReadOutcome<z.infer<T>>> {
-    let response: Response;
-    // Same boundary as the create: only network and timeout failures become an outcome.
-    try {
-      response = await this.fetchImpl(`${this.settings.url}/api/jobs/${path}`, {
+    const exchange = await this.exchange(
+      `${this.settings.url}/api/jobs/${path}`,
+      {
         method: "GET",
         headers: { authorization: `Bearer ${this.settings.key}` },
-        redirect: "manual",
-        signal: AbortSignal.timeout(this.timeoutMs.read),
-      });
-    } catch (error) {
-      if (error instanceof Error && NETWORK_ERROR_NAMES.has(error.name)) {
-        return {
-          kind: RunnerReadOutcomeKind.Unreachable,
-          cause: error.name,
-        };
-      }
-      throw error;
+      },
+      this.timeoutMs.read,
+      (status) => status === 200,
+    );
+    if ("failed" in exchange) {
+      return { kind: RunnerReadOutcomeKind.Unreachable, cause: exchange.cause };
     }
+    const response = exchange;
 
     if (response.status === 404)
       return { kind: RunnerReadOutcomeKind.NotFound };
@@ -174,7 +198,7 @@ export class BackgroundClaudeRunnerClient {
         cause: `status_${response.status}`,
       };
     }
-    const body = jsonTextAs(schema).safeParse(await response.text());
+    const body = jsonTextAs(schema).safeParse(response.text ?? "");
     if (!body.success) {
       return { kind: RunnerReadOutcomeKind.Unreachable, cause: "bad_body" };
     }
@@ -182,44 +206,87 @@ export class BackgroundClaudeRunnerClient {
   }
 
   /**
+   * Sends one request and, when wanted, reads its body, all under one time limit.
+   * The time limit also covers the body, so a runner that sends headers and then
+   * stalls ends as a failure here instead of throwing out of the caller.
+   * This is the feature's intentional error boundary: only network and timeout
+   * failures become a result; anything else (e.g. the test fetch guard) rethrows loudly.
+   * @param url - The full request URL.
+   * @param init - Method, headers and body; redirects and the signal are set here.
+   * @param timeoutMs - The limit for the whole answer.
+   * @param wantsBody - Whether the body text is needed for this status.
+   */
+  private async exchange(
+    url: string,
+    init: RequestInit,
+    timeoutMs: number,
+    wantsBody: (status: number) => boolean,
+  ): Promise<RunnerExchange | RunnerExchangeFailure> {
+    try {
+      const response = await this.fetchImpl(url, {
+        ...init,
+        // A redirect is a status to classify, never followed.
+        redirect: "manual",
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      const text = wantsBody(response.status) ? await response.text() : null;
+      return { status: response.status, text };
+    } catch (error) {
+      if (error instanceof Error && NETWORK_ERROR_NAMES.has(error.name)) {
+        return { failed: true, cause: error.name };
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Sends the create request and classifies the answer.
    * @param prompt - The full grading prompt.
    */
   private async postJob(prompt: string): Promise<RunnerCreateOutcome> {
-    let response: Response;
-    // The feature's intentional error boundary: only network and timeout failures
-    // become an outcome; anything else (e.g. the test fetch guard) rethrows loudly.
-    try {
-      response = await this.fetchImpl(`${this.settings.url}/api/jobs`, {
+    const exchange = await this.exchange(
+      `${this.settings.url}/api/jobs`,
+      {
         method: "POST",
         headers: {
           authorization: `Bearer ${this.settings.key}`,
           "content-type": "application/json",
         },
-        // A redirect is a status to classify, never followed.
-        redirect: "manual",
         body: JSON.stringify({ prompt, options: { model: "sonnet" } }),
-        signal: AbortSignal.timeout(this.timeoutMs.create),
-      });
-    } catch (error) {
-      if (error instanceof Error && NETWORK_ERROR_NAMES.has(error.name)) {
-        return {
-          kind: RunnerCreateOutcomeKind.Unreachable,
-          cause: error.name,
-        };
-      }
-      throw error;
+      },
+      this.timeoutMs.create,
+      (status) => status === 201,
+    );
+    if ("failed" in exchange) {
+      return {
+        kind: RunnerCreateOutcomeKind.Unreachable,
+        cause: exchange.cause,
+      };
     }
+    const response = exchange;
 
-    if (response.status !== 201) {
+    // A 5xx may mean the runner never stored the job, so Gemini can still grade it.
+    if (response.status >= 500) {
       return {
         kind: RunnerCreateOutcomeKind.Unreachable,
         cause: `status_${response.status}`,
       };
     }
-    const reply = runnerCreateReplyTextSchema.safeParse(await response.text());
+    // Any other non-201 is the runner declining; a 2xx or 201 we cannot read may
+    // still hold a stored job, so grading on Gemini too would double-grade.
+    if (response.status !== 201) {
+      return {
+        kind: RunnerCreateOutcomeKind.Refused,
+        status: response.status,
+      };
+    }
+    const reply = runnerCreateReplyTextSchema.safeParse(response.text ?? "");
     if (!reply.success) {
-      return { kind: RunnerCreateOutcomeKind.Unreachable, cause: "bad_body" };
+      return {
+        kind: RunnerCreateOutcomeKind.Refused,
+        status: response.status,
+        cause: "bad_body",
+      };
     }
     return { kind: RunnerCreateOutcomeKind.Created, jobId: reply.data.id };
   }
