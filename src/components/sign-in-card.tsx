@@ -27,12 +27,14 @@ export function SignInShell({
   );
 }
 
-/** Centred card with logo tile, the page's single h1 and a subtitle. */
+/** Centred card with logo tile, the page's single h1, an optional line above it and a subtitle. */
 export function SignInCard({
+  eyebrow,
   title,
   subtitle,
   children,
 }: {
+  eyebrow?: string;
   title: string;
   subtitle?: string;
   children: ReactNode;
@@ -41,7 +43,12 @@ export function SignInCard({
     <section className="w-full max-w-[440px] rounded-xl border bg-card p-8 text-card-foreground shadow-sm">
       <div className="flex flex-col items-center text-center">
         <LogoTile className="size-11 rounded-xl" />
-        <h1 className="mt-5 text-[26px] font-bold">{title}</h1>
+        {eyebrow && (
+          <p className="mt-5 text-sm text-muted-foreground">{eyebrow}</p>
+        )}
+        <h1 className={`${eyebrow ? "mt-1" : "mt-5"} text-[26px] font-bold`}>
+          {title}
+        </h1>
         {subtitle && (
           <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
         )}

@@ -43,7 +43,7 @@ export function SelfSignupForm({ token }: { token: string }) {
       <input type="hidden" name="token" value={token} />
 
       <div className="space-y-2">
-        <Label htmlFor="name">Full Name</Label>
+        <Label htmlFor="name">Full name</Label>
         <Input
           id="name"
           name="name"
@@ -51,6 +51,7 @@ export function SelfSignupForm({ token }: { token: string }) {
           required
           autoComplete="name"
           disabled={isPending}
+          className="h-11"
         />
       </div>
 
@@ -63,7 +64,11 @@ export function SelfSignupForm({ token }: { token: string }) {
           required
           autoComplete="username"
           disabled={isPending}
+          className="h-11"
         />
+        <p className="text-xs text-muted-foreground">
+          You sign in with this, not an email.
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -76,7 +81,9 @@ export function SelfSignupForm({ token }: { token: string }) {
           minLength={8}
           autoComplete="new-password"
           disabled={isPending}
+          className="h-11"
         />
+        <p className="text-xs text-muted-foreground">At least 8 characters.</p>
       </div>
 
       {state && !state.success && (
@@ -94,8 +101,8 @@ export function SelfSignupForm({ token }: { token: string }) {
         </div>
       )}
 
-      <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? "Creating account…" : "Create Account"}
+      <Button type="submit" className="h-11 w-full" disabled={isPending}>
+        {isPending ? "Creating account…" : "Create account"}
       </Button>
     </form>
   );

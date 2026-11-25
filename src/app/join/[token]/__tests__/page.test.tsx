@@ -217,7 +217,7 @@ describe("Feature: the self-signup and Google join buttons are the same size", (
     await teardownTestDb();
   });
 
-  it("gives Create Account and Continue with Google the same data-size", async () => {
+  it("gives Create account and Continue with Google the same data-size", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Intro to Algorithms",
@@ -235,7 +235,7 @@ describe("Feature: the self-signup and Google join buttons are the same size", (
     render(ui);
 
     const createAccount = screen.getByRole("button", {
-      name: "Create Account",
+      name: "Create account",
     });
     const continueWithGoogle = screen.getByRole("button", {
       name: "Continue with Google",
@@ -392,11 +392,17 @@ describe("Feature: a signed-in student opening a valid invite link is offered to
     const token = await services.courseService.getOrCreateInviteToken(
       course.id,
     );
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-user-1",
+      username: "returning-student",
+      name: "Returning Student",
+      createdBy: "admin-1",
+    });
     mockGetSession.mockResolvedValue(
       new StudentSession({
         userId: "auth-user-1",
         username: "returning-student",
-        studentId: "student-1",
+        studentId: student.id,
         schoolId: TEST_SCHOOL_ID,
       }),
     );
@@ -408,11 +414,18 @@ describe("Feature: a signed-in student opening a valid invite link is offered to
     });
     render(ui);
 
-    // Then they see the request-to-join path, not the registration form
+    // Then they see who they are signed in as and the request-to-join path
+    expect(screen.getByText("Returning Student")).toBeInTheDocument();
+    expect(screen.getByText(/@returning-student/)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Request to Join" }),
+      screen.getByRole("heading", { name: "Join Intro to Algorithms?" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Request to join" }),
+    ).toBeInTheDocument();
+    // And no registration form and no header Sign in link
     expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
   });
 });
 
@@ -445,11 +458,18 @@ describe("Feature: a signed-in student of another school still sees the request-
     const token = await schoolServices.courseService.getOrCreateInviteToken(
       course.id,
     );
+    const student =
+      await getTestServices().studentService.createStudentDocument({
+        authUserId: "auth-user-1",
+        username: "school-a-student",
+        name: "School A Student",
+        createdBy: "admin-1",
+      });
     mockGetSession.mockResolvedValue(
       new StudentSession({
         userId: "auth-user-1",
         username: "school-a-student",
-        studentId: "student-1",
+        studentId: student.id,
         schoolId: TEST_SCHOOL_ID,
       }),
     );
@@ -461,7 +481,7 @@ describe("Feature: a signed-in student of another school still sees the request-
     render(ui);
 
     expect(
-      screen.getByRole("button", { name: "Request to Join" }),
+      screen.getByRole("button", { name: "Request to join" }),
     ).toBeInTheDocument();
   });
 });
@@ -585,5 +605,152 @@ describe("Feature: an identity already provisioned in another school is offered 
     ]);
     expect(await schoolServices.studentService.listStudents()).toHaveLength(0);
     expect(await defaultServices.studentService.listStudents()).toHaveLength(1);
+  });
+});
+
+/**
+ * Feature: a signed-out visitor opening a join link sees the shared sign-in
+ * card, with a header sign-in link for people who already have an account
+ */
+describe("Feature: the signed-out join page uses the shared sign-in card", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("shows the invite, the sign-up fields with hints, Google, and both Sign in links", async () => {
+    // Given a course with a live join link
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Python Basics A1",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+
+    // When a signed-out visitor opens it
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({}),
+    });
+    render(ui);
+
+    // Then the card names the invite and the course
+    expect(screen.getByText("You're invited to join")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Python Basics A1" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Create an account to ask to join."),
+    ).toBeInTheDocument();
+
+    // And the sign-up fields carry their hints
+    expect(screen.getByLabelText("Full name")).toBeInTheDocument();
+    expect(
+      screen.getByText("You sign in with this, not an email."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("At least 8 characters.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create account" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    ).toBeInTheDocument();
+
+    // And people with an account can sign in from the header or the card
+    expect(screen.getByText(/Already have an account\?/)).toBeInTheDocument();
+    const signInLinks = screen.getAllByRole("link", { name: "Sign in" });
+    expect(signInLinks).toHaveLength(2);
+    for (const link of signInLinks) {
+      expect(link).toHaveAttribute("href", "/student/login");
+    }
+  });
+});
+
+/**
+ * Feature: a visitor back from Google already holds a session, so the join
+ * page offers no header sign-in link
+ */
+describe("Feature: the join page hides the header Sign in link after a Google round trip", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("shows no Sign in link once the Google identity is provisioned", async () => {
+    // Given a course with a live join link and a caller back from Google
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Python Basics A1",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    mockResolveUnclassifiedIdentity.mockResolvedValue({
+      authUserId: "provisioned-google-id",
+      email: "olive.lee@gmail.com",
+      name: "Olive Lee",
+    });
+
+    // When the page provisions them
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({ google: "1" }),
+    });
+    render(ui);
+
+    // Then they are told the request is waiting, with no Sign in link
+    expect(screen.getByText(/waiting for admin approval/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
+  });
+
+  it("shows no Sign in link while they choose a username", async () => {
+    // Given a course with a live join link, and the Google-derived username
+    // already held by someone else
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Python Basics A1",
+      description: "",
+      createdBy: "admin-1",
+    });
+    const token = await services.courseService.getOrCreateInviteToken(
+      course.id,
+    );
+    await services.studentService.createStudentDocument({
+      authUserId: "someone-else-id",
+      username: "olive.lee",
+      name: "Another Olive",
+      createdBy: "admin-1",
+    });
+    mockResolveUnclassifiedIdentity.mockResolvedValue({
+      authUserId: "needs-username-google-id",
+      email: "olive.lee@gmail.com",
+      name: "Olive Lee",
+    });
+
+    // When the page renders after the Google round trip
+    const ui = await JoinPage({
+      params: Promise.resolve({ token }),
+      searchParams: Promise.resolve({ google: "1" }),
+    });
+    render(ui);
+
+    // Then they are asked for a username, with no Sign in link
+    expect(
+      screen.getByRole("heading", {
+        name: "Choose a username to finish joining with Google",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
   });
 });

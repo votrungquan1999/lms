@@ -347,7 +347,7 @@ export async function requestToJoinAction(
 
         return {
           success: true,
-          message: `Your request to join "${course.title}" is now waiting for admin approval.`,
+          message: `Your request to join "${course.title}" is now waiting for your teacher to approve.`,
         };
       },
     );

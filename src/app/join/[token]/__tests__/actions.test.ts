@@ -1120,7 +1120,7 @@ describe("Feature: a signed-in student can ask to join a course in another schoo
     // Then the request waits for approval in the invite's school only
     expect(result).toEqual({
       success: true,
-      message: `Your request to join "Geometry" is now waiting for admin approval.`,
+      message: `Your request to join "Geometry" is now waiting for your teacher to approve.`,
     });
     const requests = await db
       .collection<CourseJoinRequestDocument>("course_join_request")

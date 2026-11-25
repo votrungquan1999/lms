@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import Link from "next/link";
+import { OrDivider, SignInShell } from "src/components/sign-in-card";
 import { getAuthService } from "src/lib/auth-singleton";
 import {
   deriveUsername,
@@ -13,7 +15,12 @@ import {
 import { isStudentSession } from "src/lib/session";
 import { GoogleJoinButton } from "./google-join-button";
 import { GoogleUsernameForm } from "./google-username-form";
-import { InvalidInviteCard, ValidInviteCard } from "./join-page.ui";
+import {
+  HeaderSignInLink,
+  InvalidInviteCard,
+  JoinStateCard,
+  ValidInviteCard,
+} from "./join-page.ui";
 import { RequestToJoinForm } from "./request-to-join-form";
 import { SelfSignupForm } from "./self-signup-form";
 
@@ -42,9 +49,9 @@ export default async function JoinPage({
 
   if (!invite) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
+      <SignInShell>
         <InvalidInviteCard />
-      </main>
+      </SignInShell>
     );
   }
   const { course, schoolId } = invite;
@@ -60,12 +67,17 @@ export default async function JoinPage({
   // recorded STUDENT.
   const session = await authService.getSession(requestHeaders);
   if (session && isStudentSession(session)) {
+    // The session carries no display name, so read it from the student record.
+    const student = await schoolDirectory.findByUsername(session.username);
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
-        <ValidInviteCard title={course.title}>
-          <RequestToJoinForm token={token} />
-        </ValidInviteCard>
-      </main>
+      <SignInShell>
+        <RequestToJoinForm
+          token={token}
+          courseTitle={course.title}
+          name={student?.name ?? session.username}
+          username={session.username}
+        />
+      </SignInShell>
     );
   }
 
@@ -108,10 +120,24 @@ export default async function JoinPage({
     }
   }
 
-  return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <ValidInviteCard title={course.title}>
-        {googleOutcome === GoogleProvisionOutcome.Provisioned ? (
+  // Back from Google the caller holds a session, so no header Sign in link.
+  if (googleOutcome === GoogleProvisionOutcome.NeedsUsername) {
+    return (
+      <SignInShell>
+        <JoinStateCard>
+          <GoogleUsernameForm
+            token={token}
+            suggestedUsername={suggestedUsername}
+          />
+        </JoinStateCard>
+      </SignInShell>
+    );
+  }
+
+  if (googleOutcome === GoogleProvisionOutcome.Provisioned) {
+    return (
+      <SignInShell>
+        <ValidInviteCard title={course.title}>
           <output className="block text-sm text-muted-foreground">
             Signed in with Google. Your request to join &quot;{course.title}
             &quot; is now waiting for admin approval.{" "}
@@ -120,19 +146,31 @@ export default async function JoinPage({
             </a>
             .
           </output>
-        ) : googleOutcome === GoogleProvisionOutcome.NeedsUsername ? (
-          <GoogleUsernameForm
-            token={token}
-            suggestedUsername={suggestedUsername}
-          />
-        ) : (
-          <div className="space-y-4">
-            <SelfSignupForm token={token} />
-            <p className="text-center text-sm text-muted-foreground">or</p>
-            <GoogleJoinButton token={token} />
-          </div>
-        )}
+        </ValidInviteCard>
+      </SignInShell>
+    );
+  }
+
+  return (
+    <SignInShell headerRight={<HeaderSignInLink />}>
+      <ValidInviteCard
+        title={course.title}
+        subtitle="Create an account to ask to join."
+      >
+        <div className="space-y-4">
+          <SelfSignupForm token={token} />
+          <OrDivider />
+          <GoogleJoinButton token={token} />
+          <p className="text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link href="/student/login" className="text-primary underline">
+              Sign in
+            </Link>
+            ,<br />
+            then open this link again.
+          </p>
+        </div>
       </ValidInviteCard>
-    </main>
+    </SignInShell>
   );
 }

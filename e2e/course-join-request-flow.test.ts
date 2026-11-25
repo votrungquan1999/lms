@@ -72,12 +72,12 @@ test.describe("Course Join Request Flow", () => {
     await page.goto(`${BASE_URL}${inviteJoinPath}`);
 
     // Then the course invite is shown with a registration form, not a login screen
-    // (ValidInviteCard's title is shadcn's CardTitle — a styled div, not a
-    // semantic heading — so this asserts by text, not role)
     await expect(page.getByText("You're invited to join")).toBeVisible();
-    await expect(page.getByText(COURSE_TITLE)).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Create Account" }),
+      page.getByRole("heading", { name: COURSE_TITLE }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Create account" }),
     ).toBeVisible();
     expect(page.url()).toContain(inviteJoinPath);
 
@@ -94,10 +94,10 @@ test.describe("Course Join Request Flow", () => {
     await page.goto(`${BASE_URL}${inviteJoinPath}`);
 
     // When filling out the registration form
-    await page.getByLabel("Full Name").fill(STUDENT_NAME);
+    await page.getByLabel("Full name").fill(STUDENT_NAME);
     await page.getByLabel("Username").fill(STUDENT_USERNAME);
     await page.getByLabel("Password").fill(STUDENT_PASSWORD);
-    await page.getByRole("button", { name: "Create Account" }).click();
+    await page.getByRole("button", { name: "Create account" }).click();
 
     // Then the account is created and a pending request is filed for this course
     await expect(
@@ -105,7 +105,10 @@ test.describe("Course Join Request Flow", () => {
         `Your request to join "${COURSE_TITLE}" is now waiting for admin approval.`,
       ),
     ).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+    // the header and the "Already have an account?" line link there too
+    await expect(
+      page.locator("output").getByRole("link", { name: "Sign in" }),
+    ).toBeVisible();
 
     await context.close();
   });

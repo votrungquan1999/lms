@@ -164,7 +164,7 @@ test.describe("entry — logged out", () => {
     await page.goto(joinPath);
     await expect(page.getByText("You're invited to join")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Create Account" }),
+      page.getByRole("button", { name: "Create account" }),
     ).toBeVisible();
     await snap(page, "entry/join-valid-token", {
       sources: [

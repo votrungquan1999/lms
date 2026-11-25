@@ -55,9 +55,9 @@ export function GoogleUsernameForm({
     >
       <input type="hidden" name="token" value={token} />
 
-      <p className="text-sm text-muted-foreground">
-        Choose a username to finish joining with Google.
-      </p>
+      <h1 className="text-xl font-bold">
+        Choose a username to finish joining with Google
+      </h1>
 
       <div className="space-y-2">
         <Label htmlFor="google-username">Username</Label>
@@ -69,6 +69,8 @@ export function GoogleUsernameForm({
           defaultValue={suggestedUsername}
           autoComplete="username"
           disabled={isPending}
+          className="h-11"
+          aria-invalid={state && !state.success ? "true" : undefined}
         />
       </div>
 
@@ -87,7 +89,7 @@ export function GoogleUsernameForm({
         </div>
       )}
 
-      <Button type="submit" className="w-full" disabled={isPending}>
+      <Button type="submit" className="h-11 w-full" disabled={isPending}>
         {isPending ? "Finishing…" : "Finish joining"}
       </Button>
     </form>

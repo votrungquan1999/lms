@@ -26,15 +26,15 @@ describe("Feature: a refused self-signup keeps what was typed", () => {
 
     render(<SelfSignupForm token="tok-1" />);
 
-    await user.type(screen.getByLabelText("Full Name"), "Alice Smith");
+    await user.type(screen.getByLabelText("Full name"), "Alice Smith");
     await user.type(screen.getByLabelText("Username"), "alice");
     await user.type(screen.getByLabelText("Password"), "hunter2pass");
-    await user.click(screen.getByRole("button", { name: "Create Account" }));
+    await user.click(screen.getByRole("button", { name: "Create account" }));
     await screen.findByRole("alert");
 
     // Read right after the refusal — retyping into a stale value would
     // append rather than replace, masking a real reset.
-    expect(screen.getByLabelText("Full Name")).toHaveValue("Alice Smith");
+    expect(screen.getByLabelText("Full name")).toHaveValue("Alice Smith");
     expect(screen.getByLabelText("Username")).toHaveValue("alice");
     expect(screen.getByLabelText("Password")).toHaveValue("hunter2pass");
   });
@@ -56,10 +56,10 @@ describe("Feature: a sign-up refused because the invite died mid-form offers a w
 
     render(<SelfSignupForm token="tok-1" />);
 
-    await user.type(screen.getByLabelText("Full Name"), "Alice Smith");
+    await user.type(screen.getByLabelText("Full name"), "Alice Smith");
     await user.type(screen.getByLabelText("Username"), "alice");
     await user.type(screen.getByLabelText("Password"), "hunter2pass");
-    await user.click(screen.getByRole("button", { name: "Create Account" }));
+    await user.click(screen.getByRole("button", { name: "Create account" }));
     await screen.findByRole("alert");
 
     expect(
@@ -81,10 +81,10 @@ describe("Feature: a sign-up refused because the invite died mid-form offers a w
 
     render(<SelfSignupForm token="tok-1" />);
 
-    await user.type(screen.getByLabelText("Full Name"), "Alice Smith");
+    await user.type(screen.getByLabelText("Full name"), "Alice Smith");
     await user.type(screen.getByLabelText("Username"), "alice");
     await user.type(screen.getByLabelText("Password"), "hunter2pass");
-    await user.click(screen.getByRole("button", { name: "Create Account" }));
+    await user.click(screen.getByRole("button", { name: "Create account" }));
     await screen.findByRole("alert");
 
     expect(

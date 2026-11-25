@@ -1,35 +1,32 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { SignInCard } from "src/components/sign-in-card";
 import { Button } from "src/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "src/components/ui/card";
 
 /**
  * Shown when the token resolves to a course with a live invite link.
  * @param title - The title of the course the token invites the visitor to join.
+ * @param subtitle - Optional line under the title (the sign-up state's prompt).
  * @param children - The self-signup form, composed in by the server page —
  * this component stays a plain display shell (component-library.md).
  */
 export function ValidInviteCard({
   title,
+  subtitle,
   children,
 }: {
   title: string;
+  subtitle?: string;
   children?: ReactNode;
 }) {
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardDescription>You&apos;re invited to join</CardDescription>
-        <CardTitle className="text-xl">{title}</CardTitle>
-      </CardHeader>
-      {children && <CardContent>{children}</CardContent>}
-    </Card>
+    <SignInCard
+      eyebrow="You're invited to join"
+      title={title}
+      subtitle={subtitle}
+    >
+      {children}
+    </SignInCard>
   );
 }
 
@@ -40,18 +37,25 @@ export function ValidInviteCard({
  */
 export function InvalidInviteCard() {
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle className="text-xl">Invitation no longer valid</CardTitle>
-        <CardDescription>
-          This join link is no longer valid. Ask whoever shared it with you for
-          a new one.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex gap-3">
+    <JoinStateCard>
+      <h1 className="text-xl font-bold">Invitation no longer valid</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        This join link is no longer valid. Ask whoever shared it with you for a
+        new one.
+      </p>
+      <div className="mt-6 flex gap-3">
         <InviteRecoveryLinks />
-      </CardContent>
-    </Card>
+      </div>
+    </JoinStateCard>
+  );
+}
+
+/** Plain left-aligned card for the join states that have no logo header. */
+export function JoinStateCard({ children }: { children: ReactNode }) {
+  return (
+    <section className="w-full max-w-[440px] rounded-xl border bg-card p-8 text-card-foreground shadow-sm">
+      {children}
+    </section>
   );
 }
 
@@ -62,12 +66,21 @@ export function InvalidInviteCard() {
 export function InviteRecoveryLinks() {
   return (
     <>
-      <Button asChild>
+      <Button asChild className="h-11">
         <Link href="/student/login">Student sign in</Link>
       </Button>
-      <Button asChild variant="outline">
+      <Button asChild variant="outline" className="h-11">
         <Link href="/">Home</Link>
       </Button>
     </>
+  );
+}
+
+/** Header link for visitors who already have an account. */
+export function HeaderSignInLink() {
+  return (
+    <Button asChild variant="outline" className="h-10">
+      <Link href="/student/login">Sign in</Link>
+    </Button>
   );
 }

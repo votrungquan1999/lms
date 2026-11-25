@@ -98,7 +98,9 @@ test.describe("Google sign-in on a course invite link", () => {
 
     // Then they are asked to choose a username
     await expect(
-      studentPage.getByText("Choose a username to finish joining with Google."),
+      studentPage.getByRole("heading", {
+        name: "Choose a username to finish joining with Google",
+      }),
     ).toBeVisible({ timeout: 10000 });
 
     // When they pick one and finish
