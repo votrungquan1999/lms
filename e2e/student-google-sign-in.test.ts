@@ -198,4 +198,53 @@ test.describe("Student sign-in card", () => {
 
     await context.close();
   });
+
+  test("a Google account with no student profile sees Account not set up and can sign out", async ({
+    browser,
+  }) => {
+    // Given a Google account that never joined a course (no student profile)
+    const { cookies } = await signUpAccount(
+      browser,
+      `never-joined-${Date.now()}@example.com`,
+    );
+
+    // And a signed-out visitor on the student login card
+    const context = await browser.newContext({ storageState: undefined });
+    const page = await context.newPage();
+    await fakeGoogleRoundTrip(page, cookies);
+    await page.goto(`${BASE_URL}/student/login`);
+    await expect(
+      page.getByRole("heading", { name: "Student sign in" }),
+    ).toBeVisible();
+
+    // When they continue with Google
+    const google = page.getByRole("button", { name: "Continue with Google" });
+    await hydrated(google);
+    await google.click();
+
+    // Then they are told the account isn't set up, with a way out
+    await expect(
+      page.getByRole("heading", { name: "Account not set up" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("This account isn't set up for this school yet."),
+    ).toBeVisible();
+
+    // When they sign out
+    const signOut = page.getByRole("button", { name: "Sign out" });
+    // the redirect back is not awaited like goto, so a click can land before React hydrates and be dropped
+    await hydrated(signOut);
+    await signOut.click();
+    // client-side navigation: no load event, so assert the URL instead of waiting for one
+    await expect(page).toHaveURL(`${BASE_URL}/`);
+
+    // Then the student login shows the sign-in card again
+    await page.goto(`${BASE_URL}/student/login`);
+    await expect(
+      page.getByRole("heading", { name: "Student sign in" }),
+    ).toBeVisible();
+    await expect(page.getByText("Account not set up")).toHaveCount(0);
+
+    await context.close();
+  });
 });

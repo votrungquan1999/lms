@@ -1,14 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { LogoutButton } from "src/app/logout-button";
-import { SignInShell } from "src/components/sign-in-card";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "src/components/ui/card";
+import { SignInCard, SignInShell } from "src/components/sign-in-card";
 import { LoginEntryState } from "src/lib/auth-service";
 import { getAuthService } from "src/lib/auth-singleton";
 import { StudentLoginForm } from "./student-login-form";
@@ -48,19 +41,16 @@ export default async function StudentLoginPage({
 
   if (entryState === LoginEntryState.Unclassified) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Account Not Set Up</CardTitle>
-            <CardDescription>
-              This account isn&apos;t set up for this school yet.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+      <SignInShell>
+        <SignInCard
+          title="Account not set up"
+          subtitle="This account isn't set up for this school yet."
+        >
+          <div className="grid justify-center">
             <LogoutButton />
-          </CardContent>
-        </Card>
-      </main>
+          </div>
+        </SignInCard>
+      </SignInShell>
     );
   }
 
