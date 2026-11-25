@@ -24,6 +24,7 @@ import { EnrollmentService } from "../src/lib/enrollment-service";
 import { GradeService } from "../src/lib/grade-service";
 import { GradeVisibilityService } from "../src/lib/grade-visibility-service";
 import { QuestionService } from "../src/lib/question-service";
+import { RedoRequestService } from "../src/lib/redo-request-service";
 import { SchoolDirectory } from "../src/lib/school-directory";
 import { StudentService } from "../src/lib/student-service";
 import type { TestDocument } from "../src/lib/test-service";
@@ -283,6 +284,7 @@ async function main() {
       gradeService,
       testService,
       testStartService,
+      new RedoRequestService(db, testService),
     );
 
     await ensureTest(db, schoolId);

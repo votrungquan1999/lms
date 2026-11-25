@@ -373,6 +373,13 @@ export async function submitTestAction(
         );
         if (activeRedo) {
           await testSubmissionService.deleteSubmission(testId, studentId);
+        } else if (
+          await testSubmissionService.isTestSubmitted(testId, studentId)
+        ) {
+          // The server already handed in at the deadline; the browser's late submit is moot.
+          revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
+          revalidatePath(`/student/courses/${courseId}`);
+          return { success: true, message: "Test submitted for grading" };
         }
 
         await testSubmissionService.submitTest(testId, studentId);

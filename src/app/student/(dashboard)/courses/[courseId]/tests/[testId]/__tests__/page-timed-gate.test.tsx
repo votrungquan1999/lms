@@ -230,6 +230,30 @@ describe("Student timed test — Start gate", () => {
     expect(screen.getByText(/time remaining/i)).toBeInTheDocument();
   });
 
+  it("shows a timed test whose time ran out as handed in on the first render, with no Submit button or countdown", async () => {
+    // Given a 30-minute test the student started two hours ago and never handed in
+    const { courseId, testId, studentId, s } = await seedTest(30);
+    await s.testStartService.recordStart(
+      testId,
+      studentId,
+      new Date(Date.now() - 2 * 60 * 60_000),
+    );
+    mockStudentSession(studentId);
+
+    // When the student opens the test page
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId, testId }),
+    });
+    render(ui);
+
+    // Then this very render already shows the blank hand-in as graded
+    expect(screen.getByText("Graded")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Submit Test for Grading" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/time remaining/i)).not.toBeInTheDocument();
+  });
+
   it("shows the questions immediately with no Start control for an untimed test", async () => {
     // Given an untimed test (no time limit) the student has not started.
     const { courseId, testId, studentId } = await seedTest(null);

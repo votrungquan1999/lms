@@ -103,12 +103,13 @@ export class ResultsReportAssembler {
       if (!test) continue;
 
       const questions = await this.questionService.listQuestions(testId);
-      const score = await this.gradeService.getAverageScore(testId, studentId);
+      // Status first: it hands in an expired attempt, so the score below sees it.
       const status = await this.testStatusService.getStatus(
         testId,
         studentId,
         questions.length,
       );
+      const score = await this.gradeService.getAverageScore(testId, studentId);
       const overallFeedback = await this.testFeedbackService.getTestFeedback(
         testId,
         studentId,

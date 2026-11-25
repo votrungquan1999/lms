@@ -1,4 +1,5 @@
 import type { Db } from "mongodb";
+import type { SingleSelectQuestion } from "src/lib/question-service";
 import { TestStatusService } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
@@ -8,7 +9,7 @@ import { describe, expect, it } from "vitest";
 
 const dbIt = withTestDb(it);
 
-function makeServices(db: Db) {
+function makeServices(db: Db, now?: () => Date) {
   const {
     answerService,
     gradeService,
@@ -16,7 +17,7 @@ function makeServices(db: Db) {
     testStartService,
     testService,
     questionService,
-  } = buildCoreServices(db);
+  } = buildCoreServices(db, { now });
   const testStatusService = new TestStatusService(
     answerService,
     testSubmissionService,
@@ -819,6 +820,101 @@ describe("TestStatusService", () => {
 
       // Then: the active start record alone still counts as In Progress.
       expect(timedStatus).toBe("in_progress");
+    },
+  );
+
+  dbIt(
+    "hands in a timed attempt whose time ran out, so the status reads graded",
+    async ({ db }) => {
+      // Given a started 30-minute test with a saved answer, two hours on
+      const startedAt = new Date("2026-05-30T10:00:00.000Z");
+      let now = new Date(startedAt.getTime() + 10 * 60_000);
+      const s = makeServices(db, () => now);
+      await insertRawCourses(db, ["course-1"]);
+      const test = await s.testService.createTest("course-1", {
+        title: "Timed",
+        description: "",
+        createdBy: "admin",
+      });
+      await s.testService.updateTestSettings(test.id, {
+        showGradeAfterSubmit: true,
+        showCorrectAnswerAfterSubmit: true,
+        timeLimitMinutes: 30,
+        isPractice: false,
+        answerRevealMode: "diff",
+        updatedBy: "admin",
+      });
+      const question = (await s.questionService.addQuestion(test.id, {
+        title: "Q?",
+        content: "Choose.",
+        createdBy: "admin",
+        type: "single_select",
+        options: [
+          { text: "A", isCorrect: false },
+          { text: "B", isCorrect: true },
+        ],
+      })) as SingleSelectQuestion;
+      await s.testStartService.recordStart(test.id, "student-1", startedAt);
+      await s.answerService.submitAnswer({
+        testId: test.id,
+        questionId: question.id,
+        studentId: "student-1",
+        answer: {
+          type: "mc",
+          selectedIds: [question.options.find((o) => o.isCorrect)?.id ?? ""],
+        },
+      });
+      now = new Date(startedAt.getTime() + 2 * 60 * 60_000);
+
+      // When the status is looked up
+      const status = await s.testStatusService.getStatus(
+        test.id,
+        "student-1",
+        1,
+      );
+
+      // Then the attempt was handed in and graded
+      expect(status).toBe("graded");
+    },
+  );
+
+  dbIt(
+    "never hands in an expired timed test that has no questions",
+    async ({ db }) => {
+      // Given a started 30-minute test with no questions, two hours on
+      const startedAt = new Date("2026-05-30T10:00:00.000Z");
+      const s = makeServices(
+        db,
+        () => new Date(startedAt.getTime() + 2 * 60 * 60_000),
+      );
+      await insertRawCourses(db, ["course-1"]);
+      const test = await s.testService.createTest("course-1", {
+        title: "Timed",
+        description: "",
+        createdBy: "admin",
+      });
+      await s.testService.updateTestSettings(test.id, {
+        showGradeAfterSubmit: true,
+        showCorrectAnswerAfterSubmit: true,
+        timeLimitMinutes: 30,
+        isPractice: false,
+        answerRevealMode: "diff",
+        updatedBy: "admin",
+      });
+      await s.testStartService.recordStart(test.id, "student-1", startedAt);
+
+      // When the status is looked up
+      const status = await s.testStatusService.getStatus(
+        test.id,
+        "student-1",
+        0,
+      );
+
+      // Then it stays not started and no blank attempt is recorded
+      expect(status).toBe("not_started");
+      expect(
+        await s.testSubmissionService.isTestSubmitted(test.id, "student-1"),
+      ).toBe(false);
     },
   );
 });

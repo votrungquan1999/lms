@@ -78,6 +78,14 @@ export async function GradingDetailStudent({
   const questions = await questionService.listQuestions(testId);
   const liveQuestionIds = new Set(questions.map((q) => q.id));
 
+  // Status first: it hands in an expired attempt, so the grades and redo read below see it.
+  const testStatusService = await getTestStatusService(schoolId);
+  const status = await testStatusService.getStatus(
+    testId,
+    student.id,
+    questions.length,
+  );
+
   const answerService = await getAnswerService(schoolId);
   // A question can be deleted after a student answers it — that answer must
   // not keep counting toward progress/status once the question is gone.
@@ -126,13 +134,6 @@ export async function GradingDetailStudent({
   const activeRedoRequest = await redoRequestService.getActiveRedoRequest(
     testId,
     student.id,
-  );
-
-  const testStatusService = await getTestStatusService(schoolId);
-  const status = await testStatusService.getStatus(
-    testId,
-    student.id,
-    questions.length,
   );
 
   const testSubmissionService = await getTestSubmissionService(schoolId);

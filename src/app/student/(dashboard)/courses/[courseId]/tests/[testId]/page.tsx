@@ -111,6 +111,16 @@ export default async function StudentTestDetailPage({
     ]),
   );
 
+  // First per-student submission read: the status lookup hands in an expired
+  // attempt, so the reads below see the hand-in.
+  // ── Compute test status for atomic-reveal visibility checks ──────────────
+  const testStatusService = await getTestStatusService(session.schoolId);
+  const testStatus = await testStatusService.getStatus(
+    testId,
+    session.studentId,
+    questions.length,
+  );
+
   // Hoisted above the scrub below so its graded-view disjunct can consult
   // submission/grading state — each of these depends only on
   // testId/studentId/questions.length, never on the scrub's own output.
@@ -120,14 +130,6 @@ export default async function StudentTestDetailPage({
   const isSubmitted = await testSubmissionService.isTestSubmitted(
     testId,
     session.studentId,
-  );
-
-  // ── Compute test status for atomic-reveal visibility checks ──────────────
-  const testStatusService = await getTestStatusService(session.schoolId);
-  const testStatus = await testStatusService.getStatus(
-    testId,
-    session.studentId,
-    questions.length,
   );
 
   // Same reveal rule the grade lookups below apply; the blank-question

@@ -9,6 +9,7 @@ const {
   getTest,
   findByAuthUserId,
   submitTest,
+  isTestSubmitted,
 } = vi.hoisted(() => ({
   requireStudentSession: vi.fn(),
   isEnrolled: vi.fn(),
@@ -18,6 +19,7 @@ const {
   // file's existing happy-path rows keep passing.
   getTest: vi.fn(async () => ({ courseId: "course-1" })),
   submitTest: vi.fn(),
+  isTestSubmitted: vi.fn(async () => false),
   findByAuthUserId: vi.fn(async () => ({
     schoolIds: ["school-a", "school-b"],
   })),
@@ -35,6 +37,7 @@ vi.mock("src/lib/services-singleton", () => ({
   getAnswerService: vi.fn(async () => ({ submitAnswer })),
   getTestSubmissionService: vi.fn(async () => ({
     submitTest,
+    isTestSubmitted,
     deleteSubmission: vi.fn(),
   })),
   getRedoRequestService: vi.fn(async () => ({
@@ -391,5 +394,28 @@ describe("submitTestAction — stale school tab", () => {
     // Then the test is submitted for grading.
     expect(result.success).toBe(true);
     expect(submitTest).toHaveBeenCalledWith("test-1", "stu-1");
+  });
+
+  it("treats a late hand-in as done when the server already handed the test in", async () => {
+    // Given the server handed the test in at the deadline, so a second submit would be refused.
+    requireStudentSession.mockResolvedValueOnce(STUDENT_IN_A);
+    isEnrolled.mockResolvedValueOnce(true);
+    isTestSubmitted.mockResolvedValueOnce(true);
+    submitTest.mockRejectedValueOnce(
+      new Error("Test has already been submitted"),
+    );
+
+    // When the browser's late hand-in posts.
+    const result = await submitTestAction(null, submitTestFormData());
+
+    // Then the student sees success and the test page is refreshed to the result.
+    expect(result).toEqual({
+      success: true,
+      message: "Test submitted for grading",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/student/courses/course-1/tests/test-1",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/student/courses/course-1");
   });
 });

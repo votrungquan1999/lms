@@ -1,7 +1,8 @@
-import type { Collection, Db } from "mongodb";
+import { type Collection, type Db, MongoServerError } from "mongodb";
 
 import { isPastEnforcementDeadline } from "./enforcement-deadline";
 import type { GradeService } from "./grade-service";
+import type { RedoRequestService } from "./redo-request-service";
 import type { TestService } from "./test-service";
 import type { TestStartService } from "./test-start-service";
 
@@ -50,6 +51,7 @@ export class TestSubmissionService {
     private readonly gradeService: GradeService,
     private readonly testService: TestService,
     private readonly testStartService: TestStartService,
+    private readonly redoRequestService: RedoRequestService,
     private readonly now: () => Date = () => new Date(),
   ) {
     this.testSubmissions =
@@ -61,7 +63,6 @@ export class TestSubmissionService {
    * - "Test not found" if the test doesn't exist in this service's school.
    * - "Test has already been submitted" if the test already has an active
    *   (non-soft-deleted) submission.
-   * - "Time limit exceeded" if a timed attempt is past its enforcement deadline.
    */
   async submitTest(testId: string, studentId: string): Promise<void> {
     // Resolve the test before anything else — a missing test must never
@@ -77,30 +78,157 @@ export class TestSubmissionService {
       throw new Error("Test has already been submitted");
     }
 
+    // Past deadline + grace the hand-in is still accepted, recorded at the
+    // deadline: the attempt ended then, and the saved answers are what counts.
     const start = await this.testStartService.getActiveStart(testId, studentId);
-    if (
+    const submittedAt =
+      start &&
+      test.timeLimitMinutes !== null &&
       isPastEnforcementDeadline(
-        start?.startedAt ?? null,
+        start.startedAt,
         test.timeLimitMinutes,
         this.now(),
       )
-    ) {
-      throw new Error("Time limit exceeded");
-    }
+        ? new Date(start.startedAt.getTime() + test.timeLimitMinutes * 60_000)
+        : new Date();
 
-    await this.testSubmissions.insertOne({
-      id: crypto.randomUUID(),
-      testId,
-      studentId,
-      submittedAt: new Date(),
-      deletedAt: null,
-      releasedAt: null,
-      releasedBy: null,
-    });
+    try {
+      await this.testSubmissions.insertOne({
+        id: crypto.randomUUID(),
+        testId,
+        studentId,
+        submittedAt,
+        deletedAt: null,
+        releasedAt: null,
+        releasedBy: null,
+      });
+    } catch (error) {
+      // The unique index refused a hand-in that raced past the check above.
+      if (error instanceof MongoServerError && error.code === 11000) {
+        throw new Error("Test has already been submitted");
+      }
+      throw error;
+    }
 
     // Practice tests are purely formative — never create grades (D2/D9).
     if (!test.isPractice) {
       await this.gradeService.autoGradeTest(testId, studentId);
+    }
+  }
+
+  /**
+   * Hands in a timed attempt whose time ran out without a hand-in, with the
+   * answers saved so far, stamped at the deadline (not at the moment someone
+   * opens a page). Does nothing for an untimed test, an attempt that has not
+   * started, or one still inside deadline + grace (the browser's own hand-in
+   * at 00:00 gets that minute).
+   */
+  async handInIfExpired(testId: string, studentId: string): Promise<void> {
+    // Null-safe: status lookups run for tests that may be gone.
+    const test = await this.testService.getTest(testId);
+    if (!test || test.timeLimitMinutes === null) return;
+
+    const start = await this.testStartService.getActiveStart(testId, studentId);
+    if (
+      !start ||
+      !isPastEnforcementDeadline(
+        start.startedAt,
+        test.timeLimitMinutes,
+        this.now(),
+      )
+    ) {
+      return;
+    }
+
+    // A redo with an expired start (an attempt the redo never restarted) replaces the old hand-in.
+    const redo = await this.redoRequestService.getActiveRedoRequest(
+      testId,
+      studentId,
+    );
+    const submittedAt = new Date(
+      start.startedAt.getTime() + test.timeLimitMinutes * 60_000,
+    );
+    let wrote: boolean;
+    if (redo) {
+      // Only the caller that wins the claim replaces the old hand-in; the rest see it as handed in.
+      const claimed = await this.redoRequestService.claimActiveRedoRequest(
+        testId,
+        studentId,
+      );
+      if (!claimed) return;
+      wrote = await this.replaceActive(testId, studentId, submittedAt);
+    } else if (await this.isTestSubmitted(testId, studentId)) {
+      return;
+    } else {
+      wrote = await this.insertIfAbsent(testId, studentId, submittedAt);
+    }
+    // Only the call that wrote the row grades, so concurrent callers never double-grade.
+    if (wrote && !test.isPractice) {
+      await this.gradeService.autoGradeTest(testId, studentId);
+    }
+  }
+
+  /**
+   * Swaps the active hand-in for a fresh one in a single write, so a page
+   * arriving mid-swap never finds the student without an active row. The
+   * replaced attempt is kept as a soft-deleted row. With no active row it
+   * falls back to a plain insert.
+   * @returns True only when this call wrote the new hand-in.
+   */
+  private async replaceActive(
+    testId: string,
+    studentId: string,
+    submittedAt: Date,
+  ): Promise<boolean> {
+    const replaced = await this.testSubmissions.findOneAndUpdate(
+      { testId, studentId, deletedAt: null },
+      {
+        $set: {
+          id: crypto.randomUUID(),
+          submittedAt,
+          releasedAt: null,
+          releasedBy: null,
+        },
+      },
+      { returnDocument: "before" },
+    );
+    if (!replaced) return this.insertIfAbsent(testId, studentId, submittedAt);
+    // The old attempt keeps its own id and release audit as a soft-deleted row.
+    const { _id, ...history } = replaced;
+    await this.testSubmissions.insertOne({ ...history, deletedAt: new Date() });
+    return true;
+  }
+
+  /**
+   * Records an active submission unless one exists. A duplicate-key refusal
+   * from the unique index counts as "already handed in".
+   * @returns True only when this call wrote the row.
+   */
+  private async insertIfAbsent(
+    testId: string,
+    studentId: string,
+    submittedAt: Date,
+  ): Promise<boolean> {
+    try {
+      const result = await this.testSubmissions.updateOne(
+        { testId, studentId, deletedAt: null },
+        {
+          $setOnInsert: {
+            id: crypto.randomUUID(),
+            submittedAt,
+            deletedAt: null,
+            releasedAt: null,
+            releasedBy: null,
+          },
+        },
+        { upsert: true },
+      );
+      return result.upsertedCount === 1;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11000) {
+        return false;
+      }
+      throw error;
     }
   }
 

@@ -171,4 +171,80 @@ describe("RedoRequestService", () => {
       },
     );
   });
+
+  describe("claimActiveRedoRequest — exactly one caller wins the active request", () => {
+    async function seed(db: Parameters<typeof insertRawCourses>[0]) {
+      await insertRawCourses(db, ["course-1"]);
+      const testService = buildTestService(db);
+      const service = new RedoRequestService(db, testService);
+      const test = await testService.createTest("course-1", {
+        title: "Test",
+        description: "d",
+        createdBy: "admin-1",
+      });
+      return { service, testId: test.id };
+    }
+
+    dbIt("returns true once, then false for a second claim", async ({ db }) => {
+      // Given one active redo request.
+      const { service, testId } = await seed(db);
+      await service.requestRedo(testId, "student-1", "admin-1");
+
+      // When it is claimed twice.
+      const first = await service.claimActiveRedoRequest(testId, "student-1");
+      const second = await service.claimActiveRedoRequest(testId, "student-1");
+
+      // Then only the first claim wins and the request is no longer active.
+      expect(first).toBe(true);
+      expect(second).toBe(false);
+      expect(
+        await service.getActiveRedoRequest(testId, "student-1"),
+      ).toBeNull();
+    });
+
+    dbIt("cannot claim a request that is already resolved", async ({ db }) => {
+      // Given a redo request the student already resolved.
+      const { service, testId } = await seed(db);
+      await service.requestRedo(testId, "student-1", "admin-1");
+      await service.resolveRedoRequest(testId, "student-1");
+
+      // When it is claimed.
+      const claimed = await service.claimActiveRedoRequest(testId, "student-1");
+
+      // Then nothing is claimed.
+      expect(claimed).toBe(false);
+    });
+
+    dbIt(
+      "returns false when the student has no redo request",
+      async ({ db }) => {
+        const { service, testId } = await seed(db);
+
+        expect(await service.claimActiveRedoRequest(testId, "student-1")).toBe(
+          false,
+        );
+      },
+    );
+
+    dbIt(
+      "resolves every other active request along with the claimed one",
+      async ({ db }) => {
+        // Given two active redo requests for the same student and test.
+        const { service, testId } = await seed(db);
+        await service.requestRedo(testId, "student-1", "admin-1");
+        await service.requestRedo(testId, "student-1", "admin-2");
+
+        // When the request is claimed.
+        expect(await service.claimActiveRedoRequest(testId, "student-1")).toBe(
+          true,
+        );
+
+        // Then no request stays open.
+        const open = await db
+          .collection("redo_request")
+          .countDocuments({ testId, studentId: "student-1", resolvedAt: null });
+        expect(open).toBe(0);
+      },
+    );
+  });
 });

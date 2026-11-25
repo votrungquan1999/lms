@@ -352,6 +352,7 @@ export async function getTestSubmissionService(
         await getGradeService(schoolId),
         await getTestService(schoolId),
         await getTestStartService(),
+        await getRedoRequestService(schoolId),
       ),
       "testSubmission",
     );

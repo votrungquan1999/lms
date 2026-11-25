@@ -34,7 +34,7 @@ function formatRemaining(totalSeconds: number): string {
  * Auto-submit is driven by a single one-shot `setTimeout` scheduled to the true
  * deadline — an external-resource subscription (NOT a per-frame render-time
  * check), so it fires `submitTestAction` exactly once. The manual-vs-auto race
- * is de-duped server-side ("already submitted").
+ * is de-duped server-side (a submit after the hand-in is a no-op success).
  * @param deadlineMs - The true deadline as epoch milliseconds.
  * @param testId - The test to auto-submit.
  * @param courseId - The course the test belongs to.

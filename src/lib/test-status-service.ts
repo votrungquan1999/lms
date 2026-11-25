@@ -40,7 +40,8 @@ export class TestStatusService {
   ) {}
 
   /**
-   * Derives the test status for a student.
+   * Derives the test status for a student, first handing in a timed attempt
+   * whose time ran out without a hand-in.
    *
    * An answer to a since-deleted question is dropped before any of the
    * branches below see it — it counts as never given, whether the test was
@@ -68,6 +69,10 @@ export class TestStatusService {
     if (totalQuestions === 0) {
       return TestStatus.NotStarted;
     }
+
+    // Every page that shows a student's status passes through here, so an
+    // expired attempt is handed in before anything below reads submissions or grades.
+    await this.testSubmissionService.handInIfExpired(testId, studentId);
 
     const answers = await this.answerService.getLatestAnswers(
       testId,

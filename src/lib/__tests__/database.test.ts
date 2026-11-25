@@ -94,6 +94,19 @@ describe("Feature: Production database boot wires the safety indexes", () => {
         );
         expect(enrollmentUniqueIndex?.unique).toBe(true);
 
+        // ...and at most one active hand-in per student per test is allowed
+        const submissionIndexes = await listIndexesOrEmpty(
+          db,
+          "test_submission",
+        );
+        const activeSubmissionIndex = submissionIndexes.find(
+          (index) => index.key.testId === 1 && index.key.studentId === 1,
+        );
+        expect(activeSubmissionIndex?.unique).toBe(true);
+        expect(activeSubmissionIndex?.partialFilterExpression).toEqual({
+          deletedAt: { $type: "null" },
+        });
+
         // ...and the school slug unique index exists
         const schoolIndexes = await listIndexesOrEmpty(db, "school");
         const schoolSlugUniqueIndex = schoolIndexes.find(
@@ -219,6 +232,99 @@ describe("Feature: Production database boot wires the safety indexes", () => {
         // When the app boots, Then the duplicate-key failure surfaces
         await expect(getDatabase()).rejects.toMatchObject({ code: 11000 });
       } finally {
+        await seedClient.db(dbName).dropDatabase();
+        await seedClient.close();
+        await getMongoClient()?.close();
+      }
+    });
+  });
+  describe("Scenario: the database already holds two active hand-ins for one student and test", () => {
+    it("boots, logs the missing index and keeps every row and the other unique indexes", async () => {
+      const mongoBaseUri =
+        process.env.MONGODB_URI ?? "mongodb://localhost:27017";
+      const dbName = `lms-test-db-dup-subs-${randomUUID()}`;
+
+      // Given two active submissions for one pair, from before the unique index
+      const seedClient = new MongoClient(mongoBaseUri);
+      await seedClient.connect();
+      await seedClient
+        .db(dbName)
+        .collection("test_submission")
+        .insertMany([
+          { id: "x1", testId: "t1", studentId: "s1", deletedAt: null },
+          { id: "x2", testId: "t1", studentId: "s1", deletedAt: null },
+        ]);
+
+      vi.stubEnv("MONGODB_URI", `${mongoBaseUri}/${dbName}`);
+      vi.stubEnv("GOOGLE_CLIENT_ID", "gid");
+      vi.stubEnv("GOOGLE_CLIENT_SECRET", "gsecret");
+      vi.stubEnv("AWS_REGION", "ap-southeast-1");
+      vi.stubEnv("S3_BUCKET_NAME", "quanvo-lms");
+      vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE");
+      vi.stubEnv("AWS_SECRET_ACCESS_KEY", "s3cr3t");
+      vi.resetModules();
+      const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { getDatabase, getMongoClient } = await import("../database");
+
+      try {
+        // When the app boots
+        const db = await getDatabase();
+
+        // Then it starts, logging one line that names the index
+        expect(errorLog).toHaveBeenCalledTimes(1);
+        expect(errorLog.mock.calls[0][0]).toContain("test_submission");
+
+        // And both rows are still there and active
+        const rows = await db
+          .collection("test_submission")
+          .find({ deletedAt: null })
+          .toArray();
+        expect(rows).toHaveLength(2);
+
+        // And the other unique indexes were still built
+        const studentIndexes = await listIndexesOrEmpty(db, "student");
+        expect(
+          studentIndexes.find((index) => index.key.username === 1)?.unique,
+        ).toBe(true);
+      } finally {
+        errorLog.mockRestore();
+        await seedClient.db(dbName).dropDatabase();
+        await seedClient.close();
+        await getMongoClient()?.close();
+      }
+    });
+  });
+  describe("Scenario: the hand-in index build fails for a reason other than duplicates", () => {
+    it("refuses to boot, same as every other index", async () => {
+      const mongoBaseUri =
+        process.env.MONGODB_URI ?? "mongodb://localhost:27017";
+      const dbName = `lms-test-db-sub-conflict-${randomUUID()}`;
+
+      // Given a non-unique index already holding the hand-in index's name
+      const seedClient = new MongoClient(mongoBaseUri);
+      await seedClient.connect();
+      await seedClient
+        .db(dbName)
+        .collection("test_submission")
+        .createIndex({ testId: 1, studentId: 1 });
+
+      vi.stubEnv("MONGODB_URI", `${mongoBaseUri}/${dbName}`);
+      vi.stubEnv("GOOGLE_CLIENT_ID", "gid");
+      vi.stubEnv("GOOGLE_CLIENT_SECRET", "gsecret");
+      vi.stubEnv("AWS_REGION", "ap-southeast-1");
+      vi.stubEnv("S3_BUCKET_NAME", "quanvo-lms");
+      vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE");
+      vi.stubEnv("AWS_SECRET_ACCESS_KEY", "s3cr3t");
+      vi.resetModules();
+      const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { getDatabase, getMongoClient } = await import("../database");
+
+      try {
+        // When the app boots, Then the index conflict surfaces instead of a log line
+        await expect(getDatabase()).rejects.toBeInstanceOf(MongoServerError);
+        expect(errorLog).not.toHaveBeenCalled();
+      } finally {
+        errorLog.mockRestore();
         await seedClient.db(dbName).dropDatabase();
         await seedClient.close();
         await getMongoClient()?.close();

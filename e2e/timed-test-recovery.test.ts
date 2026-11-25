@@ -1,11 +1,14 @@
 /**
  * Feature: a teacher's redo on a timed test the student already handed in
- * gives the student a fresh start, with the full time and a working submit.
+ * gives the student a fresh start, with the full time and a working submit;
+ * a timed test whose time ran out without a hand-in is handed in with the
+ * saved answers the next time a student or teacher page shows its status.
  */
 import { expect, test } from "@playwright/test";
 import { hydrated } from "./hydrated";
 import {
   enroll,
+  insertAnswer,
   insertCourse,
   insertQuestion,
   insertStudent,
@@ -125,6 +128,92 @@ test.describe("Timed test redo", () => {
     await expect(
       student.getByText("submitted and is waiting to be graded"),
     ).toBeVisible({ timeout: 10000 });
+
+    await studentContext.close();
+  });
+
+  test("a timed test whose time ran out without a hand-in is handed in with the saved answers when the student or teacher opens a page showing it", async ({
+    browser,
+    page: adminPage,
+  }) => {
+    // Given two enrolled students whose 30-minute clock ran out long ago with answers saved and no hand-in
+    const username = `expired-${Date.now()}`;
+    const studentContext = await browser.newContext({
+      storageState: undefined,
+    });
+    const signUp = await studentContext.request.post(
+      `${BASE_URL}/api/auth/sign-up/email`,
+      {
+        data: {
+          email: `${username}@lms.internal`,
+          password: "e2e-expired-password",
+          name: "Expired Student",
+        },
+      },
+    );
+    expect(signUp.ok()).toBeTruthy();
+    const { user } = await signUp.json();
+    const expiredStart = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const { courseId, testId } = await withDb(async (db) => {
+      const courseId = await insertCourse(db, { title: "[expired] Course" });
+      const testId = await insertTest(db, courseId, {
+        title: "[expired] Test",
+        timeLimitMinutes: 30,
+      });
+      const questionId = await insertQuestion(db, testId, {
+        title: "[expired] Q1",
+      });
+      const firstId = await insertStudent(db, {
+        authUserId: user.id,
+        username,
+        name: "Expired Student",
+      });
+      const secondId = await insertStudent(db, {
+        username: `${username}-b`,
+        name: "Expired Teacher View",
+      });
+      for (const studentId of [firstId, secondId]) {
+        await enroll(db, { courseId, studentId });
+        await insertAnswer(db, {
+          testId,
+          questionId,
+          studentId,
+          answer: { type: "free_text", text: `saved by ${studentId}` },
+        });
+        await insertTestStart(db, {
+          testId,
+          studentId,
+          startedAt: expiredStart,
+        });
+      }
+      return { courseId, testId };
+    });
+
+    // When the first student opens their course page
+    const student = await studentContext.newPage();
+    await student.goto(`${BASE_URL}/student/courses/${courseId}`);
+
+    // Then the test shows Submitted
+    await expect(student.getByText("[expired] Test")).toBeVisible();
+    await expect(student.getByText("Submitted").first()).toBeVisible();
+
+    // And the test page shows their saved answer with no Start gate or countdown
+    await student.goto(
+      `${BASE_URL}/student/courses/${courseId}/tests/${testId}`,
+    );
+    await expect(student.getByText(/saved by /)).toBeVisible();
+    await expect(
+      student.getByRole("button", { name: "Start Test" }),
+    ).toHaveCount(0);
+    await expect(student.getByText(/Time remaining/)).toHaveCount(0);
+
+    // And when the teacher opens the grading page, the second student reads as handed in
+    await adminPage.goto(`/admin/courses/${courseId}/tests/${testId}/grading`);
+    await expect(
+      adminPage
+        .locator('[data-student-name="Expired Teacher View"] [data-status]')
+        .first(),
+    ).toHaveAttribute("data-status", "submitted", { timeout: 10000 });
 
     await studentContext.close();
   });

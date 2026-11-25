@@ -271,11 +271,13 @@ function makeSchoolServices(
     gradeVisibilityService,
     testService,
   );
+  const redoRequestService = new RedoRequestService(db, testService);
   testSubmissionService = new TestSubmissionService(
     db,
     gradeService,
     testService,
     testStartService,
+    redoRequestService,
   );
   const testStatusService = new TestStatusService(
     answerService,
@@ -296,7 +298,6 @@ function makeSchoolServices(
     currentRunnerClientProvider,
     aiGradeJobService,
   );
-  const redoRequestService = new RedoRequestService(db, testService);
   const annotationService = new AnnotationService(db, testService);
   const testFeedbackService = new TestFeedbackService(db, testService);
 

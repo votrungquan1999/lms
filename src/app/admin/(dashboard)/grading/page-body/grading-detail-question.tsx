@@ -80,14 +80,15 @@ export async function GradingDetailQuestion({
 
   const rows = await Promise.all(
     students.map(async (s) => {
-      const latestAnswers = await answerService.getLatestAnswers(test.id, s.id);
-      const answer = latestAnswers.find((a) => a.questionId === question.id);
-      const grade = await gradeService.getGrade(test.id, question.id, s.id);
+      // Status first: it hands in an expired attempt, so the grade below sees it.
       const status = await testStatusService.getStatus(
         test.id,
         s.id,
         questions.length,
       );
+      const latestAnswers = await answerService.getLatestAnswers(test.id, s.id);
+      const answer = latestAnswers.find((a) => a.questionId === question.id);
+      const grade = await gradeService.getGrade(test.id, question.id, s.id);
       // Mint presigned URLs for image-answer photos + load their annotations
       // (stored separately from the grade) so the grader sees both.
       const answerImages =

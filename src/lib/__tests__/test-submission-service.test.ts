@@ -1,4 +1,6 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: this is for test */
+
+import { ensureIndexes } from "src/lib/database";
 import type {
   MultiSelectQuestion,
   SingleSelectQuestion,
@@ -822,6 +824,60 @@ describe("TestSubmissionService - Missing Test", () => {
           "student-1",
         ),
       ).toBe(false);
+    },
+  );
+});
+
+// ── One active hand-in per student per test ──────────────────────────────────
+
+describe("TestSubmissionService - Simultaneous hand-ins", () => {
+  dbIt(
+    "keeps one active submission when the same student hands in several times at once, and a redo can hand in again",
+    async ({ db }) => {
+      // Given the production indexes and a test with an answered question
+      await ensureIndexes(db);
+      await insertRawTest(db, "test-1");
+      const { questionService, answerService, testSubmissionService } =
+        buildCoreServices(db);
+      const question = await questionService.addQuestion("test-1", {
+        title: "Q?",
+        content: "Write.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      await answerService.submitAnswer({
+        testId: "test-1",
+        questionId: question.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "mine" },
+      });
+
+      // When the browser hands in eight times at once
+      const results = await Promise.allSettled(
+        Array.from({ length: 8 }, () =>
+          testSubmissionService.submitTest("test-1", "student-1"),
+        ),
+      );
+
+      // Then exactly one wins and every other is told it was already handed in
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      for (const result of results) {
+        if (result.status === "rejected") {
+          expect(result.reason.message).toBe("Test has already been submitted");
+        }
+      }
+      expect(
+        await db
+          .collection("test_submission")
+          .countDocuments({ testId: "test-1", deletedAt: null }),
+      ).toBe(1);
+
+      // And a soft-deleted hand-in does not block the next one (redo)
+      await testSubmissionService.deleteSubmission("test-1", "student-1");
+      await testSubmissionService.submitTest("test-1", "student-1");
+      expect(
+        await testSubmissionService.isTestSubmitted("test-1", "student-1"),
+      ).toBe(true);
     },
   );
 });

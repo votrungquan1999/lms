@@ -18,6 +18,7 @@ import { GradeService } from "src/lib/grade-service";
 import { GradeVisibilityService } from "src/lib/grade-visibility-service";
 import { QuestionChangeLogService } from "src/lib/question-change-log-service";
 import { QuestionService } from "src/lib/question-service";
+import { RedoRequestService } from "src/lib/redo-request-service";
 import { TestService } from "src/lib/test-service";
 import { TestStartService } from "src/lib/test-start-service";
 import { TestSubmissionService } from "src/lib/test-submission-service";
@@ -38,6 +39,7 @@ export interface CoreServices {
   annotationService: AnnotationService;
   testSubmissionService: TestSubmissionService;
   testStartService: TestStartService;
+  redoRequestService: RedoRequestService;
   aiGradeService: AiGradeService;
   aiGradeJobService: AiGradeJobService;
 }
@@ -120,11 +122,13 @@ export function buildCoreServices(
     testService,
   );
   const annotationService = new AnnotationService(db, testService);
+  const redoRequestService = new RedoRequestService(db, testService);
   testSubmissionService = new TestSubmissionService(
     db,
     gradeService,
     testService,
     testStartService,
+    redoRequestService,
     opts.now,
   );
 
@@ -152,6 +156,7 @@ export function buildCoreServices(
     annotationService,
     testSubmissionService,
     testStartService,
+    redoRequestService,
     aiGradeService,
     aiGradeJobService,
   };

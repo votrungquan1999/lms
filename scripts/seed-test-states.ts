@@ -204,13 +204,14 @@ async function main() {
       gradeVisibilityService,
       testService,
     );
+    const redoRequestService = new RedoRequestService(db, testService);
     testSubmissionService = new TestSubmissionService(
       db,
       gradeService,
       testService,
       testStartService,
+      redoRequestService,
     );
-    const redoRequestService = new RedoRequestService(db, testService);
 
     // Course.
     await ensureCourse(db, school.id);

@@ -107,6 +107,27 @@ export class RedoRequestService {
     );
   }
 
+  /**
+   * Atomically resolves the active redo request so exactly one concurrent
+   * caller wins it; any further active rows are resolved with it.
+   * @returns True only for the caller that resolved it; false when none was active.
+   * @throws "Test not found" when the test isn't this school's.
+   */
+  async claimActiveRedoRequest(
+    testId: string,
+    studentId: string,
+  ): Promise<boolean> {
+    await this.testService.requireTest(testId);
+    const claimed = await this.redoRequests.findOneAndUpdate(
+      { testId, studentId, resolvedAt: null },
+      { $set: { resolvedAt: new Date() } },
+      { sort: { requestedAt: -1 } },
+    );
+    if (!claimed) return false;
+    await this.resolveRedoRequest(testId, studentId);
+    return true;
+  }
+
   private toRedoRequest(doc: RedoRequestDocument): RedoRequest {
     return {
       id: doc.id,

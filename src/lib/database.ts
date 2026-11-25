@@ -1,4 +1,4 @@
-import { type Db, MongoClient } from "mongodb";
+import { type Db, MongoClient, MongoServerError } from "mongodb";
 import { AiGradeJobStatus } from "./ai-grade-job-service";
 import { loadConfig } from "./config";
 import { JoinRequestStatus } from "./course-join-request-service";
@@ -45,7 +45,7 @@ export function getMongoClient(): MongoClient | null {
  * Exported so tests can apply them to their own per-test database.
  * The builds are independent, so they run together to keep the cold start to
  * one round trip; a unique build that hits duplicates still rejects, which
- * fails the boot on purpose.
+ * fails the boot on purpose (except the test_submission build below).
  */
 export async function ensureIndexes(db: Db): Promise<void> {
   await Promise.all([
@@ -139,5 +139,28 @@ export async function ensureIndexes(db: Db): Promise<void> {
           partialFilterExpression: { status: AiGradeJobStatus.Pending },
         },
       ),
+
+    // One active hand-in per student per test. Unlike every other unique
+    // index here, a duplicate-key failure is logged instead of failing the
+    // boot: live data may already hold a duplicate, and the build is retried
+    // on every server start, so the rule switches on once the data is clean.
+    // `$type: "null"` because partial filters reject `$eq: null`.
+    db
+      .collection("test_submission")
+      .createIndex(
+        { testId: 1, studentId: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { deletedAt: { $type: "null" } },
+        },
+      )
+      .catch((error: unknown) => {
+        if (!(error instanceof MongoServerError) || error.code !== 11000) {
+          throw error;
+        }
+        console.error(
+          "test_submission {testId, studentId} unique index not built: duplicate active hand-ins exist; the app runs without it until they are removed",
+        );
+      }),
   ]);
 }
