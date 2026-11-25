@@ -4,6 +4,7 @@
  * Google is faked at both ends: the sign-in POST returns a Google-looking
  * address, and that address is fulfilled with a redirect back to the app.
  */
+import fs from "node:fs";
 import {
   type Browser,
   type BrowserContext,
@@ -244,6 +245,37 @@ test.describe("Student sign-in card", () => {
       page.getByRole("heading", { name: "Student sign in" }),
     ).toBeVisible();
     await expect(page.getByText("Account not set up")).toHaveCount(0);
+
+    await context.close();
+  });
+
+  test("a teacher who uses Continue with Google on the student login lands on the teacher side", async ({
+    browser,
+  }) => {
+    // Given the teacher's session, handed over when Google bounces back
+    const { cookies } = JSON.parse(
+      fs.readFileSync("playwright/.auth/admin.json", "utf8"),
+    );
+
+    // And a signed-out visitor on the student login card
+    const context = await browser.newContext({ storageState: undefined });
+    const page = await context.newPage();
+    await fakeGoogleRoundTrip(page, cookies);
+    await page.goto(`${BASE_URL}/student/login`);
+    await expect(
+      page.getByRole("heading", { name: "Student sign in" }),
+    ).toBeVisible();
+
+    // When they continue with Google
+    const google = page.getByRole("button", { name: "Continue with Google" });
+    await hydrated(google);
+    await google.click();
+
+    // Then they land on the teacher dashboard, not the student home
+    await page.waitForURL("**/admin/dashboard");
+    await expect(
+      page.getByRole("heading", { name: "Dashboard" }),
+    ).toBeVisible();
 
     await context.close();
   });
