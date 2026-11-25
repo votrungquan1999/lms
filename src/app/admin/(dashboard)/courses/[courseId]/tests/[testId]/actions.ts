@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import { pluralize } from "src/lib/pluralize";
@@ -471,7 +472,7 @@ export async function deleteTestAction(
   }
 
   try {
-    return await withSpan(
+    await withSpan(
       "action.deleteTestAction",
       {
         "lms.action.name": "deleteTestAction",
@@ -484,11 +485,6 @@ export async function deleteTestAction(
         await testService.deleteTest(testId, adminUserId);
 
         revalidatePath(`/admin/courses/${courseId}`);
-
-        return {
-          success: true,
-          message: "Test deleted successfully",
-        };
       },
     );
   } catch (error) {
@@ -497,6 +493,9 @@ export async function deleteTestAction(
       error instanceof Error ? error.message : "Failed to delete test";
     return { success: false, message };
   }
+
+  // Outside the try: redirect() throws, and the catch would turn it into a failure.
+  redirect(`/admin/courses/${courseId}`);
 }
 
 export interface DeleteQuestionState {

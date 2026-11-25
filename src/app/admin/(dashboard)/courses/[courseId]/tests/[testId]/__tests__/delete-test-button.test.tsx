@@ -31,6 +31,11 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+const mockRedirect = vi.fn();
+vi.mock("next/navigation", () => ({
+  redirect: (...args: unknown[]) => mockRedirect(...args),
+}));
+
 /**
  * Feature: Delete Test Button
  * As an admin
@@ -87,6 +92,9 @@ describe("Feature: Delete Test Button", () => {
 
       await waitFor(() => {
         expect(mockDeleteTest).toHaveBeenCalledTimes(1);
+      });
+      await waitFor(() => {
+        expect(mockRedirect).toHaveBeenCalledWith("/admin/courses/course-1");
       });
 
       // User-observable outcome: after a successful deletion, no error
