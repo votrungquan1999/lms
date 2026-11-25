@@ -4,20 +4,56 @@
  * Google is faked at both ends: the sign-in POST returns a Google-looking
  * address, and that address is fulfilled with a redirect back to the app.
  */
-import { expect, type Locator, test } from "@playwright/test";
+import {
+  type Browser,
+  type BrowserContext,
+  expect,
+  type Page,
+  test,
+} from "@playwright/test";
+import { hydrated } from "./hydrated";
+import { insertStudent, withDb } from "./seed";
 
 const BASE_URL = `http://localhost:${process.env.E2E_PORT ?? "3001"}`;
 const GOOGLE_ORIGIN = "https://accounts.google.com";
 
-/** Waits for React to hydrate the element; an earlier click would submit a form natively and drop what was typed. */
-async function hydrated(locator: Locator) {
-  await expect
-    .poll(() =>
-      locator.evaluate((node) =>
-        Object.keys(node).some((key) => key.startsWith("__reactFiber$")),
-      ),
-    )
-    .toBe(true);
+/** Fake Google round trip: the sign-in POST yields a Google address that bounces back, carrying `cookies`. */
+async function fakeGoogleRoundTrip(
+  page: Page,
+  cookies: Awaited<ReturnType<BrowserContext["cookies"]>>,
+) {
+  await page.route("**/api/auth/sign-in/social", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        url: `${GOOGLE_ORIGIN}/o/oauth2/v2/auth?client_id=e2e`,
+        redirect: false,
+      }),
+    }),
+  );
+  await page.route(`${GOOGLE_ORIGIN}/**`, async (route) => {
+    await page.context().addCookies(cookies);
+    await route.fulfill({
+      status: 302,
+      headers: { location: `${BASE_URL}/student/login` },
+    });
+  });
+}
+
+/** A fresh email sign-up stands in for the Google-created account; returns its session cookies and user id. */
+async function signUpAccount(browser: Browser, email: string) {
+  const context = await browser.newContext({ storageState: undefined });
+  const response = await context.request.post(
+    `${BASE_URL}/api/auth/sign-up/email`,
+    {
+      data: { email, password: "e2e-google-password-123", name: "Google Kid" },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+  const { user } = await response.json();
+  const cookies = await context.cookies();
+  await context.close();
+  return { userId: user.id as string, cookies };
 }
 
 test.describe("Student sign-in card", () => {
@@ -123,6 +159,42 @@ test.describe("Student sign-in card", () => {
     // Then only the password error shows, never two errors at once
     await expect(page.getByText("Invalid username or password")).toBeVisible();
     await expect(googleFailed).toHaveCount(0);
+
+    await context.close();
+  });
+
+  test("a student who joined with Google signs in with Continue with Google and lands on their home", async ({
+    browser,
+  }) => {
+    // Given a Google-joined student: an account plus a student profile linked to it
+    const username = `google-kid-${Date.now()}`;
+    const { userId, cookies } = await signUpAccount(
+      browser,
+      `${username}@example.com`,
+    );
+    await withDb((db) =>
+      insertStudent(db, { authUserId: userId, username, name: username }),
+    );
+
+    // And a signed-out visitor on the student login card
+    const context = await browser.newContext({ storageState: undefined });
+    const page = await context.newPage();
+    await fakeGoogleRoundTrip(page, cookies);
+    await page.goto(`${BASE_URL}/student/login`);
+    await expect(
+      page.getByRole("heading", { name: "Student sign in" }),
+    ).toBeVisible();
+
+    // When they continue with Google
+    const google = page.getByRole("button", { name: "Continue with Google" });
+    await hydrated(google);
+    await google.click();
+
+    // Then they land on their student home
+    await page.waitForURL("**/student/dashboard");
+    await expect(
+      page.getByRole("heading", { name: `Welcome, ${username}!` }),
+    ).toBeVisible();
 
     await context.close();
   });
