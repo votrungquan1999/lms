@@ -2,8 +2,8 @@
 
 - [T1] entry/landing: `/` signed out — the two role cards (Student / Administrator)
 - [T1] entry/admin-login: `/admin/login` signed out — Google sign-in card
-- [T1] entry/student-login: `/student/login` signed out — username/password card, no errors
-- [T1] entry/student-login-empty-submit: Sign In clicked with both fields blank — the browser's own `required` bubble, the app shows nothing of its own (student-login-form.tsx:72,84). Capture is flagged `stable: false` because Chromium's bubble is transient; the image still holds it
+- [T1] entry/student-login: `/student/login` signed out — one card: username/password, "or", Continue with Google, two help lines; no errors
+- [T1] entry/student-login-empty-submit: Sign in clicked with both fields blank — the browser's own `required` bubble, the app shows nothing of its own (student-login-form.tsx:72,84). Capture is flagged `stable: false` because Chromium's bubble is transient; the image still holds it
 - [T2] entry/student-login-blank-username: username `"   "`, password `password123` — the only reachable path to the form's own "Username and password are required" (`required` treats whitespace as filled; student-login-form.tsx:36-37)
 - [T2] entry/student-login-wrong-credentials: unknown username + wrong password — "Invalid username or password" (student-login-form.tsx:48)
 - [T2] entry/join-invalid-token: `/join/this-token-does-not-exist` — "Invitation no longer valid" card (join-page.ui.tsx:39)

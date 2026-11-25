@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { LogoutButton } from "src/app/logout-button";
+import { SignInShell } from "src/components/sign-in-card";
 import {
   Card,
   CardContent,
@@ -13,19 +14,22 @@ import { getAuthService } from "src/lib/auth-singleton";
 import { StudentLoginForm } from "./student-login-form";
 
 export const metadata = {
-  title: "Student Login — LMS",
+  title: "Student sign in — LMS",
   description: "Sign in with your credentials to access courses and lessons",
 };
 
-export default async function StudentLoginPage() {
+export default async function StudentLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string | string[] }>;
+}) {
   const requestHeaders = await headers();
   const authService = await getAuthService();
   const entryState = await authService.resolveLoginEntryState(requestHeaders);
 
-  // Already classified — the login form would be a dead end for them (BUG-4).
+  // Already classified — the login form would be a dead end for them.
   // Exhaustive switch (not if/else) so a fifth LoginEntryState added later is
-  // a compile error here instead of silently falling through to this form —
-  // for an authenticated caller that would be BUG-4's shape again (F8).
+  // a compile error here instead of silently falling through to this form.
   switch (entryState) {
     case LoginEntryState.Admin:
       redirect("/admin/dashboard");
@@ -61,8 +65,8 @@ export default async function StudentLoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <StudentLoginForm />
-    </main>
+    <SignInShell>
+      <StudentLoginForm googleFailed={Boolean((await searchParams).error)} />
+    </SignInShell>
   );
 }

@@ -46,7 +46,7 @@ describe("Feature: Student Login Form", () => {
 
       // Assert - submit button is visible
       expect(
-        screen.getByRole("button", { name: "Sign In" }),
+        screen.getByRole("button", { name: "Sign in" }),
       ).toBeInTheDocument();
     });
   });
@@ -59,7 +59,7 @@ describe("Feature: Student Login Form", () => {
       render(<StudentLoginForm />);
 
       // Action — click Sign In without filling any field
-      await user.click(screen.getByRole("button", { name: "Sign In" }));
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
 
       // Assert — HTML5 validation blocks submission, so signIn is never
       // called and no error banner is shown.
@@ -80,7 +80,7 @@ describe("Feature: Student Login Form", () => {
       // Action
       await user.type(screen.getByLabelText("Username"), "   ");
       await user.type(screen.getByLabelText("Password"), "password123");
-      await user.click(screen.getByRole("button", { name: "Sign In" }));
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
 
       // Assert — the username field itself carries the error, not a
       // form-level banner naming a field that isn't the problem.
@@ -107,7 +107,7 @@ describe("Feature: Student Login Form", () => {
       // Action
       await user.type(screen.getByLabelText("Username"), "alice");
       await user.type(screen.getByLabelText("Password"), "        ");
-      await user.click(screen.getByRole("button", { name: "Sign In" }));
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
 
       // Assert
       const passwordInput = screen.getByLabelText("Password");
@@ -130,7 +130,7 @@ describe("Feature: Student Login Form", () => {
 
       await user.type(screen.getByLabelText("Username"), "   ");
       await user.type(screen.getByLabelText("Password"), "        ");
-      await user.click(screen.getByRole("button", { name: "Sign In" }));
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
 
       const usernameInput = screen.getByLabelText("Username");
       expect(usernameInput).toHaveAttribute("aria-invalid", "true");

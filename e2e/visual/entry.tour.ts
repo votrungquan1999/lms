@@ -16,6 +16,8 @@ const ADMIN_LOGIN_SOURCES = [
 const STUDENT_LOGIN_SOURCES = [
   "src/app/student/login/page.tsx",
   "src/app/student/login/student-login-form.tsx",
+  "src/app/student/login/google-sign-in-button.tsx",
+  "src/components/sign-in-card.tsx",
 ];
 const JOIN_SOURCES = [
   "src/app/join/[token]/page.tsx",
@@ -95,7 +97,9 @@ test.describe("entry — logged out", () => {
 
   test("entry: student login", async ({ page }) => {
     await page.goto("/student/login");
-    await expect(page.getByText("Student Login")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Student sign in" }),
+    ).toBeVisible();
     await expect(page.getByLabel("Username")).toBeVisible();
     await snap(page, "entry/student-login", { sources: STUDENT_LOGIN_SOURCES });
   });
@@ -124,8 +128,8 @@ test.describe("entry — logged out", () => {
     await page.getByLabel("Password").fill("password123");
     await page.getByRole("button", { name: "Sign In" }).click();
 
-    await expect(page.locator("p[role='alert']")).toHaveText(
-      "Username and password are required",
+    await expect(page.locator("#username-error")).toHaveText(
+      "Enter your username",
     );
     await snap(page, "entry/student-login-blank-username", {
       sources: STUDENT_LOGIN_SOURCES,
