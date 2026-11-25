@@ -16,6 +16,7 @@ import {
   getRedoRequestService,
   getTestFeedbackService,
   getTestService,
+  getTestStartService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
 import { z } from "zod";
@@ -468,6 +469,32 @@ export async function requestRedoAction(
         await assertGradingTarget(schoolId, parsed.data);
 
         const redoRequestService = await getRedoRequestService(schoolId);
+        const redoAlreadyOpen =
+          (await redoRequestService.getActiveRedoRequest(
+            parsed.data.testId,
+            parsed.data.studentId,
+          )) !== null;
+
+        // A handed-in student's old deadline would leave the redo with no time;
+        // one still writing, or already mid-redo, keeps theirs. Cleared before
+        // the redo is recorded so a page load in between cannot hand in the
+        // old expired attempt and consume the fresh redo.
+        const submissionService = await getTestSubmissionService(schoolId);
+        if (
+          !redoAlreadyOpen &&
+          (await submissionService.isTestSubmitted(
+            parsed.data.testId,
+            parsed.data.studentId,
+          ))
+        ) {
+          const testStartService = await getTestStartService();
+          await testStartService.clearActiveStart(
+            parsed.data.testId,
+            parsed.data.studentId,
+            adminUserId,
+          );
+        }
+
         await redoRequestService.requestRedo(
           parsed.data.testId,
           parsed.data.studentId,

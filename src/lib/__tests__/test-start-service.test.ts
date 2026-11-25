@@ -63,4 +63,50 @@ describe("TestStartService", () => {
     // Then it returns null (soft-deleted starts are not active).
     expect(start).toBeNull();
   });
+
+  dbIt(
+    "clearing the active start lets the next start begin fresh",
+    async ({ db }) => {
+      // Given a start recorded long ago.
+      const { testStartService } = buildCoreServices(db);
+      const t1 = new Date("2026-05-30T10:00:00.000Z");
+      const t2 = new Date("2026-05-30T12:00:00.000Z");
+      await testStartService.recordStart("test-1", "student-1", t1);
+
+      // When the active start is cleared and the student starts again at T2.
+      await testStartService.clearActiveStart("test-1", "student-1", "admin-1");
+      await testStartService.recordStart("test-1", "student-1", t2);
+
+      // Then the active start is the new one.
+      const start = await testStartService.getActiveStart(
+        "test-1",
+        "student-1",
+      );
+      expect(start?.startedAt.getTime()).toBe(t2.getTime());
+    },
+  );
+
+  dbIt(
+    "clearing one student's start leaves another student's start on the same test",
+    async ({ db }) => {
+      // Given two students who both started the same test.
+      const { testStartService } = buildCoreServices(db);
+      const t1 = new Date("2026-05-30T10:00:00.000Z");
+      await testStartService.recordStart("test-1", "student-1", t1);
+      await testStartService.recordStart("test-1", "student-2", t1);
+
+      // When only student-1's start is cleared.
+      await testStartService.clearActiveStart("test-1", "student-1", "admin-1");
+
+      // Then student-1 has no active start and student-2's is untouched.
+      expect(
+        await testStartService.getActiveStart("test-1", "student-1"),
+      ).toBeNull();
+      const other = await testStartService.getActiveStart(
+        "test-1",
+        "student-2",
+      );
+      expect(other?.startedAt.getTime()).toBe(t1.getTime());
+    },
+  );
 });

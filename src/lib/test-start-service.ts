@@ -83,6 +83,24 @@ export class TestStartService {
     return doc ? this.toTestStart(doc) : null;
   }
 
+  /**
+   * Soft-deletes the active start so the next `recordStart` begins a fresh
+   * clock. A no-op when there is none (untimed tests never record one).
+   * @param testId - The test.
+   * @param studentId - The student.
+   * @param deletedBy - Who cleared it (the teacher requesting the redo).
+   */
+  async clearActiveStart(
+    testId: string,
+    studentId: string,
+    deletedBy: string,
+  ): Promise<void> {
+    await this.testStarts.updateMany(
+      { testId, studentId, deletedAt: null },
+      { $set: { deletedAt: new Date(), deletedBy } },
+    );
+  }
+
   private toTestStart(doc: TestStartDocument): TestStart {
     return {
       testId: doc.testId,

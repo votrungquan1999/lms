@@ -19,6 +19,7 @@ import type { QuestionDocument } from "../src/lib/question-service";
 import type { SchoolDocument } from "../src/lib/school-service";
 import type { StudentDocument } from "../src/lib/student-service";
 import type { TestDocument } from "../src/lib/test-service";
+import type { TestStartDocument } from "../src/lib/test-start-service";
 import { E2E_MONGODB_URI } from "./mongodb-uri";
 
 /** Runs `fn` against the e2e database; the connection closes even if `fn` throws. */
@@ -188,6 +189,30 @@ export async function insertAnswer(
   };
   await db.collection<AnswerDocument>("answer").insertOne(doc);
   return doc.id;
+}
+
+/** Sets when the student's timed test began, keeping a single active start per (test, student). */
+export async function insertTestStart(
+  db: Db,
+  fields: Pick<TestStartDocument, "testId" | "studentId" | "startedAt">,
+): Promise<void> {
+  const { testId, studentId, startedAt } = fields;
+  await db.collection<TestStartDocument>("test_start").updateOne(
+    { testId, studentId, deletedAt: null },
+    {
+      $set: { startedAt },
+      $setOnInsert: {
+        id: crypto.randomUUID(),
+        testId,
+        studentId,
+        createdAt: startedAt,
+        createdBy: studentId,
+        deletedAt: null,
+        deletedBy: null,
+      },
+    },
+    { upsert: true },
+  );
 }
 
 export async function insertPool(

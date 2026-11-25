@@ -21,6 +21,7 @@ const gradeQuestion = vi.fn().mockResolvedValue(undefined);
 const setTestFeedback = vi.fn().mockResolvedValue(undefined);
 const releaseGrades = vi.fn().mockResolvedValue(undefined);
 const requestRedo = vi.fn().mockResolvedValue(undefined);
+const getActiveRedoRequest = vi.fn().mockResolvedValue(null);
 const getLatestSuggestion = vi.fn().mockResolvedValue(null);
 // Parent-check stubs — a fixed test-1/course-1/q-1, always enrolled, so
 // every literal id this file already uses resolves as the admin's own.
@@ -31,15 +32,22 @@ const getQuestion = vi.fn(async (_testId: string, questionId: string) =>
   questionId === "q-1" ? { id: questionId } : null,
 );
 const isEnrolled = vi.fn().mockResolvedValue(true);
+const isTestSubmitted = vi.fn().mockResolvedValue(true);
+const clearActiveStart = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("src/lib/services-singleton", () => ({
   getGradeService: vi.fn(async () => ({ gradeQuestion })),
   getTestFeedbackService: vi.fn(async () => ({ setTestFeedback })),
   getTestService: vi.fn(async () => ({ releaseGrades, getTest })),
-  getRedoRequestService: vi.fn(async () => ({ requestRedo })),
+  getRedoRequestService: vi.fn(async () => ({
+    requestRedo,
+    getActiveRedoRequest,
+  })),
   getAiGradeService: vi.fn(async () => ({ getLatestSuggestion })),
   getQuestionService: vi.fn(async () => ({ getQuestion })),
   getEnrollmentService: vi.fn(async () => ({ isEnrolled })),
+  getTestSubmissionService: vi.fn(async () => ({ isTestSubmitted })),
+  getTestStartService: vi.fn(async () => ({ clearActiveStart })),
 }));
 
 import { TEST_SCHOOL } from "src/tests/create-test-db";
@@ -176,5 +184,61 @@ describe("Feature: a teacher's own grade on an AI-graded question records how fa
         key.startsWith("lms.ai."),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("Feature: a redo request gives a student who already handed in a fresh timer", () => {
+  beforeEach(() => {
+    clearActiveStart.mockClear();
+    requestRedo.mockClear();
+    isTestSubmitted.mockClear();
+    getActiveRedoRequest.mockReset().mockResolvedValue(null);
+  });
+
+  function redoForm() {
+    const fd = new FormData();
+    fd.set("testId", "test-1");
+    fd.set("courseId", "course-1");
+    fd.set("studentId", "stu-1");
+    return fd;
+  }
+
+  it("clears the student's timed start when they already handed in", async () => {
+    isTestSubmitted.mockResolvedValueOnce(true);
+
+    const state = await requestRedoAction(null, redoForm());
+
+    expect(state.success).toBe(true);
+    expect(clearActiveStart).toHaveBeenCalledWith("test-1", "stu-1", "admin-1");
+  });
+
+  it("leaves a student who is still writing with their original timed start", async () => {
+    isTestSubmitted.mockResolvedValueOnce(false);
+
+    const state = await requestRedoAction(null, redoForm());
+
+    expect(state.success).toBe(true);
+    expect(isTestSubmitted).toHaveBeenCalledWith("test-1", "stu-1");
+    expect(clearActiveStart).not.toHaveBeenCalled();
+  });
+
+  it("keeps the running timed start when a redo is already open", async () => {
+    isTestSubmitted.mockResolvedValueOnce(true);
+    getActiveRedoRequest.mockResolvedValueOnce({ id: "redo-1" });
+
+    const state = await requestRedoAction(null, redoForm());
+
+    expect(state.success).toBe(true);
+    expect(clearActiveStart).not.toHaveBeenCalled();
+  });
+
+  it("clears the old start before recording the redo so a page load in between cannot hand in the old attempt", async () => {
+    isTestSubmitted.mockResolvedValueOnce(true);
+
+    await requestRedoAction(null, redoForm());
+
+    expect(clearActiveStart.mock.invocationCallOrder[0]).toBeLessThan(
+      requestRedo.mock.invocationCallOrder[0],
+    );
   });
 });
