@@ -271,4 +271,41 @@ describe("Student timed test — Start gate", () => {
       screen.queryByRole("button", { name: /start/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("shows the result, not the Start gate, to a student who handed in before a time limit was added", async () => {
+    // Given a student who answered and handed in an untimed test
+    const { courseId, testId, studentId, s } = await seedTest(null);
+    const [question] = await s.questionService.listQuestions(testId);
+    await s.answerService.submitAnswer({
+      testId,
+      questionId: question.id,
+      studentId,
+      answer: { type: "free_text", text: "four" },
+    });
+    await s.testSubmissionService.submitTest(testId, studentId);
+
+    // And the teacher then gives the test a time limit
+    await s.testService.updateTestSettings(testId, {
+      showGradeAfterSubmit: true,
+      showCorrectAnswerAfterSubmit: true,
+      timeLimitMinutes: 30,
+      isPractice: false,
+      answerRevealMode: "diff",
+      updatedBy: "admin",
+    });
+    mockStudentSession(studentId);
+
+    // When the student page renders
+    const ui = await StudentTestDetailPage({
+      params: Promise.resolve({ courseId, testId }),
+    });
+    render(ui);
+
+    // Then their saved answer and Submitted badge show, with no Start control
+    expect(screen.getByText("four")).toBeInTheDocument();
+    expect(screen.getByText("Submitted")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /start/i }),
+    ).not.toBeInTheDocument();
+  });
 });

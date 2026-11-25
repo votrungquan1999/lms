@@ -234,9 +234,10 @@ export default async function StudentTestDetailPage({
     session.studentId,
   );
   // When non-null, the Start gate is shown and carries the (narrowed) limit;
-  // null means the test is untimed or already started, so show the questions.
+  // null means the test is untimed, already started, or already handed in
+  // with no redo (a limit added later must not hide the student's result).
   const startGateMinutes =
-    test.timeLimitMinutes !== null && activeStart === null
+    test.timeLimitMinutes !== null && activeStart === null && canAnswer
       ? test.timeLimitMinutes
       : null;
 
