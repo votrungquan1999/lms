@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TestStatus } from "src/lib/test-status-service";
 import { describe, expect, it, vi } from "vitest";
+import { gradeQuestionAction } from "../actions";
 import {
   FreeTextQuestionGradeForm,
   McQuestionGradeForm,
@@ -261,6 +262,8 @@ describe("Feature: FreeTextQuestionGradeForm children slot", () => {
 describe("Feature: InProgress confirm dialog", () => {
   describe("Scenario: Admin grades an InProgress student", () => {
     it("should show a confirm dialog before submitting; cancel aborts the form action, confirm proceeds", async () => {
+      // The call counts below must not include other tests' calls.
+      vi.mocked(gradeQuestionAction).mockClear();
       const user = userEvent.setup();
       render(
         <FreeTextQuestionGradeForm
@@ -286,9 +289,9 @@ describe("Feature: InProgress confirm dialog", () => {
       // Cancel — form should not actually submit; dialog closes
       await user.click(screen.getByRole("button", { name: /Cancel/i }));
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(gradeQuestionAction).not.toHaveBeenCalled();
 
-      // Re-open and confirm — clicking Confirm dismisses the gating dialog
-      // so the form can proceed (user-observable: dialog is gone).
+      // Re-open and confirm — the grade must actually be submitted.
       await user.click(screen.getByRole("button", { name: /Save Grade/i }));
       await user.click(
         await screen.findByRole("button", {
@@ -296,6 +299,7 @@ describe("Feature: InProgress confirm dialog", () => {
         }),
       );
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(gradeQuestionAction).toHaveBeenCalledTimes(1);
     });
   });
 });

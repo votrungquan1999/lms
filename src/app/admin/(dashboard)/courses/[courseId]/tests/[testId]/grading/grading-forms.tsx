@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useId } from "react";
 import { formatReleaseLine } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/test-settings-panel";
 import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import { McAnswerChips } from "src/components/mc-answer-chips";
@@ -289,8 +289,11 @@ function GradeFormInner({
 
   const requiresConfirm = studentStatus === TestStatus.InProgress;
 
+  // The confirm dialog is portalled out of the form, so its button targets it by id.
+  const formId = useId();
+
   return (
-    <form action={formAction} className="space-y-3">
+    <form id={formId} action={formAction} className="space-y-3">
       <input type="hidden" name="testId" value={testId} />
       <input type="hidden" name="courseId" value={courseId} />
       <input type="hidden" name="questionId" value={questionId} />
@@ -344,7 +347,7 @@ function GradeFormInner({
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction type="submit">
+                <AlertDialogAction type="submit" form={formId}>
                   Submit Anyway
                 </AlertDialogAction>
               </AlertDialogFooter>
