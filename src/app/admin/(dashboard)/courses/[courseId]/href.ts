@@ -8,10 +8,18 @@ export function buildJoinInviteHref(inviteToken: string): string {
 }
 
 /**
- * Builds the admin course detail page path, used by empty-state links that
- * send the admin back to enroll students, add tests or view the roster.
+ * Builds the admin course detail page path, which opens on the Tests tab.
  * @param courseId - The course to link back to.
  */
 export function buildCourseDetailHref(courseId: string): string {
   return `/admin/courses/${courseId}`;
+}
+
+/**
+ * Builds the course's Students tab path, where the roster lives and students
+ * are added.
+ * @param courseId - The course whose students to open.
+ */
+export function buildCourseStudentsHref(courseId: string): string {
+  return `/admin/courses/${courseId}/students`;
 }

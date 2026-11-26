@@ -11,7 +11,7 @@ import ResultsReportBreadcrumb from "../page";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 
-describe("Feature: Export Results has a breadcrumb", () => {
+describe("Feature: Export results has a breadcrumb", () => {
   beforeEach(async () => {
     await setupTestDb();
   });
@@ -20,7 +20,7 @@ describe("Feature: Export Results has a breadcrumb", () => {
     await teardownTestDb();
   });
 
-  it("shows Courses, a link to the course, and Export Results as the current page", async () => {
+  it("shows Courses, a link to the course, and Export results as the current page", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Algebra I",
@@ -39,7 +39,7 @@ describe("Feature: Export Results has a breadcrumb", () => {
     );
     const courseLink = screen.getByRole("link", { name: "Algebra I" });
     expect(courseLink).toHaveAttribute("href", `/admin/courses/${course.id}`);
-    expect(screen.getByText("Export Results")).toHaveAttribute(
+    expect(screen.getByText("Export results")).toHaveAttribute(
       "aria-current",
       "page",
     );

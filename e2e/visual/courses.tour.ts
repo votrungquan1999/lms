@@ -230,7 +230,7 @@ test("courses: results report for the seeded course with nothing picked", async 
 }) => {
   await page.goto(`/admin/courses/${SEED_COURSE_ID}/results-report`);
   await expect(
-    page.getByRole("heading", { name: "Export Results" }),
+    page.getByRole("heading", { name: "Export results" }),
   ).toBeVisible({ timeout: 30000 });
   await expect(page.getByText(SEED_TEST_TITLE)).toBeVisible();
   await expect(page.getByRole("button", { name: "Export PDF" })).toBeDisabled();
@@ -242,7 +242,7 @@ test("courses: results report with a student and a test picked", async ({
 }) => {
   await page.goto(`/admin/courses/${SEED_COURSE_ID}/results-report`);
   await expect(
-    page.getByRole("heading", { name: "Export Results" }),
+    page.getByRole("heading", { name: "Export results" }),
   ).toBeVisible({ timeout: 30000 });
   // Clicking the <label> toggles its control without depending on how Radix
   // exposes the radio/checkbox accessible name.
@@ -260,7 +260,7 @@ test("courses: results report for a course with no students and no tests", async
   const courseId = await ensureCourse(page, EMPTY_TITLE, "");
   await page.goto(`/admin/courses/${courseId}/results-report`);
   await expect(
-    page.getByRole("heading", { name: "Export Results" }),
+    page.getByRole("heading", { name: "Export results" }),
   ).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole("heading", { name: "Tests" })).toBeVisible();
   await expect(page.getByRole("radio")).toHaveCount(0);

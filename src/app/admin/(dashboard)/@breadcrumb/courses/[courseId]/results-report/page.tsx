@@ -25,7 +25,7 @@ export default async function ResultsReportBreadcrumb({
   return (
     <Breadcrumb>
       {/* Left to wrap: a long course title grows the bar rather than
-          squeezing "Export Results" into "…". */}
+          squeezing "Export results" into "…". */}
       <BreadcrumbList>
         <BreadcrumbItem className="shrink-0">
           <BreadcrumbLink asChild>
@@ -42,8 +42,8 @@ export default async function ResultsReportBreadcrumb({
         </BreadcrumbItem>
         <BreadcrumbSeparator className="shrink-0" />
         <BreadcrumbItem className="min-w-0">
-          <BreadcrumbPage className="block truncate" title="Export Results">
-            Export Results
+          <BreadcrumbPage className="block truncate" title="Export results">
+            Export results
           </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>

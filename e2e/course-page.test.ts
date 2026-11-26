@@ -846,4 +846,92 @@ test.describe("Course page", () => {
     await expect(page.getByText("Newer Asker")).toHaveCount(0);
     await page.close();
   });
+  test("Export results opens the redesigned page where the teacher picks one student and the tests, and downloads that student's PDF report", async () => {
+    // The first PDF render compiles the route and the PDF stack in next dev.
+    test.slow();
+
+    // Given a course with two students and two tests, one with a question
+    const schoolId = own.schoolId;
+    const ids = await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const courseId = await insertCourse(db, {
+        title: "Export Course",
+        schoolId,
+      });
+      const olive = await insertStudent(db, {
+        name: "Olive Green",
+        username: "olive.g",
+        schoolIds: [schoolId],
+      });
+      const pat = await insertStudent(db, {
+        name: "Pat Quinn",
+        username: "pat.q",
+        schoolIds: [schoolId],
+      });
+      await enroll(db, { courseId, studentId: olive });
+      await enroll(db, { courseId, studentId: pat });
+      const testId = await insertTest(db, courseId, {
+        title: "Loops Quiz",
+        schoolId,
+      });
+      await insertQuestion(db, testId, { title: "What is a loop?" });
+      await insertTest(db, courseId, { title: "Lists Quiz", schoolId });
+      return { courseId, oliveId: olive };
+    });
+
+    // When the teacher clicks Export results on the course page
+    const page = await own.context.newPage();
+    await page.goto(`/admin/courses/${ids.courseId}`);
+    await page.getByRole("link", { name: "Export results" }).click();
+
+    // Then the page names itself in sentence case, in the breadcrumb and the title
+    const main = page.getByRole("main");
+    const crumb = page.getByRole("navigation", { name: "breadcrumb" });
+    await expect(crumb).toContainText("Courses");
+    await expect(crumb).toContainText("Export Course");
+    await expect(crumb.locator('[aria-current="page"]')).toHaveText(
+      "Export results",
+    );
+    await expect(
+      main.getByRole("heading", { level: 1, name: "Export results" }),
+    ).toBeVisible();
+
+    // And it shows a numbered Student card and a Tests card, with each student's @username
+    await expect(
+      main.getByRole("heading", { name: "Student", exact: true }),
+    ).toBeVisible();
+    await expect(main.getByText("Pick one", { exact: true })).toBeVisible();
+    await expect(
+      main.getByRole("heading", { name: "Tests (2)" }),
+    ).toBeVisible();
+    await expect(
+      main.getByText("Newest first · tick at least one"),
+    ).toBeVisible();
+    await expect(main.getByText("@olive.g")).toBeVisible();
+    await expect(main.getByText("@pat.q")).toBeVisible();
+
+    // When the teacher picks Olive and ticks one test
+    const oliveRadio = main.getByRole("radio", { name: /Olive Green/ });
+    await hydrated(oliveRadio);
+    await oliveRadio.click();
+    await main.getByRole("checkbox", { name: "Loops Quiz" }).click();
+
+    // Then the Export note names the student
+    await expect(main.getByText(/One PDF for Olive Green/)).toBeVisible();
+
+    // And Export PDF downloads that student's report
+    const downloadPromise = page.waitForEvent("download");
+    await main.getByRole("button", { name: "Export PDF" }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe(
+      `results-report-${ids.oliveId}.pdf`,
+    );
+    const stream = await download.createReadStream();
+    const firstChunk: Buffer = await new Promise((resolve, reject) => {
+      stream.once("data", resolve);
+      stream.once("error", reject);
+    });
+    expect(firstChunk.subarray(0, 4).toString("latin1")).toBe("%PDF");
+    await page.close();
+  });
 });

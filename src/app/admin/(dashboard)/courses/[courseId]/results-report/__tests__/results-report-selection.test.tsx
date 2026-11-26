@@ -64,8 +64,8 @@ function renderView() {
       students={makeStudents()}
       tests={makeTests()}
     >
-      <StudentChoiceList />
-      <TestChoiceList />
+      <StudentChoiceList labelledBy="s" />
+      <TestChoiceList labelledBy="t" />
       <ExportButton />
     </ResultsReportSelectionProvider>,
   );
@@ -91,7 +91,7 @@ describe("results-report export view", () => {
     renderView();
 
     // When the admin picks Alice, checks tests A and C, then clicks Export.
-    await user.click(screen.getByLabelText("Alice"));
+    await user.click(screen.getByRole("radio", { name: /Alice/ }));
     await user.click(screen.getByLabelText("Test A"));
     await user.click(screen.getByLabelText("Test C"));
     await user.click(screen.getByRole("button", { name: "Export PDF" }));
@@ -119,7 +119,7 @@ describe("results-report export view", () => {
     expect(push).not.toHaveBeenCalled();
 
     // And selecting only a student keeps it disabled.
-    await user.click(screen.getByLabelText("Alice"));
+    await user.click(screen.getByRole("radio", { name: /Alice/ }));
     expect(exportButton).toBeDisabled();
 
     // When the admin also selects at least one test, Export becomes enabled.
@@ -138,7 +138,7 @@ describe("results-report export view", () => {
     ).toBeInTheDocument();
 
     // When the admin picks a student and a test, the hint disappears.
-    await user.click(screen.getByLabelText("Alice"));
+    await user.click(screen.getByRole("radio", { name: /Alice/ }));
     await user.click(screen.getByLabelText("Test A"));
     expect(
       screen.queryByText("Pick a student and at least one test"),
@@ -153,15 +153,15 @@ describe("results-report export view", () => {
         students={[]}
         tests={[]}
       >
-        <StudentChoiceList />
-        <TestChoiceList />
+        <StudentChoiceList labelledBy="s" />
+        <TestChoiceList labelledBy="t" />
       </ResultsReportSelectionProvider>,
     );
 
-    // Then each list explains itself and links back to the course page.
+    // Then the student list links to the Students tab, where students are added, and the test list to the Tests tab.
     expect(
       screen.getByRole("link", { name: /no students enrolled yet/i }),
-    ).toHaveAttribute("href", "/admin/courses/course-1");
+    ).toHaveAttribute("href", "/admin/courses/course-1/students");
     expect(screen.getByRole("link", { name: /no tests yet/i })).toHaveAttribute(
       "href",
       "/admin/courses/course-1",
@@ -176,8 +176,8 @@ describe("results-report export view", () => {
         students={makeStudents()}
         tests={[]}
       >
-        <StudentChoiceList />
-        <TestChoiceList />
+        <StudentChoiceList labelledBy="s" />
+        <TestChoiceList labelledBy="t" />
       </ResultsReportSelectionProvider>,
     );
 

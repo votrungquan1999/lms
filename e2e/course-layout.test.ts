@@ -12,7 +12,7 @@ import {
 } from "./seed";
 
 test.describe("Course layout", () => {
-  test("an unbroken course title, description and enrolled student name never force the course page to scroll sideways, and Export Results stays reachable", async ({
+  test("an unbroken course title, description and enrolled student name never force the course page to scroll sideways, and Export results stays reachable", async ({
     page,
   }) => {
     // No hyphens: browsers treat "-" as a soft break point even without a
@@ -153,7 +153,7 @@ test.describe("Course layout", () => {
     );
   });
 
-  test("an unbroken student name or test title never spills past the Export Results column", async ({
+  test("an unbroken student name or test title never spills past the Export results column", async ({
     page,
   }) => {
     // Long enough to wrap even across the full-width (max-w-5xl) column.
@@ -169,28 +169,30 @@ test.describe("Course layout", () => {
     });
 
     await page.goto(`/admin/courses/${courseId}/results-report`);
-    // Checked against the column's own right edge — stricter than page-level
-    // scroll, which misses a spill that stops inside the page padding.
-    const sectionBox = await page.locator("section").first().boundingBox();
-    if (!sectionBox) throw new Error("Export Results section not found");
-    const columnRight = sectionBox.x + sectionBox.width;
-    await expectWrapped(page.getByText(unbrokenStudentName, { exact: true }));
-    await expectWrapped(page.getByText(unbrokenTestTitle, { exact: true }));
+    // Each label is checked against its own card's right edge — stricter than
+    // page-level scroll, which misses a spill that stops inside the page padding.
+    const studentName = page.getByText(unbrokenStudentName, { exact: true });
+    const testTitle = page.getByText(unbrokenTestTitle, { exact: true });
+    await expectWrapped(studentName);
+    await expectWrapped(testTitle);
 
-    const nameBox = await page
-      .getByText(unbrokenStudentName, { exact: true })
-      .boundingBox();
-    if (!nameBox) throw new Error("Student name label not found");
-    expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(columnRight + 1);
-
-    const titleBox = await page
-      .getByText(unbrokenTestTitle, { exact: true })
-      .boundingBox();
-    if (!titleBox) throw new Error("Test title label not found");
-    expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(columnRight + 1);
+    for (const [label, name] of [
+      [studentName, "Student name"],
+      [testTitle, "Test title"],
+    ] as const) {
+      const cardBox = await page
+        .locator("section")
+        .filter({ has: label })
+        .boundingBox();
+      const labelBox = await label.boundingBox();
+      if (!cardBox || !labelBox) throw new Error(`${name} label not found`);
+      expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(
+        cardBox.x + cardBox.width + 1,
+      );
+    }
   });
 
-  test('an unbroken course title never makes the Export Results breadcrumb scroll the page sideways, and never shortens "Export Results"', async ({
+  test('an unbroken course title never makes the Export results breadcrumb scroll the page sideways, and never shortens "Export results"', async ({
     page,
   }) => {
     // No hyphens/spaces: browsers treat those as soft break points even
@@ -201,9 +203,9 @@ test.describe("Course layout", () => {
       insertCourse(db, { title: unbrokenCourseTitle }),
     );
 
-    // The current segment ("Export Results") is short and static — the
+    // The current segment ("Export results") is short and static — the
     // overflow instead came from the course-title link ahead of it, which
-    // wraps (the bar grows) while "Export Results" reads in full.
+    // wraps (the bar grows) while "Export results" reads in full.
     await page.goto(`/admin/courses/${courseId}/results-report`);
     const nav = page.getByRole("navigation", { name: "breadcrumb" });
     await expectWrapped(nav.getByRole("link", { name: unbrokenCourseTitle }));
