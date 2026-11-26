@@ -81,7 +81,7 @@ test.describe("Image-answer + annotation flow", () => {
       .getByRole("navigation", { name: "Course sections" })
       .getByRole("link", { name: "Students" })
       .click();
-    await page.getByRole("button", { name: "Manage Enrollments" }).click();
+    await page.getByRole("button", { name: "Add students" }).click();
     await page.getByText(`@${STUDENT_USERNAME}`).click();
     await page.getByRole("button", { name: "Confirm Enrollments" }).click();
     await expect(page.getByText("updated")).toBeVisible({ timeout: 10000 });

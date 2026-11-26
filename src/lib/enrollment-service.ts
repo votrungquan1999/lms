@@ -167,6 +167,17 @@ export class EnrollmentService {
    * dropped here rather than by every caller.
    */
   async listEnrollmentsByCourse(courseId: string): Promise<string[]> {
+    const enrollments = await this.listEnrollmentsWithDates(courseId);
+    return enrollments.map((enrollment) => enrollment.studentId);
+  }
+
+  /**
+   * Same rows and order as `listEnrollmentsByCourse`, each with the moment the
+   * student joined the course.
+   */
+  async listEnrollmentsWithDates(
+    courseId: string,
+  ): Promise<{ studentId: string; enrolledAt: Date }[]> {
     const [isOwnCourse, docs] = await Promise.all([
       this.isOwnCourse(courseId),
       this.enrollments.find({ courseId }).sort({ enrolledAt: -1 }).toArray(),
@@ -174,10 +185,12 @@ export class EnrollmentService {
     if (!isOwnCourse) {
       return [];
     }
-    const studentIds = docs.map((doc) => doc.studentId);
-
-    const ownStudentIds = await this.ownStudentIds(studentIds);
-    return studentIds.filter((id) => ownStudentIds.has(id));
+    const ownStudentIds = await this.ownStudentIds(
+      docs.map((doc) => doc.studentId),
+    );
+    return docs
+      .filter((doc) => ownStudentIds.has(doc.studentId))
+      .map(({ studentId, enrolledAt }) => ({ studentId, enrolledAt }));
   }
 
   /**

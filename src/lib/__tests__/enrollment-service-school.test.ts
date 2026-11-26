@@ -198,4 +198,24 @@ describe("Feature: enrolments are written only within the service's school", () 
       ).toBe(1);
     },
   );
+
+  dbIt(
+    "listEnrollmentsWithDates returns when each of my students joined, and skips another school's student",
+    async ({ db }) => {
+      // Given a course with one of my students and a student of another school enrolled
+      await insertRawCourses(db, ["course-1"]);
+      await insertRawStudents(db, ["mine"]);
+      await insertRawStudents(db, ["theirs"], OTHER_SCHOOL_ID);
+      const joined = new Date("2026-09-02T18:30:00Z");
+      await insertRawEnrollment(db, "course-1", "mine", joined);
+      await insertRawEnrollment(db, "course-1", "theirs");
+      const service = new EnrollmentService(db, TEST_SCHOOL_ID);
+
+      // When the course's enrolments are read
+      const rows = await service.listEnrollmentsWithDates("course-1");
+
+      // Then only my student shows, with the stored join moment
+      expect(rows).toEqual([{ studentId: "mine", enrolledAt: joined }]);
+    },
+  );
 });

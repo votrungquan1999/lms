@@ -91,6 +91,7 @@ export async function setEnrollmentsAction(
         });
 
         revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        revalidatePath(`/admin/courses/${parsed.data.courseId}/students`);
         return {
           success: true,
           message: `Enrollments updated (${parsed.data.studentIds.length} student${parsed.data.studentIds.length !== 1 ? "s" : ""})`,

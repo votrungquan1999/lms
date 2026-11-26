@@ -19,7 +19,7 @@ Routes: `src/app/admin/(dashboard)/courses/page.tsx`,
 - [T1] courses/detail-empty: a freshly created course — no students, no materials, no tests, no join link yet
 - [T1] courses/detail-long-title: detail + breadcrumb of a course whose title is a long name with spaces
 - [T1] courses/detail-unbroken-title: detail + breadcrumb of a course titled with one unbroken email-like string, description an unbroken URL
-- [T1] courses/enrollments-dialog: Manage Enrollments on the seeded course — 16 students, all pre-ticked, list clipped at max-h-[80vh]
+- [T1] courses/enrollments-dialog: Add students on the seeded course — 16 students, all pre-ticked, list clipped at max-h-[80vh]
 - [T2] courses/enrollments-none-ticked: the same dialog on a course with nobody enrolled — 16 students, none ticked
 - [T1] courses/results-report: Export Results for the seeded course — 16 student radios, 2 test checkboxes, Export PDF disabled
 - [T1] courses/results-report-selected: one student and one test picked, Export PDF enabled

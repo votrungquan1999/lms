@@ -66,17 +66,19 @@ export async function insertRawStudents(
  * @param db - The test's isolated database.
  * @param courseId - The enrolled course.
  * @param studentId - The enrolled student.
+ * @param enrolledAt - When the student joined; now when omitted.
  */
 export async function insertRawEnrollment(
   db: Db,
   courseId: string,
   studentId: string,
+  enrolledAt: Date = new Date(),
 ): Promise<void> {
   await db.collection<EnrollmentDocument>("enrollment").insertOne({
     id: crypto.randomUUID(),
     courseId,
     studentId,
-    enrolledAt: new Date(),
+    enrolledAt,
     createdBy: "seed",
     updatedAt: null,
     updatedBy: null,

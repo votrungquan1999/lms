@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Separator } from "src/components/ui/separator";
+import { formatVietnamDate } from "src/lib/format-date";
 import {
   getCourseService,
   getEnrollmentService,
@@ -8,6 +10,11 @@ import {
 } from "src/lib/services-singleton";
 import { ManageEnrollmentsDialog } from "../../enroll-student-form";
 import { ShareInviteLink } from "../../share-invite-link";
+import {
+  type StudentRowData,
+  StudentsListProvider,
+} from "../students-list.state";
+import { StudentsList } from "../students-list.ui";
 
 export const metadata = {
   title: "Course students — LMS Admin",
@@ -31,50 +38,61 @@ export default async function CourseStudentsPage({
   const students = await studentService.listStudents();
 
   const enrollmentService = await getEnrollmentService(session.school.id);
-  const enrolledStudentIds =
-    await enrollmentService.listEnrollmentsByCourse(courseId);
+  const enrollments =
+    await enrollmentService.listEnrollmentsWithDates(courseId);
+  const enrolledStudentIds = enrollments.map((e) => e.studentId);
+
+  // Sorted by name with the id as tie-break so equal names never reorder between loads.
+  const joinedById = new Map(
+    enrollments.map((e) => [e.studentId, e.enrolledAt]),
+  );
+  const rows: StudentRowData[] = students
+    .filter((s) => joinedById.has(s.id))
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      username: s.username,
+      joined: formatVietnamDate(joinedById.get(s.id) as Date),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 
   return (
-    <section className="w-full max-w-5xl space-y-6">
+    <div className="w-full max-w-5xl space-y-6">
       <ShareInviteLink courseId={courseId} inviteToken={course.inviteToken} />
 
       <Separator />
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">
-            Enrolled Students ({enrolledStudentIds.length})
+      <section aria-label="Students" className="space-y-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h2 className="whitespace-nowrap text-[17px] font-semibold">
+            Students{" "}
+            <span className="font-medium text-muted-foreground">
+              ({rows.length})
+            </span>
           </h2>
-          <ManageEnrollmentsDialog
-            courseId={courseId}
-            students={students}
-            enrolledStudentIds={enrolledStudentIds}
-          />
-        </div>
-        {enrolledStudentIds.length > 0 ? (
-          <div className="space-y-2">
-            {students
-              .filter((s) => enrolledStudentIds.includes(s.id))
-              .map((student) => (
-                <div
-                  key={student.id}
-                  className="flex items-center gap-2 rounded-md border p-3"
-                >
-                  <div className="min-w-0 wrap-anywhere">
-                    <p className="text-sm font-medium">{student.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      @{student.username}
-                    </p>
-                  </div>
-                </div>
-              ))}
+          <span className="text-[13px] text-muted-foreground">
+            New students go on the{" "}
+            <Link href="/admin/students" className="text-primary underline">
+              Students page
+            </Link>{" "}
+            first
+          </span>
+          <div className="md:ml-auto">
+            <ManageEnrollmentsDialog
+              courseId={courseId}
+              students={students}
+              enrolledStudentIds={enrolledStudentIds}
+            />
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            No students enrolled yet.
-          </p>
-        )}
-      </div>
-    </section>
+        </div>
+        <StudentsListProvider rows={rows}>
+          <StudentsList courseId={courseId} />
+        </StudentsListProvider>
+        <p className="text-[13px] text-muted-foreground">
+          Removing a student takes them out of this course only; their account
+          stays on the Students page.
+        </p>
+      </section>
+    </div>
   );
 }

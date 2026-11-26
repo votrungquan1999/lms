@@ -211,7 +211,7 @@ test.describe("Course layout", () => {
     await expectNoPageOverflow(page);
   });
 
-  test("unbroken student names never overflow the Manage Enrollments dialog", async ({
+  test("unbroken student names never overflow the enrolment dialog", async ({
     page,
   }) => {
     // No hyphens: browsers treat "-" as a soft break point even without a
@@ -229,7 +229,7 @@ test.describe("Course layout", () => {
     });
 
     await page.goto(`/admin/courses/${courseId}/students`);
-    await page.getByRole("button", { name: "Manage Enrollments" }).click();
+    await page.getByRole("button", { name: "Add students" }).click();
 
     const dialog = page.getByRole("dialog", { name: "Manage Enrollments" });
     await expect(dialog.getByText(unbrokenName, { exact: true })).toBeVisible();

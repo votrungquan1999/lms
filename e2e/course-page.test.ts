@@ -100,7 +100,7 @@ test.describe("Course page", () => {
     // Then it is its own page with the enrolment section and the join link
     await expect(page).toHaveURL(`${base}/students`);
     await expect(
-      main.getByRole("heading", { name: "Enrolled Students (2)" }),
+      main.getByRole("heading", { name: "Students (2)" }),
     ).toBeVisible();
     await expect(
       main.getByRole("button", { name: "Get Join Link" }),
@@ -125,7 +125,7 @@ test.describe("Course page", () => {
     // Then they return to the Students tab
     await expect(page).toHaveURL(`${base}/students`);
     await expect(
-      main.getByRole("heading", { name: "Enrolled Students (2)" }),
+      main.getByRole("heading", { name: "Students (2)" }),
     ).toBeVisible();
 
     // And each tab opened directly still shows the course crumb
@@ -622,6 +622,141 @@ test.describe("Course page", () => {
     ).toBeInViewport();
     await expect(pinned).toBeInViewport({ ratio: 1 });
     expect((await pinned.boundingBox())?.y).toBeCloseTo(56, 0);
+    await page.close();
+  });
+
+  test("the Students tab lists enrolled students with their joined date in Vietnam time, searches by name or username, removes one after a confirm and adds students", async () => {
+    test.setTimeout(240_000);
+
+    // Given a course with 3 students; Olive was enrolled at 18:30 UTC, already the next day in Vietnam
+    const schoolId = own.schoolId;
+    const ids = await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const courseId = await insertCourse(db, {
+        title: "Roster Course",
+        schoolId,
+      });
+      const people = [
+        {
+          name: "Olive Green",
+          username: "olive.g",
+          at: "2026-09-02T18:30:00Z",
+        },
+        { name: "Điệp Nguyễn", username: "diep.n", at: "2026-09-05T03:00:00Z" },
+        { name: "Pat Quinn", username: "pat.q", at: "2026-09-12T10:00:00Z" },
+      ];
+      for (const person of people) {
+        const studentId = await insertStudent(db, {
+          name: person.name,
+          username: person.username,
+          schoolIds: [schoolId],
+        });
+        await enroll(db, {
+          courseId,
+          studentId,
+          enrolledAt: new Date(person.at),
+        });
+      }
+      await insertStudent(db, {
+        name: "Newcomer Lee",
+        username: "newcomer.l",
+        schoolIds: [schoolId],
+      });
+      return { courseId };
+    });
+
+    // When the teacher opens the Students tab
+    const page = await own.context.newPage();
+    await page.goto(`/admin/courses/${ids.courseId}/students`);
+    const main = page.getByRole("main");
+    const roster = main.getByRole("region", { name: "Students" });
+    const rowOf = (name: string) =>
+      roster.getByRole("listitem").filter({ hasText: name });
+
+    // Then each row shows the name, the @username and the joined date in Vietnam time
+    await expect(
+      roster.getByRole("heading", { name: "Students (3)" }),
+    ).toBeVisible();
+    await expect(rowOf("Olive Green")).toContainText("@olive.g");
+    await expect(rowOf("Olive Green")).toContainText("3 Sep 2026");
+    await expect(rowOf("Điệp Nguyễn")).toContainText("5 Sep 2026");
+    await expect(rowOf("Pat Quinn")).toContainText("12 Sep 2026");
+
+    // And a link says new students go on the Students page first
+    await expect(
+      roster.getByRole("link", { name: "Students page" }),
+    ).toHaveAttribute("href", "/admin/students");
+
+    // When they search by name, without accents, by username, and for nothing
+    const search = roster.getByRole("searchbox", { name: "Search students" });
+    await hydrated(search);
+    await search.fill("OLIVE");
+    await expect(rowOf("Olive Green")).toBeVisible();
+    await expect(roster.getByRole("listitem")).toHaveCount(1);
+    await search.fill("diep");
+    await expect(rowOf("Điệp Nguyễn")).toBeVisible();
+    await expect(roster.getByRole("listitem")).toHaveCount(1);
+    await search.fill("pat.q");
+    await expect(rowOf("Pat Quinn")).toBeVisible();
+    await expect(roster.getByRole("listitem")).toHaveCount(1);
+    await search.fill("zzz");
+    await expect(roster.getByText("No students match")).toBeVisible();
+    await search.fill("");
+    await expect(roster.getByRole("listitem")).toHaveCount(3);
+
+    // When they start to remove Pat and cancel
+    await rowOf("Pat Quinn")
+      .getByRole("button", { name: "Remove Pat Quinn from this course" })
+      .click();
+    const confirm = page.getByRole("alertdialog");
+    await expect(
+      confirm.getByRole("heading", {
+        name: "Remove Pat Quinn from this course?",
+      }),
+    ).toBeVisible();
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+
+    // Then Pat is still enrolled
+    await expect(rowOf("Pat Quinn")).toBeVisible();
+
+    // When they remove Pat and confirm
+    await rowOf("Pat Quinn")
+      .getByRole("button", { name: "Remove Pat Quinn from this course" })
+      .click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Remove", exact: true })
+      .click();
+
+    // Then the row is gone and the count drops
+    await expect(rowOf("Pat Quinn")).toHaveCount(0);
+    await expect(
+      roster.getByRole("heading", { name: "Students (2)" }),
+    ).toBeVisible();
+    await expect(main.getByText("2 students")).toBeVisible();
+
+    // And the account is still on the Students page
+    await page.goto("/admin/students");
+    await expect(page.getByText("Pat Quinn")).toBeVisible();
+
+    // When they add Newcomer through Add students
+    await page.goto(`/admin/courses/${ids.courseId}/students`);
+    const addButton = roster.getByRole("button", { name: "Add students" });
+    await hydrated(addButton);
+    await addButton.click();
+    const dialog = page.getByRole("dialog");
+    await expect(
+      dialog.getByRole("heading", { name: "Manage Enrollments" }),
+    ).toBeVisible();
+    await dialog.getByLabel(/Newcomer Lee/).check();
+    await dialog.getByRole("button", { name: "Confirm Enrollments" }).click();
+
+    // Then Newcomer shows as a row
+    await expect(dialog.getByRole("status")).toContainText(
+      "Enrollments updated",
+    );
+    await page.keyboard.press("Escape");
+    await expect(rowOf("Newcomer Lee")).toBeVisible();
     await page.close();
   });
 });

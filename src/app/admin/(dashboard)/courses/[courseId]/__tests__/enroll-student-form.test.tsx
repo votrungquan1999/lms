@@ -34,9 +34,7 @@ describe("Feature: Manage Enrollments Dialog — observed snapshot", () => {
         enrolledStudentIds={["s1", "s2"]}
       />,
     );
-    await user.click(
-      screen.getByRole("button", { name: "Manage Enrollments" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Add students" }));
 
     const observedInputs = document.querySelectorAll<HTMLInputElement>(
       'input[type="hidden"][name="observedStudentIds"]',

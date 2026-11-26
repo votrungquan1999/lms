@@ -121,12 +121,12 @@ test.describe("LMS E2E Flow", () => {
       page.getByRole("heading", { name: "E2E Test Course" }),
     ).toBeVisible();
 
-    // When clicking "Manage Enrollments" and ticking the student
+    // When clicking "Add students" and ticking the student
     await page
       .getByRole("navigation", { name: "Course sections" })
       .getByRole("link", { name: "Students" })
       .click();
-    await page.getByRole("button", { name: "Manage Enrollments" }).click();
+    await page.getByRole("button", { name: "Add students" }).click();
     await expect(
       page.getByRole("heading", { name: "Manage Enrollments" }),
     ).toBeVisible();

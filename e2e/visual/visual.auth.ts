@@ -132,7 +132,7 @@ setup("create and authenticate a student", async ({ browser }) => {
     await expect(
       admin.getByRole("heading", { name: SEED_COURSE_TITLE }),
     ).toBeVisible();
-    await admin.getByRole("button", { name: "Manage Enrollments" }).click();
+    await admin.getByRole("button", { name: "Add students" }).click();
     await expect(
       admin.getByRole("heading", { name: "Manage Enrollments" }),
     ).toBeVisible();

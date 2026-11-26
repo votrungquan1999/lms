@@ -134,7 +134,7 @@ test("courses: seeded course detail with enrollments and tests", async ({
   await snap(page, "courses/detail-seeded", { sources: DETAIL_SOURCES });
   await page.goto(`/admin/courses/${SEED_COURSE_ID}/students`);
   await expect(
-    page.getByRole("heading", { name: /Enrolled Students \(\d+\)/ }),
+    page.getByRole("heading", { name: /Students \(\d+\)/ }),
   ).toBeVisible();
 });
 
@@ -185,7 +185,7 @@ test("courses: manage enrollments dialog listing every student", async ({
   await expect(
     page.getByRole("heading", { name: "Sandbox: Fundamentals" }),
   ).toBeVisible({ timeout: 30000 });
-  await page.getByRole("button", { name: "Manage Enrollments" }).click();
+  await page.getByRole("button", { name: "Add students" }).click();
   await expect(
     page.getByRole("heading", { name: "Manage Enrollments" }),
   ).toBeVisible();
@@ -210,7 +210,7 @@ test("courses: manage enrollments on a course with nobody enrolled", async ({
   await expect(page.getByRole("heading", { name: EMPTY_TITLE })).toBeVisible({
     timeout: 30000,
   });
-  await page.getByRole("button", { name: "Manage Enrollments" }).click();
+  await page.getByRole("button", { name: "Add students" }).click();
   await expect(
     page.getByRole("heading", { name: "Manage Enrollments" }),
   ).toBeVisible();
