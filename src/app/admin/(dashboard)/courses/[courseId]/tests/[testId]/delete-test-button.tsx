@@ -19,35 +19,19 @@ import { deleteTestAction } from "./actions";
 interface DeleteTestButtonProps {
   courseId: string;
   testId: string;
-  iconOnly?: boolean;
 }
 
-export function DeleteTestButton({
-  courseId,
-  testId,
-  iconOnly,
-}: DeleteTestButtonProps) {
+export function DeleteTestButton({ courseId, testId }: DeleteTestButtonProps) {
   const [state, formAction, isPending] = useActionState(deleteTestAction, null);
 
   return (
     <>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          {iconOnly ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span className="sr-only">Delete Test</span>
-            </Button>
-          ) : (
-            <Button variant="destructive" className="gap-2">
-              <Trash2 className="w-4 h-4" />
-              Delete Test
-            </Button>
-          )}
+          <Button variant="destructive" className="gap-2">
+            <Trash2 className="w-4 h-4" />
+            Delete Test
+          </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>

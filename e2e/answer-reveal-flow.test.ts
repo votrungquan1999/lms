@@ -155,7 +155,10 @@ test.describe("Answer Reveal — plain mode", () => {
   }) => {
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
-    await page.getByText(TEST_TITLE).click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByText(TEST_TITLE)
+      .click();
     await page.getByRole("link", { name: "Grade Students" }).click();
     await expect(
       page.getByRole("heading", { name: `Grade: ${TEST_TITLE}` }),
@@ -333,7 +336,10 @@ test.describe("Answer Reveal — diff mode", () => {
   }) => {
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
-    await page.getByText(TEST_TITLE).click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByText(TEST_TITLE)
+      .click();
     await page.getByRole("link", { name: "Grade Students" }).click();
     await expect(
       page.getByRole("heading", { name: `Grade: ${TEST_TITLE}` }),

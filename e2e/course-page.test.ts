@@ -5,15 +5,24 @@
  * header with Export results and New test, and every tab guards its own course.
  */
 import { expect, test } from "@playwright/test";
+import { hydrated } from "./hydrated";
 import { createOwnSchool, type OwnSchool } from "./own-school";
 import {
   clearSchoolData,
   enroll,
+  insertAnswer,
   insertCourse,
+  insertGrade,
+  insertQuestion,
   insertStudent,
+  insertSubmission,
   insertTest,
   withDb,
 } from "./seed";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Pushes a hand-in clear of the 24-hour boundary so "yesterday" is stable. */
+const MARGIN_MS = 60 * 60 * 1000;
 
 test.describe("Course page", () => {
   test.describe.configure({ mode: "serial" });
@@ -194,6 +203,162 @@ test.describe("Course page", () => {
         page.getByRole("navigation", { name: "Course sections" }),
       ).toHaveCount(0);
     }
+    await page.close();
+  });
+
+  test("the Tests tab lists tests to grade and tests ready to release in Needs your action, and Release moves a test out of it", async () => {
+    test.setTimeout(180_000);
+
+    // Given a course with 5 students, a test W with 1 of 2 hand-ins waiting,
+    // a test R fully graded but hidden, a practice test and an untouched test
+    const schoolId = own.schoolId;
+    const ids = await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const courseId = await insertCourse(db, {
+        title: "Action Course",
+        schoolId,
+      });
+      const students: string[] = [];
+      for (const name of ["Olive", "Pat", "Quinn", "Rae", "Sam"]) {
+        const studentId = await insertStudent(db, {
+          name,
+          schoolIds: [schoolId],
+        });
+        await enroll(db, { courseId, studentId });
+        students.push(studentId);
+      }
+      const [olive, pat, quinn] = students;
+
+      /** A hand-in answering every question, graded on the given ones. */
+      const handIn = async (
+        testId: string,
+        questionIds: string[],
+        studentId: string,
+        gradedIds: string[],
+        at: Date,
+      ) => {
+        for (const questionId of questionIds) {
+          await insertAnswer(db, {
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "free_text", text: "x" },
+          });
+        }
+        await insertSubmission(db, { testId, studentId, submittedAt: at });
+        for (const questionId of gradedIds) {
+          await insertGrade(db, { testId, questionId, studentId });
+        }
+      };
+
+      const w = await insertTest(db, courseId, {
+        title: "Waiting Quiz",
+        schoolId,
+        showGradeAfterSubmit: false,
+      });
+      const wq1 = await insertQuestion(db, w, { type: "free_text", order: 1 });
+      const wq2 = await insertQuestion(db, w, { type: "free_text", order: 2 });
+      const yesterday = new Date(Date.now() - DAY_MS - MARGIN_MS);
+      await handIn(w, [wq1, wq2], olive, [wq1], yesterday);
+      await handIn(w, [wq1, wq2], pat, [wq1, wq2], yesterday);
+
+      const r = await insertTest(db, courseId, {
+        title: "Release Quiz",
+        schoolId,
+        showGradeAfterSubmit: false,
+      });
+      const rq = await insertQuestion(db, r, { type: "free_text" });
+      await handIn(r, [rq], quinn, [rq], yesterday);
+
+      const practice = await insertTest(db, courseId, {
+        title: "Practice Quiz",
+        schoolId,
+        isPractice: true,
+      });
+      const pq = await insertQuestion(db, practice, { type: "free_text" });
+      await handIn(practice, [pq], olive, [], yesterday);
+
+      await insertTest(db, courseId, { title: "Untouched Quiz", schoolId });
+      return { courseId, w, r };
+    });
+
+    // When the teacher opens the course
+    const page = await own.context.newPage();
+    await page.goto(`/admin/courses/${ids.courseId}`);
+
+    // Then Needs your action holds only W and R
+    const card = page.getByRole("region", { name: "Needs your action" });
+    await expect(
+      card.getByRole("heading", { name: "Needs your action (2)" }),
+    ).toBeVisible();
+    await expect(
+      card.getByRole("link", { name: "Waiting Quiz" }),
+    ).toBeVisible();
+    await expect(
+      card.getByRole("link", { name: "Release Quiz" }),
+    ).toBeVisible();
+    await expect(card.getByText("Practice Quiz")).toHaveCount(0);
+    await expect(card.getByText("Untouched Quiz")).toHaveCount(0);
+
+    // And W shows who waits, what is left, and Grade into the course grading page
+    const rowW = card.getByTestId(`test-row-${ids.w}`);
+    await expect(rowW).toContainText("2 of 5");
+    await expect(rowW).toContainText("1 waiting");
+    await expect(rowW).toContainText("Not released");
+    await expect(rowW).toContainText(
+      "Olive submitted yesterday · 1 answer left · 2 questions",
+    );
+    await expect(rowW.getByRole("link", { name: "Grade" })).toHaveAttribute(
+      "href",
+      `/admin/courses/${ids.courseId}/tests/${ids.w}/grading`,
+    );
+
+    // And R is all graded, not visible to students, with Release
+    const rowR = card.getByTestId(`test-row-${ids.r}`);
+    await expect(rowR).toContainText("1 of 5");
+    await expect(rowR).toContainText("All graded");
+    await expect(rowR).toContainText("Not released");
+    await expect(rowR).toContainText(
+      "All 1 submission graded · students can't see their grades yet",
+    );
+
+    // When they release R
+    const release = rowR.getByRole("button", { name: "Release" });
+    await hydrated(release);
+    await release.click();
+
+    // Then R leaves the card and W stays
+    await expect(
+      card.getByRole("heading", { name: "Needs your action (1)" }),
+    ).toBeVisible();
+    await expect(card.getByRole("link", { name: "Release Quiz" })).toHaveCount(
+      0,
+    );
+    await expect(
+      card.getByRole("link", { name: "Waiting Quiz" }),
+    ).toBeVisible();
+    await page.close();
+  });
+
+  test("a course with nothing to act on shows no Needs your action card", async () => {
+    test.setTimeout(120_000);
+
+    // Given a course whose only test has no hand-ins
+    const schoolId = own.schoolId;
+    const courseId = await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const id = await insertCourse(db, { title: "Quiet Course", schoolId });
+      await insertTest(db, id, { title: "Quiet Quiz", schoolId });
+      return id;
+    });
+
+    // When the teacher opens it
+    const page = await own.context.newPage();
+    await page.goto(`/admin/courses/${courseId}`);
+
+    // Then the page shows the test but no action card
+    await expect(page.getByText("Quiet Quiz")).toBeVisible();
+    await expect(page.getByText("Needs your action")).toHaveCount(0);
     await page.close();
   });
 });

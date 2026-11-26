@@ -126,7 +126,11 @@ test("courses: seeded course detail with enrollments and tests", async ({
   await expect(
     page.getByRole("heading", { name: "Sandbox: Fundamentals" }),
   ).toBeVisible({ timeout: 30000 });
-  await expect(page.getByText(SEED_TEST_TITLE)).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "All tests" })
+      .getByRole("link", { name: SEED_TEST_TITLE }),
+  ).toBeVisible();
   await snap(page, "courses/detail-seeded", { sources: DETAIL_SOURCES });
   await page.goto(`/admin/courses/${SEED_COURSE_ID}/students`);
   await expect(

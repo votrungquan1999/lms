@@ -24,7 +24,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(), cookies: vi.fn() }));
 vi.mock("src/lib/auth-singleton", () => ({ getAuthService: vi.fn() }));
 
-describe("Feature: CourseDetailPage X/Y graded badge links to grading", () => {
+describe("Feature: the Tests tab counts hand-ins against the enrolled students", () => {
   beforeEach(async () => {
     await setupTestDb();
   });
@@ -33,7 +33,7 @@ describe("Feature: CourseDetailPage X/Y graded badge links to grading", () => {
     await teardownTestDb();
   });
 
-  it("should render the graded count as a link to /admin/grading/[testId] when students are enrolled", async () => {
+  it("shows how many enrolled students handed in, and links the title to the test", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Course",
@@ -62,8 +62,10 @@ describe("Feature: CourseDetailPage X/Y graded badge links to grading", () => {
     });
     render(ui);
 
-    const link = screen.getByRole("link", { name: /\d+\/\d+ graded/ });
-    expect(link.getAttribute("href")).toBe(`/admin/grading/${test.id}`);
+    expect(screen.getByText("0 of 1")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Test" }).getAttribute("href"),
+    ).toBe(`/admin/courses/${course.id}/tests/${test.id}`);
   });
 
   it("links to the results-report export view for the course", async () => {

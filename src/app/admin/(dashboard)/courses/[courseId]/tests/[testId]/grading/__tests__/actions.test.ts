@@ -108,9 +108,9 @@ describe("Feature: grading actions extend revalidatePath to hub and variant page
     expect(calls).toContain("/admin/grading");
     expect(calls).toContain(`/admin/grading/${testId}`);
 
-    // Step 15 fix: releaseGradesAction now also revalidates the student page
-    // so the student sees grades on the next visit after a global release.
+    // A release must reach the student page and the course's test list
     expect(calls).toContain(`/student/courses/${courseId}/tests/${testId}`);
+    expect(calls).toContain(`/admin/courses/${courseId}`);
   });
 });
 

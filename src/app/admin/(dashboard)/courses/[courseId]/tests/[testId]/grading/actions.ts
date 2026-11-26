@@ -384,6 +384,7 @@ export async function releaseGradesAction(
         revalidatePath(
           `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
         );
+        revalidatePath(`/admin/courses/${parsed.data.courseId}`);
         revalidatePath("/admin/grading");
         revalidatePath(`/admin/grading/${parsed.data.testId}`);
         // Pre-existing gap: a global release must also propagate to the student
