@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { SidebarProvider } from "src/components/ui/sidebar";
 import { TooltipProvider } from "src/components/ui/tooltip";
 import { describe, expect, it, vi } from "vitest";
 import { AdminSidebar } from "../admin-sidebar";
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/dashboard",
+  usePathname: () => "/admin/grading",
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
@@ -14,51 +14,55 @@ vi.mock("src/lib/auth-client", () => ({
   authClient: { signOut: vi.fn() },
 }));
 
-describe("Feature: AdminSidebar Need actions group", () => {
-  it("should render a 'Grading' link to /admin/grading inside a 'Need actions' group", () => {
-    render(
-      <TooltipProvider>
-        <SidebarProvider>
-          <AdminSidebar email="admin@test" />
-        </SidebarProvider>
-      </TooltipProvider>,
-    );
+function renderSidebar(props: { isOwner?: boolean } = {}) {
+  return render(
+    <TooltipProvider>
+      <SidebarProvider>
+        <AdminSidebar email="admin@test" {...props} />
+      </SidebarProvider>
+    </TooltipProvider>,
+  );
+}
 
-    expect(screen.getByText("Need actions")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /Grading/ });
-    expect(link.getAttribute("href")).toBe("/admin/grading");
+describe("Feature: AdminSidebar navigation", () => {
+  it("lists To grade, Courses, Question bank, Students and Join requests in order, with no Dashboard", () => {
+    const { container } = renderSidebar();
+
+    const links = within(
+      container.querySelector('[data-sidebar="content"]') as HTMLElement,
+    )
+      .getAllByRole("link")
+      .map((link) => [link.textContent, link.getAttribute("href")]);
+
+    expect(links).toEqual([
+      ["To grade", "/admin/grading"],
+      ["Courses", "/admin/courses"],
+      ["Question bank", "/admin/pools"],
+      ["Students", "/admin/students"],
+      ["Join requests", "/admin/join-requests"],
+    ]);
+    expect(screen.queryByText("Need actions")).not.toBeInTheDocument();
   });
-});
 
-describe("Feature: AdminSidebar join-request queue link", () => {
-  it("should render a 'Join Requests' link to /admin/join-requests inside the 'Need actions' group", () => {
-    render(
-      <TooltipProvider>
-        <SidebarProvider>
-          <AdminSidebar email="admin@test" />
-        </SidebarProvider>
-      </TooltipProvider>,
-    );
+  it("shows the Owner section (User roles, then Schools) only to owners", () => {
+    const { container } = renderSidebar({ isOwner: true });
 
-    const link = screen.getByRole("link", { name: /Join Requests/ });
-    expect(link.getAttribute("href")).toBe("/admin/join-requests");
+    expect(screen.getByText("Owner")).toBeInTheDocument();
+    const owner = within(
+      container.querySelector('[data-sidebar="content"]') as HTMLElement,
+    )
+      .getAllByRole("link")
+      .slice(-2)
+      .map((link) => link.getAttribute("href"));
+    expect(owner).toEqual(["/admin/user-roles", "/admin/schools"]);
   });
-});
 
-describe("Feature: AdminSidebar Question Bank link", () => {
-  // Green-from-first: adding the nav entry IS the implementation; no meaningful
-  // red is possible (per the project TDD rule).
-  it("should render a 'Question Bank' link to /admin/pools", () => {
-    render(
-      <TooltipProvider>
-        <SidebarProvider>
-          <AdminSidebar email="admin@test" />
-        </SidebarProvider>
-      </TooltipProvider>,
-    );
+  it("hides the Owner section from a teacher who is not an owner", () => {
+    renderSidebar();
 
-    const link = screen.getByRole("link", { name: /Question Bank/ });
-    expect(link.getAttribute("href")).toBe("/admin/pools");
+    expect(screen.queryByText("Owner")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Schools/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /User roles/ })).toBeNull();
   });
 });
 
@@ -85,7 +89,7 @@ describe("Feature: AdminSidebar renders safely with no active school", () => {
     expect(
       screen.queryByTestId("school-switcher-trigger"),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Dashboard/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /To grade/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Schools/ })).toBeInTheDocument();
   });
 });

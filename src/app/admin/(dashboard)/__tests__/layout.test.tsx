@@ -20,7 +20,7 @@ import {
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/dashboard",
+  usePathname: () => "/admin/grading",
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   redirect: vi.fn(() => {
     throw new Error("redirect called");

@@ -4,7 +4,6 @@ import {
   BookOpen,
   ClipboardCheck,
   Landmark,
-  LayoutDashboard,
   Library,
   LogOut,
   ShieldCheck,
@@ -33,15 +32,16 @@ import { useLeaveGuard } from "./leave-guard.state";
 import { switchSchoolAction } from "./switch-school-actions";
 
 const navItems = [
-  { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "Students", href: "/admin/students", icon: Users },
+  { title: "To grade", href: "/admin/grading", icon: ClipboardCheck },
   { title: "Courses", href: "/admin/courses", icon: BookOpen },
-  { title: "Question Bank", href: "/admin/pools", icon: Library },
+  { title: "Question bank", href: "/admin/pools", icon: Library },
+  { title: "Students", href: "/admin/students", icon: Users },
+  { title: "Join requests", href: "/admin/join-requests", icon: UserPlus },
 ];
 
-const needActionsItems = [
-  { title: "Grading", href: "/admin/grading", icon: ClipboardCheck },
-  { title: "Join Requests", href: "/admin/join-requests", icon: UserPlus },
+const ownerItems = [
+  { title: "User roles", href: "/admin/user-roles", icon: ShieldCheck },
+  { title: "Schools", href: "/admin/schools", icon: Landmark },
 ];
 
 export function AdminSidebar({
@@ -71,7 +71,7 @@ export function AdminSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <GuardedLink href="/admin/dashboard">
+              <GuardedLink href="/admin/grading">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <BookOpen className="size-4" />
                 </div>
@@ -109,32 +109,9 @@ export function AdminSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith(item.href)}
-                    tooltip={item.title}
-                  >
-                    <GuardedLink href={item.href}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </GuardedLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Need actions</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {needActionsItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
@@ -157,30 +134,20 @@ export function AdminSidebar({
             <SidebarGroupLabel>Owner</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith("/admin/schools")}
-                    tooltip="Schools"
-                  >
-                    <GuardedLink href="/admin/schools">
-                      <Landmark />
-                      <span>Schools</span>
-                    </GuardedLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith("/admin/user-roles")}
-                    tooltip="User Roles"
-                  >
-                    <GuardedLink href="/admin/user-roles">
-                      <ShieldCheck />
-                      <span>User Roles</span>
-                    </GuardedLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {ownerItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname.startsWith(item.href)}
+                      tooltip={item.title}
+                    >
+                      <GuardedLink href={item.href}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </GuardedLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
