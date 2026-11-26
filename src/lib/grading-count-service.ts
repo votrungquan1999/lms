@@ -52,7 +52,7 @@ export interface TestGradingCounts {
   gradedHidden: number;
   /** Graded students who can see their grade. */
   releasedTo: number;
-  /** Nothing waits and at least one graded student cannot see the grade. */
+  /** A graded test where nothing waits and a student cannot see the grade; never a practice test. */
   readyToRelease: boolean;
 }
 
@@ -444,7 +444,9 @@ export class GradingCountService {
           }
         }
       }
-      counts.readyToRelease = counts.waiting === 0 && counts.gradedHidden > 0;
+      // Practice tests show answers as students go, so there is never a release to make
+      counts.readyToRelease =
+        !t.isPractice && counts.waiting === 0 && counts.gradedHidden > 0;
       testCounts.push(counts);
     }
 

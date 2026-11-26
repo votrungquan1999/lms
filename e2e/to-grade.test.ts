@@ -6,6 +6,7 @@
  * tests never count.
  */
 import { expect, test } from "@playwright/test";
+import { hydrated } from "./hydrated";
 import { createOwnSchool, type OwnSchool } from "./own-school";
 import {
   clearSchoolData,
@@ -33,17 +34,17 @@ test.describe("To grade: tests with work waiting", () => {
   test.describe.configure({ mode: "serial" });
 
   let own: OwnSchool;
+  test.beforeAll(async ({ browser }) => {
+    own = await createOwnSchool(browser, "to-grade");
+  });
   test.afterAll(async () => {
     await own?.remove();
   });
 
-  test("lists waiting tests grouped by course, oldest waiting first, never counting practice tests", async ({
-    browser,
-  }) => {
+  test("lists waiting tests grouped by course, oldest waiting first, never counting practice tests", async () => {
     test.setTimeout(120_000);
 
     // Given a school of its own with two courses
-    own = await createOwnSchool(browser, "to-grade");
     const schoolId = own.schoolId;
     const ids = await withDb(async (db) => {
       await clearSchoolData(db, schoolId);
@@ -168,6 +169,128 @@ test.describe("To grade: tests with work waiting", () => {
     await expect(page.getByTestId(`hub-test-card-${ids.practice}`)).toHaveCount(
       0,
     );
+    await page.close();
+  });
+
+  test("tests whose grades students cannot see yet sit in a collapsed group, each with Release", async () => {
+    test.setTimeout(120_000);
+
+    // Given graded tests: R and Q hidden from students, S shown on submit, W still partly waiting, P practice
+    const schoolId = own.schoolId;
+    const ids = await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const course = await insertCourse(db, {
+        title: "Gamma Course",
+        schoolId,
+      });
+
+      /** A test with `count` fully graded hand-ins; `releaseFirst` releases the first student's grade alone. */
+      const gradedTest = async (
+        title: string,
+        options: {
+          count?: number;
+          showGradeAfterSubmit?: boolean;
+          isPractice?: boolean;
+          releaseFirst?: boolean;
+          waitingToo?: boolean;
+        },
+      ) => {
+        const testId = await insertTest(db, course, {
+          title,
+          schoolId,
+          showGradeAfterSubmit: options.showGradeAfterSubmit ?? false,
+          isPractice: options.isPractice ?? false,
+        });
+        const questionId = await insertQuestion(db, testId, {
+          type: "free_text",
+        });
+        const count = options.count ?? 3;
+        for (let i = 0; i < count; i++) {
+          const studentId = await insertStudent(db, { schoolIds: [schoolId] });
+          await enroll(db, { courseId: course, studentId });
+          await insertAnswer(db, {
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "free_text", text: "x" },
+          });
+          await insertSubmission(db, {
+            testId,
+            studentId,
+            releasedAt: options.releaseFirst && i === 0 ? new Date() : null,
+          });
+          await insertGrade(db, { testId, questionId, studentId });
+        }
+        if (options.waitingToo) {
+          const studentId = await insertStudent(db, { schoolIds: [schoolId] });
+          await enroll(db, { courseId: course, studentId });
+          await insertAnswer(db, {
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "free_text", text: "x" },
+          });
+          await insertSubmission(db, { testId, studentId });
+        }
+        return testId;
+      };
+
+      return {
+        course,
+        r: await gradedTest("Review R", {}),
+        q: await gradedTest("Review Q", { releaseFirst: true }),
+        s: await gradedTest("Review S", { showGradeAfterSubmit: true }),
+        w: await gradedTest("Review W", { count: 1, waitingToo: true }),
+        p: await gradedTest("Review P", { isPractice: true }),
+      };
+    });
+    const page = await own.context.newPage();
+    await page.goto("/admin/grading");
+
+    // Then the group is collapsed and counts the two tests ready to release
+    const toggle = page.getByRole("button", { name: /Graded, not released/ });
+    await expect(toggle).toContainText("(2)");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByTestId(`hub-test-card-${ids.r}`)).toHaveCount(0);
+
+    // And the summary names the waiting submission and the two tests
+    await expect(
+      page.getByText("1 submission waiting · 2 tests graded but not released"),
+    ).toBeVisible();
+
+    // When the teacher opens it
+    await hydrated(toggle);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    // Then R and Q show under their course, and S, W and P do not
+    const rowR = page.getByTestId(`hub-test-card-${ids.r}`);
+    const rowQ = page.getByTestId(`hub-test-card-${ids.q}`);
+    await expect(rowR).toContainText("3 graded");
+    await expect(rowR).toContainText("Not released");
+    await expect(rowR).toContainText("all 3 submissions graded");
+    await expect(rowQ).toContainText("Released to 1 of 3");
+    await expect(rowR.getByRole("button", { name: "Release" })).toBeVisible();
+    for (const hidden of [ids.s, ids.p]) {
+      await expect(page.getByTestId(`hub-test-card-${hidden}`)).toHaveCount(0);
+    }
+    // W stays under Needs grading only, because a student still waits
+    await expect(page.getByTestId(`hub-test-card-${ids.w}`)).toHaveCount(1);
+    await expect(
+      page
+        .locator("section", { has: toggle })
+        .getByTestId(`hub-test-card-${ids.w}`),
+    ).toHaveCount(0);
+
+    // When R is released
+    await rowR.getByRole("button", { name: "Release" }).click();
+
+    // Then R leaves the group, the count drops and the summary follows
+    await expect(page.getByTestId(`hub-test-card-${ids.r}`)).toHaveCount(0);
+    await expect(toggle).toContainText("(1)");
+    await expect(
+      page.getByText("1 submission waiting · 1 test graded but not released"),
+    ).toBeVisible();
     await page.close();
   });
 });

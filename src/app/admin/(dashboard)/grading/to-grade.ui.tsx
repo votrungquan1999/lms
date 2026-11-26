@@ -1,6 +1,10 @@
+"use client";
+
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Card } from "src/components/ui/card";
+import { useGradedGroup } from "./graded-group.state";
 
 /** The page column: a short queue reads better in a calm column than stretched wide. */
 export function ToGradeColumn({ children }: { children: ReactNode }) {
@@ -109,4 +113,48 @@ export function ToGradeRowMeta({ children }: { children: ReactNode }) {
 /** The right side of a row: its action buttons. */
 export function ToGradeRowActions({ children }: { children: ReactNode }) {
   return <div className="flex flex-none gap-2">{children}</div>;
+}
+
+/** The heading of a section whose rows fold away; its button opens and closes them. */
+export function GradedGroupToggle({ children }: { children: ReactNode }) {
+  const { isOpen, panelId, toggle } = useGradedGroup();
+  return (
+    <h2 className="text-[15px] font-semibold text-foreground/80">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+        className="flex items-center gap-1.5"
+      >
+        <ChevronRight
+          className={`size-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
+          aria-hidden="true"
+        />
+        {children}
+      </button>
+    </h2>
+  );
+}
+
+/** The folded rows; nothing is rendered until the group is open. */
+export function GradedGroupPanel({ children }: { children: ReactNode }) {
+  const { isOpen, panelId } = useGradedGroup();
+  return (
+    <div id={panelId} className="grid gap-3">
+      {isOpen && children}
+    </div>
+  );
+}
+
+/** A section heading with a quiet note beside it. */
+export function ToGradeSectionHeader({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2.5">{children}</div>
+  );
+}
+
+/** A quiet note under or beside a heading. */
+export function ToGradeNote({ children }: { children: ReactNode }) {
+  return <span className="text-[13px] text-muted-foreground">{children}</span>;
 }

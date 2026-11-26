@@ -495,12 +495,18 @@ interface ReleaseGradesButtonProps {
   /** Persisted release date, if already released. Optional so existing
    * standalone renders (no release yet) default to the button. */
   releasedAt?: Date | null;
+  /** Button text; the grading pages keep the default. */
+  label?: string;
+  /** Button style; the grading pages keep the quiet outline. */
+  variant?: "outline" | "default";
 }
 
 export function ReleaseGradesButton({
   testId,
   courseId,
   releasedAt: persistedReleasedAt = null,
+  label = "Release Grades",
+  variant = "outline",
 }: ReleaseGradesButtonProps) {
   const [state, formAction, isPending] = useActionState<
     ReleaseGradesState | null,
@@ -523,8 +529,8 @@ export function ReleaseGradesButton({
     <form action={formAction} className="flex items-center gap-3">
       <input type="hidden" name="testId" value={testId} />
       <input type="hidden" name="courseId" value={courseId} />
-      <Button type="submit" variant="outline" size="sm" disabled={isPending}>
-        {isPending ? "Releasing…" : "Release Grades"}
+      <Button type="submit" variant={variant} size="sm" disabled={isPending}>
+        {isPending ? "Releasing…" : label}
       </Button>
       {state?.message && (
         <p className="text-sm text-destructive">{state.message}</p>

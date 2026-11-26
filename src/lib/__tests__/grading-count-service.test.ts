@@ -139,6 +139,7 @@ function seeds(db: Db) {
       questionId: string,
       studentId: string,
       answer: AnswerDocument["answer"] = { type: "free_text", text: "x" },
+      submittedAt = new Date(),
     ) {
       await db.collection<AnswerDocument>("answer").insertOne({
         id: id(),
@@ -146,7 +147,7 @@ function seeds(db: Db) {
         questionId,
         studentId,
         answer,
-        submittedAt: new Date(),
+        submittedAt,
       });
     },
     async handIn(
@@ -180,7 +181,12 @@ function seeds(db: Db) {
         updatedBy: null,
       });
     },
-    async start(testId: string, studentId: string, startedAt: Date) {
+    async start(
+      testId: string,
+      studentId: string,
+      startedAt: Date,
+      deletedAt: Date | null = null,
+    ) {
       await db.collection<TestStartDocument>("test_start").insertOne({
         id: id(),
         testId,
@@ -188,18 +194,22 @@ function seeds(db: Db) {
         startedAt,
         createdAt: startedAt,
         createdBy: studentId,
-        deletedAt: null,
+        deletedAt,
         deletedBy: null,
       });
     },
-    async redo(testId: string, studentId: string) {
+    async redo(
+      testId: string,
+      studentId: string,
+      resolvedAt: Date | null = null,
+    ) {
       await db.collection<RedoRequestDocument>("redo_request").insertOne({
         id: id(),
         testId,
         studentId,
         requestedBy: "seed",
         requestedAt: new Date(),
-        resolvedAt: null,
+        resolvedAt,
       });
     },
   };
@@ -448,6 +458,18 @@ describe("GradingCountService", () => {
       await seed.answer(mixed, mq, ben);
       await seed.handIn(mixed, ben);
 
+      // Practice: an ungraded hand-in never waits, a graded unreleased one never makes it ready to release
+      const practiceTest = await seed.test(course, {
+        title: "Practice",
+        isPractice: true,
+      });
+      const prq = await seed.question(practiceTest);
+      await seed.answer(practiceTest, prq, ann);
+      await seed.handIn(practiceTest, ann);
+      await seed.grade(practiceTest, prq, ann);
+      await seed.answer(practiceTest, prq, ben);
+      await seed.handIn(practiceTest, ben);
+
       // When the school is counted
       const counts = await new GradingCountService(
         db,
@@ -486,6 +508,11 @@ describe("GradingCountService", () => {
         gradedHidden: 2,
         releasedTo: 1,
       });
+      expect(test(practiceTest)).toMatchObject({
+        waiting: 0,
+        oldestWaitingAt: null,
+        readyToRelease: false,
+      });
       expect(test(mixed)).toMatchObject({
         waiting: 1,
         gradedHidden: 1,
@@ -495,7 +522,7 @@ describe("GradingCountService", () => {
       // And the course and school totals use those per-test answers
       expect(counts.courses.find((c) => c.courseId === course)).toMatchObject({
         students: 3,
-        tests: 4,
+        tests: 5,
         waiting: 3,
         testsWaiting: 2,
         testsReadyToRelease: 2,
@@ -510,6 +537,203 @@ describe("GradingCountService", () => {
       });
       expect(counts.waiting).toBe(3);
       expect(counts.testsReadyToRelease).toBe(2);
+    },
+  );
+
+  dbIt(
+    "hides no grade and offers no release when nothing waits and nothing is hidden, and skips soft-deleted tests",
+    async ({ db }) => {
+      // Given a student in a course with one test per release rule
+      const seed = seeds(db);
+      const course = await seed.course("Course");
+      const ann = await seed.student("Ann");
+      await seed.enroll(course, ann);
+      const gradedHandIn = async (testId: string) => {
+        const q = await seed.question(testId);
+        await seed.answer(testId, q, ann);
+        await seed.handIn(testId, ann);
+        await seed.grade(testId, q, ann);
+      };
+
+      // Idle: questions but no hand-in, so nothing waits and nothing is hidden
+      const idle = await seed.test(course, { title: "Idle" });
+      await seed.question(idle);
+      // Graded and hidden: the one test that should be offered for release
+      const hidden = await seed.test(course, { title: "Hidden" });
+      await gradedHandIn(hidden);
+      // The whole test was released
+      const released = await seed.test(course, {
+        title: "Released",
+        gradesReleasedAt: new Date(),
+      });
+      await gradedHandIn(released);
+      // Students see grades as soon as they hand in
+      const onSubmit = await seed.test(course, {
+        title: "On submit",
+        showGradeAfterSubmit: true,
+      });
+      await gradedHandIn(onSubmit);
+      // Soft-deleted with a waiting hand-in
+      const deleted = await seed.test(course, {
+        title: "Deleted",
+        deletedAt: new Date(),
+      });
+      const deletedQ = await seed.question(deleted);
+      await seed.answer(deleted, deletedQ, ann);
+      await seed.handIn(deleted, ann);
+
+      // When the school is counted
+      const counts = await new GradingCountService(
+        db,
+        TEST_SCHOOL_ID,
+      ).getCounts();
+      const test = (id: string) => counts.tests.find((t) => t.testId === id);
+
+      // Then only the hidden test is ready to release
+      expect(test(idle)).toMatchObject({
+        waiting: 0,
+        gradedHidden: 0,
+        readyToRelease: false,
+      });
+      expect(test(hidden)).toMatchObject({
+        gradedHidden: 1,
+        releasedTo: 0,
+        readyToRelease: true,
+      });
+      expect(test(released)).toMatchObject({
+        fullyGraded: 1,
+        gradedHidden: 0,
+        releasedTo: 1,
+        readyToRelease: false,
+      });
+      expect(test(onSubmit)).toMatchObject({
+        fullyGraded: 1,
+        gradedHidden: 0,
+        releasedTo: 1,
+        readyToRelease: false,
+      });
+
+      // And the deleted test is nowhere, so its hand-in does not wait
+      expect(counts.tests.map((t) => t.testId).sort()).toEqual(
+        [idle, hidden, released, onSubmit].sort(),
+      );
+      expect(counts.waiting).toBe(0);
+      expect(counts.testsReadyToRelease).toBe(1);
+      expect(counts.courses[0]).toMatchObject({
+        tests: 4,
+        waiting: 0,
+        testsReadyToRelease: 1,
+      });
+
+      // And each pair's grade visibility equals what the per-student services say
+      expect(counts.pairs).toHaveLength(4);
+      for (const pair of counts.pairs) {
+        const reference = await referenceFor(db, pair.testId, pair.studentId);
+        expect(pair.gradedHidden).toBe(reference.gradedHidden);
+        expect(pair.status).toBe(reference.status);
+      }
+    },
+  );
+
+  dbIt(
+    "reads expired timed attempts like the per-student services: deleted starts and resolved redos change nothing, and the newest choice answer decides the auto-grade",
+    async ({ db }) => {
+      // Given a timed test with one choice question, every attempt long expired
+      const seed = seeds(db);
+      const course = await seed.course("Course");
+      const names = [
+        "newestText",
+        "newestMc",
+        "textOnly",
+        "deletedStart",
+        "resolvedRedo",
+      ];
+      const s: Record<string, string> = {};
+      for (const name of names) {
+        s[name] = await seed.student(name);
+        await seed.enroll(course, s[name]);
+      }
+      const timed = await seed.test(course, {
+        title: "Timed",
+        timeLimitMinutes: 30,
+      });
+      const mc = await seed.mcQuestion(timed);
+      const longAgo = new Date(Date.now() - 3 * 60 * MINUTE);
+      const older = new Date(Date.now() - 2 * 60 * MINUTE);
+      const newer = new Date(Date.now() - 1 * 60 * MINUTE);
+      const mcAnswer = { type: "mc" as const, selectedIds: [mc.correct] };
+      const textAnswer = { type: "free_text" as const, text: "x" };
+
+      // A choice answer replaced by a newer non-choice one is not auto-graded
+      await seed.start(timed, s.newestText, longAgo);
+      await seed.answer(timed, mc.questionId, s.newestText, mcAnswer, older);
+      await seed.answer(timed, mc.questionId, s.newestText, textAnswer, newer);
+      // A non-choice answer replaced by a newer choice one is auto-graded
+      await seed.start(timed, s.newestMc, longAgo);
+      await seed.answer(timed, mc.questionId, s.newestMc, textAnswer, older);
+      await seed.answer(timed, mc.questionId, s.newestMc, mcAnswer, newer);
+      // A choice question answered with a non-choice shape is not auto-graded
+      await seed.start(timed, s.textOnly, longAgo);
+      await seed.answer(timed, mc.questionId, s.textOnly, textAnswer);
+      // A deleted start is no attempt, so the student is still In progress
+      await seed.start(timed, s.deletedStart, longAgo, new Date());
+      await seed.answer(timed, mc.questionId, s.deletedStart, mcAnswer);
+      // A resolved redo does not replace the stored hand-in
+      await seed.start(timed, s.resolvedRedo, longAgo);
+      await seed.answer(timed, mc.questionId, s.resolvedRedo, mcAnswer);
+      await seed.handIn(timed, s.resolvedRedo, { releasedAt: new Date() });
+      await seed.redo(timed, s.resolvedRedo, new Date());
+
+      // When the school is counted
+      const counts = await new GradingCountService(
+        db,
+        TEST_SCHOOL_ID,
+      ).getCounts();
+      const pair = (name: string) =>
+        counts.pairs.find((p) => p.studentId === s[name]);
+
+      // Then each pair equals what the per-student services say
+      expect(counts.pairs).toHaveLength(names.length);
+      for (const p of counts.pairs) {
+        const reference = await referenceFor(db, p.testId, p.studentId);
+        expect({
+          status: p.status,
+          answersLeft: p.answersLeft,
+          gradedHidden: p.gradedHidden,
+        }).toEqual({
+          status: reference.status,
+          answersLeft: reference.answersLeft,
+          gradedHidden: reference.gradedHidden,
+        });
+      }
+
+      // And the cases land where the rules put them
+      expect(pair("newestText")).toMatchObject({
+        status: "submitted",
+        answersLeft: 1,
+        assumedHandIn: true,
+      });
+      expect(pair("newestMc")).toMatchObject({
+        status: "graded",
+        answersLeft: 0,
+        assumedHandIn: true,
+      });
+      expect(pair("textOnly")).toMatchObject({
+        status: "submitted",
+        answersLeft: 1,
+      });
+      expect(pair("deletedStart")).toMatchObject({
+        status: "in_progress",
+        assumedHandIn: false,
+        submittedAt: null,
+      });
+      // The stored hand-in stands, so its choice answer is still ungraded
+      expect(pair("resolvedRedo")).toMatchObject({
+        status: "submitted",
+        assumedHandIn: false,
+        answersLeft: 1,
+      });
+      expect(counts.tests[0]).toMatchObject({ waiting: 3, answersLeft: 3 });
     },
   );
 
