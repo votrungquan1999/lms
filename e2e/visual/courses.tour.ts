@@ -56,7 +56,9 @@ async function ensureCourse(
   description: string,
 ): Promise<string> {
   await page.goto("/admin/courses");
-  await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Courses", exact: true }),
+  ).toBeVisible();
 
   const card = courseCard(page, title);
   if ((await card.count()) === 0) {
@@ -85,7 +87,9 @@ test("courses: list with the seeded course and the stress-titled ones", async ({
   await ensureCourse(page, UNBROKEN_TITLE, UNBROKEN_DESC);
 
   await page.goto("/admin/courses");
-  await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Courses", exact: true }),
+  ).toBeVisible();
   await expect(courseCard(page, UNBROKEN_TITLE)).toHaveCount(1);
   await expect(courseCard(page, "Sandbox: Fundamentals")).toHaveCount(1);
   await snap(page, "courses/list", { sources: LIST_SOURCES });

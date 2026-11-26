@@ -87,7 +87,9 @@ test.describe("LMS E2E Flow", () => {
   test("admin can create a course via dashboard", async ({ page }) => {
     // Given the admin navigates to the courses page
     await page.goto("/admin/courses");
-    await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Courses", exact: true }),
+    ).toBeVisible();
 
     // When clicking "Add Course" and filling the form
     await page.getByRole("button", { name: "Add Course" }).click();

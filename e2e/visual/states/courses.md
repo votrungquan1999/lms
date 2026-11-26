@@ -6,7 +6,7 @@ Routes: `src/app/admin/(dashboard)/courses/page.tsx`,
 
 ## Captured
 
-- [T1] courses/list: every course — the seeded one, a long spaced title, an unbroken email-like title, and one with no description (page.tsx:32)
+- [T1] courses/list: every course as a row with students, tests, grading pill and action — the seeded one, a long spaced title, an unbroken email-like title (courses-list.ui.tsx)
 - [T1] courses/create-dialog-blank: the Create Course dialog just opened, both fields empty
 - [T2] courses/create-invalid: Create submitted with a whitespace-only title — the action's "Course title is required" alert (actions.ts:11)
 - [T1] courses/detail-seeded: seeded course detail — 16 enrolled students, 2 tests with per-status counts, join-link panel, materials
@@ -21,7 +21,7 @@ Routes: `src/app/admin/(dashboard)/courses/page.tsx`,
 
 ## Not captured
 
-- [skip] courses/list-empty: the "No courses yet" branch (page.tsx:57) needs an empty course collection; the seeded course is shared and must not be deleted
+- [skip] courses/list-empty: the "No courses yet" branch (page.tsx) needs an empty course collection; the seeded course is shared and must not be deleted
 - [skip] courses/create-success: the dialog's success banner (create-course-form.tsx:69) only renders right after a create, so capturing it would add a throwaway course to the shared list on every run
 - [skip] courses/detail-not-found: notFound() (\[courseId\]/page.tsx:48) renders Next's built-in 404 — there is no custom not-found.tsx anywhere under src/app, so nothing course-specific to review
 - [skip] courses/enrollments-no-students: "No students found" (enroll-student-form.tsx:132) needs zero students in the shared seeded database

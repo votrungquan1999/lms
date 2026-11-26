@@ -88,7 +88,9 @@ async function hrefOf(locator: Locator): Promise<string> {
 /** Creates the sandbox course on first run, then returns its id. */
 async function ensureSandboxCourse(page: Page): Promise<string> {
   await page.goto("/admin/courses");
-  await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Courses", exact: true }),
+  ).toBeVisible();
 
   const courseLink = page
     .locator('a[href^="/admin/courses/"]')
