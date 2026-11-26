@@ -14,3 +14,8 @@ export function courseHref(courseId: string): string {
 export function courseTestHref(courseId: string, testId: string): string {
   return `/admin/courses/${courseId}/tests/${testId}`;
 }
+
+/** Link to the list of the school's courses. */
+export function coursesHref(): string {
+  return "/admin/courses";
+}

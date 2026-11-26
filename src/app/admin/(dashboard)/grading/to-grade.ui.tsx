@@ -20,6 +20,45 @@ export function ToGradeHeader({ children }: { children: ReactNode }) {
   return <header className="grid gap-1">{children}</header>;
 }
 
+/** The page's one title. */
+export function ToGradePageTitle({ children }: { children: ReactNode }) {
+  return <h1 className="text-3xl font-bold tracking-tight">{children}</h1>;
+}
+
+/** A quiet count beside a section heading. */
+export function ToGradeCount({ children }: { children: ReactNode }) {
+  return <span className="font-medium text-muted-foreground">{children}</span>;
+}
+
+/** The link on a course name in a group header. */
+export function ToGradeCourseLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link href={href} className="font-semibold text-foreground">
+      {children}
+    </Link>
+  );
+}
+
+/** The card shown in place of the waiting list when nothing waits. */
+export function ToGradeEmptyCard({ children }: { children: ReactNode }) {
+  return (
+    <Card className="items-center gap-2 px-5 py-10 text-center">
+      {children}
+    </Card>
+  );
+}
+
+/** The empty card's headline. */
+export function ToGradeEmptyTitle({ children }: { children: ReactNode }) {
+  return <p className="text-lg font-semibold">{children}</p>;
+}
+
 /** The summary line under the page title. */
 export function ToGradeSummary({ children }: { children: ReactNode }) {
   return <p className="text-sm text-muted-foreground">{children}</p>;
@@ -103,6 +142,11 @@ export function ToGradeRowTitleLink({
 /** A row's main detail line. */
 export function ToGradeRowLine({ children }: { children: ReactNode }) {
   return <p className="text-sm">{children}</p>;
+}
+
+/** A strong phrase inside a detail line. */
+export function ToGradeEmphasis({ children }: { children: ReactNode }) {
+  return <b className="font-semibold">{children}</b>;
 }
 
 /** A row's quieter second detail line. */

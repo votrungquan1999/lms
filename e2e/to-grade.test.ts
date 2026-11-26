@@ -293,4 +293,117 @@ test.describe("To grade: tests with work waiting", () => {
     ).toBeVisible();
     await page.close();
   });
+
+  test("when nothing waits, shows All caught up with a link to Courses, even with a practice test handed in", async () => {
+    test.setTimeout(120_000);
+
+    // Given a school with one course and no hand-ins
+    const schoolId = own.schoolId;
+    const ids = await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const course = await insertCourse(db, {
+        title: "Quiet Course",
+        schoolId,
+      });
+      return { course };
+    });
+    const page = await own.context.newPage();
+    await page.goto("/admin/grading");
+
+    // Then the summary says nothing waits and both sections show their empty state
+    await expect(page.getByRole("heading", { name: "To grade" })).toBeVisible();
+    await expect(
+      page.getByText("Nothing waiting · every graded test is released", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Needs grading (0)" }),
+    ).toBeVisible();
+    await expect(page.getByText("All caught up")).toBeVisible();
+    await expect(
+      page.getByText(
+        "No submissions are waiting for a grade. New ones show up here as students hand them in.",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Graded, not released (0)" }),
+    ).toBeVisible();
+    await expect(page.getByText("Nothing to release.")).toBeVisible();
+
+    // And its link leads to Courses
+    await expect(
+      page.getByRole("link", { name: "Go to courses" }),
+    ).toHaveAttribute("href", "/admin/courses");
+
+    // When a practice test has an answered hand-in
+    await withDb(async (db) => {
+      const practice = await insertTest(db, ids.course, {
+        title: "Quiet Practice",
+        isPractice: true,
+        schoolId,
+      });
+      const q = await insertQuestion(db, practice, { type: "free_text" });
+      const studentId = await insertStudent(db, { schoolIds: [schoolId] });
+      await enroll(db, { courseId: ids.course, studentId });
+      await insertAnswer(db, {
+        testId: practice,
+        questionId: q,
+        studentId,
+        answer: { type: "free_text", text: "x" },
+      });
+      await insertSubmission(db, { testId: practice, studentId });
+    });
+    await page.reload();
+
+    // Then the school is still caught up
+    await expect(page.getByText("All caught up")).toBeVisible();
+    await expect(page.getByText("Quiet Practice")).toHaveCount(0);
+    await page.close();
+  });
+
+  test("with nothing waiting but a graded test to release, shows All caught up and the Graded group", async () => {
+    test.setTimeout(120_000);
+
+    // Given the only hand-in is fully graded and hidden from the student
+    const schoolId = own.schoolId;
+    await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const course = await insertCourse(db, { title: "Done Course", schoolId });
+      const testId = await insertTest(db, course, {
+        title: "Done Test",
+        schoolId,
+        showGradeAfterSubmit: false,
+      });
+      const questionId = await insertQuestion(db, testId, {
+        type: "free_text",
+      });
+      const studentId = await insertStudent(db, { schoolIds: [schoolId] });
+      await enroll(db, { courseId: course, studentId });
+      await insertAnswer(db, {
+        testId,
+        questionId,
+        studentId,
+        answer: { type: "free_text", text: "x" },
+      });
+      await insertSubmission(db, { testId, studentId });
+      await insertGrade(db, { testId, questionId, studentId });
+    });
+
+    // When they open To grade
+    const page = await own.context.newPage();
+    await page.goto("/admin/grading");
+
+    // Then both the empty card and the group to release show
+    await expect(page.getByText("All caught up")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Graded, not released \(1\)/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Nothing waiting · 1 test graded but not released", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.close();
+  });
 });
