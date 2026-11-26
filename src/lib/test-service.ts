@@ -173,7 +173,7 @@ export class TestService {
   async listTests(courseId: string): Promise<Test[]> {
     const docs = await this.tests
       .find({ courseId, deletedAt: null, schoolId: this.schoolId })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, id: -1 })
       .toArray();
 
     return docs.map((doc) => this.toTest(doc));
@@ -186,7 +186,7 @@ export class TestService {
   async listAllTests(): Promise<Test[]> {
     const docs = await this.tests
       .find({ deletedAt: null, schoolId: this.schoolId })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, id: -1 })
       .toArray();
 
     return docs.map((doc) => this.toTest(doc));

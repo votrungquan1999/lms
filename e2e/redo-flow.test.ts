@@ -93,7 +93,10 @@ test.describe("Redo Flow", () => {
     await expect(
       page.getByRole("heading", { name: COURSE_TITLE }),
     ).toBeVisible();
-    await page.getByRole("link", { name: TEST_TITLE_RE }).click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByRole("link", { name: TEST_TITLE_RE })
+      .click();
     await expect(page.getByRole("heading", { name: TEST_TITLE })).toBeVisible({
       timeout: 10000,
     });
@@ -173,7 +176,10 @@ test.describe("Redo Flow", () => {
   }) => {
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
-    await page.getByRole("link", { name: TEST_TITLE_RE }).click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByRole("link", { name: TEST_TITLE_RE })
+      .click();
     await page.getByRole("link", { name: "Grade Students" }).click();
     await expect(
       page.getByRole("heading", { name: `Grade: ${TEST_TITLE}` }),
@@ -191,7 +197,10 @@ test.describe("Redo Flow", () => {
   }) => {
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
-    await page.getByRole("link", { name: TEST_TITLE_RE }).click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByRole("link", { name: TEST_TITLE_RE })
+      .click();
     await page.getByRole("link", { name: "Grade Students" }).click();
     await expect(
       page.getByRole("heading", { name: `Grade: ${TEST_TITLE}` }),
@@ -246,7 +255,10 @@ test.describe("Redo Flow", () => {
   }) => {
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
-    await page.getByRole("link", { name: TEST_TITLE_RE }).click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByRole("link", { name: TEST_TITLE_RE })
+      .click();
     await page.getByRole("link", { name: "Grade Students" }).click();
     await expect(
       page.getByRole("heading", { name: `Grade: ${TEST_TITLE}` }),

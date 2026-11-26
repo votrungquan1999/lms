@@ -243,7 +243,10 @@ test.describe("LMS E2E Flow", () => {
     await expect(
       page.getByRole("heading", { name: "E2E Test Course" }),
     ).toBeVisible();
-    await page.getByText("E2E Midterm").click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByText("E2E Midterm")
+      .click();
     await expect(
       page.getByRole("heading", { name: "E2E Midterm" }),
     ).toBeVisible();
@@ -292,7 +295,10 @@ test.describe("LMS E2E Flow", () => {
     });
 
     await page.reload();
-    await page.getByText("E2E Title Only Test").click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByText("E2E Title Only Test")
+      .click();
 
     // When filling only the title (no content)
     await page.getByLabel("Question Title").fill("Q1b: Title-only Question");
@@ -317,7 +323,10 @@ test.describe("LMS E2E Flow", () => {
     // Given the admin is on the test detail page (E2E Midterm)
     await page.goto("/admin/courses");
     await page.getByText("E2E Test Course").click();
-    await page.getByText("E2E Midterm").click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByText("E2E Midterm")
+      .click();
     await expect(
       page.getByRole("heading", { name: "E2E Midterm" }),
     ).toBeVisible();
@@ -372,7 +381,10 @@ test.describe("LMS E2E Flow", () => {
     // Given the admin is on the test detail page (E2E Midterm)
     await page.goto("/admin/courses");
     await page.getByText("E2E Test Course").click();
-    await page.getByText("E2E Midterm").click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByText("E2E Midterm")
+      .click();
     await expect(
       page.getByRole("heading", { name: "E2E Midterm" }),
     ).toBeVisible();
@@ -514,7 +526,10 @@ test.describe("LMS E2E Flow", () => {
     // Given the admin navigates to the grading page: courses → course → test → Grade Students
     await page.goto("/admin/courses");
     await page.getByText("E2E Test Course").click();
-    await page.getByText("E2E Midterm").click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByText("E2E Midterm")
+      .click();
     await expect(
       page.getByRole("heading", { name: "E2E Midterm" }),
     ).toBeVisible();

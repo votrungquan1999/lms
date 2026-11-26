@@ -15,6 +15,7 @@ import {
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CourseTabsLayout from "../courses/[courseId]/(tabs)/layout";
+import CourseDetailPage from "../courses/[courseId]/(tabs)/page";
 import CourseStudentsPage from "../courses/[courseId]/(tabs)/students/page";
 import { ManageEnrollmentsDialog } from "../courses/[courseId]/enroll-student-form";
 import ResultsReportPage from "../courses/[courseId]/results-report/page";
@@ -311,6 +312,22 @@ describe("Feature: a school admin's lists show only their current school's stude
     );
 
     expect(screen.getByText("1 student · 1 test")).toBeInTheDocument();
+  });
+
+  it("the course page's Submitted column counts only the current school's students", async () => {
+    await getTestServices(schoolId).testService.createTest(ownCourseId, {
+      title: "Own Test",
+      description: "",
+      createdBy: "school-b-admin",
+    });
+
+    render(
+      await CourseDetailPage({
+        params: Promise.resolve({ courseId: ownCourseId }),
+      }),
+    );
+
+    expect(screen.getAllByText("0 of 1").length).toBeGreaterThan(0);
   });
 
   it("the grading page's enrolled header counts only the current school's students", async () => {

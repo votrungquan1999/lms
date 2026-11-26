@@ -115,7 +115,10 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
   }) => {
     await page.goto("/admin/courses");
     await page.getByText("EC Delayed Course").click();
-    await page.getByText("EC Delayed Test").click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByText("EC Delayed Test")
+      .click();
 
     // Add a single-select MC question
     await page.getByRole("button", { name: "Single Select" }).click();
@@ -199,7 +202,10 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
     // Given: admin is on the grading page for EC Delayed Test
     await page.goto("/admin/courses");
     await page.getByText("EC Delayed Course").click();
-    await page.getByText("EC Delayed Test").click();
+    await page
+      .getByRole("region", { name: "All tests" })
+      .getByText("EC Delayed Test")
+      .click();
     await page.getByRole("link", { name: "Grade Students" }).click();
     await expect(
       page.getByRole("heading", { name: "Grade: EC Delayed Test" }),

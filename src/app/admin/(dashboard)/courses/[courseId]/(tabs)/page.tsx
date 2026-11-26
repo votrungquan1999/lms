@@ -6,6 +6,8 @@ import {
   getTestService,
 } from "src/lib/services-singleton";
 import { buildTestRows, RowAction } from "./test-rows";
+import { TestsListProvider } from "./tests-list.state";
+import { AllTestsSection } from "./tests-list.ui";
 import { TestRowView, TestsColumnHeader } from "./tests-table.ui";
 
 export const metadata = {
@@ -58,29 +60,9 @@ export default async function CourseDetailPage({
         </section>
       )}
 
-      <section aria-label="All tests" className="grid gap-2.5">
-        <h2 className="text-[17px] font-semibold">
-          All tests{" "}
-          <span className="font-medium text-muted-foreground">
-            ({rows.length})
-          </span>
-        </h2>
-        {rows.length > 0 ? (
-          <div className="rounded-xl border bg-card">
-            <TestsColumnHeader />
-            {rows.map((row) => (
-              <TestRowView
-                key={row.testId}
-                row={row}
-                line={row.meta}
-                showTags
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No tests yet.</p>
-        )}
-      </section>
+      <TestsListProvider rows={rows}>
+        <AllTestsSection />
+      </TestsListProvider>
     </>
   );
 }

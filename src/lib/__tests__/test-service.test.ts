@@ -98,6 +98,45 @@ describe("TestService", () => {
     },
   );
 
+  dbIt(
+    "lists tests created in the same millisecond newest id first, every time",
+    async ({ db }) => {
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "",
+        createdBy: "admin",
+      });
+      const first = await testService.createTest(course.id, {
+        title: "First",
+        description: "",
+        createdBy: "admin",
+      });
+      const second = await testService.createTest(course.id, {
+        title: "Second",
+        description: "",
+        createdBy: "admin",
+      });
+      // Equal creation times with known ids make the tie the only thing ordering them
+      await db
+        .collection("test")
+        .updateOne({ id: first.id }, { $set: { id: "id-a" } });
+      await db
+        .collection("test")
+        .updateOne({ id: second.id }, { $set: { id: "id-b" } });
+      await db
+        .collection("test")
+        .updateMany({}, { $set: { createdAt: new Date(0) } });
+
+      const listed = await testService.listTests(course.id);
+      const all = await testService.listAllTests();
+
+      expect(listed.map((t) => t.id)).toEqual(["id-b", "id-a"]);
+      expect(all.map((t) => t.id)).toEqual(["id-b", "id-a"]);
+    },
+  );
+
   dbIt("should soft delete a test and hide it from queries", async ({ db }) => {
     const courseService = new CourseService(db, TEST_SCHOOL_ID);
     const testService = buildTestService(db);

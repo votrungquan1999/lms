@@ -10,6 +10,7 @@ import { createOwnSchool, type OwnSchool } from "./own-school";
 import {
   clearSchoolData,
   enroll,
+  expectNoPageOverflow,
   insertAnswer,
   insertCourse,
   insertGrade,
@@ -337,6 +338,12 @@ test.describe("Course page", () => {
     await expect(
       card.getByRole("link", { name: "Waiting Quiz" }),
     ).toBeVisible();
+
+    // And in All tests, R now shows Released to students
+    const allTests = page.getByRole("region", { name: "All tests" });
+    await expect(allTests.getByTestId(`test-row-${ids.r}`)).toContainText(
+      "Released",
+    );
     await page.close();
   });
 
@@ -359,6 +366,262 @@ test.describe("Course page", () => {
     // Then the page shows the test but no action card
     await expect(page.getByText("Quiet Quiz")).toBeVisible();
     await expect(page.getByText("Needs your action")).toHaveCount(0);
+    await page.close();
+  });
+
+  test("All tests lists every test newest first with its state, and search and filter chips narrow it together", async () => {
+    test.setTimeout(180_000);
+
+    // Given 5 tests created one after another: practice, timed, no questions,
+    // one with a waiting hand-in, one released
+    const schoolId = own.schoolId;
+    const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000);
+    const ids = await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const courseId = await insertCourse(db, {
+        title: "List Course",
+        schoolId,
+      });
+      const olive = await insertStudent(db, {
+        name: "Olive",
+        schoolIds: [schoolId],
+      });
+      await enroll(db, { courseId, studentId: olive });
+
+      const practice = await insertTest(db, courseId, {
+        title: "Practice Quiz",
+        schoolId,
+        isPractice: true,
+        createdAt: ago(5),
+      });
+      await insertQuestion(db, practice, { type: "free_text" });
+
+      const timed = await insertTest(db, courseId, {
+        title: "Timed Exam",
+        schoolId,
+        timeLimitMinutes: 90,
+        createdAt: ago(4),
+      });
+      await insertQuestion(db, timed, { type: "single_select", order: 1 });
+      await insertQuestion(db, timed, { type: "free_text", order: 2 });
+
+      const zero = await insertTest(db, courseId, {
+        title: "Kiểm tra Đầu vào",
+        schoolId,
+        createdAt: ago(3),
+      });
+
+      const waiting = await insertTest(db, courseId, {
+        title: "Waiting Quiz",
+        schoolId,
+        showGradeAfterSubmit: false,
+        createdAt: ago(2),
+      });
+      const wq = await insertQuestion(db, waiting, { type: "free_text" });
+      await insertAnswer(db, {
+        testId: waiting,
+        questionId: wq,
+        studentId: olive,
+        answer: { type: "free_text", text: "x" },
+      });
+      await insertSubmission(db, { testId: waiting, studentId: olive });
+
+      const released = await insertTest(db, courseId, {
+        title: "Released Quiz",
+        schoolId,
+        showGradeAfterSubmit: false,
+        gradesReleasedAt: new Date(),
+        createdAt: ago(1),
+      });
+      const rq = await insertQuestion(db, released, { type: "free_text" });
+      await insertAnswer(db, {
+        testId: released,
+        questionId: rq,
+        studentId: olive,
+        answer: { type: "free_text", text: "x" },
+      });
+      await insertSubmission(db, { testId: released, studentId: olive });
+      await insertGrade(db, {
+        testId: released,
+        questionId: rq,
+        studentId: olive,
+      });
+      return { courseId, practice, timed, zero, waiting, released };
+    });
+
+    // When the teacher opens the course
+    const page = await own.context.newPage();
+    await page.goto(`/admin/courses/${ids.courseId}`);
+    const all = page.getByRole("region", { name: "All tests" });
+    const rows = all.getByTestId(/^test-row-/);
+
+    // Then the tests run newest first
+    await expect(rows).toHaveCount(5);
+    await expect(
+      all.getByRole("heading", { name: "All tests (5)" }),
+    ).toBeVisible();
+    const order = [
+      ids.released,
+      ids.waiting,
+      ids.zero,
+      ids.timed,
+      ids.practice,
+    ];
+    for (const [index, testId] of order.entries()) {
+      await expect(rows.nth(index)).toHaveAttribute(
+        "data-testid",
+        `test-row-${testId}`,
+      );
+    }
+
+    // And each row shows its tags, question counts, grading and release state, and one action
+    const row = (testId: string) => all.getByTestId(`test-row-${testId}`);
+    await expect(row(ids.practice)).toContainText("Practice");
+    await expect(row(ids.practice)).toContainText("1 question · 1 written");
+    await expect(row(ids.practice)).toContainText("Practice, no grades");
+    await expect(row(ids.practice)).toContainText("Answers as they go");
+    await expect(
+      row(ids.practice).getByRole("link", { name: "Open" }),
+    ).toHaveAttribute(
+      "href",
+      `/admin/courses/${ids.courseId}/tests/${ids.practice}`,
+    );
+    await expect(row(ids.timed)).toContainText("Timed 90 min");
+    await expect(row(ids.timed)).toContainText(
+      "2 questions · 1 single choice · 1 written",
+    );
+    await expect(row(ids.timed)).toContainText("Nothing submitted");
+    await expect(row(ids.timed)).toContainText("Nothing yet");
+    await expect(row(ids.zero)).toContainText("No questions yet");
+    await expect(row(ids.zero)).toContainText("0 questions");
+    await expect(row(ids.waiting)).toContainText("1 of 1");
+    await expect(row(ids.waiting)).toContainText("1 waiting");
+    await expect(row(ids.waiting)).toContainText("Not released");
+    await expect(
+      row(ids.waiting).getByRole("link", { name: "Grade" }),
+    ).toBeVisible();
+    await expect(row(ids.released)).toContainText("All graded");
+    await expect(row(ids.released)).toContainText("Released");
+    await expect(
+      row(ids.released).getByRole("link", { name: "Open" }),
+    ).toBeVisible();
+
+    // And a test is never deleted from the list
+    await expect(all.getByRole("button", { name: /delete/i })).toHaveCount(0);
+
+    // And the chips count the whole course
+    const chip = (name: RegExp) => all.getByRole("button", { name });
+    await expect(chip(/^All 5$/)).toHaveAttribute("aria-pressed", "true");
+    await expect(chip(/^Needs grading 1$/)).toBeVisible();
+    await expect(chip(/^Not released 1$/)).toBeVisible();
+    await expect(chip(/^Practice 1$/)).toBeVisible();
+
+    // When they pick Needs grading
+    await hydrated(chip(/^Needs grading/));
+    await chip(/^Needs grading/).click();
+
+    // Then only the waiting test stays
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Waiting Quiz");
+    await expect(chip(/^Needs grading 1$/)).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    // When they search "quiz" on the Practice chip
+    await chip(/^Practice/).click();
+    await all.getByRole("searchbox", { name: "Search tests" }).fill("quiz");
+
+    // Then both narrow the list, and the chip counts stay whole-course
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Practice Quiz");
+    await expect(chip(/^All 5$/)).toBeVisible();
+    await expect(chip(/^Practice 1$/)).toBeVisible();
+
+    // When the search and the chip leave nothing
+    await chip(/^Needs grading/).click();
+    await all.getByRole("searchbox", { name: "Search tests" }).fill("practice");
+
+    // Then the list says so
+    await expect(all.getByText("No tests match")).toBeVisible();
+    await expect(rows).toHaveCount(0);
+
+    // When they clear the chip and search an unaccented spelling of an accented title
+    await chip(/^All/).click();
+    await all
+      .getByRole("searchbox", { name: "Search tests" })
+      .fill("kiem tra dau vao");
+
+    // Then the accented title is found
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Kiểm tra Đầu vào");
+    await page.close();
+  });
+
+  test("the All tests heading, chips, search and column header stay in view while a long list scrolls, on desktop and phone", async () => {
+    test.setTimeout(180_000);
+
+    // Given a course with 30 tests, one of them with an unbroken long title
+    const schoolId = own.schoolId;
+    const unbroken = `averylongunbrokentesttitle${"thatshouldwrapinsidethefirstcolumn".repeat(4)}`;
+    const courseId = await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const id = await insertCourse(db, { title: "Long Course", schoolId });
+      for (let i = 0; i < 30; i++) {
+        await insertTest(db, id, {
+          title: i === 0 ? unbroken : `Test number ${i}`,
+          schoolId,
+          createdAt: new Date(Date.now() - i * 60_000),
+        });
+      }
+      return id;
+    });
+
+    const page = await own.context.newPage();
+    const pinned = page.getByTestId("all-tests-pinned");
+
+    // When a desktop window is short and the page scrolls down
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await page.goto(`/admin/courses/${courseId}`);
+    await expect(page.getByRole("region", { name: "All tests" })).toBeVisible();
+    await expectNoPageOverflow(page);
+    await page.mouse.move(640, 300);
+    await page.mouse.wheel(0, 1500);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(500);
+
+    // Then the heading, chips, search and column header are pinned to the top
+    await expect(pinned).toBeInViewport({ ratio: 1 });
+    expect((await pinned.boundingBox())?.y).toBeCloseTo(0, 0);
+    await expect(
+      pinned.getByRole("heading", { name: /All tests/ }),
+    ).toBeVisible();
+    await expect(
+      pinned.getByRole("button", { name: /^All 30$/ }),
+    ).toBeVisible();
+    await expect(
+      pinned.getByRole("searchbox", { name: "Search tests" }),
+    ).toBeVisible();
+    await expect(pinned.getByText("Submitted", { exact: true })).toBeVisible();
+
+    // When the window is a phone
+    await page.setViewportSize({ width: 390, height: 700 });
+    await page.goto(`/admin/courses/${courseId}`);
+    await expect(page.getByRole("region", { name: "All tests" })).toBeVisible();
+    await expectNoPageOverflow(page);
+    await page.mouse.move(200, 400);
+    await page.mouse.wheel(0, 3000);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(500);
+
+    // Then the block sits right under the 56 px top bar, which stays in view
+    await expect(
+      page.getByRole("button", { name: "Open menu" }),
+    ).toBeInViewport();
+    await expect(pinned).toBeInViewport({ ratio: 1 });
+    expect((await pinned.boundingBox())?.y).toBeCloseTo(56, 0);
     await page.close();
   });
 });

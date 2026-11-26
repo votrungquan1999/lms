@@ -15,7 +15,7 @@ Routes: `src/app/admin/(dashboard)/courses/page.tsx`,
 - [T1] courses/list: every course as a row with students, tests, grading pill and action — the seeded one, a long spaced title, an unbroken email-like title (courses-list.ui.tsx)
 - [T1] courses/create-dialog-blank: the New course dialog just opened, both fields empty
 - [T2] courses/create-invalid: Create submitted with a whitespace-only title — the action's "Course title is required" alert (actions.ts:11)
-- [T1] courses/detail-seeded: seeded course detail (Tests tab) — 2 tests with per-status counts
+- [T1] courses/detail-seeded: seeded course detail (Tests tab) — Needs your action card and All tests with Submitted, Grading and Students see
 - [T1] courses/detail-empty: a freshly created course — no students, no materials, no tests, no join link yet
 - [T1] courses/detail-long-title: detail + breadcrumb of a course whose title is a long name with spaces
 - [T1] courses/detail-unbroken-title: detail + breadcrumb of a course titled with one unbroken email-like string, description an unbroken URL

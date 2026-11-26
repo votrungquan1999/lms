@@ -91,7 +91,9 @@ test.afterAll(() => {
 
 /** How many scratch tests the course currently lists (0 or 1 in practice). */
 function scratchLink(page: Page) {
-  return page.getByRole("link", { name: SCRATCH_TITLE });
+  return page
+    .getByRole("region", { name: "All tests" })
+    .getByRole("link", { name: SCRATCH_TITLE });
 }
 
 /** Opens the scratch test's detail page. */
