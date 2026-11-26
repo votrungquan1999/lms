@@ -43,18 +43,22 @@ export function ShareInviteLink({
   const [copied, setCopied] = useState(false);
 
   return (
-    <div className="space-y-2 rounded-md border p-3">
-      <h2 className="text-sm font-medium">Join Link</h2>
+    <section
+      aria-labelledby="join-link-heading"
+      className="space-y-2.5 rounded-xl border bg-card p-4"
+    >
+      <h2 id="join-link-heading" className="text-[17px] font-semibold">
+        Join link
+      </h2>
 
       {joinPath ? (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <code className="flex-1 truncate rounded bg-muted px-2 py-1 text-xs">
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded-lg border bg-muted px-2.5 py-2 text-[13px]">
               {joinPath}
             </code>
             <Button
               type="button"
-              variant="outline"
               size="sm"
               onClick={async () => {
                 try {
@@ -70,8 +74,6 @@ export function ShareInviteLink({
             >
               {copied ? "Copied!" : "Copy"}
             </Button>
-          </div>
-          <div className="flex gap-2">
             <form action={regenAction}>
               <input type="hidden" name="courseId" value={courseId} />
               <Button
@@ -80,7 +82,7 @@ export function ShareInviteLink({
                 size="sm"
                 disabled={regenPending}
               >
-                {regenPending ? "Regenerating…" : "Regenerate Link"}
+                {regenPending ? "Regenerating…" : "Regenerate link"}
               </Button>
             </form>
             <form action={disableAction}>
@@ -91,10 +93,15 @@ export function ShareInviteLink({
                 size="sm"
                 disabled={disablePending}
               >
-                {disablePending ? "Turning off…" : "Turn Off Link"}
+                {disablePending ? "Turning off…" : "Turn off link"}
               </Button>
             </form>
           </div>
+          <p className="text-[13px] text-muted-foreground">
+            Anyone with this link can ask to join; you approve each request
+            above. Regenerating makes the old link stop working. Turning it off
+            keeps everyone already in the course.
+          </p>
           {regenState && !regenState.success && (
             <p role="alert" className="text-xs text-destructive">
               {regenState.message}
@@ -115,7 +122,7 @@ export function ShareInviteLink({
             size="sm"
             disabled={getPending}
           >
-            {getPending ? "Getting link…" : "Get Join Link"}
+            {getPending ? "Getting link…" : "Get join link"}
           </Button>
         </form>
       )}
@@ -125,6 +132,6 @@ export function ShareInviteLink({
           {getState.message}
         </p>
       )}
-    </div>
+    </section>
   );
 }

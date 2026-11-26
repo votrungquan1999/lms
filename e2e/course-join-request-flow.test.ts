@@ -50,7 +50,7 @@ test.describe("Course Join Request Flow", () => {
       .getByRole("navigation", { name: "Course sections" })
       .getByRole("link", { name: "Students" })
       .click();
-    await page.getByRole("button", { name: "Get Join Link" }).click();
+    await page.getByRole("button", { name: "Get join link" }).click();
 
     // Then the invite path is shown
     const codeLocator = page.locator("code");

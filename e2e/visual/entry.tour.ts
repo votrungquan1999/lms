@@ -46,7 +46,7 @@ async function harvestInvitePath(browser: Browser): Promise<string> {
       adminPage.getByRole("heading", { name: "Sandbox: Fundamentals" }),
     ).toBeVisible();
 
-    const getLink = adminPage.getByRole("button", { name: "Get Join Link" });
+    const getLink = adminPage.getByRole("button", { name: "Get join link" });
     if (await getLink.isVisible()) {
       await getLink.click();
     }

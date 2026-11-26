@@ -104,7 +104,7 @@ test.describe("Course page", () => {
       main.getByRole("heading", { name: "Students (2)" }),
     ).toBeVisible();
     await expect(
-      main.getByRole("button", { name: "Get Join Link" }),
+      main.getByRole("button", { name: "Get join link" }),
     ).toBeVisible();
     await expect(tabs.getByRole("link", { name: "Students" })).toHaveAttribute(
       "aria-current",

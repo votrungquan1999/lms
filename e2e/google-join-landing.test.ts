@@ -35,7 +35,7 @@ test.describe("Google sign-in on a course invite link", () => {
       .getByRole("navigation", { name: "Course sections" })
       .getByRole("link", { name: "Students" })
       .click();
-    await page.getByRole("button", { name: "Get Join Link" }).click();
+    await page.getByRole("button", { name: "Get join link" }).click();
     const codeLocator = page.locator("code");
     await expect(codeLocator).toBeVisible({ timeout: 10000 });
     invitePath = (await codeLocator.innerText()).trim();
