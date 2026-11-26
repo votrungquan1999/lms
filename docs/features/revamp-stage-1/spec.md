@@ -86,7 +86,7 @@ Living spec for stage 1 of the LMS revamp. It describes the code on branch `feat
 
 ### 10. Sidebar fold and phone sheet
 
-- The fold button, named "Collapse sidebar" / "Expand sidebar", shows on tablet and desktop (D12, D27). A teacher's own fold or expand lasts only until the screen crosses a breakpoint, then the size's default returns. The canvas boards get the same button in the design file, not yet published (see [Open items](#open-items)).
+- The fold button, named "Collapse sidebar" / "Expand sidebar", shows on tablet and desktop (D12, D27). A teacher's own fold or expand lasts only until the screen crosses a breakpoint, then the size's default returns. The canvas boards show the same button (published as canvas Version 29, 52 teacher boards).
 - Tablet (768-1279 px): the sidebar folds to an icon rail with tooltips, badges and the avatar menu.
 - Desktop (1280 px and up): the sidebar is open by default.
 - On a tablet, the fold does not animate on a full page load; the animation runs only for a fold or expand the teacher triggers (D29).
@@ -248,7 +248,6 @@ The per-behavior count matches: 20 commits on top of base `34184dcc`, 20 behavio
 - **Phone Materials table roles in Safari.** Below the phone width the Materials `<table>` is `display: block`, which in Safari may drop table roles for screen readers. Judged and left as is, because the phone layout is the D38 decision.
 - **Approve and Reject buttons share names.** Each row's buttons are named just "Approve" and "Reject", so they are not told apart by name. Scope them by row.
 - **`CourseJoinRequestService.listByStatus` has no production caller.** Kept because eight test call sites use it (D35).
-- **Canvas fold-button boards are not published.** A local copy of the design boards has the fold button (52 boards). It waits for the owner's explicit "publish".
 - **Two new indexes build on the live database** at the first start after deploy. The build is tolerant (see [Data rules](#data-rules)).
 - **No fallback for count query cost.** Every admin render now runs lookups on `question`, `test_submission`, `test_start`, `redo_request` and student-by-id that have no usable index, across all schools.
 - **The count runs twice on To grade, Courses and Tests.** The page render counts, then the badge refetch on the path change counts again.
