@@ -101,6 +101,7 @@ export async function approveJoinRequestAction(
         );
 
         revalidatePath("/admin/join-requests");
+        revalidatePath(`/admin/courses/${request.courseId}/students`);
         return { success: true, message: "Request approved." };
       },
     );
@@ -164,6 +165,7 @@ export async function rejectJoinRequestAction(
         await joinRequestService.reject(request.id, adminUserId);
 
         revalidatePath("/admin/join-requests");
+        revalidatePath(`/admin/courses/${request.courseId}/students`);
         return { success: true, message: "Request rejected." };
       },
     );

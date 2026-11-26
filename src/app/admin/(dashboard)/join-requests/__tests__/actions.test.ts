@@ -85,6 +85,9 @@ describe("Feature: Approve a course join request", () => {
     expect(updated?.resolvedAt).toBeInstanceOf(Date);
     expect(updated?.resolvedBy).toBe("admin-1");
     expect(revalidatePath).toHaveBeenCalledWith("/admin/join-requests");
+    expect(revalidatePath).toHaveBeenCalledWith(
+      `/admin/courses/${course.id}/students`,
+    );
   });
 
   it("brings a student of another school into this school and the course", async () => {
@@ -401,6 +404,9 @@ describe("Feature: Reject a course join request", () => {
     );
     expect(await studentService.findByIds([student.id])).toHaveLength(1);
     expect(revalidatePath).toHaveBeenCalledWith("/admin/join-requests");
+    expect(revalidatePath).toHaveBeenCalledWith(
+      `/admin/courses/${course.id}/students`,
+    );
   });
 
   it("leaves another school's student out of this school", async () => {

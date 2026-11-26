@@ -242,4 +242,42 @@ describe("Feature: Course Join Request Service", () => {
       },
     );
   });
+
+  describe("Scenario: pending requests are listed for one course", () => {
+    dbIt(
+      "should keep only that course's requests, oldest first",
+      async ({ db }) => {
+        const service = new CourseJoinRequestService(db, TEST_SCHOOL_ID);
+
+        // Given two live courses, with two requests for the first (newer one created first) and one for the second
+        await db.collection("student").insertMany([
+          { id: "s-a", name: "A", username: "a" },
+          { id: "s-b", name: "B", username: "b" },
+          { id: "s-c", name: "C", username: "c" },
+        ]);
+        await db.collection("course").insertMany([
+          { id: "course-1", title: "One", schoolId: TEST_SCHOOL_ID },
+          { id: "course-2", title: "Two", schoolId: TEST_SCHOOL_ID },
+        ]);
+        const stamp = async (courseId: string, studentId: string, at: Date) => {
+          const created = await service.createRequest({ courseId, studentId });
+          await db
+            .collection("course_join_request")
+            .updateOne({ id: created.id }, { $set: { requestedAt: at } });
+        };
+        await stamp("course-1", "s-b", new Date("2026-09-02T10:00:00Z"));
+        await stamp("course-1", "s-a", new Date("2026-09-01T10:00:00Z"));
+        await stamp("course-2", "s-c", new Date("2026-09-01T09:00:00Z"));
+
+        // When one course's pending requests are listed
+        const rows = await service.listVisibleByStatus(
+          JoinRequestStatus.Pending,
+          { courseId: "course-1" },
+        );
+
+        // Then only its two show, the older first
+        expect(rows.map((r) => r.studentName)).toEqual(["A", "B"]);
+      },
+    );
+  });
 });

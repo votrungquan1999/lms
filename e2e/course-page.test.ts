@@ -14,6 +14,7 @@ import {
   insertAnswer,
   insertCourse,
   insertGrade,
+  insertJoinRequest,
   insertQuestion,
   insertStudent,
   insertSubmission,
@@ -757,6 +758,92 @@ test.describe("Course page", () => {
     );
     await page.keyboard.press("Escape");
     await expect(rowOf("Newcomer Lee")).toBeVisible();
+    await page.close();
+  });
+
+  test("the Students tab shows this course's pending join requests oldest first, and Approve enrols the student while Reject removes the request", async () => {
+    test.setTimeout(180_000);
+
+    // Given course X with 2 pending requests (5 and 2 hours old) and course Y with 1
+    const schoolId = own.schoolId;
+    const HOUR_MS = 60 * 60 * 1000;
+    const ids = await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const courseX = await insertCourse(db, { title: "Course X", schoolId });
+      const courseY = await insertCourse(db, { title: "Course Y", schoolId });
+      /** A real student with no school yet, as a join request's author is. */
+      const requester = (name: string, username: string) =>
+        insertStudent(db, { name, username, schoolIds: [] });
+      const older = await insertJoinRequest(db, {
+        courseId: courseX,
+        studentId: await requester("Older Asker", "older.asker"),
+        schoolId,
+        requestedAt: new Date(Date.now() - 5 * HOUR_MS - 5 * 60 * 1000),
+      });
+      const newer = await insertJoinRequest(db, {
+        courseId: courseX,
+        studentId: await requester("Newer Asker", "newer.asker"),
+        schoolId,
+        requestedAt: new Date(Date.now() - 2 * HOUR_MS - 5 * 60 * 1000),
+      });
+      await insertJoinRequest(db, {
+        courseId: courseY,
+        studentId: await requester("Other Course Asker", "y.asker"),
+        schoolId,
+        requestedAt: new Date(Date.now() - HOUR_MS),
+      });
+      return { courseX, older, newer };
+    });
+
+    // When the teacher opens course X's Students tab
+    const page = await own.context.newPage();
+    await page.goto(`/admin/courses/${ids.courseX}/students`);
+    const requests = page.getByRole("region", { name: "Join requests" });
+    const rows = requests.locator('[data-testid^="join-request-row-"]');
+    const joinLink = page.getByRole("link", { name: /^Join requests/ });
+
+    // Then only X's 2 requests show, oldest first, with who, how and how long ago
+    await expect(
+      requests.getByRole("heading", { name: "Join requests (2)" }),
+    ).toBeVisible();
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText("Older Asker");
+    await expect(rows.nth(0)).toContainText("@older.asker");
+    await expect(rows.nth(0)).toContainText(
+      "Asked to join through the join link · 5 hours ago",
+    );
+    await expect(rows.nth(1)).toContainText("Newer Asker");
+    await expect(rows.nth(1)).toContainText("2 hours ago");
+    await expect(page.getByText("Other Course Asker")).toHaveCount(0);
+    await expect(joinLink).toContainText("3");
+
+    // When the teacher approves the older request
+    const approve = page
+      .getByTestId(`join-request-row-${ids.older}`)
+      .getByRole("button", { name: "Approve" });
+    await hydrated(approve);
+    await approve.click();
+
+    // Then that student is in the Students list and the badge drops by one
+    const roster = page.getByRole("region", { name: "Students" });
+    await expect(
+      roster.getByRole("listitem").filter({ hasText: "Older Asker" }),
+    ).toBeVisible();
+    await expect(
+      requests.getByRole("heading", { name: "Join requests (1)" }),
+    ).toBeVisible();
+    await expect(joinLink).toContainText("2");
+
+    // When the teacher rejects the other one
+    const reject = page
+      .getByTestId(`join-request-row-${ids.newer}`)
+      .getByRole("button", { name: "Reject" });
+    await hydrated(reject);
+    await reject.click();
+
+    // Then the Join requests section is gone and the rejected student is not enrolled
+    await expect(requests).toHaveCount(0);
+    await expect(page.getByText("Newer Asker")).toHaveCount(0);
     await page.close();
   });
 });

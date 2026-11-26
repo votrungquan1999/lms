@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Separator } from "src/components/ui/separator";
+import { JoinRequestStatus } from "src/lib/course-join-request-service";
 import { formatVietnamDate } from "src/lib/format-date";
 import {
+  getCourseJoinRequestService,
   getCourseService,
   getEnrollmentService,
   getPageGuard,
@@ -10,6 +12,7 @@ import {
 } from "src/lib/services-singleton";
 import { ManageEnrollmentsDialog } from "../../enroll-student-form";
 import { ShareInviteLink } from "../../share-invite-link";
+import { JoinRequestsCard } from "../join-requests-card";
 import {
   type StudentRowData,
   StudentsListProvider,
@@ -42,6 +45,14 @@ export default async function CourseStudentsPage({
     await enrollmentService.listEnrollmentsWithDates(courseId);
   const enrolledStudentIds = enrollments.map((e) => e.studentId);
 
+  const joinRequestService = await getCourseJoinRequestService(
+    session.school.id,
+  );
+  const pendingRequests = await joinRequestService.listVisibleByStatus(
+    JoinRequestStatus.Pending,
+    { courseId },
+  );
+
   // Sorted by name with the id as tie-break so equal names never reorder between loads.
   const joinedById = new Map(
     enrollments.map((e) => [e.studentId, e.enrolledAt]),
@@ -58,6 +69,8 @@ export default async function CourseStudentsPage({
 
   return (
     <div className="w-full max-w-5xl space-y-6">
+      <JoinRequestsCard requests={pendingRequests} now={new Date()} />
+
       <ShareInviteLink courseId={courseId} inviteToken={course.inviteToken} />
 
       <Separator />

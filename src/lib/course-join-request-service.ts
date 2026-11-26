@@ -72,6 +72,14 @@ export interface PagedCourseJoinRequests {
 }
 
 /**
+ * Narrowing for `listVisibleByStatus`.
+ */
+export interface ListVisibleOptions {
+  /** Keeps only requests for this course. */
+  courseId?: string;
+}
+
+/**
  * A join request the admin can act on: its student and course both still
  * exist, and their names come along for display.
  */
@@ -286,13 +294,20 @@ export class CourseJoinRequestService {
    * `listByStatus`. Requesters may belong only to other schools until
    * approved, so students are looked up across schools; the ids come from
    * this school's own requests.
+   * @param status - Which requests to list.
+   * @param options - Narrows the list to one course.
    */
   async listVisibleByStatus(
     status: JoinRequestStatus,
+    options: ListVisibleOptions = {},
   ): Promise<VisibleCourseJoinRequest[]> {
     const sortDirection = status === JoinRequestStatus.Pending ? 1 : -1;
     const docs = await this.joinRequests
-      .find({ schoolId: this.schoolId, status })
+      .find({
+        schoolId: this.schoolId,
+        status,
+        ...(options.courseId !== undefined && { courseId: options.courseId }),
+      })
       .sort({ requestedAt: sortDirection, _id: sortDirection })
       .toArray();
     const { studentById, courseById } = await this.lookUpOwners(docs);
