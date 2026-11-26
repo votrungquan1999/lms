@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { AdminSession } from "src/lib/session";
 import {
   getTestServices,
@@ -112,13 +112,13 @@ describe("Feature: the sidebar shows the teacher's current school and a switcher
 });
 
 /**
- * Feature: the top bar names the school the admin is acting on
+ * Feature: the school is named once, at the top of the sidebar
  * As a school admin
- * I want the current school unmistakable in the page header
+ * I want the current school shown in one place
  * So that I never act on the wrong school
  */
-describe("Feature: the admin top bar names the active school", () => {
-  it("shows the active school's name as a badge in the header", async () => {
+describe("Feature: the admin shell names the active school once", () => {
+  it("shows the school name in the sidebar only, not in a top bar or the footer", async () => {
     signInAs(
       new AdminSession({
         userId: "507f1f77bcf86cd799439011",
@@ -133,74 +133,7 @@ describe("Feature: the admin top bar names the active school", () => {
     });
     render(ui);
 
-    expect(
-      within(screen.getByRole("banner")).getByTestId("school-badge"),
-    ).toHaveTextContent("STEM Venture");
-  });
-
-  it("truncates a very long school name and keeps the full name in the title", async () => {
-    const longName =
-      "The Extraordinarily Long Named International Academy of Science and Letters";
-    signInAs(
-      new AdminSession({
-        userId: "507f1f77bcf86cd799439011",
-        email: "teacher@example.com",
-        school: { id: "school-1", name: longName },
-      }),
-    );
-
-    const ui = await AdminDashboardLayout({
-      children: <div>Page content</div>,
-      breadcrumb: <div>Breadcrumb</div>,
-    });
-    render(ui);
-
-    const badge = within(screen.getByRole("banner")).getByTestId(
-      "school-badge",
-    );
-    expect(badge).toHaveAttribute("title", longName);
-    expect(within(badge).getByText(longName)).toHaveClass("truncate");
-  });
-
-  it("shows no badge when the admin has no active school", async () => {
-    signInAs(
-      new AdminSession({
-        userId: "507f1f77bcf86cd799439011",
-        email: "owner@example.com",
-        school: null,
-      }),
-    );
-
-    const ui = await AdminDashboardLayout({
-      children: <div>Page content</div>,
-      breadcrumb: <div>Breadcrumb</div>,
-    });
-    render(ui);
-
+    expect(screen.getAllByText("STEM Venture")).toHaveLength(1);
     expect(screen.queryByTestId("school-badge")).not.toBeInTheDocument();
-  });
-
-  it("shows the school under the admin's email in the sidebar footer", async () => {
-    signInAs(
-      new AdminSession({
-        userId: "507f1f77bcf86cd799439011",
-        email: "teacher@example.com",
-        school: { id: "school-1", name: "STEM Venture" },
-      }),
-    );
-
-    const ui = await AdminDashboardLayout({
-      children: <div>Page content</div>,
-      breadcrumb: <div>Breadcrumb</div>,
-    });
-    render(ui);
-
-    const footerSchool = screen.getByTestId("sidebar-footer-school");
-    expect(footerSchool).toHaveTextContent("STEM Venture");
-    const email = screen.getByText("teacher@example.com");
-    expect(
-      email.compareDocumentPosition(footerSchool) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
   });
 });

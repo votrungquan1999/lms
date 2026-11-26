@@ -1,17 +1,21 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useEffect } from "react";
 import { SidebarProvider } from "src/components/ui/sidebar";
 import { TooltipProvider } from "src/components/ui/tooltip";
 import { describe, expect, it, vi } from "vitest";
 import { AdminSidebar } from "../admin-sidebar";
+import { LeaveGuardProvider, useLeaveGuard } from "../leave-guard.state";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/grading",
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
+const signOut = vi.hoisted(() => vi.fn());
 vi.mock("src/lib/auth-client", () => ({
-  authClient: { signOut: vi.fn() },
+  authClient: { signOut },
 }));
 
 function renderSidebar(props: { isOwner?: boolean } = {}) {
@@ -111,9 +115,43 @@ describe("Feature: AdminSidebar shows a one-school admin's school name", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.getAllByText("Acme School")).toHaveLength(2);
+    expect(screen.getAllByText("Acme School")).toHaveLength(1);
     expect(
       screen.queryByTestId("school-switcher-trigger"),
     ).not.toBeInTheDocument();
+  });
+});
+
+function UnsavedWork() {
+  const { setHasWork } = useLeaveGuard();
+  useEffect(() => {
+    setHasWork(true);
+  }, [setHasWork]);
+  return null;
+}
+
+describe("Feature: Sign out asks first when the page has unsaved work", () => {
+  it("shows Leave this page? and signs out only after Leave", async () => {
+    signOut.mockClear();
+    const user = userEvent.setup();
+    render(
+      <TooltipProvider>
+        <LeaveGuardProvider>
+          <UnsavedWork />
+          <SidebarProvider>
+            <AdminSidebar email="admin@test" />
+          </SidebarProvider>
+        </LeaveGuardProvider>
+      </TooltipProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+    await screen.findByRole("alertdialog", { name: "Leave this page?" });
+    expect(signOut).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Leave" }));
+
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

@@ -11,7 +11,6 @@ import {
   Users,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { SchoolSwitcher } from "src/components/school-switcher";
 import {
   Sidebar,
   SidebarContent,
@@ -27,9 +26,9 @@ import {
 } from "src/components/ui/sidebar";
 import { authClient } from "src/lib/auth-client";
 import type { UserSchool } from "src/lib/school-service";
+import { AdminSchoolHeader } from "./admin-school-header";
 import { GuardedLink } from "./guarded-link";
 import { useLeaveGuard } from "./leave-guard.state";
-import { switchSchoolAction } from "./switch-school-actions";
 
 const navItems = [
   { title: "To grade", href: "/admin/grading", icon: ClipboardCheck },
@@ -70,40 +69,8 @@ export function AdminSidebar({
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <GuardedLink href="/admin/grading">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <BookOpen className="size-4" />
-                </div>
-                <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">LMS Admin</span>
-                  <span className="text-xs text-muted-foreground">
-                    Management
-                  </span>
-                </div>
-              </GuardedLink>
-            </SidebarMenuButton>
+            <AdminSchoolHeader school={school} schools={schools} />
           </SidebarMenuItem>
-          {school &&
-            (schools.length > 1 ? (
-              <SidebarMenuItem>
-                <SchoolSwitcher
-                  activeSchoolName={school.name}
-                  otherSchools={schools.filter((s) => s.id !== school.id)}
-                  switchAction={switchSchoolAction}
-                />
-              </SidebarMenuItem>
-            ) : (
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  size="sm"
-                  className="text-muted-foreground"
-                  tooltip={school.name}
-                >
-                  <span className="truncate">{school.name}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
         </SidebarMenu>
       </SidebarHeader>
 
@@ -164,25 +131,13 @@ export function AdminSidebar({
               <span className="truncate">{email}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          {school && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                className="text-xs text-muted-foreground"
-                data-testid="sidebar-footer-school"
-                tooltip={school.name}
-              >
-                <Landmark />
-                <span className="truncate">{school.name}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={() => requestLeave(logout)}
-              tooltip="Sign Out"
+              tooltip="Sign out"
             >
               <LogOut />
-              <span>Sign Out</span>
+              <span>Sign out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
