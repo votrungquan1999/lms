@@ -7,6 +7,7 @@ import { TooltipProvider } from "src/components/ui/tooltip";
 import { describe, expect, it, vi } from "vitest";
 import { AdminSidebar } from "../admin-sidebar";
 import { LeaveGuardProvider, useLeaveGuard } from "../leave-guard.state";
+import { SidebarCountsProvider } from "../sidebar-counts.state";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/grading",
@@ -153,5 +154,23 @@ describe("Feature: Sign out asks first when the page has unsaved work", () => {
     await user.click(screen.getByRole("button", { name: "Leave" }));
 
     expect(signOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Feature: a count over 99 shows as 99+ only on the rail badge", () => {
+  it("keeps the full number in the sidebar badge, the label and the tooltip text", () => {
+    render(
+      <TooltipProvider>
+        <SidebarCountsProvider counts={{ toGrade: 120, joinRequests: 0 }}>
+          <SidebarProvider>
+            <AdminSidebar email="admin@test" />
+          </SidebarProvider>
+        </SidebarCountsProvider>
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByTestId("rail-badge")).toHaveTextContent("99+");
+    const link = screen.getByRole("link", { name: "To grade, 120 waiting" });
+    expect(link).toHaveTextContent("To grade120");
   });
 });

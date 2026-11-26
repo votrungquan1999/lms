@@ -1,8 +1,4 @@
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "src/components/ui/sidebar";
+import { SidebarInset } from "src/components/ui/sidebar";
 import { TooltipProvider } from "src/components/ui/tooltip";
 import { getAuthService } from "src/lib/auth-singleton";
 import {
@@ -10,7 +6,9 @@ import {
   type SchoolSidebarCounts,
 } from "src/lib/school-sidebar-counts";
 import { getPageGuard, getSchoolService } from "src/lib/services-singleton";
+import { AdminMobileBar } from "./admin-mobile-bar";
 import { AdminSidebar } from "./admin-sidebar";
+import { AdminSidebarProvider } from "./admin-sidebar-provider";
 import { LeaveGuardProvider } from "./leave-guard.state";
 import { SidebarCountsProvider } from "./sidebar-counts.state";
 
@@ -52,7 +50,7 @@ export default async function AdminDashboardLayout({
   return (
     <LeaveGuardProvider>
       <TooltipProvider>
-        <SidebarProvider>
+        <AdminSidebarProvider>
           <SidebarCountsProvider
             counts={sidebarCounts}
             hasSchool={adminSession.school !== null}
@@ -65,13 +63,11 @@ export default async function AdminDashboardLayout({
             />
           </SidebarCountsProvider>
           <SidebarInset>
-            <header className="flex min-h-12 shrink-0 items-center gap-2 border-b px-4 py-2">
-              <SidebarTrigger className="-ml-1" />
-            </header>
+            <AdminMobileBar />
             <div className="min-w-0 px-6 pt-4 empty:hidden">{breadcrumb}</div>
             {children}
           </SidebarInset>
-        </SidebarProvider>
+        </AdminSidebarProvider>
       </TooltipProvider>
     </LeaveGuardProvider>
   );
