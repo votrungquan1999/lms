@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { type ReactNode, useActionState, useState } from "react";
 import { ExpectedSchoolField } from "src/components/expected-school-field";
 import { Button } from "src/components/ui/button";
 import {
@@ -17,12 +17,29 @@ import { Textarea } from "src/components/ui/textarea";
 import { submitWithoutReset } from "src/lib/submit-without-reset";
 import { type CreateCourseState, createCourseAction } from "./actions";
 
+/** Opens the New course dialog it sits inside; a page may hold several. */
+export function NewCourseButton() {
+  return (
+    <DialogTrigger asChild>
+      <Button>New course</Button>
+    </DialogTrigger>
+  );
+}
+
 /**
  * Client component: dialog for admins to create a new course.
  * @param schoolId - The school this dialog was opened in; posted with the
  *   form so the action can refuse a create from a stale tab.
+ * @param children - Content holding the `NewCourseButton`s; the dialog
+ *   wraps it so it stays open when a create replaces the button's section.
  */
-export function CreateCourseDialog({ schoolId }: { schoolId: string }) {
+export function CreateCourseDialog({
+  schoolId,
+  children,
+}: {
+  schoolId: string;
+  children: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const [successCount, setSuccessCount] = useState(0);
   // A closed-and-reopened dialog abandons the last attempt — its banner
@@ -47,14 +64,12 @@ export function CreateCourseDialog({ schoolId }: { schoolId: string }) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button>Add Course</Button>
-      </DialogTrigger>
+      {children}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create Course</DialogTitle>
+          <DialogTitle>New course</DialogTitle>
           <DialogDescription>
-            Add a new course to organize lessons and tests.
+            Add a course to organize lessons and tests.
           </DialogDescription>
         </DialogHeader>
 
@@ -67,7 +82,7 @@ export function CreateCourseDialog({ schoolId }: { schoolId: string }) {
           <ExpectedSchoolField schoolId={schoolId} />
 
           <div className="space-y-2">
-            <Label htmlFor="title">Course Title</Label>
+            <Label htmlFor="title">Course title</Label>
             <Input
               id="title"
               name="title"
@@ -85,25 +100,42 @@ export function CreateCourseDialog({ schoolId }: { schoolId: string }) {
               }
             />
             {!dismissed && state?.fieldErrors?.title && (
-              <p id="course-title-error" className="text-sm text-destructive">
+              <p
+                id="course-title-error"
+                role="alert"
+                className="text-sm text-destructive"
+              >
                 {state.fieldErrors.title}
               </p>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">Description (optional)</Label>
             <Textarea
               id="description"
               name="description"
               placeholder="Optional course description"
               rows={3}
             />
+            <p className="text-sm text-muted-foreground">
+              After it is created, open the course to add tests, share its
+              invite link and add students.
+            </p>
           </div>
 
-          <Button type="submit" disabled={isPending} className="w-full">
-            {isPending ? "Creating…" : "Create Course"}
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Creating…" : "Create course"}
+            </Button>
+          </div>
         </form>
 
         {!dismissed && state?.success && (

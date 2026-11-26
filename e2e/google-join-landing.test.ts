@@ -22,7 +22,7 @@ test.describe("Google sign-in on a course invite link", () => {
     courseTitle = `Google Join E2E ${Date.now()}`;
     const page = await browser.newPage();
     await page.goto(`${BASE_URL}/admin/courses`);
-    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByRole("button", { name: "New course" }).first().click();
     await page.getByLabel("Course Title").fill(courseTitle);
     await page.getByLabel("Description").fill("Course for the Google join e2e");
     await page.getByRole("button", { name: "Create Course" }).click();

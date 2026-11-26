@@ -67,7 +67,7 @@ test.describe("Image-answer + annotation flow", () => {
     });
 
     await page.goto("/admin/courses");
-    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByRole("button", { name: "New course" }).first().click();
     await page.getByLabel("Course Title").fill(COURSE_TITLE);
     await page.getByLabel("Description").fill("For annotation e2e");
     await page.getByRole("button", { name: "Create Course" }).click();

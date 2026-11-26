@@ -5,6 +5,7 @@
  * action; the course with the most work waiting comes first.
  */
 import { expect, test } from "@playwright/test";
+import { hydrated } from "./hydrated";
 import { createOwnSchool, type OwnSchool } from "./own-school";
 import {
   clearSchoolData,
@@ -147,6 +148,64 @@ test.describe("Courses list", () => {
         .filter({ visible: true }),
     ).toHaveCount(1);
     await expectNoPageOverflow(page);
+    await page.close();
+  });
+  test("a school with no courses shows the first-run page, and New course creates the first one", async () => {
+    test.setTimeout(120_000);
+
+    // Given a school with no courses
+    await withDb((db) => clearSchoolData(db, own.schoolId));
+
+    // When the teacher opens Courses
+    const page = await own.context.newPage();
+    await page.goto("/admin/courses");
+
+    // Then the first-run page explains what a course is and offers New course twice
+    const main = page.getByRole("main");
+    await expect(
+      main.getByRole("heading", { name: "No courses yet" }),
+    ).toBeVisible();
+    await expect(main.getByText("A course holds one class")).toBeVisible();
+    const newCourse = main.getByRole("button", { name: "New course" });
+    await expect(newCourse).toHaveCount(2);
+
+    // And lists what a course offers, linking to Question bank and Students
+    await expect(
+      main.getByRole("heading", { name: "Inside a course you can" }),
+    ).toBeVisible();
+    for (const card of ["Add tests", "Bring in students", "Share materials"]) {
+      await expect(main.getByText(card, { exact: true })).toBeVisible();
+    }
+    await expect(
+      main.getByRole("link", { name: "question bank" }),
+    ).toHaveAttribute("href", "/admin/pools");
+    await expect(main.getByRole("link", { name: "Students" })).toHaveAttribute(
+      "href",
+      "/admin/students",
+    );
+
+    // When they open New course from the card, which goes away on create
+    await hydrated(newCourse.last());
+    await newCourse.last().click();
+
+    // Then the dialog asks for a required title and an optional description
+    const dialog = page.getByRole("dialog");
+    await expect(
+      dialog.getByRole("heading", { name: "New course" }),
+    ).toBeVisible();
+    const title = dialog.getByLabel("Course title");
+    await expect(title).toHaveAttribute("required", "");
+    await expect(dialog.getByLabel("Description (optional)")).toBeVisible();
+
+    // When they create a course
+    await title.fill("First Course");
+    await dialog.getByRole("button", { name: "Create course" }).click();
+    await expect(dialog.getByRole("status")).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // Then the first-run page gives way to the course's row
+    await expect(page.getByTestId("course-row")).toContainText("First Course");
+    await expect(main.getByText("No courses yet")).toHaveCount(0);
     await page.close();
   });
 });

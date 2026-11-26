@@ -1,3 +1,4 @@
+import { BookOpen } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Badge } from "src/components/ui/badge";
@@ -109,5 +110,74 @@ export function CourseRowView({
         <Link href={href}>{waiting > 0 ? "Grade" : "Open"}</Link>
       </Button>
     </div>
+  );
+}
+
+const offers = [
+  {
+    title: "Add tests",
+    body: (
+      <>
+        Write questions, import them with AI, or take them from the{" "}
+        <Link href="/admin/pools" className="underline">
+          question bank
+        </Link>
+        .
+      </>
+    ),
+  },
+  {
+    title: "Bring in students",
+    body: (
+      <>
+        Share the course invite link, or enroll accounts you made in{" "}
+        <Link href="/admin/students" className="underline">
+          Students
+        </Link>
+        .
+      </>
+    ),
+  },
+  {
+    title: "Share materials",
+    body: "Upload files for the class to read alongside its tests.",
+  },
+];
+
+/**
+ * What a school with no courses sees: one clear next step, then what a course offers.
+ * @param children - The control that creates the first course.
+ */
+export function FirstRunPage({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <Card className="items-center gap-0 px-8 py-14 text-center">
+        <span
+          aria-hidden="true"
+          className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary"
+        >
+          <BookOpen className="size-6" />
+        </span>
+        <h2 className="mt-4 text-xl font-semibold">No courses yet</h2>
+        <p className="mt-2 max-w-md text-[15px] leading-relaxed text-muted-foreground">
+          A course holds one class: its tests, its students and its materials.
+          Create your first course to get started.
+        </p>
+        <div className="mt-5">{children}</div>
+      </Card>
+      <section className="grid gap-2.5">
+        <h2 className="text-lg font-semibold">Inside a course you can</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          {offers.map((offer) => (
+            <Card key={offer.title} className="gap-1.5 px-5 py-4">
+              <p className="font-semibold">{offer.title}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {offer.body}
+              </p>
+            </Card>
+          ))}
+        </div>
+      </section>
+    </>
   );
 }

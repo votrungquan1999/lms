@@ -97,7 +97,7 @@ async function ensureSandboxCourse(page: Page): Promise<string> {
     .filter({ hasText: SANDBOX_COURSE });
 
   if ((await courseLink.count()) === 0) {
-    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByRole("button", { name: "New course" }).first().click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Course Title").fill(SANDBOX_COURSE);
     await dialog

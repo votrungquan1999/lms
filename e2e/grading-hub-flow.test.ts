@@ -40,7 +40,7 @@ test.describe("Grading Hub Flow", () => {
 
   test("setup: admin creates a course", async ({ page }) => {
     await page.goto("/admin/courses");
-    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByRole("button", { name: "New course" }).first().click();
     await page.getByLabel("Course Title").fill(COURSE_TITLE);
     await page.getByLabel("Description").fill("For grading hub e2e");
     await page.getByRole("button", { name: "Create Course" }).click();

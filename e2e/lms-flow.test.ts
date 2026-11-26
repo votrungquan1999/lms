@@ -91,10 +91,10 @@ test.describe("LMS E2E Flow", () => {
       page.getByRole("heading", { name: "Courses", exact: true }),
     ).toBeVisible();
 
-    // When clicking "Add Course" and filling the form
-    await page.getByRole("button", { name: "Add Course" }).click();
+    // When clicking "New course" and filling the form
+    await page.getByRole("button", { name: "New course" }).first().click();
     await expect(
-      page.getByRole("heading", { name: "Create Course" }),
+      page.getByRole("heading", { name: "New course" }),
     ).toBeVisible();
 
     await page.getByLabel("Course Title").fill("E2E Test Course");

@@ -62,7 +62,7 @@ async function ensureCourse(
 
   const card = courseCard(page, title);
   if ((await card.count()) === 0) {
-    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByRole("button", { name: "New course" }).first().click();
     await page.getByLabel("Course Title").fill(title);
     if (description) await page.getByLabel("Description").fill(description);
     await page.getByRole("button", { name: "Create Course" }).click();
@@ -97,19 +97,15 @@ test("courses: list with the seeded course and the stress-titled ones", async ({
 
 test("courses: create dialog opened blank", async ({ page }) => {
   await page.goto("/admin/courses");
-  await page.getByRole("button", { name: "Add Course" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Create Course" }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "New course" }).first().click();
+  await expect(page.getByRole("heading", { name: "New course" })).toBeVisible();
   await snap(page, "courses/create-dialog-blank", { sources: LIST_SOURCES });
 });
 
 test("courses: create submitted with a blank title", async ({ page }) => {
   await page.goto("/admin/courses");
-  await page.getByRole("button", { name: "Add Course" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Create Course" }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "New course" }).first().click();
+  await expect(page.getByRole("heading", { name: "New course" })).toBeVisible();
   // Whitespace, not "": the input is `required`, so a truly empty submit is
   // stopped by the browser and never reaches the action's validation.
   await page.getByLabel("Course Title").fill("   ");

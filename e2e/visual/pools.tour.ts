@@ -385,7 +385,7 @@ test("pools: list holding several pools", async ({ page }) => {
 
 test("pools: drawing pool questions into a test", async ({ page }) => {
   await page.goto("/admin/courses");
-  await page.getByRole("button", { name: "Add Course" }).click();
+  await page.getByRole("button", { name: "New course" }).first().click();
   await page.getByLabel("Course Title").fill(COURSE_TITLE);
   await page.getByRole("button", { name: "Create Course" }).click();
   await expect(page.getByText("created successfully")).toBeVisible({

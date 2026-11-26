@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createCourseAction } from "../actions";
-import { CreateCourseDialog } from "../create-course-form";
+import { CreateCourseDialog, NewCourseButton } from "../create-course-form";
 
 vi.mock("../actions", () => ({
   createCourseAction: vi.fn(),
@@ -25,12 +25,16 @@ describe("Feature: Course Creation Dialog", () => {
         success: true,
         message: 'Course "Algorithms 101" created successfully',
       });
-      render(<CreateCourseDialog schoolId="school-1" />);
-      await user.click(screen.getByRole("button", { name: "Add Course" }));
+      render(
+        <CreateCourseDialog schoolId="school-1">
+          <NewCourseButton />
+        </CreateCourseDialog>,
+      );
+      await user.click(screen.getByRole("button", { name: "New course" }));
 
       // Action — fill the title and submit
-      await user.type(screen.getByLabelText("Course Title"), "Algorithms 101");
-      await user.click(screen.getByRole("button", { name: "Create Course" }));
+      await user.type(screen.getByLabelText("Course title"), "Algorithms 101");
+      await user.click(screen.getByRole("button", { name: "Create course" }));
 
       // Assert — the user sees the success banner
       expect(
@@ -45,16 +49,20 @@ describe("Feature: Course Creation Dialog", () => {
         success: true,
         message: 'Course "Algorithms 101" created successfully',
       });
-      render(<CreateCourseDialog schoolId="school-1" />);
-      await user.click(screen.getByRole("button", { name: "Add Course" }));
+      render(
+        <CreateCourseDialog schoolId="school-1">
+          <NewCourseButton />
+        </CreateCourseDialog>,
+      );
+      await user.click(screen.getByRole("button", { name: "New course" }));
 
       // Action — fill the title and submit
-      await user.type(screen.getByLabelText("Course Title"), "Algorithms 101");
-      await user.click(screen.getByRole("button", { name: "Create Course" }));
+      await user.type(screen.getByLabelText("Course title"), "Algorithms 101");
+      await user.click(screen.getByRole("button", { name: "Create course" }));
       await screen.findByText('Course "Algorithms 101" created successfully');
 
       // Assert — the form is clean for the next course.
-      expect(screen.getByLabelText("Course Title")).toHaveValue("");
+      expect(screen.getByLabelText("Course title")).toHaveValue("");
     });
   });
 
@@ -66,17 +74,21 @@ describe("Feature: Course Creation Dialog", () => {
         success: false,
         message: "Unauthorized: admin access required",
       });
-      render(<CreateCourseDialog schoolId="school-1" />);
-      await user.click(screen.getByRole("button", { name: "Add Course" }));
+      render(
+        <CreateCourseDialog schoolId="school-1">
+          <NewCourseButton />
+        </CreateCourseDialog>,
+      );
+      await user.click(screen.getByRole("button", { name: "New course" }));
 
       // Action — type a title and submit, and it gets refused.
-      await user.type(screen.getByLabelText("Course Title"), "Algorithms 101");
-      await user.click(screen.getByRole("button", { name: "Create Course" }));
+      await user.type(screen.getByLabelText("Course title"), "Algorithms 101");
+      await user.click(screen.getByRole("button", { name: "Create course" }));
       await screen.findByText("Unauthorized: admin access required");
 
       // Assert — the typed title is still there, read right after the
       // error appears (typing again would mask a real reset).
-      expect(screen.getByLabelText("Course Title")).toHaveValue(
+      expect(screen.getByLabelText("Course title")).toHaveValue(
         "Algorithms 101",
       );
     });
@@ -90,15 +102,19 @@ describe("Feature: Course Creation Dialog", () => {
         success: true,
         message: 'Course "Algorithms 101" created successfully',
       });
-      render(<CreateCourseDialog schoolId="school-1" />);
-      await user.click(screen.getByRole("button", { name: "Add Course" }));
-      await user.type(screen.getByLabelText("Course Title"), "Algorithms 101");
-      await user.click(screen.getByRole("button", { name: "Create Course" }));
+      render(
+        <CreateCourseDialog schoolId="school-1">
+          <NewCourseButton />
+        </CreateCourseDialog>,
+      );
+      await user.click(screen.getByRole("button", { name: "New course" }));
+      await user.type(screen.getByLabelText("Course title"), "Algorithms 101");
+      await user.click(screen.getByRole("button", { name: "Create course" }));
       await screen.findByText('Course "Algorithms 101" created successfully');
       await user.keyboard("{Escape}");
 
       // Action — reopen the dialog.
-      await user.click(screen.getByRole("button", { name: "Add Course" }));
+      await user.click(screen.getByRole("button", { name: "New course" }));
 
       // Assert — no stale banner from the last attempt.
       expect(
@@ -116,26 +132,33 @@ describe("Feature: Course Creation Dialog", () => {
         message: "Course title is required",
         fieldErrors: { title: "Course title is required" },
       });
-      render(<CreateCourseDialog schoolId="school-1" />);
-      await user.click(screen.getByRole("button", { name: "Add Course" }));
+      render(
+        <CreateCourseDialog schoolId="school-1">
+          <NewCourseButton />
+        </CreateCourseDialog>,
+      );
+      await user.click(screen.getByRole("button", { name: "New course" }));
 
       // Action — type a whitespace-only title and submit.
-      await user.type(screen.getByLabelText("Course Title"), "   ");
-      await user.click(screen.getByRole("button", { name: "Create Course" }));
+      await user.type(screen.getByLabelText("Course title"), "   ");
+      await user.click(screen.getByRole("button", { name: "Create course" }));
 
-      // Assert — the input itself carries the error, and the form-level
-      // banner doesn't repeat it. Waits, since the input exists before the
-      // action's result lands.
+      // Assert — the input itself carries the error, the error is announced,
+      // and the form-level banner doesn't repeat it. Waits, since the input
+      // exists before the action's result lands.
       await waitFor(() => {
-        expect(screen.getByLabelText("Course Title")).toHaveAttribute(
+        expect(screen.getByLabelText("Course title")).toHaveAttribute(
           "aria-invalid",
           "true",
         );
       });
-      expect(screen.getByLabelText("Course Title")).toHaveAccessibleDescription(
+      expect(screen.getByLabelText("Course title")).toHaveAccessibleDescription(
         "Course title is required",
       );
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Course title is required",
+      );
     });
   });
 
@@ -144,11 +167,15 @@ describe("Feature: Course Creation Dialog", () => {
       // Setup
       const user = userEvent.setup();
       vi.mocked(createCourseAction).mockClear();
-      render(<CreateCourseDialog schoolId="school-1" />);
-      await user.click(screen.getByRole("button", { name: "Add Course" }));
+      render(
+        <CreateCourseDialog schoolId="school-1">
+          <NewCourseButton />
+        </CreateCourseDialog>,
+      );
+      await user.click(screen.getByRole("button", { name: "New course" }));
 
       // Action — click submit without typing a title
-      await user.click(screen.getByRole("button", { name: "Create Course" }));
+      await user.click(screen.getByRole("button", { name: "Create course" }));
 
       // Assert — HTML5 form validation blocks submission, so the server
       // action is never invoked. This is the user-observable outcome:

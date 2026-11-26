@@ -32,7 +32,7 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
   }) => {
     // Given: admin creates a course for this scenario
     await page.goto("/admin/courses");
-    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByRole("button", { name: "New course" }).first().click();
     await page.getByLabel("Course Title").fill("EC Delayed Course");
     await page
       .getByLabel("Description")

@@ -30,7 +30,7 @@ test.describe("Course Join Request Flow", () => {
   test("admin creates a course and mints an invite link", async ({ page }) => {
     // Given the admin creates a course
     await page.goto("/admin/courses");
-    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByRole("button", { name: "New course" }).first().click();
     await page.getByLabel("Course Title").fill(COURSE_TITLE);
     await page
       .getByLabel("Description")

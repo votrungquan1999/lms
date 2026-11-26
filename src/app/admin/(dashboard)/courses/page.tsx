@@ -6,8 +6,9 @@ import {
   CoursesColumn,
   CoursesHeader,
   CoursesTable,
+  FirstRunPage,
 } from "./courses-list.ui";
-import { CreateCourseDialog } from "./create-course-form";
+import { CreateCourseDialog, NewCourseButton } from "./create-course-form";
 
 export const metadata = {
   title: "Courses — LMS Admin",
@@ -24,43 +25,45 @@ export default async function CoursesPage() {
 
   return (
     <CoursesColumn>
-      <CoursesHeader>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {coursesSummary(courses.length, counts.waiting)}
-          </p>
-        </div>
-        <CreateCourseDialog schoolId={session.school.id} />
-      </CoursesHeader>
+      <CreateCourseDialog schoolId={session.school.id}>
+        <CoursesHeader>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {coursesSummary(courses.length, counts.waiting)}
+            </p>
+          </div>
+          <NewCourseButton />
+        </CoursesHeader>
 
-      {rows.length > 0 ? (
-        <section className="grid gap-2.5">
-          <h2 className="text-lg font-semibold">
-            All courses{" "}
-            <span className="font-medium text-muted-foreground">
-              ({rows.length})
-            </span>
-          </h2>
-          <CoursesTable>
-            {rows.map((row) => (
-              <CourseRowView
-                key={row.courseId}
-                href={`/admin/courses/${row.courseId}`}
-                title={row.title}
-                meta={row.meta}
-                students={row.students}
-                tests={row.tests}
-                waiting={row.waiting}
-              />
-            ))}
-          </CoursesTable>
-        </section>
-      ) : (
-        <p className="text-center text-muted-foreground">
-          No courses yet. Click &quot;Add Course&quot; to create one.
-        </p>
-      )}
+        {rows.length > 0 ? (
+          <section className="grid gap-2.5">
+            <h2 className="text-lg font-semibold">
+              All courses{" "}
+              <span className="font-medium text-muted-foreground">
+                ({rows.length})
+              </span>
+            </h2>
+            <CoursesTable>
+              {rows.map((row) => (
+                <CourseRowView
+                  key={row.courseId}
+                  href={`/admin/courses/${row.courseId}`}
+                  title={row.title}
+                  meta={row.meta}
+                  students={row.students}
+                  tests={row.tests}
+                  waiting={row.waiting}
+                />
+              ))}
+            </CoursesTable>
+          </section>
+        ) : (
+          <FirstRunPage>
+            <NewCourseButton />
+          </FirstRunPage>
+        )}
+      </CreateCourseDialog>
     </CoursesColumn>
   );
 }

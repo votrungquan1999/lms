@@ -18,7 +18,7 @@ test.describe("Question pool → compose test flow", () => {
     page,
   }) => {
     await page.goto("/admin/courses");
-    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByRole("button", { name: "New course" }).first().click();
     await page.getByLabel("Course Title").fill(COURSE_NAME);
     await page.getByRole("button", { name: "Create Course" }).click();
     await expect(page.getByText("created successfully")).toBeVisible({

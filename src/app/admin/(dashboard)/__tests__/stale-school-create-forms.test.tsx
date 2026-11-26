@@ -62,11 +62,11 @@ function postedSchoolId(): string | null {
  * So that the create action can tell when my active school changed since
  */
 describe("Feature: a create dialog carries the school its page was opened in", () => {
-  it("the courses page's Add Course dialog posts the page's school", async () => {
+  it("the courses page's New course dialog posts the page's school", async () => {
     const user = userEvent.setup();
     render(await CoursesPage());
 
-    await user.click(screen.getByRole("button", { name: "Add Course" }));
+    await user.click(screen.getAllByRole("button", { name: "New course" })[0]);
 
     expect(postedSchoolId()).toBe(school.id);
   });

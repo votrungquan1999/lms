@@ -48,7 +48,7 @@ test.describe("Answer Reveal — plain mode", () => {
     page,
   }) => {
     await page.goto("/admin/courses");
-    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByRole("button", { name: "New course" }).first().click();
     await page.getByLabel("Course Title").fill(COURSE_TITLE);
     await page.getByLabel("Description").fill("Answer reveal e2e — plain");
     await page.getByRole("button", { name: "Create Course" }).click();
@@ -216,7 +216,7 @@ test.describe("Answer Reveal — diff mode", () => {
     page,
   }) => {
     await page.goto("/admin/courses");
-    await page.getByRole("button", { name: "Add Course" }).click();
+    await page.getByRole("button", { name: "New course" }).first().click();
     await page.getByLabel("Course Title").fill(COURSE_TITLE);
     await page.getByLabel("Description").fill("Answer reveal e2e — diff");
     await page.getByRole("button", { name: "Create Course" }).click();
