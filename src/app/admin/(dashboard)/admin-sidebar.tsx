@@ -29,6 +29,7 @@ import type { UserSchool } from "src/lib/school-service";
 import { AdminSchoolHeader } from "./admin-school-header";
 import { GuardedLink } from "./guarded-link";
 import { useLeaveGuard } from "./leave-guard.state";
+import { useSidebarCounts } from "./sidebar-counts.state";
 
 const navItems = [
   { title: "To grade", href: "/admin/grading", icon: ClipboardCheck },
@@ -62,6 +63,10 @@ export function AdminSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { requestLeave } = useLeaveGuard();
+  const counts = useSidebarCounts();
+  const badgeCounts: Record<string, number> = {
+    "/admin/grading": counts?.toGrade ?? 0,
+  };
 
   async function logout() {
     await authClient.signOut();
@@ -96,6 +101,12 @@ export function AdminSidebar({
                     <GuardedLink href={item.href}>
                       <item.icon />
                       <span>{item.title}</span>
+                      {(badgeCounts[item.href] ?? 0) > 0 && (
+                        <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-md bg-warning/15 px-1 text-xs font-medium text-warning-foreground tabular-nums group-data-[collapsible=icon]:hidden dark:bg-warning/20 dark:text-warning">
+                          {badgeCounts[item.href]}
+                          <span className="sr-only"> waiting</span>
+                        </span>
+                      )}
                     </GuardedLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

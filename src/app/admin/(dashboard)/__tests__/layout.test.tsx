@@ -2,6 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import { AdminSession } from "src/lib/session";
 import {
+  addTestSchool,
   getTestServices,
   servicesSingletonMockFactory,
   setupTestDb,
@@ -42,6 +43,13 @@ vi.mock("src/lib/auth-singleton", () => ({
   })),
 }));
 
+vi.mock("src/lib/school-grading-counts", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("src/lib/school-grading-counts")>();
+  return { getSchoolGradingCounts: vi.fn(actual.getSchoolGradingCounts) };
+});
+
+import { getSchoolGradingCounts } from "src/lib/school-grading-counts";
 import AdminDashboardLayout from "../layout";
 
 beforeAll(() => {
@@ -81,11 +89,8 @@ describe("Feature: the sidebar shows the teacher's current school and a switcher
       slug: "alpha",
       createdBy: "owner-1",
     });
-    const beta = await schoolService.createSchool({
-      name: "Beta School",
-      slug: "beta",
-      createdBy: "owner-1",
-    });
+    // Registered so the layout's grading count can build the school's services
+    const beta = await addTestSchool("Beta School");
     // A syntactically valid ObjectId hex string — stampAccessManaged's
     // updateOne needs one, even though no matching `user` document exists.
     const userId = "507f1f77bcf86cd799439011";
@@ -119,11 +124,12 @@ describe("Feature: the sidebar shows the teacher's current school and a switcher
  */
 describe("Feature: the admin shell names the active school once", () => {
   it("shows the school name in the sidebar only, not in a top bar or the footer", async () => {
+    const school = await addTestSchool("STEM Venture");
     signInAs(
       new AdminSession({
         userId: "507f1f77bcf86cd799439011",
         email: "teacher@example.com",
-        school: { id: "school-1", name: "STEM Venture" },
+        school,
       }),
     );
 
@@ -135,5 +141,41 @@ describe("Feature: the admin shell names the active school once", () => {
 
     expect(screen.getAllByText("STEM Venture")).toHaveLength(1);
     expect(screen.queryByTestId("school-badge")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Feature: the sidebar badges never take a page down
+ * As a school admin
+ * I want every admin page to open even when the badge numbers cannot be read
+ * So that a failed count costs me a badge, not my work
+ */
+describe("Feature: a failed badge count leaves the page working", () => {
+  it("renders the page with no badges when the count throws", async () => {
+    const school = await addTestSchool("STEM Venture");
+    signInAs(
+      new AdminSession({
+        userId: "507f1f77bcf86cd799439011",
+        email: "teacher@example.com",
+        school,
+      }),
+    );
+    vi.mocked(getSchoolGradingCounts).mockRejectedValueOnce(
+      new Error("count timed out"),
+    );
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const ui = await AdminDashboardLayout({
+      children: <div>Page content</div>,
+      breadcrumb: <div>Breadcrumb</div>,
+    });
+    render(ui);
+
+    expect(screen.getByText("Page content")).toBeInTheDocument();
+    expect(screen.queryByTestId("to-grade-badge")).not.toBeInTheDocument();
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

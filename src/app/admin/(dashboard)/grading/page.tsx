@@ -4,10 +4,8 @@ import { Button } from "src/components/ui/button";
 import { pluralize } from "src/lib/pluralize";
 import { questionTypeSummary } from "src/lib/question-type-words";
 import { relativeDay } from "src/lib/relative-time";
-import {
-  getGradingCountService,
-  getPageGuard,
-} from "src/lib/services-singleton";
+import { getSchoolGradingCounts } from "src/lib/school-grading-counts";
+import { getPageGuard } from "src/lib/services-singleton";
 import { ReleaseGradesButton } from "../courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { GradedGroupProvider } from "./graded-group.state";
 import { courseHref, coursesHref, courseTestHref } from "./href";
@@ -57,8 +55,7 @@ export default async function ToGradePage() {
   const guard = await getPageGuard();
   const session = await guard.requireSchoolAdmin();
 
-  const countService = await getGradingCountService(session.school.id);
-  const counts = await countService.getCounts();
+  const counts = await getSchoolGradingCounts(session.school.id);
   const now = new Date();
   const groups = groupWaitingByCourse(counts);
   const testsWaiting = groups.reduce((sum, g) => sum + g.tests.length, 0);
