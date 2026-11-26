@@ -5,7 +5,10 @@ import {
 } from "src/components/ui/sidebar";
 import { TooltipProvider } from "src/components/ui/tooltip";
 import { getAuthService } from "src/lib/auth-singleton";
-import { getSchoolGradingCounts } from "src/lib/school-grading-counts";
+import {
+  getSchoolSidebarCounts,
+  type SchoolSidebarCounts,
+} from "src/lib/school-sidebar-counts";
 import { getPageGuard, getSchoolService } from "src/lib/services-singleton";
 import { AdminSidebar } from "./admin-sidebar";
 import { LeaveGuardProvider } from "./leave-guard.state";
@@ -36,13 +39,11 @@ export default async function AdminDashboardLayout({
   );
 
   // Badges are decoration: a failed count costs the badges, never the page
-  let sidebarCounts: { toGrade: number } | null = null;
+  let sidebarCounts: SchoolSidebarCounts | null = null;
   // A school-less admin has no school to count for, so the sidebar gets no badges
   if (adminSession.school) {
     try {
-      sidebarCounts = {
-        toGrade: (await getSchoolGradingCounts(adminSession.school.id)).waiting,
-      };
+      sidebarCounts = await getSchoolSidebarCounts(adminSession.school.id);
     } catch (error) {
       console.error("sidebar badge counts failed:", error);
     }

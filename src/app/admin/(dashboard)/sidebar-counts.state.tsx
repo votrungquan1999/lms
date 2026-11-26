@@ -12,6 +12,7 @@ import {
 
 export interface SidebarCounts {
   toGrade: number;
+  joinRequests: number;
 }
 
 interface SidebarCountsState {

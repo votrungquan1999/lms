@@ -1,5 +1,7 @@
 import { type Collection, type Db, MongoServerError } from "mongodb";
 import { assertSchoolId } from "./assert-school-id";
+import type { CourseDocument } from "./course-service";
+import type { StudentDocument } from "./student-service";
 
 /**
  * The three states a course join request moves through. A TS enum, never a
@@ -70,6 +72,18 @@ export interface PagedCourseJoinRequests {
 }
 
 /**
+ * A join request the admin can act on: its student and course both still
+ * exist, and their names come along for display.
+ */
+export interface VisibleCourseJoinRequest {
+  id: string;
+  studentName: string;
+  studentUsername: string;
+  courseTitle: string;
+  requestedAt: Date;
+}
+
+/**
  * CourseJoinRequestService — manages one school's rows in the
  * `course_join_request` collection. Build it for the requested course's
  * school. Modelled on `RedoRequestService`'s active/resolved shape.
@@ -78,7 +92,7 @@ export class CourseJoinRequestService {
   private readonly joinRequests: Collection<CourseJoinRequestDocument>;
 
   constructor(
-    db: Db,
+    private readonly db: Db,
     private readonly schoolId: string,
   ) {
     assertSchoolId(schoolId, "a join request service");
@@ -262,6 +276,89 @@ export class CourseJoinRequestService {
     return {
       items: docs.map((doc) => this.toCourseJoinRequest(doc)),
       total,
+    };
+  }
+
+  /**
+   * Lists every join request of the bound school with the given status that
+   * the admin can act on: one whose student or course no longer resolves is
+   * dropped, so every returned row stays actionable. Same order as
+   * `listByStatus`. Requesters may belong only to other schools until
+   * approved, so students are looked up across schools; the ids come from
+   * this school's own requests.
+   */
+  async listVisibleByStatus(
+    status: JoinRequestStatus,
+  ): Promise<VisibleCourseJoinRequest[]> {
+    const sortDirection = status === JoinRequestStatus.Pending ? 1 : -1;
+    const docs = await this.joinRequests
+      .find({ schoolId: this.schoolId, status })
+      .sort({ requestedAt: sortDirection, _id: sortDirection })
+      .toArray();
+    const { studentById, courseById } = await this.lookUpOwners(docs);
+
+    const rows: VisibleCourseJoinRequest[] = [];
+    for (const doc of docs) {
+      const student = studentById.get(doc.studentId);
+      const course = courseById.get(doc.courseId);
+      if (!student || !course) continue;
+      rows.push({
+        id: doc.id,
+        studentName: student.name,
+        studentUsername: student.username,
+        courseTitle: course.title,
+        requestedAt: doc.requestedAt,
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * Counts the pending requests the admin can act on, by the same rule as
+   * `listVisibleByStatus`, so a badge and the queue never disagree. Loads
+   * only the two ids per request.
+   */
+  async countVisiblePending(): Promise<number> {
+    const docs = await this.joinRequests
+      .find(
+        { schoolId: this.schoolId, status: JoinRequestStatus.Pending },
+        { projection: { _id: 0, courseId: 1, studentId: 1 } },
+      )
+      .toArray();
+    const { studentById, courseById } = await this.lookUpOwners(docs);
+    return docs.filter(
+      (doc) => studentById.has(doc.studentId) && courseById.has(doc.courseId),
+    ).length;
+  }
+
+  /** Finds the students and this school's courses the given requests name. */
+  private async lookUpOwners(
+    requests: Pick<CourseJoinRequestDocument, "courseId" | "studentId">[],
+  ): Promise<{
+    studentById: Map<string, Pick<StudentDocument, "id" | "name" | "username">>;
+    courseById: Map<string, Pick<CourseDocument, "id" | "title">>;
+  }> {
+    const studentIds = [...new Set(requests.map((r) => r.studentId))];
+    const courseIds = [...new Set(requests.map((r) => r.courseId))];
+    const [students, courses] = await Promise.all([
+      this.db
+        .collection<StudentDocument>("student")
+        .find(
+          { id: { $in: studentIds } },
+          { projection: { _id: 0, id: 1, name: 1, username: 1 } },
+        )
+        .toArray(),
+      this.db
+        .collection<CourseDocument>("course")
+        .find(
+          { id: { $in: courseIds }, schoolId: this.schoolId },
+          { projection: { _id: 0, id: 1, title: 1 } },
+        )
+        .toArray(),
+    ]);
+    return {
+      studentById: new Map(students.map((s) => [s.id, s])),
+      courseById: new Map(courses.map((c) => [c.id, c])),
     };
   }
 

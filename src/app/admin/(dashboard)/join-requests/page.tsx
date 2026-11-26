@@ -1,13 +1,8 @@
 import Link from "next/link";
-import {
-  type CourseJoinRequest,
-  JoinRequestStatus,
-} from "src/lib/course-join-request-service";
+import { JoinRequestStatus } from "src/lib/course-join-request-service";
 import {
   getCourseJoinRequestService,
-  getCourseService,
   getPageGuard,
-  getSchoolDirectory,
 } from "src/lib/services-singleton";
 import { joinRequestsHref } from "./href";
 import {
@@ -57,47 +52,6 @@ function resolvePage(raw: string | string[] | undefined): number {
 }
 
 /**
- * Joins raw join requests with the student and course each one names.
- * A request whose student or course no longer resolves is dropped, not
- * rendered as a placeholder — every returned row stays actionable. The
- * `studentId` on the request is already the domain student id enrollment
- * uses, so the name shown here is provably the person approval would enroll.
- */
-async function toVisibleRows(
-  requests: CourseJoinRequest[],
-  schoolId: string,
-): Promise<JoinRequestRowModel[]> {
-  const studentIds = [...new Set(requests.map((r) => r.studentId))];
-  const courseIds = [...new Set(requests.map((r) => r.courseId))];
-
-  // Requesters may belong only to other schools until approved, so they are
-  // looked up across schools; the ids come from this school's own requests.
-  const schoolDirectory = await getSchoolDirectory();
-  const courseService = await getCourseService(schoolId);
-  const [students, courses] = await Promise.all([
-    schoolDirectory.findStudentsByIds(studentIds),
-    courseService.getCoursesByIds(courseIds),
-  ]);
-  const studentById = new Map(students.map((s) => [s.id, s]));
-  const courseById = new Map(courses.map((c) => [c.id, c]));
-
-  const rows: JoinRequestRowModel[] = [];
-  for (const request of requests) {
-    const student = studentById.get(request.studentId);
-    const course = courseById.get(request.courseId);
-    if (!student || !course) continue;
-    rows.push({
-      id: request.id,
-      studentName: student.name,
-      studentUsername: student.username,
-      courseTitle: course.title,
-      requestedAt: request.requestedAt,
-    });
-  }
-  return rows;
-}
-
-/**
  * Admin join-request queue — lists requests for the active tab (Waiting by
  * default), showing who is asking and which course they want,
  * and lets the admin switch between Waiting/Approved/Rejected.
@@ -119,16 +73,13 @@ export default async function JoinRequestsPage({
   const status = STATUS_BY_FILTER[filter];
 
   // The total must count only rows the admin can actually SEE, and
-  // whether a row is visible isn't known until after the student/course
-  // join below — so this loads every matching request for the status,
-  // unbounded (limit: 0 is Mongo's own "no limit"), on every page view.
-  // Exact-but-unbounded by design; don't "optimize" this into a DB-level
-  // skip/limit without re-deriving the total from the same filtered set.
-  const { items: allRequests } = await joinRequestService.listByStatus(status, {
-    skip: 0,
-    limit: 0,
-  });
-  const visibleRows = await toVisibleRows(allRequests, session.school.id);
+  // whether a row is visible isn't known until the service has looked up
+  // each student and course — so this loads every visible request for the
+  // status on every page view. Exact-but-unbounded by design; don't
+  // "optimize" this into a DB-level skip/limit without re-deriving the
+  // total from the same filtered set.
+  const visibleRows: JoinRequestRowModel[] =
+    await joinRequestService.listVisibleByStatus(status);
 
   const total = visibleRows.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

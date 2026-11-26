@@ -11,6 +11,8 @@ import type { Locator, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { type Db, MongoClient } from "mongodb";
 import type { AnswerDocument } from "../src/lib/answer-service";
+import type { CourseJoinRequestDocument } from "../src/lib/course-join-request-service";
+import { JoinRequestStatus } from "../src/lib/course-join-request-service";
 import type { CourseDocument } from "../src/lib/course-service";
 import type { EnrollmentDocument } from "../src/lib/enrollment-service";
 import type { GradeDocument } from "../src/lib/grade-service";
@@ -193,6 +195,29 @@ export async function insertAnswer(
   return doc.id;
 }
 
+/** A pending request from `studentId` to join `courseId`, owned by `schoolId` like the join flow stamps it. */
+export async function insertJoinRequest(
+  db: Db,
+  fields: Pick<
+    CourseJoinRequestDocument,
+    "courseId" | "studentId" | "schoolId"
+  > &
+    Partial<CourseJoinRequestDocument>,
+): Promise<string> {
+  const doc: CourseJoinRequestDocument = {
+    id: crypto.randomUUID(),
+    status: JoinRequestStatus.Pending,
+    requestedAt: new Date(),
+    resolvedAt: null,
+    resolvedBy: null,
+    ...fields,
+  };
+  await db
+    .collection<CourseJoinRequestDocument>("course_join_request")
+    .insertOne(doc);
+  return doc.id;
+}
+
 /** A student's hand-in; `submittedAt` defaults to now. */
 export async function insertSubmission(
   db: Db,
@@ -259,7 +284,7 @@ export async function clearSchoolData(db: Db, schoolId: string): Promise<void> {
     .deleteMany({ courseId: { $in: courseIds } });
   await db
     .collection("course_join_request")
-    .deleteMany({ courseId: { $in: courseIds } });
+    .deleteMany({ $or: [{ courseId: { $in: courseIds } }, { schoolId }] });
   await db.collection("test").deleteMany({ schoolId });
   await db.collection("course").deleteMany({ schoolId });
   await db.collection("student").deleteMany({ schoolIds: schoolId });

@@ -66,6 +66,7 @@ export function AdminSidebar({
   const counts = useSidebarCounts();
   const badgeCounts: Record<string, number> = {
     "/admin/grading": counts?.toGrade ?? 0,
+    "/admin/join-requests": counts?.joinRequests ?? 0,
   };
 
   async function logout() {

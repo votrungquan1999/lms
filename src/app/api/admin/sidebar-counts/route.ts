@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
-import { getSchoolGradingCounts } from "src/lib/school-grading-counts";
+import { getSchoolSidebarCounts } from "src/lib/school-sidebar-counts";
 
 /**
  * GET handler for the sidebar's badge numbers. Admin-only and read-only: the
@@ -20,9 +20,6 @@ export async function GET(): Promise<Response> {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const gradingCounts = await getSchoolGradingCounts(schoolId);
-  return Response.json(
-    { toGrade: gradingCounts.waiting },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  const counts = await getSchoolSidebarCounts(schoolId);
+  return Response.json(counts, { headers: { "Cache-Control": "no-store" } });
 }

@@ -189,4 +189,57 @@ describe("Feature: Course Join Request Service", () => {
       );
     }
   });
+
+  describe("Scenario: a request names a student or a course that no longer exists", () => {
+    dbIt(
+      "should list and count only the requests the admin can act on",
+      async ({ db }) => {
+        const service = new CourseJoinRequestService(db, TEST_SCHOOL_ID);
+        const now = new Date();
+
+        // Given one live student and course, a course that was removed, a student that was removed, and a course of another school
+        await db.collection("student").insertMany([
+          { id: "student-live", name: "Live", username: "live" },
+          { id: "student-other", name: "Other", username: "other" },
+        ]);
+        await db.collection("course").insertMany([
+          { id: "course-live", title: "Live Course", schoolId: TEST_SCHOOL_ID },
+          { id: "course-foreign", title: "Foreign", schoolId: "school-b" },
+        ]);
+        const request = (id: string, courseId: string, studentId: string) =>
+          service
+            .createRequest({ courseId, studentId })
+            .then((created) =>
+              db
+                .collection("course_join_request")
+                .updateOne(
+                  { id: created.id },
+                  { $set: { requestedAt: now, id } },
+                ),
+            );
+        await request("r-live", "course-live", "student-live");
+        await request("r-no-course", "course-gone", "student-live");
+        await request("r-no-student", "course-live", "student-gone");
+        await request("r-foreign-course", "course-foreign", "student-other");
+
+        // When the pending requests are listed and counted
+        const rows = await service.listVisibleByStatus(
+          JoinRequestStatus.Pending,
+        );
+        const count = await service.countVisiblePending();
+
+        // Then only the live one shows, with its names, and the count agrees
+        expect(rows).toEqual([
+          {
+            id: "r-live",
+            studentName: "Live",
+            studentUsername: "live",
+            courseTitle: "Live Course",
+            requestedAt: now,
+          },
+        ]);
+        expect(count).toBe(1);
+      },
+    );
+  });
 });

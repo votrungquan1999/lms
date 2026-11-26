@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { requireAdminSession, getCounts } = vi.hoisted(() => ({
-  requireAdminSession: vi.fn(),
-  getCounts: vi.fn(),
-}));
+const { requireAdminSession, getCounts, countVisiblePending } = vi.hoisted(
+  () => ({
+    requireAdminSession: vi.fn(),
+    getCounts: vi.fn(),
+    countVisiblePending: vi.fn(),
+  }),
+);
 
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("src/lib/auth-singleton", () => ({
@@ -11,6 +14,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 vi.mock("src/lib/services-singleton", () => ({
   getGradingCountService: vi.fn(async () => ({ getCounts })),
+  getCourseJoinRequestService: vi.fn(async () => ({ countVisiblePending })),
 }));
 
 import { GET } from "../route";
@@ -43,17 +47,18 @@ describe("sidebar counts route", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns the school's waiting count uncached", async () => {
-    // Given a school admin and 4 waiting submissions
+  it("returns both badge numbers uncached", async () => {
+    // Given a school admin, 4 waiting submissions and 2 actionable join requests
     requireAdminSession.mockResolvedValueOnce({ school: { id: "school-1" } });
     getCounts.mockResolvedValueOnce({ waiting: 4 });
+    countVisiblePending.mockResolvedValueOnce(2);
 
     // When the counts are requested
     const res = await GET();
 
     // Then the body carries the number and the response is not cacheable
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ toGrade: 4 });
+    expect(await res.json()).toEqual({ toGrade: 4, joinRequests: 2 });
     expect(res.headers.get("cache-control")).toBe("no-store");
   });
 });

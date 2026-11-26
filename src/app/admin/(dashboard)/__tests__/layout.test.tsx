@@ -43,13 +43,13 @@ vi.mock("src/lib/auth-singleton", () => ({
   })),
 }));
 
-vi.mock("src/lib/school-grading-counts", async (importOriginal) => {
+vi.mock("src/lib/school-sidebar-counts", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("src/lib/school-grading-counts")>();
-  return { getSchoolGradingCounts: vi.fn(actual.getSchoolGradingCounts) };
+    await importOriginal<typeof import("src/lib/school-sidebar-counts")>();
+  return { getSchoolSidebarCounts: vi.fn(actual.getSchoolSidebarCounts) };
 });
 
-import { getSchoolGradingCounts } from "src/lib/school-grading-counts";
+import { getSchoolSidebarCounts } from "src/lib/school-sidebar-counts";
 import AdminDashboardLayout from "../layout";
 
 beforeAll(() => {
@@ -160,7 +160,7 @@ describe("Feature: a failed badge count leaves the page working", () => {
         school,
       }),
     );
-    vi.mocked(getSchoolGradingCounts).mockRejectedValueOnce(
+    vi.mocked(getSchoolSidebarCounts).mockRejectedValueOnce(
       new Error("count timed out"),
     );
     const consoleError = vi

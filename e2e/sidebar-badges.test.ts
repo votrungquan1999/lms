@@ -13,6 +13,7 @@ import {
   enroll,
   insertAnswer,
   insertCourse,
+  insertJoinRequest,
   insertQuestion,
   insertStudent,
   insertSubmission,
@@ -142,6 +143,68 @@ test.describe("Sidebar badges", () => {
 
     // Then nothing waits and the badge is gone
     await expect(toGradeLink).toHaveText("To grade");
+    await page.close();
+  });
+
+  test("the Join requests badge matches the list, which hides requests whose course is gone, and follows approving and rejecting", async () => {
+    test.setTimeout(120_000);
+
+    // Given three pending requests, one for a course that no longer exists
+    const schoolId = own.schoolId;
+    await withDb(async (db) => {
+      await clearSchoolData(db, schoolId);
+      const kept = await insertCourse(db, { title: "Kept Course", schoolId });
+      const removed = await insertCourse(db, {
+        title: "Removed Course",
+        schoolId,
+      });
+      /** A real student with no school yet, as a join request's author is. */
+      const requester = (name: string) =>
+        insertStudent(db, { name, schoolIds: [] });
+      await insertJoinRequest(db, {
+        courseId: kept,
+        studentId: await requester("Zed"),
+        schoolId,
+        requestedAt: new Date(Date.now() - 3000),
+      });
+      await insertJoinRequest(db, {
+        courseId: kept,
+        studentId: await requester("Yan"),
+        schoolId,
+        requestedAt: new Date(Date.now() - 2000),
+      });
+      await insertJoinRequest(db, {
+        courseId: removed,
+        studentId: await requester("Xia"),
+        schoolId,
+        requestedAt: new Date(Date.now() - 1000),
+      });
+      await db.collection("course").deleteOne({ id: removed });
+    });
+
+    // When the teacher opens the Join requests list
+    const page = await own.context.newPage();
+    await page.goto("/admin/join-requests");
+    const rows = page.locator('[data-testid^="join-request-row-"]');
+    const joinLink = page.getByRole("link", { name: /^Join requests/ });
+
+    // Then the list shows 2 rows and the badge says 2
+    await expect(rows).toHaveCount(2);
+    await expect(joinLink).toContainText("2");
+
+    // When one is approved, the badge says 1
+    const approve = rows.first().getByRole("button", { name: "Approve" });
+    await hydrated(approve);
+    await approve.click();
+    await expect(rows).toHaveCount(1);
+    await expect(joinLink).toContainText("1");
+
+    // When the last is rejected, the badge is gone
+    const reject = rows.first().getByRole("button", { name: "Reject" });
+    await hydrated(reject);
+    await reject.click();
+    await expect(rows).toHaveCount(0);
+    await expect(joinLink).toHaveText("Join requests");
     await page.close();
   });
 });
