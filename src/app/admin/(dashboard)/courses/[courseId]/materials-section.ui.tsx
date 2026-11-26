@@ -72,11 +72,14 @@ export function MaterialsUploadControl(): React.ReactNode {
 }
 
 /**
- * Client display: one material row — a download link and a remove button.
+ * Client display: one material table row with its size, upload date, a
+ * Download link and a Remove button.
  * @param courseId - The course the material belongs to.
  * @param materialKey - The S3 key identifying the material.
  * @param fileName - The material's display file name.
  * @param url - The presigned download URL (empty if not yet minted).
+ * @param size - The size, already formatted on the server.
+ * @param uploaded - The upload date, already formatted on the server.
  * @returns The material row element.
  */
 export function MaterialRow({
@@ -84,36 +87,57 @@ export function MaterialRow({
   materialKey,
   fileName,
   url,
+  size,
+  uploaded,
 }: {
   courseId: string;
   materialKey: string;
   fileName: string;
   url: string;
+  size: string;
+  uploaded: string;
 }): React.ReactNode {
   const [isPending, startTransition] = useTransition();
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md border p-3">
-      {url ? (
-        <a href={url} className="text-sm font-medium hover:underline">
-          {fileName}
-        </a>
-      ) : (
-        <span className="text-sm font-medium">{fileName}</span>
-      )}
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={isPending}
-        onClick={() =>
-          startTransition(async () => {
-            await removeCourseMaterialAction(courseId, materialKey);
-          })
-        }
-      >
-        Remove
-      </Button>
-    </div>
+    <tr className="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-b px-4 py-3 last:border-b-0 hover:bg-muted/30 md:table-row md:p-0">
+      <td className="block min-w-0 basis-full font-semibold md:table-cell md:w-full md:min-w-40 md:max-w-0 md:px-4 md:py-3">
+        <span className="block truncate">{fileName}</span>
+      </td>
+      <td className="block whitespace-nowrap text-muted-foreground md:table-cell md:px-4 md:py-3 md:text-foreground">
+        {size}
+      </td>
+      {/* The separator is CSS so the cell's text stays the bare date. */}
+      <td className="block whitespace-nowrap text-muted-foreground max-md:before:mr-1.5 max-md:before:content-['·'] md:table-cell md:px-4 md:py-3 md:text-foreground">
+        {uploaded}
+      </td>
+      <td className="block basis-full pt-1.5 md:table-cell md:px-4 md:py-3">
+        <div className="flex gap-2 md:justify-end">
+          {url && (
+            // The visible name stays "Download"; the label keeps the file name reachable by assistive tech.
+            <Button asChild variant="outline" size="sm">
+              <a href={url} aria-label={`Download ${fileName}`}>
+                Download
+              </a>
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-destructive"
+            disabled={isPending}
+            aria-label={`Remove ${fileName}`}
+            onClick={() =>
+              startTransition(async () => {
+                await removeCourseMaterialAction(courseId, materialKey);
+              })
+            }
+          >
+            Remove
+          </Button>
+        </div>
+      </td>
+    </tr>
   );
 }

@@ -35,4 +35,59 @@ describe("MaterialsSection", () => {
     // Then the material's file name is shown
     expect(screen.getByText("syllabus.pdf")).toBeInTheDocument();
   });
+
+  it("shows the size and the Vietnam-time upload date beside the file", () => {
+    // Given a material uploaded late evening UTC (already next day in Vietnam)
+    render(
+      <MaterialsSection
+        courseId="c1"
+        materials={[
+          buildMaterial({
+            size: 1234,
+            uploadedAt: new Date("2026-09-02T18:30:00Z"),
+          }),
+        ]}
+      />,
+    );
+
+    // Then the row shows both, and the download link names the file
+    const row = screen.getByRole("row", { name: /syllabus\.pdf/ });
+    expect(row).toHaveTextContent("1.2 KB");
+    expect(row).toHaveTextContent("3 Sep 2026");
+    expect(
+      screen.getByRole("link", { name: "Download syllabus.pdf" }),
+    ).toBeInTheDocument();
+  });
+
+  it("orders by position, then by upload time when two share a position", () => {
+    // Given a re-added file that shares its position with an older one (the
+    // position is the material count at upload, so a remove then add repeats it)
+    render(
+      <MaterialsSection
+        courseId="c1"
+        materials={[
+          buildMaterial({
+            key: "k-a",
+            fileName: "newer.pdf",
+            order: 1,
+            uploadedAt: new Date("2026-03-02"),
+          }),
+          buildMaterial({
+            key: "k-z",
+            fileName: "older.pdf",
+            order: 1,
+            uploadedAt: new Date("2026-03-01"),
+          }),
+          buildMaterial({ key: "k-m", fileName: "first.pdf", order: 0 }),
+        ]}
+      />,
+    );
+
+    // Then the rows read by position, older upload first on the tie
+    const names = screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.querySelector("td")?.textContent);
+    expect(names).toEqual(["first.pdf", "older.pdf", "newer.pdf"]);
+  });
 });

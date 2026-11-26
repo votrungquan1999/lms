@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { expectNoPageOverflow } from "./seed";
 
 const STUDENT_NAME = "Materials Student";
 const STUDENT_USERNAME = "materials-student";
@@ -102,6 +103,68 @@ test.describe("Course Materials Flow", () => {
     await expect(page.getByRole("link", { name: MATERIAL_FILE })).toBeVisible({
       timeout: 10000,
     });
+
+    // The row carries the file's size and its upload date in Vietnam time.
+    const row = page.getByRole("row", { name: new RegExp(MATERIAL_FILE) });
+    await expect(row.getByRole("cell").nth(1)).toHaveText(
+      /^\d+(\.\d)? (B|KB|MB)$/,
+    );
+    const today = new Intl.DateTimeFormat("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "Asia/Ho_Chi_Minh",
+    })
+      .format(new Date())
+      .replace(/^(\w+) (\d+), (\d+)$/, "$2 $1 $3");
+    await expect(row.getByRole("cell").nth(2)).toHaveText(today);
+    await expect(
+      row.getByRole("link", { name: `Download ${MATERIAL_FILE}` }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Materials (1)" }),
+    ).toBeVisible();
+  });
+
+  test("on a phone each material stacks its name, size · date and buttons, with no sideways scroll", async ({
+    page,
+  }) => {
+    await page.goto("/admin/courses");
+    await page.getByText(COURSE_TITLE).click();
+    await page
+      .getByRole("navigation", { name: "Course sections" })
+      .getByRole("link", { name: "Materials" })
+      .click();
+    const download = page.getByRole("link", {
+      name: `Download ${MATERIAL_FILE}`,
+    });
+    await expect(download).toBeVisible();
+
+    // When the window is a phone
+    await page.setViewportSize({ width: 390, height: 800 });
+
+    // Then the column headers give way to stacked lines, all in view
+    await expect(page.getByRole("columnheader", { name: "Size" })).toBeHidden();
+    const remove = page.getByRole("button", {
+      name: `Remove ${MATERIAL_FILE}`,
+    });
+    await expect(download).toBeInViewport({ ratio: 1 });
+    await expect(remove).toBeInViewport({ ratio: 1 });
+    await expectNoPageOverflow(page);
+
+    // And the lines read name, then size · date, then the buttons
+    const cells = page.locator("tr", { hasText: MATERIAL_FILE }).locator("td");
+    const name = await cells.nth(0).boundingBox();
+    const size = await cells.nth(1).boundingBox();
+    const date = await cells.nth(2).boundingBox();
+    const button = await download.boundingBox();
+    expect(size?.y).toBeGreaterThanOrEqual(
+      (name?.y ?? 0) + (name?.height ?? 0),
+    );
+    expect(Math.abs((date?.y ?? 0) - (size?.y ?? 0))).toBeLessThan(2);
+    expect(button?.y).toBeGreaterThanOrEqual(
+      (size?.y ?? 0) + (size?.height ?? 0),
+    );
   });
 
   test("setup: student authenticates and saves auth state", async ({
@@ -152,5 +215,21 @@ test.describe("Course Materials Flow", () => {
     await expect(downloadLink).toBeVisible();
 
     await context.close();
+  });
+
+  test("admin removes the material and sees the empty list", async ({
+    page,
+  }) => {
+    await page.goto("/admin/courses");
+    await page.getByText(COURSE_TITLE).click();
+    await page
+      .getByRole("navigation", { name: "Course sections" })
+      .getByRole("link", { name: "Materials" })
+      .click();
+    await expect(page.getByRole("link", { name: MATERIAL_FILE })).toBeVisible();
+    await page.getByRole("button", { name: "Remove" }).click();
+    await expect(page.getByText("No materials yet.")).toBeVisible({
+      timeout: 10000,
+    });
   });
 });
