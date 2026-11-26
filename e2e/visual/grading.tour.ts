@@ -166,24 +166,6 @@ test("grading: hub lists a test that needs grading", async ({ page }) => {
   await snap(page, "grading/hub-needs-grading", { sources: HUB });
 });
 
-test("grading: hub with the All filter (every test)", async ({ page }) => {
-  await page.goto("/admin/grading?filter=all");
-  await expect(page.getByTestId(`hub-test-card-${HIDDEN_TEST_ID}`)).toBeVisible(
-    {
-      timeout: 60_000,
-    },
-  );
-  await snap(page, "grading/hub-all-tests", { sources: HUB });
-});
-
-test("grading: hub filter that matches nothing", async ({ page }) => {
-  await page.goto("/admin/grading?filter=fully-graded");
-  await expect(page.getByText("No tests match.")).toBeVisible({
-    timeout: 60_000,
-  });
-  await snap(page, "grading/hub-no-match", { sources: HUB });
-});
-
 // ── Per-test roster (the many-items case) ───────────────────────────────────
 
 test("grading: roster with every seeded student", async ({ page }) => {

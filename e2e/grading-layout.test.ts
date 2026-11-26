@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { createOwnSchool } from "./own-school";
 import {
+  clearSchoolData,
   enroll,
   expectNoPageOverflow,
   expectNotClipped,
@@ -9,52 +11,83 @@ import {
   insertCourse,
   insertQuestion,
   insertStudent,
+  insertSubmission,
   insertTest,
   withDb,
 } from "./seed";
 
 test.describe("Grading layout", () => {
-  test("hub cards have a visible gap between them, and an unbroken test title stays inside its own card", async ({
-    page,
+  test("hub rows have a visible gap between them, and an unbroken test title stays inside its own row", async ({
+    browser,
   }) => {
+    test.setTimeout(120_000);
     // No hyphens: browsers treat "-" as a soft break point even without a
     // wrap utility, so a hyphenated string would not reproduce the overflow.
-    // Long enough to wrap even across the hub's full-width card.
+    // Long enough to wrap even across the full-width row.
     const unbrokenTitle = `[layout] averylongunbrokenhubtitle${"thatshouldwrapinsteadofoverflowing".repeat(4)}`;
-    // The hub sorts by course title; a shared random tag keeps A and B
-    // adjacent even on a re-run, so the gap measured is the one between them.
-    const tag = crypto.randomUUID().slice(0, 8);
-    const { testAId, testBId } = await withDb(async (db) => {
-      const courseAId = await insertCourse(db, {
-        title: `[layout] Grading Hub ${tag} A`,
+    // Its own school keeps other specs' waiting work out of the page, so the
+    // gap measured is the one between these two rows.
+    const own = await createOwnSchool(browser, "grading-layout");
+    try {
+      const { schoolId } = own;
+      const { testAId, testBId } = await withDb(async (db) => {
+        await clearSchoolData(db, schoolId);
+        /** A test with one student's written answer handed in and waiting. */
+        const waitingTest = async (courseTitle: string, testTitle: string) => {
+          const courseId = await insertCourse(db, {
+            title: courseTitle,
+            schoolId,
+          });
+          const testId = await insertTest(db, courseId, {
+            title: testTitle,
+            schoolId,
+          });
+          const questionId = await insertQuestion(db, testId);
+          const studentId = await insertStudent(db, { schoolIds: [schoolId] });
+          await enroll(db, { courseId, studentId });
+          await insertAnswer(db, {
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "free_text", text: "x" },
+          });
+          await insertSubmission(db, { testId, studentId });
+          return testId;
+        };
+        const testAId = await waitingTest(
+          "[layout] Grading Hub A",
+          "[layout] Short Hub Test",
+        );
+        const testBId = await waitingTest(
+          "[layout] Grading Hub B",
+          unbrokenTitle,
+        );
+        return { testAId, testBId };
       });
-      const testAId = await insertTest(db, courseAId, {
-        title: "[layout] Short Hub Test",
-      });
-      const courseBId = await insertCourse(db, {
-        title: `[layout] Grading Hub ${tag} B`,
-      });
-      const testBId = await insertTest(db, courseBId, {
-        title: unbrokenTitle,
-      });
-      return { testAId, testBId };
-    });
 
-    await page.goto("/admin/grading?filter=all");
-    const cardA = page.getByTestId(`hub-test-card-${testAId}`);
-    const cardB = page.getByTestId(`hub-test-card-${testBId}`);
-    const [boxA, boxB] = await Promise.all([
-      cardA.boundingBox(),
-      cardB.boundingBox(),
-    ]);
-    if (!boxA || !boxB) throw new Error("Hub cards not found");
+      const page = await own.context.newPage();
+      await page.goto("/admin/grading");
+      const rowA = page.getByTestId(`hub-test-card-${testAId}`);
+      const rowB = page.getByTestId(`hub-test-card-${testBId}`);
+      const [boxA, boxB] = await Promise.all([
+        rowA.boundingBox(),
+        rowB.boundingBox(),
+      ]);
+      if (!boxA || !boxB) throw new Error("Hub rows not found");
 
-    const [top, bottom] = boxA.y <= boxB.y ? [boxA, boxB] : [boxB, boxA];
-    expect(bottom.y - (top.y + top.height)).toBeGreaterThanOrEqual(8);
+      const [top, bottom] = boxA.y <= boxB.y ? [boxA, boxB] : [boxB, boxA];
+      expect(bottom.y - (top.y + top.height)).toBeGreaterThanOrEqual(8);
 
-    await expect(cardB.getByText(unbrokenTitle, { exact: true })).toBeVisible();
-    await expectWrapped(cardB.getByText(unbrokenTitle, { exact: true }));
-    await expectNotClipped(cardB);
+      await expect(
+        rowB.getByText(unbrokenTitle, { exact: true }),
+      ).toBeVisible();
+      await expectWrapped(rowB.getByText(unbrokenTitle, { exact: true }));
+      await expectNotClipped(rowB);
+      await expectNoPageOverflow(page);
+      await page.close();
+    } finally {
+      await own.remove();
+    }
   });
 
   test("a released test's unbroken title never forces either grading page to scroll sideways", async ({

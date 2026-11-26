@@ -21,6 +21,7 @@ import { getDatabase } from "./database";
 import { EnrollmentService } from "./enrollment-service";
 import { GradeService } from "./grade-service";
 import { GradeVisibilityService } from "./grade-visibility-service";
+import { GradingCountService } from "./grading-count-service";
 import { tracedService } from "./observability/traced-service";
 import { PageGuard } from "./page-guard";
 import { PoolQuestionService } from "./pool-question-service";
@@ -55,6 +56,7 @@ const courseServices = new Map<string, CourseService>();
 const enrollmentServices = new Map<string, EnrollmentService>();
 const gradeServices = new Map<string, GradeService>();
 const gradeVisibilityServices = new Map<string, GradeVisibilityService>();
+const gradingCountServices = new Map<string, GradingCountService>();
 const poolQuestionServices = new Map<string, PoolQuestionService>();
 const questionPoolServices = new Map<string, QuestionPoolService>();
 const questionServices = new Map<string, QuestionService>();
@@ -246,6 +248,19 @@ export async function getEnrollmentService(
   return forSchool(enrollmentServices, schoolId, async () => {
     const db = await getDatabase();
     return tracedService(new EnrollmentService(db, schoolId), "enrollment");
+  });
+}
+
+/**
+ * Returns the read-only grading counts for one school, cached per school.
+ * @param schoolId - The verified session's school.
+ */
+export async function getGradingCountService(
+  schoolId: string,
+): Promise<GradingCountService> {
+  return forSchool(gradingCountServices, schoolId, async () => {
+    const db = await getDatabase();
+    return tracedService(new GradingCountService(db, schoolId), "gradingCount");
   });
 }
 

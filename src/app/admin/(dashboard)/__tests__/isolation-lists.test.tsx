@@ -176,7 +176,7 @@ describe("Feature: a school admin's grading views show only their current school
   });
 
   it("the grading hub lists only the current school's tests", async () => {
-    render(await GradingHubPage({ searchParams: Promise.resolve({}) }));
+    render(await GradingHubPage());
 
     expect(screen.getByText("Own Test")).toBeInTheDocument();
     expect(screen.queryByText("Foreign Test")).not.toBeInTheDocument();
@@ -313,31 +313,6 @@ describe("Feature: a school admin's lists show only their current school's stude
     expect(
       screen.getByRole("link", { name: "0/1 graded" }),
     ).toBeInTheDocument();
-  });
-
-  it("the grading hub's fully-graded filter keeps a test every current-school student is graded on", async () => {
-    const own = getTestServices(schoolId);
-    const test = await own.testService.createTest(ownCourseId, {
-      title: "Own Test",
-      description: "",
-      createdBy: "school-b-admin",
-    });
-    await own.questionService.addQuestion(test.id, {
-      type: "free_text",
-      title: "Q",
-      content: "Q",
-      createdBy: "school-b-admin",
-    });
-    // A blank submission counts as fully graded.
-    await own.testSubmissionService.submitTest(test.id, ownStudentId);
-
-    render(
-      await GradingHubPage({
-        searchParams: Promise.resolve({ filter: "fully-graded" }),
-      }),
-    );
-
-    expect(screen.getByText("Own Test")).toBeInTheDocument();
   });
 
   it("the grading page's enrolled header counts only the current school's students", async () => {

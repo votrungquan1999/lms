@@ -15,7 +15,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(), cookies: vi.fn() }));
 vi.mock("src/lib/auth-singleton", () => ({ getAuthService: vi.fn() }));
 
-describe("Feature: GradingHubPage default view", () => {
+describe("Feature: To grade page", () => {
   beforeEach(async () => {
     await setupTestDb();
   });
@@ -24,259 +24,67 @@ describe("Feature: GradingHubPage default view", () => {
     await teardownTestDb();
   });
 
-  it("should list tests needing grading sorted by ungraded count desc with course-name asc tiebreaker, showing test + course + ungraded count", async () => {
+  it("lists a test with a submission waiting under its course, with the two grading links and no filter pills", async () => {
     const services = getTestServices();
-
-    // Two courses (Alpha sorts before Beta alphabetically) for tiebreaker test
-    const alpha = await services.courseService.createCourse({
+    const course = await services.courseService.createCourse({
       title: "Alpha",
       description: "",
       createdBy: "admin",
     });
-    const beta = await services.courseService.createCourse({
-      title: "Beta",
+    const test = await services.testService.createTest(course.id, {
+      title: "Quiz",
       description: "",
       createdBy: "admin",
     });
-
-    // testHigh in Beta has 2 submitted (highest ungraded count)
-    // testTie1 in Alpha has 1 submitted (tie with testTie2)
-    // testTie2 in Beta has 1 submitted (tie with testTie1)
-    // testNoNeed in Alpha has 0 submitted (excluded from "needs grading")
-    const testHigh = await services.testService.createTest(beta.id, {
-      title: "High",
-      description: "",
+    const question = await services.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Q",
+      content: "Q",
       createdBy: "admin",
     });
-    const testTie1 = await services.testService.createTest(alpha.id, {
-      title: "Tie1",
-      description: "",
-      createdBy: "admin",
-    });
-    const testTie2 = await services.testService.createTest(beta.id, {
-      title: "Tie2",
-      description: "",
-      createdBy: "admin",
-    });
-    const testNoNeed = await services.testService.createTest(alpha.id, {
-      title: "NoNeed",
-      description: "",
-      createdBy: "admin",
-    });
-
-    for (const t of [testHigh, testTie1, testTie2, testNoNeed]) {
-      await services.questionService.addQuestion(t.id, {
-        type: "free_text",
-        title: "Q",
-        content: "Q",
-        createdBy: "admin",
-      });
-    }
-
-    // Seed students per course
-    const courseStudents = new Map<string, string[]>();
-    for (const course of [alpha, beta]) {
-      const ids: string[] = [];
-      for (const u of ["a", "b"]) {
-        const s = await services.studentService.createStudentDocument({
-          authUserId: `auth-${course.id}-${u}`,
-          username: `${course.id}-${u}`,
-          name: `${u}-${course.id}`,
-          createdBy: "admin",
-        });
-        await services.enrollmentService.enrollStudent(
-          course.id,
-          s.id,
-          "admin",
-        );
-        ids.push(s.id);
-      }
-      courseStudents.set(course.id, ids);
-    }
-
-    async function submit(testId: string, studentId: string) {
-      const [q] = await services.questionService.listQuestions(testId);
-      await services.answerService.submitAnswer({
-        testId,
-        questionId: q.id,
-        studentId,
-        answer: { type: "free_text", text: "x" },
-      });
-      await services.testSubmissionService.submitTest(testId, studentId);
-    }
-
-    // testHigh: both Beta students submitted (2 waiting)
-    const betaIds = courseStudents.get(beta.id) ?? [];
-    await submit(testHigh.id, betaIds[0]);
-    await submit(testHigh.id, betaIds[1]);
-
-    // testTie1 (Alpha): one Alpha student submitted (1 waiting)
-    const alphaIds = courseStudents.get(alpha.id) ?? [];
-    await submit(testTie1.id, alphaIds[0]);
-
-    // testTie2 (Beta): one Beta student submitted (1 waiting)
-    await submit(testTie2.id, betaIds[0]);
-
-    const ui = await GradingHubPage({
-      searchParams: Promise.resolve({}),
-    });
-    render(ui);
-
-    const cards = screen.getAllByTestId(/^hub-test-card-/);
-    const ids = cards.map((c) => c.getAttribute("data-test-id"));
-    // High (2) first, then Tie1 (Alpha) before Tie2 (Beta) on course-name asc, NoNeed excluded.
-    expect(ids).toEqual([testHigh.id, testTie1.id, testTie2.id]);
-
-    const highCard = within(cards[0]);
-    expect(highCard.getByText(/High/)).toBeInTheDocument();
-    expect(highCard.getByText(/Beta/)).toBeInTheDocument();
-    expect(highCard.getByText(/^2$/)).toBeInTheDocument();
-
-    expect(ids).not.toContain(testNoNeed.id);
-  });
-
-  it("filter pills change the listed tests via URL search param; All caught up shows when needs-grading filter has no tests", async () => {
-    const services = getTestServices();
-
-    const course = await services.courseService.createCourse({
-      title: "Course",
-      description: "",
-      createdBy: "admin",
-    });
-    const testFully = await services.testService.createTest(course.id, {
-      title: "Fully",
-      description: "",
-      createdBy: "admin",
-    });
-    const testPartial = await services.testService.createTest(course.id, {
-      title: "Partial",
-      description: "",
-      createdBy: "admin",
-    });
-    for (const t of [testFully, testPartial]) {
-      await services.questionService.addQuestion(t.id, {
-        type: "free_text",
-        title: "Q",
-        content: "Q",
-        createdBy: "admin",
-      });
-    }
-
-    const [qFully] = await services.questionService.listQuestions(testFully.id);
-    const [qPartial] = await services.questionService.listQuestions(
-      testPartial.id,
-    );
-
-    const studentA = await services.studentService.createStudentDocument({
-      authUserId: "auth-fa",
-      username: "fa",
-      name: "fa",
-      createdBy: "admin",
-    });
-    const studentB = await services.studentService.createStudentDocument({
-      authUserId: "auth-fb",
-      username: "fb",
-      name: "fb",
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-ann",
+      username: "ann",
+      name: "Ann",
       createdBy: "admin",
     });
     await services.enrollmentService.enrollStudent(
       course.id,
-      studentA.id,
+      student.id,
       "admin",
     );
-    await services.enrollmentService.enrollStudent(
-      course.id,
-      studentB.id,
-      "admin",
-    );
-
-    // testFully: both students answered, submitted + both graded → Fully graded
-    for (const s of [studentA, studentB]) {
-      await services.answerService.submitAnswer({
-        testId: testFully.id,
-        questionId: qFully.id,
-        studentId: s.id,
-        answer: { type: "free_text", text: "x" },
-      });
-      await services.testSubmissionService.submitTest(testFully.id, s.id);
-      await services.gradeService.gradeQuestion({
-        testId: testFully.id,
-        questionId: qFully.id,
-        studentId: s.id,
-        score: 100,
-        feedback: "",
-        gradedBy: "admin",
-      });
-    }
-
-    // testPartial: studentA answered + submitted + graded; studentB answered + submitted, not graded → Partial
     await services.answerService.submitAnswer({
-      testId: testPartial.id,
-      questionId: qPartial.id,
-      studentId: studentA.id,
+      testId: test.id,
+      questionId: question.id,
+      studentId: student.id,
       answer: { type: "free_text", text: "x" },
     });
-    await services.testSubmissionService.submitTest(
-      testPartial.id,
-      studentA.id,
+    await services.testSubmissionService.submitTest(test.id, student.id);
+
+    render(await GradingHubPage());
+
+    expect(
+      screen.getByRole("heading", { name: "To grade" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 submission waiting")).toBeInTheDocument();
+    const row = within(screen.getByTestId(`hub-test-card-${test.id}`));
+    expect(row.getByRole("link", { name: "Quiz" })).toHaveAttribute(
+      "href",
+      `/admin/courses/${course.id}/tests/${test.id}`,
     );
-    await services.gradeService.gradeQuestion({
-      testId: testPartial.id,
-      questionId: qPartial.id,
-      studentId: studentA.id,
-      score: 100,
-      feedback: "",
-      gradedBy: "admin",
-    });
-    await services.answerService.submitAnswer({
-      testId: testPartial.id,
-      questionId: qPartial.id,
-      studentId: studentB.id,
-      answer: { type: "free_text", text: "y" },
-    });
-    await services.testSubmissionService.submitTest(
-      testPartial.id,
-      studentB.id,
+    expect(
+      row.getByText("Ann submitted today", { exact: false }),
+    ).toBeInTheDocument();
+    expect(row.getByRole("link", { name: "Continue grading" })).toHaveAttribute(
+      "href",
+      `/admin/grading/${test.id}`,
     );
-
-    // Default (needs-grading): testPartial appears because studentB is Submitted-but-ungraded.
-    // We instead test fully-graded and partially-graded filters to cover the routing.
-
-    const fullyUi = await GradingHubPage({
-      searchParams: Promise.resolve({ filter: "fully-graded" }),
-    });
-    const { unmount: u1 } = render(fullyUi);
-    let cards = screen.getAllByTestId(/^hub-test-card-/);
-    expect(cards.map((c) => c.getAttribute("data-test-id"))).toEqual([
-      testFully.id,
-    ]);
-    u1();
-
-    const partialUi = await GradingHubPage({
-      searchParams: Promise.resolve({ filter: "partially-graded" }),
-    });
-    const { unmount: u2 } = render(partialUi);
-    cards = screen.getAllByTestId(/^hub-test-card-/);
-    expect(cards.map((c) => c.getAttribute("data-test-id"))).toEqual([
-      testPartial.id,
-    ]);
-    u2();
-
-    // All caught up: no submitted-ungraded → grade studentB on testPartial too
-    await services.gradeService.gradeQuestion({
-      testId: testPartial.id,
-      questionId: qPartial.id,
-      studentId: studentB.id,
-      score: 80,
-      feedback: "",
-      gradedBy: "admin",
-    });
-
-    const needsUi = await GradingHubPage({
-      searchParams: Promise.resolve({}),
-    });
-    render(needsUi);
-    expect(screen.getByText(/All caught up/i)).toBeInTheDocument();
-    expect(screen.queryAllByTestId(/^hub-test-card-/)).toHaveLength(0);
+    expect(row.getByRole("link", { name: "By question" })).toHaveAttribute(
+      "href",
+      `/admin/grading/${test.id}?mode=question`,
+    );
+    expect(
+      screen.queryByRole("navigation", { name: "Filter tests" }),
+    ).toBeNull();
   });
 });

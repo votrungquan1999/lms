@@ -181,8 +181,7 @@ export class TestService {
 
   /**
    * Returns every non-deleted test across the school's courses, sorted by
-   * `createdAt` desc. Used by the grading hub and admin dashboard for
-   * cross-course aggregation.
+   * `createdAt` desc.
    */
   async listAllTests(): Promise<Test[]> {
     const docs = await this.tests

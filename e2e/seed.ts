@@ -13,6 +13,7 @@ import { type Db, MongoClient } from "mongodb";
 import type { AnswerDocument } from "../src/lib/answer-service";
 import type { CourseDocument } from "../src/lib/course-service";
 import type { EnrollmentDocument } from "../src/lib/enrollment-service";
+import type { GradeDocument } from "../src/lib/grade-service";
 import type { PoolQuestionDocument } from "../src/lib/pool-question-service";
 import type { QuestionPoolDocument } from "../src/lib/question-pool-service";
 import type { QuestionDocument } from "../src/lib/question-service";
@@ -20,6 +21,7 @@ import type { SchoolDocument } from "../src/lib/school-service";
 import type { StudentDocument } from "../src/lib/student-service";
 import type { TestDocument } from "../src/lib/test-service";
 import type { TestStartDocument } from "../src/lib/test-start-service";
+import type { TestSubmissionDocument } from "../src/lib/test-submission-service";
 import { E2E_MONGODB_URI } from "./mongodb-uri";
 
 /** Runs `fn` against the e2e database; the connection closes even if `fn` throws. */
@@ -189,6 +191,78 @@ export async function insertAnswer(
   };
   await db.collection<AnswerDocument>("answer").insertOne(doc);
   return doc.id;
+}
+
+/** A student's hand-in; `submittedAt` defaults to now. */
+export async function insertSubmission(
+  db: Db,
+  fields: Pick<TestSubmissionDocument, "testId" | "studentId"> &
+    Partial<TestSubmissionDocument>,
+): Promise<string> {
+  const doc: TestSubmissionDocument = {
+    id: crypto.randomUUID(),
+    submittedAt: new Date(),
+    deletedAt: null,
+    releasedAt: null,
+    releasedBy: null,
+    ...fields,
+  };
+  await db.collection<TestSubmissionDocument>("test_submission").insertOne(doc);
+  return doc.id;
+}
+
+/** A teacher's grade for one student's answer to one question. */
+export async function insertGrade(
+  db: Db,
+  fields: Pick<GradeDocument, "testId" | "questionId" | "studentId"> &
+    Partial<GradeDocument>,
+): Promise<string> {
+  const doc: GradeDocument = {
+    id: crypto.randomUUID(),
+    score: 1,
+    feedback: "",
+    solution: null,
+    gradedAt: new Date(),
+    gradedBy: "seed",
+    updatedAt: null,
+    updatedBy: null,
+    ...fields,
+  };
+  await db.collection<GradeDocument>("grade").insertOne(doc);
+  return doc.id;
+}
+
+/**
+ * Deletes everything a school's courses, tests and students own, so a count
+ * spec starts from nothing even after an earlier run left rows behind.
+ */
+export async function clearSchoolData(db: Db, schoolId: string): Promise<void> {
+  const courseIds = (
+    await db.collection("course").find({ schoolId }).toArray()
+  ).map((c) => c.id as string);
+  const testIds = (
+    await db.collection("test").find({ schoolId }).toArray()
+  ).map((t) => t.id as string);
+  const byTest = { testId: { $in: testIds } };
+  await Promise.all(
+    [
+      "question",
+      "answer",
+      "grade",
+      "test_submission",
+      "test_start",
+      "redo_request",
+    ].map((name) => db.collection(name).deleteMany(byTest)),
+  );
+  await db
+    .collection("enrollment")
+    .deleteMany({ courseId: { $in: courseIds } });
+  await db
+    .collection("course_join_request")
+    .deleteMany({ courseId: { $in: courseIds } });
+  await db.collection("test").deleteMany({ schoolId });
+  await db.collection("course").deleteMany({ schoolId });
+  await db.collection("student").deleteMany({ schoolIds: schoolId });
 }
 
 /** Sets when the student's timed test began, keeping a single active start per (test, student). */

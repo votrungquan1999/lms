@@ -1,13 +1,12 @@
 /**
  * Feature: Grading Hub Flow (E2E smoke)
  *
- * Admin lands on dashboard, clicks the new Grading card, sees the hub,
- * clicks the test card, lands on the variant grading page, and sees the
- * student's status badge.
+ * Admin opens To grade, clicks Continue grading on the test, lands on the
+ * variant grading page, and sees the student's status badge.
  *
  * Self-contained — creates its own course, test, and student via UI, then
  * the student logs in and submits the test (without grading) so it appears
- * in the default Needs grading filter.
+ * on To grade.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -158,7 +157,10 @@ test.describe("Grading Hub Flow", () => {
 
     // Block B: To grade → Variant
     await expect(page.getByRole("heading", { name: "To grade" })).toBeVisible();
-    await page.getByRole("link", { name: TEST_TITLE_RE }).click();
+    await page
+      .locator('[data-testid^="hub-test-card-"]', { hasText: TEST_TITLE })
+      .getByRole("link", { name: "Continue grading" })
+      .click();
     await expect(page).toHaveURL(/\/admin\/grading\/[^/]+$/, {
       timeout: 10000,
     });

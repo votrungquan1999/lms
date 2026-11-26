@@ -162,5 +162,21 @@ export async function ensureIndexes(db: Db): Promise<void> {
           "test_submission {testId, studentId} unique index not built: duplicate active hand-ins exist; the app runs without it until they are removed",
         );
       }),
+
+    // Speed only: the grading counts read every answer and grade of a school's
+    // tests. A failed build is logged and retried on the next start; the
+    // counts still work without the index, only slower.
+    db
+      .collection("answer")
+      .createIndex({ testId: 1, studentId: 1 })
+      .catch((error: unknown) => {
+        console.error("answer {testId, studentId} index not built:", error);
+      }),
+    db
+      .collection("grade")
+      .createIndex({ testId: 1, studentId: 1 })
+      .catch((error: unknown) => {
+        console.error("grade {testId, studentId} index not built:", error);
+      }),
   ]);
 }

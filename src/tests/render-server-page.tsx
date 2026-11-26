@@ -16,6 +16,7 @@ import { CourseService } from "src/lib/course-service";
 import { EnrollmentService } from "src/lib/enrollment-service";
 import { GradeService } from "src/lib/grade-service";
 import { GradeVisibilityService } from "src/lib/grade-visibility-service";
+import { GradingCountService } from "src/lib/grading-count-service";
 import { PageGuard } from "src/lib/page-guard";
 import { PoolQuestionService } from "src/lib/pool-question-service";
 import { QuestionChangeLogService } from "src/lib/question-change-log-service";
@@ -49,6 +50,7 @@ export interface TestServices {
   enrollmentService: EnrollmentService;
   gradeService: GradeService;
   gradeVisibilityService: GradeVisibilityService;
+  gradingCountService: GradingCountService;
   pageGuard: PageGuard;
   poolQuestionService: PoolQuestionService;
   questionChangeLogService: QuestionChangeLogService;
@@ -78,6 +80,7 @@ interface SchoolBoundServices {
   enrollmentService: EnrollmentService;
   gradeService: GradeService;
   gradeVisibilityService: GradeVisibilityService;
+  gradingCountService: GradingCountService;
   poolQuestionService: PoolQuestionService;
   questionPoolService: QuestionPoolService;
   questionService: QuestionService;
@@ -299,6 +302,7 @@ function makeSchoolServices(
     aiGradeJobService,
   );
   const annotationService = new AnnotationService(db, testService);
+  const gradingCountService = new GradingCountService(db, schoolId);
   const testFeedbackService = new TestFeedbackService(db, testService);
 
   return {
@@ -311,6 +315,7 @@ function makeSchoolServices(
     enrollmentService,
     gradeService,
     gradeVisibilityService,
+    gradingCountService,
     poolQuestionService,
     questionPoolService,
     questionService,
@@ -468,6 +473,8 @@ export function servicesSingletonMockFactory() {
       servicesForSchool(schoolId).gradeService,
     getGradeVisibilityService: async (schoolId: string) =>
       servicesForSchool(schoolId).gradeVisibilityService,
+    getGradingCountService: async (schoolId: string) =>
+      servicesForSchool(schoolId).gradingCountService,
     getPageGuard: async () => getTestServices().pageGuard,
     getPoolQuestionService: async (schoolId: string) =>
       servicesForSchool(schoolId).poolQuestionService,

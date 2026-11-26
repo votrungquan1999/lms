@@ -161,7 +161,10 @@ test.describe("Image-answer + annotation flow", () => {
   }) => {
     await mockS3Put(page);
     await page.goto("/admin/grading");
-    await page.getByRole("link", { name: TEST_TITLE_RE }).click();
+    await page
+      .locator('[data-testid^="hub-test-card-"]', { hasText: TEST_TITLE_RE })
+      .getByRole("link", { name: "Continue grading" })
+      .click();
 
     // The student's submitted photo is shown in the grading pane
     await expect(page.getByLabel("Drawing surface").first()).toBeVisible({

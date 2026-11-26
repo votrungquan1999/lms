@@ -1,8 +1,6 @@
 ## grading (src/app/admin/(dashboard)/grading/page.tsx, grading/[testId]/page.tsx, courses/[courseId]/tests/[testId]/grading/page.tsx)
 
-- [T1] grading/hub-needs-grading: hub on its default filter — one test card with an ungraded count
-- [T1] grading/hub-all-tests: hub on the All filter — every test in the database (many items)
-- [T1] grading/hub-no-match: Fully graded filter matches nothing, "No tests match."
+- [T1] grading/hub-needs-grading: To grade — one course group with a waiting test row
 - [T1] grading/roster-all-students: /admin/grading/seed-test-visible as a grader lands on it — 16 enrolled students in the roster, long names, first student auto-focused
 - [T1] grading/student-not-started: alice focused — no answers, every question reads "No answer submitted"
 - [T1] grading/student-in-progress: bob focused — one free-text answer, grade form open, test not submitted
