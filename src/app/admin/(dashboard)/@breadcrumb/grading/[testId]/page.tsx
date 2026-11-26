@@ -35,7 +35,7 @@ export default async function GradingTestBreadcrumb({
       <BreadcrumbList className="flex-nowrap">
         <BreadcrumbItem className="shrink-0">
           <BreadcrumbLink asChild>
-            <Link href="/admin/grading">Grading</Link>
+            <Link href="/admin/grading">To grade</Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator className="shrink-0" />

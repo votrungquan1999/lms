@@ -150,22 +150,14 @@ test.describe("Grading Hub Flow", () => {
 
   // ─── Assertions ────────────────────────────────────────────────────────────
 
-  test("admin navigates Dashboard → Hub → Variant grading page and sees status badge", async ({
+  test("admin navigates To grade → Variant grading page and sees status badge", async ({
     page,
   }) => {
-    // Block A: Dashboard → Hub
-    await page.goto("/admin/dashboard");
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
-    await page
-      .getByRole("link", { name: /Grading/ })
-      .first()
-      .click();
-    await expect(page).toHaveURL(/\/admin\/grading$/, { timeout: 10000 });
+    // Block A: To grade
+    await page.goto("/admin/grading");
 
-    // Block B: Hub → Variant
-    await expect(page.getByRole("heading", { name: /Grading/ })).toBeVisible();
+    // Block B: To grade → Variant
+    await expect(page.getByRole("heading", { name: "To grade" })).toBeVisible();
     await page.getByRole("link", { name: TEST_TITLE_RE }).click();
     await expect(page).toHaveURL(/\/admin\/grading\/[^/]+$/, {
       timeout: 10000,

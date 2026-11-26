@@ -19,7 +19,7 @@ export function GoogleSignInButton() {
     try {
       await authClient.signIn.social({
         provider: "google",
-        callbackURL: "/admin/dashboard",
+        callbackURL: "/admin/grading",
       });
     } catch {
       setError("Failed to start sign-in. Please try again.");

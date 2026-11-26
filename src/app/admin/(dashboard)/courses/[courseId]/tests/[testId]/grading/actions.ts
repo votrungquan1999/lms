@@ -151,7 +151,6 @@ export async function gradeQuestionAction(
         );
         revalidatePath("/admin/grading");
         revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath("/admin/dashboard");
 
         return { success: true, message: "Grade saved" };
       },
@@ -303,7 +302,6 @@ export async function setTestFeedbackAction(
         );
         revalidatePath("/admin/grading");
         revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath("/admin/dashboard");
 
         return { success: true, message: "Feedback saved" };
       },
@@ -388,7 +386,6 @@ export async function releaseGradesAction(
         );
         revalidatePath("/admin/grading");
         revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath("/admin/dashboard");
         // Pre-existing gap: a global release must also propagate to the student
         // page so the student sees grades on the next visit.
         revalidatePath(
@@ -501,13 +498,12 @@ export async function requestRedoAction(
           adminUserId,
         );
 
-        // Revalidate admin grading paths (course-scoped + hub + variant + dashboard) and student test page
+        // Revalidate admin grading paths (course-scoped + hub + variant) and student test page
         revalidatePath(
           `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
         );
         revalidatePath("/admin/grading");
         revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath("/admin/dashboard");
         revalidatePath(
           `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
         );
@@ -600,7 +596,6 @@ export async function releaseGradeForStudentAction(
         );
         revalidatePath("/admin/grading");
         revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath("/admin/dashboard");
         revalidatePath(
           `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
         );
@@ -724,7 +719,6 @@ export async function saveAndJumpToNextAction(formData: FormData) {
       );
       revalidatePath("/admin/grading");
       revalidatePath(`/admin/grading/${parsed.data.testId}`);
-      revalidatePath("/admin/dashboard");
     },
   );
 

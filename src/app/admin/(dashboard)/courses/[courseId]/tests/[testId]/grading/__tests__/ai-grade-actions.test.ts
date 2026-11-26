@@ -290,7 +290,7 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
     vi.restoreAllMocks();
   });
 
-  it("on happy-path success: regenerates the one targeted question, revalidates the 4 admin paths (not the student path), and returns the pinned success message", async () => {
+  it("on happy-path success: regenerates the one targeted question, revalidates the 3 admin paths (not the student path), and returns the pinned success message", async () => {
     // Given — valid form fields incl. questionId + reason; service resolves.
     startRound.mockResolvedValueOnce({
       kind: StartRoundOutcomeKind.Completed,
@@ -324,15 +324,14 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
       includeGraded: true,
     });
 
-    // Then — only the 4 admin paths revalidated; NOT the student path
+    // Then — only the 3 admin paths revalidated; NOT the student path
     // (suggestions stay admin-side until Apply).
-    expect(revalidatePathMock).toHaveBeenCalledTimes(4);
+    expect(revalidatePathMock).toHaveBeenCalledTimes(3);
     expect(revalidatePathMock).toHaveBeenCalledWith(
       "/admin/courses/course-1/tests/test-1/grading",
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin/grading");
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin/grading/test-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/dashboard");
     expect(revalidatePathMock).not.toHaveBeenCalledWith(
       "/student/courses/course-1/tests/test-1",
     );
@@ -436,14 +435,13 @@ describe("Feature: applyAiSuggestionAction (Step 6 action-layer)", () => {
     expect(state.success).toBe(true);
     expect(state.message).toBe("Suggestion applied as the official grade.");
 
-    // Then — all 5 cache paths invalidated (4 admin + 1 student).
-    expect(revalidatePathMock).toHaveBeenCalledTimes(5);
+    // Then — all 4 cache paths invalidated (3 admin + 1 student).
+    expect(revalidatePathMock).toHaveBeenCalledTimes(4);
     expect(revalidatePathMock).toHaveBeenCalledWith(
       "/admin/courses/course-1/tests/test-1/grading",
     );
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin/grading");
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin/grading/test-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/dashboard");
     expect(revalidatePathMock).toHaveBeenCalledWith(
       "/student/courses/course-1/tests/test-1",
     );

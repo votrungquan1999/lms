@@ -3,7 +3,7 @@ import { getAuthService } from "src/lib/auth-singleton";
 import { Role } from "src/lib/session";
 
 /**
- * GET handler for `/redirect`. Sends an admin or student to their dashboard;
+ * GET handler for `/redirect`. Sends an admin to To grade and a student to their dashboard;
  * anyone else — a stale/expired cookie, or a valid session with no recorded
  * role — is signed out and sent home. `AuthService.getSession` collapses
  * both of those into the same `null`, so clearing here needs no extra
@@ -19,7 +19,7 @@ export async function GET(request: Request): Promise<Response> {
   const session = await authService.getSession(request.headers);
 
   if (session?.role === Role.Admin) {
-    return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    return NextResponse.redirect(new URL("/admin/grading", request.url));
   }
   if (session?.role === Role.Student) {
     return NextResponse.redirect(new URL("/student/dashboard", request.url));

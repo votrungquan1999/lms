@@ -42,7 +42,7 @@ describe("GET /redirect", () => {
     ).toBe(true);
   });
 
-  it("sends an admin to the admin dashboard", async () => {
+  it("sends an admin to To grade", async () => {
     getSession.mockResolvedValueOnce(
       new AdminSession({
         userId: "admin-1",
@@ -54,7 +54,7 @@ describe("GET /redirect", () => {
     const res = await GET(new Request("http://test/redirect"));
 
     expect(new URL(res.headers.get("location") ?? "").pathname).toBe(
-      "/admin/dashboard",
+      "/admin/grading",
     );
     // A signed-in admin keeps their session
     expect(res.headers.getSetCookie()).toEqual([]);

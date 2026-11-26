@@ -39,5 +39,5 @@ export async function switchSchoolAction(formData: FormData): Promise<void> {
     activeSchoolCookieOptions,
   );
 
-  redirect("/admin/dashboard");
+  redirect("/admin/grading");
 }

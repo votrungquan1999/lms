@@ -29,7 +29,7 @@ export default async function AdminLoginPage() {
   let isUnclassified: boolean;
   switch (entryState) {
     case LoginEntryState.Admin:
-      redirect("/admin/dashboard");
+      redirect("/admin/grading");
       break;
     case LoginEntryState.Student:
       redirect("/student/dashboard");

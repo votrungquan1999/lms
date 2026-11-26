@@ -4,17 +4,15 @@ const BASE_URL = `http://localhost:${process.env.E2E_PORT ?? "3001"}`;
 const SESSION_COOKIE = "better-auth.session_token";
 
 test.describe("Landing from the home page", () => {
-  test("a signed-in admin opening the home page reaches the admin dashboard", async ({
+  test("a signed-in admin opening the home page reaches To grade", async ({
     page,
   }) => {
     // When the admin (stored session) opens the home page
     await page.goto("/");
 
-    // Then they land on the admin dashboard
-    await page.waitForURL("**/admin/dashboard");
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
+    // Then they land on To grade
+    await page.waitForURL("**/admin/grading");
+    await expect(page.getByRole("heading", { name: "To grade" })).toBeVisible();
   });
 
   test("a signed-in student opening the home page reaches the student dashboard", async ({

@@ -85,6 +85,65 @@ test.describe("Teacher shell: school at the top of the sidebar", () => {
   });
 });
 
+test.describe("Teacher shell: where a teacher lands", () => {
+  test("an old Dashboard link opens To grade", async ({ page }) => {
+    // When a teacher opens the old Dashboard address
+    await page.goto("/admin/dashboard");
+
+    // Then they are on To grade
+    await expect(page).toHaveURL(/\/admin\/grading$/);
+    await expect(page.getByRole("heading", { name: "To grade" })).toBeVisible();
+  });
+
+  test("the teacher login's Google button asks to return to To grade", async ({
+    browser,
+  }) => {
+    // Given a signed-out visitor on the teacher login, with the sign-in POST captured
+    const context = await browser.newContext({ storageState: undefined });
+    const page = await context.newPage();
+    let postedBody: Record<string, unknown> = {};
+    await page.route("**/api/auth/sign-in/social", async (route) => {
+      postedBody = route.request().postDataJSON();
+      await route.abort();
+    });
+    await page.goto("/admin/login");
+
+    // When they continue with Google
+    const google = page.getByRole("button", { name: "Sign in with Google" });
+    await hydrated(google);
+    await google.click();
+
+    // Then the sign-in asks to come back to To grade
+    await expect.poll(() => postedBody.callbackURL).toBe("/admin/grading");
+    await context.close();
+  });
+
+  test("after switching school a teacher lands on To grade", async ({
+    browser,
+  }) => {
+    // Given a teacher in two schools, on Courses in their own school
+    const own = await createOwnSchool(browser, "teacher-landing");
+    try {
+      const page = await own.context.newPage();
+      await page.goto("/admin/courses");
+      const trigger = page
+        .locator(SIDEBAR)
+        .getByRole("button", { name: new RegExp(own.name) });
+      await hydrated(trigger);
+      await trigger.click();
+
+      // When they pick the other school
+      await page.getByRole("menuitemradio", { name: "E2E School" }).click();
+
+      // Then they land on To grade
+      await expect(page).toHaveURL(/\/admin\/grading$/);
+      await page.close();
+    } finally {
+      await own.remove();
+    }
+  });
+});
+
 test.describe("Teacher shell: where the teacher is", () => {
   test("the sidebar marks the current section as the current page, also on nested pages", async ({
     page,

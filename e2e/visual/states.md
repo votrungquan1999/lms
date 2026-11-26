@@ -32,7 +32,7 @@ Routes: `src/app/admin/(dashboard)/courses/page.tsx`,
 - [skip] courses/detail-not-found: notFound() (\[courseId\]/page.tsx:48) renders Next's built-in 404 — there is no custom not-found.tsx anywhere under src/app, so nothing course-specific to review
 - [skip] courses/enrollments-no-students: "No students found" (enroll-student-form.tsx:132) needs zero students in the shared seeded database
 
-## entry (src/app/page.tsx, src/app/redirect/page.tsx, src/app/admin/login/page.tsx, src/app/student/login/page.tsx, src/app/join/[token]/page.tsx, src/app/admin/(dashboard)/dashboard/page.tsx)
+## entry (src/app/page.tsx, src/app/redirect/page.tsx, src/app/admin/login/page.tsx, src/app/student/login/page.tsx, src/app/join/[token]/page.tsx)
 
 - [T1] entry/landing: `/` signed out — the two role cards (Student / Administrator)
 - [T1] entry/admin-login: `/admin/login` signed out — Google sign-in card
@@ -45,8 +45,7 @@ Routes: `src/app/admin/(dashboard)/courses/page.tsx`,
 - [T2] entry/redirect-logged-out: `/redirect` with no session — **HTTP 500**, not the landing page (see notes)
 - [T2] entry/admin-url-logged-out: `/admin/students` opened with no session — lands on `/admin/login`; `/admin/students` is outside proxy.ts's `protectedRoutes` (proxy.ts:5-10), so the dashboard layout's guard does the redirect (page-guard.ts:46-47)
 - [T2] entry/admin-url-forbidden: `/admin/students` opened by a signed-in student — the 403 "Access Denied" page (page-guard.ts:49-50 → forbidden.tsx)
-- [T1] entry/admin-dashboard: admin overview with the Students / Courses / Grading stat cards
-- [skip] entry/redirect-logged-in: unreachable as a screen — every branch of RedirectPage calls `redirect()` and it returns no JSX (redirect/page.tsx:28-41); signed in as admin it just lands on `/admin/dashboard`, already captured above
+- [skip] entry/redirect-logged-in: unreachable as a screen — every branch of RedirectPage calls `redirect()` and it returns no JSX (redirect/page.tsx:28-41); signed in as admin it just lands on `/admin/grading` (the grading tour captures it)
 - [skip] entry/admin-login-unclassified: needs a real Google OAuth round trip to mint a session with no admin/student record (admin/login/page.tsx:37-38); not drivable offline
 - [skip] entry/join-google-*: `?google=1` provisioning branches need a completed Google OAuth callback (join/[token]/page.tsx:76-88); not drivable offline
 

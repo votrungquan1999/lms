@@ -1,7 +1,6 @@
 /**
  * Visual tour: "entry" — every way a person first meets the app (landing,
- * both login screens, invite links, the /redirect hop, permission walls)
- * plus the admin dashboard overview.
+ * both login screens, invite links, the /redirect hop, permission walls).
  */
 import { type Browser, expect, test } from "@playwright/test";
 import { prepareVisualPage, snap } from "./snap";
@@ -22,10 +21,6 @@ const STUDENT_LOGIN_SOURCES = [
 const JOIN_SOURCES = [
   "src/app/join/[token]/page.tsx",
   "src/app/join/[token]/join-page.ui.tsx",
-];
-const DASHBOARD_SOURCES = [
-  "src/app/admin/(dashboard)/dashboard/page.tsx",
-  "src/app/admin/(dashboard)/layout.tsx",
 ];
 
 // Must run before any page.goto(): a clock frozen after load shows nonsense timers.
@@ -63,17 +58,6 @@ async function harvestInvitePath(browser: Browser): Promise<string> {
     await context.close();
   }
 }
-
-test.describe("entry — admin session", () => {
-  test("entry: admin dashboard overview", async ({ page }) => {
-    await page.goto("/admin/dashboard");
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
-    await expect(page.locator("[data-stat='students-waiting']")).toBeVisible();
-    await snap(page, "entry/admin-dashboard", { sources: DASHBOARD_SOURCES });
-  });
-});
 
 test.describe("entry — logged out", () => {
   test.use({ storageState: { cookies: [], origins: [] } });

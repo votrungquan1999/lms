@@ -45,11 +45,11 @@ beforeEach(() => {
 });
 
 describe("AdminLoginPage", () => {
-  it("redirects to /admin/dashboard when the caller is already an admin", async () => {
+  it("redirects to /admin/grading when the caller is already an admin", async () => {
     mockResolveLoginEntryState.mockResolvedValue(LoginEntryState.Admin);
 
     await expect(AdminLoginPage()).rejects.toThrow("REDIRECT");
-    expect(mockRedirect).toHaveBeenCalledWith("/admin/dashboard");
+    expect(mockRedirect).toHaveBeenCalledWith("/admin/grading");
   });
 
   it("shows Account Not Set Up with a Sign Out button and no Google button when unclassified", async () => {

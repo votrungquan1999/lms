@@ -69,7 +69,7 @@ async function insertRawAdminUserId(rawDb: Db): Promise<string> {
  * don't belong to
  */
 describe("Feature: a teacher switches their active school", () => {
-  it("switching to a school the admin belongs to sets the active-school cookie and redirects to the dashboard", async () => {
+  it("switching to a school the admin belongs to sets the active-school cookie and redirects to To grade", async () => {
     const { schoolService } = getTestServices();
     const alpha = await schoolService.createSchool({
       name: "Alpha School",
@@ -97,7 +97,7 @@ describe("Feature: a teacher switches their active school", () => {
       beta.id,
       expect.objectContaining({ httpOnly: true, sameSite: "lax", path: "/" }),
     );
-    expect(mockRedirect).toHaveBeenCalledWith("/admin/dashboard");
+    expect(mockRedirect).toHaveBeenCalledWith("/admin/grading");
   });
 
   it("a school the admin does not belong to is refused, and the cookie is never set", async () => {

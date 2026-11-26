@@ -159,7 +159,7 @@ async function recreateSandboxTest(
 
 test("grading: hub lists a test that needs grading", async ({ page }) => {
   await page.goto("/admin/grading");
-  await expect(page.getByRole("heading", { name: "Grading" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "To grade" })).toBeVisible();
   await expect(page.getByTestId(`hub-test-card-${TEST_ID}`)).toBeVisible({
     timeout: 60_000,
   });

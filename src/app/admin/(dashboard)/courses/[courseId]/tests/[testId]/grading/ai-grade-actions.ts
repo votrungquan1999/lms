@@ -53,7 +53,6 @@ function revalidateGradingPaths(courseId: string, testId: string): void {
   revalidatePath(`/admin/courses/${courseId}/tests/${testId}/grading`);
   revalidatePath("/admin/grading");
   revalidatePath(`/admin/grading/${testId}`);
-  revalidatePath("/admin/dashboard");
 }
 
 const autoGradeSchema = z.object({
@@ -492,7 +491,6 @@ export async function applyAiSuggestionAction(
         );
         revalidatePath("/admin/grading");
         revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath("/admin/dashboard");
         revalidatePath(
           `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
         );

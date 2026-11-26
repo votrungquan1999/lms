@@ -271,11 +271,9 @@ test.describe("Student sign-in card", () => {
     await hydrated(google);
     await google.click();
 
-    // Then they land on the teacher dashboard, not the student home
-    await page.waitForURL("**/admin/dashboard");
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
+    // Then they land on To grade, not the student home
+    await page.waitForURL("**/admin/grading");
+    await expect(page.getByRole("heading", { name: "To grade" })).toBeVisible();
 
     await context.close();
   });

@@ -25,7 +25,7 @@ export default async function StudentLoginPage({
   // a compile error here instead of silently falling through to this form.
   switch (entryState) {
     case LoginEntryState.Admin:
-      redirect("/admin/dashboard");
+      redirect("/admin/grading");
       break;
     case LoginEntryState.Student:
       redirect("/student/dashboard");

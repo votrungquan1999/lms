@@ -58,7 +58,7 @@ import {
   setTestFeedbackAction,
 } from "../actions";
 
-describe("Feature: grading actions extend revalidatePath to hub, variant page, and dashboard", () => {
+describe("Feature: grading actions extend revalidatePath to hub and variant page", () => {
   beforeEach(() => {
     vi.mocked(revalidatePath).mockClear();
   });
@@ -67,7 +67,7 @@ describe("Feature: grading actions extend revalidatePath to hub, variant page, a
     vi.restoreAllMocks();
   });
 
-  it("each successful action revalidates /admin/grading, /admin/grading/<testId>, and /admin/dashboard in addition to the course-scoped path", async () => {
+  it("each successful action revalidates /admin/grading and /admin/grading/<testId> in addition to the course-scoped path", async () => {
     const testId = "test-1";
     const courseId = "course-1";
 
@@ -107,7 +107,6 @@ describe("Feature: grading actions extend revalidatePath to hub, variant page, a
     // New paths added by Step 13 — each must appear at least once across the four actions
     expect(calls).toContain("/admin/grading");
     expect(calls).toContain(`/admin/grading/${testId}`);
-    expect(calls).toContain("/admin/dashboard");
 
     // Step 15 fix: releaseGradesAction now also revalidates the student page
     // so the student sees grades on the next visit after a global release.

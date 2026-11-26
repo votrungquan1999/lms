@@ -16,7 +16,7 @@ import {
 import { TestStatus } from "src/lib/test-status-service";
 
 export const metadata = {
-  title: "Grading — LMS Admin",
+  title: "To grade — LMS Admin",
   description: "Tests needing grading across all courses",
 };
 
@@ -138,7 +138,7 @@ export default async function GradingHubPage({
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <header>
-        <h1 className="text-3xl font-bold tracking-tight">Grading</h1>
+        <h1 className="text-3xl font-bold tracking-tight">To grade</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Tests with students waiting for a grade.
         </p>
