@@ -126,7 +126,9 @@ setup("create and authenticate a student", async ({ browser }) => {
 
     // Enrol into the seeded course, or the student dashboard is empty and the
     // student-side tours have nothing to walk into.
-    await admin.goto(`${BASE_URL}/admin/courses/seed-course-fundamentals`);
+    await admin.goto(
+      `${BASE_URL}/admin/courses/seed-course-fundamentals/students`,
+    );
     await expect(
       admin.getByRole("heading", { name: SEED_COURSE_TITLE }),
     ).toBeVisible();

@@ -20,7 +20,10 @@ import ImportAiBreadcrumb from "../@breadcrumb/courses/[courseId]/tests/[testId]
 import TestDetailBreadcrumb from "../@breadcrumb/courses/[courseId]/tests/[testId]/page";
 import GradingTestBreadcrumb from "../@breadcrumb/grading/[testId]/page";
 import PoolDetailBreadcrumb from "../@breadcrumb/pools/[poolId]/page";
-import CourseDetailPage from "../courses/[courseId]/page";
+import CourseTabsLayout from "../courses/[courseId]/(tabs)/layout";
+import CourseMaterialsPage from "../courses/[courseId]/(tabs)/materials/page";
+import CourseDetailPage from "../courses/[courseId]/(tabs)/page";
+import CourseStudentsPage from "../courses/[courseId]/(tabs)/students/page";
 import { GET as downloadResultsReport } from "../courses/[courseId]/results-report/download/route";
 import ResultsReportPage from "../courses/[courseId]/results-report/page";
 import TestGradingPage from "../courses/[courseId]/tests/[testId]/grading/page";
@@ -33,6 +36,7 @@ vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/navigation", () => ({
   // The import breadcrumb's leave-guarded link reads the router.
   useRouter: vi.fn(() => ({ push: vi.fn() })),
+  usePathname: vi.fn(() => "/"),
   notFound: vi.fn(() => {
     throw new Error("not found called");
   }),
@@ -122,11 +126,41 @@ describe("Feature: a school admin who opens another school's record by id gets n
 
   const rows: Row[] = [
     [
-      "courses/[courseId]/page.tsx",
+      "courses/[courseId]/(tabs)/layout.tsx",
+      async () => {
+        const courseId = await createForeignCourse();
+        await expect(
+          CourseTabsLayout({
+            children: null,
+            params: Promise.resolve({ courseId }),
+          }),
+        ).rejects.toThrow("not found called");
+      },
+    ],
+    [
+      "courses/[courseId]/(tabs)/page.tsx",
       async () => {
         const courseId = await createForeignCourse();
         await expect(
           CourseDetailPage({ params: Promise.resolve({ courseId }) }),
+        ).rejects.toThrow("not found called");
+      },
+    ],
+    [
+      "courses/[courseId]/(tabs)/students/page.tsx",
+      async () => {
+        const courseId = await createForeignCourse();
+        await expect(
+          CourseStudentsPage({ params: Promise.resolve({ courseId }) }),
+        ).rejects.toThrow("not found called");
+      },
+    ],
+    [
+      "courses/[courseId]/(tabs)/materials/page.tsx",
+      async () => {
+        const courseId = await createForeignCourse();
+        await expect(
+          CourseMaterialsPage({ params: Promise.resolve({ courseId }) }),
         ).rejects.toThrow("not found called");
       },
     ],

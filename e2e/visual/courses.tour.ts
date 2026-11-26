@@ -6,9 +6,9 @@ const LIST_SOURCES = [
   "src/app/admin/(dashboard)/courses/create-course-form.tsx",
 ];
 const DETAIL_SOURCES = [
-  "src/app/admin/(dashboard)/courses/[courseId]/page.tsx",
-  "src/app/admin/(dashboard)/courses/[courseId]/share-invite-link.tsx",
-  "src/app/admin/(dashboard)/courses/[courseId]/materials-section.tsx",
+  "src/app/admin/(dashboard)/courses/[courseId]/(tabs)/layout.tsx",
+  "src/app/admin/(dashboard)/courses/[courseId]/(tabs)/course-tabs.tsx",
+  "src/app/admin/(dashboard)/courses/[courseId]/(tabs)/page.tsx",
   "src/app/admin/(dashboard)/@breadcrumb/courses/[courseId]/page.tsx",
 ];
 const ENROLL_SOURCES = [
@@ -126,11 +126,12 @@ test("courses: seeded course detail with enrollments and tests", async ({
   await expect(
     page.getByRole("heading", { name: "Sandbox: Fundamentals" }),
   ).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText(SEED_TEST_TITLE)).toBeVisible();
+  await snap(page, "courses/detail-seeded", { sources: DETAIL_SOURCES });
+  await page.goto(`/admin/courses/${SEED_COURSE_ID}/students`);
   await expect(
     page.getByRole("heading", { name: /Enrolled Students \(\d+\)/ }),
   ).toBeVisible();
-  await expect(page.getByText(SEED_TEST_TITLE)).toBeVisible();
-  await snap(page, "courses/detail-seeded", { sources: DETAIL_SOURCES });
 });
 
 test("courses: fresh course detail with no students, materials or tests", async ({
@@ -141,9 +142,10 @@ test("courses: fresh course detail with no students, materials or tests", async 
   await expect(page.getByRole("heading", { name: EMPTY_TITLE })).toBeVisible({
     timeout: 30000,
   });
-  await expect(page.getByText("No students enrolled yet.")).toBeVisible();
-  await expect(page.getByText("No tests yet. Create one above.")).toBeVisible();
+  await expect(page.getByText("No tests yet.", { exact: true })).toBeVisible();
   await snap(page, "courses/detail-empty", { sources: DETAIL_SOURCES });
+  await page.goto(`/admin/courses/${courseId}/students`);
+  await expect(page.getByText("No students enrolled yet.")).toBeVisible();
 });
 
 test("courses: detail of a course with a very long spaced title", async ({
@@ -154,7 +156,7 @@ test("courses: detail of a course with a very long spaced title", async ({
   await expect(page.getByRole("heading", { name: LONG_TITLE })).toBeVisible({
     timeout: 30000,
   });
-  await expect(page.getByText("No tests yet. Create one above.")).toBeVisible();
+  await expect(page.getByText("No tests yet.", { exact: true })).toBeVisible();
   await snap(page, "courses/detail-long-title", { sources: DETAIL_SOURCES });
 });
 
@@ -175,7 +177,7 @@ test("courses: detail of a course titled with one unbroken string", async ({
 test("courses: manage enrollments dialog listing every student", async ({
   page,
 }) => {
-  await page.goto(`/admin/courses/${SEED_COURSE_ID}`);
+  await page.goto(`/admin/courses/${SEED_COURSE_ID}/students`);
   await expect(
     page.getByRole("heading", { name: "Sandbox: Fundamentals" }),
   ).toBeVisible({ timeout: 30000 });
@@ -191,7 +193,7 @@ test("courses: manage enrollments dialog listing every student", async ({
   await snap(page, "courses/enrollments-dialog", {
     sources: [
       ...ENROLL_SOURCES,
-      "src/app/admin/(dashboard)/courses/[courseId]/page.tsx",
+      "src/app/admin/(dashboard)/courses/[courseId]/(tabs)/page.tsx",
     ],
   });
 });
@@ -200,7 +202,7 @@ test("courses: manage enrollments on a course with nobody enrolled", async ({
   page,
 }) => {
   const courseId = await ensureCourse(page, EMPTY_TITLE, "");
-  await page.goto(`/admin/courses/${courseId}`);
+  await page.goto(`/admin/courses/${courseId}/students`);
   await expect(page.getByRole("heading", { name: EMPTY_TITLE })).toBeVisible({
     timeout: 30000,
   });
@@ -214,7 +216,7 @@ test("courses: manage enrollments on a course with nobody enrolled", async ({
   await snap(page, "courses/enrollments-none-ticked", {
     sources: [
       ...ENROLL_SOURCES,
-      "src/app/admin/(dashboard)/courses/[courseId]/page.tsx",
+      "src/app/admin/(dashboard)/courses/[courseId]/(tabs)/page.tsx",
     ],
   });
 });

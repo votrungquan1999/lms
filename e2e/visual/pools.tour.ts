@@ -394,7 +394,7 @@ test("pools: drawing pool questions into a test", async ({ page }) => {
   const courseId = await idOf("course", { title: COURSE_TITLE });
 
   await page.goto(`/admin/courses/${courseId}`);
-  await page.getByRole("button", { name: "Add Test" }).click();
+  await page.getByRole("button", { name: "New test" }).click();
   await page.getByLabel("Test Title").fill(TEST_TITLE);
   await page.getByRole("button", { name: "Create Test" }).click();
   await expect(page.getByText("created successfully")).toBeVisible({

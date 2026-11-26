@@ -159,6 +159,7 @@ export async function getInviteLinkAction(
         const courseService = await getCourseService(schoolId);
         await courseService.getOrCreateInviteToken(parsed.data.courseId);
         revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        revalidatePath(`/admin/courses/${parsed.data.courseId}/students`);
         return { success: true, message: "Join link ready" };
       },
     );
@@ -215,6 +216,7 @@ export async function regenerateInviteLinkAction(
         const courseService = await getCourseService(schoolId);
         await courseService.regenerateInviteToken(parsed.data.courseId);
         revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        revalidatePath(`/admin/courses/${parsed.data.courseId}/students`);
         return { success: true, message: "New join link issued" };
       },
     );
@@ -270,6 +272,7 @@ export async function disableInviteLinkAction(
         const courseService = await getCourseService(schoolId);
         await courseService.disableInviteToken(parsed.data.courseId);
         revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        revalidatePath(`/admin/courses/${parsed.data.courseId}/students`);
         return { success: true, message: "Join link turned off" };
       },
     );
@@ -358,6 +361,7 @@ export async function createTestAction(
         });
 
         revalidatePath(`/admin/courses/${parsed.data.courseId}`);
+        revalidatePath(`/admin/courses/${parsed.data.courseId}/students`);
         return {
           success: true,
           message: `Test "${test.title}" created successfully`,

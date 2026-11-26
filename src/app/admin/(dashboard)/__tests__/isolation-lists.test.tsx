@@ -14,8 +14,9 @@ import {
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import CourseTabsLayout from "../courses/[courseId]/(tabs)/layout";
+import CourseStudentsPage from "../courses/[courseId]/(tabs)/students/page";
 import { ManageEnrollmentsDialog } from "../courses/[courseId]/enroll-student-form";
-import CourseDetailPage from "../courses/[courseId]/page";
 import ResultsReportPage from "../courses/[courseId]/results-report/page";
 import { ResultsReportSelectionProvider } from "../courses/[courseId]/results-report/results-report-selection.state";
 import { ComposeFromPoolsForm } from "../courses/[courseId]/tests/[testId]/compose-from-pools-form";
@@ -37,6 +38,7 @@ vi.mock("next/navigation", () => ({
   }),
   forbidden: vi.fn(),
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/",
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(), cookies: vi.fn() }));
@@ -255,7 +257,7 @@ describe("Feature: a school admin's lists show only their current school's stude
   });
 
   it("the course page's enrol-students picker offers only the current school's students", async () => {
-    const page = await CourseDetailPage({
+    const page = await CourseStudentsPage({
       params: Promise.resolve({ courseId: ownCourseId }),
     });
 
@@ -269,7 +271,7 @@ describe("Feature: a school admin's lists show only their current school's stude
   });
 
   it("the course page's enrol dialog is never handed another school's enrolled student id", async () => {
-    const page = await CourseDetailPage({
+    const page = await CourseStudentsPage({
       params: Promise.resolve({ courseId: ownCourseId }),
     });
 
@@ -294,7 +296,7 @@ describe("Feature: a school admin's lists show only their current school's stude
     ]);
   });
 
-  it("the course page's enrolled count and graded ratio count only the current school's students", async () => {
+  it("the course page's header counts only the current school's students", async () => {
     await getTestServices(schoolId).testService.createTest(ownCourseId, {
       title: "Own Test",
       description: "",
@@ -302,17 +304,13 @@ describe("Feature: a school admin's lists show only their current school's stude
     });
 
     render(
-      await CourseDetailPage({
+      await CourseTabsLayout({
+        children: null,
         params: Promise.resolve({ courseId: ownCourseId }),
       }),
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Enrolled Students (1)" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "0/1 graded" }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("1 student · 1 test")).toBeInTheDocument();
   });
 
   it("the grading page's enrolled header counts only the current school's students", async () => {

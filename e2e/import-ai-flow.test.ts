@@ -85,7 +85,7 @@ test.describe("AI Document Import Flow", () => {
       page.getByRole("heading", { name: COURSE_TITLE }),
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "Add Test" }).click();
+    await page.getByRole("button", { name: "New test" }).click();
     await page.getByLabel("Test Title").fill(TEST_TITLE);
     await page.getByRole("button", { name: "Create Test" }).click();
     await expect(page.getByText("created successfully")).toBeVisible({
@@ -217,7 +217,7 @@ test.describe("AI Document Import Flow — REPLACE mode", () => {
 
     await page.goto("/admin/courses");
     await page.getByText(REPLACE_COURSE_TITLE).click();
-    await page.getByRole("button", { name: "Add Test" }).click();
+    await page.getByRole("button", { name: "New test" }).click();
     await page.getByLabel("Test Title").fill(REPLACE_TEST_TITLE);
     await page.getByRole("button", { name: "Create Test" }).click();
     await expect(page.getByText("created successfully")).toBeVisible({

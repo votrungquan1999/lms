@@ -247,8 +247,8 @@ test.describe("student setup: scratch timed test", () => {
 
   test("student: admin creates the timed drill", async ({ page }) => {
     await page.goto(ADMIN_COURSE_URL);
-    await hydrated(page.getByRole("button", { name: "Add Test" }));
-    await page.getByRole("button", { name: "Add Test" }).click();
+    await hydrated(page.getByRole("button", { name: "New test" }));
+    await page.getByRole("button", { name: "New test" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Test Title").fill(DRILL_TITLE);
     await dialog.getByLabel("Description").fill(DRILL_DESCRIPTION);

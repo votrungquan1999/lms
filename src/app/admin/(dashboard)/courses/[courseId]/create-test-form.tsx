@@ -46,7 +46,7 @@ export function CreateTestDialog({ courseId }: { courseId: string }) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline">Add Test</Button>
+        <Button>New test</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

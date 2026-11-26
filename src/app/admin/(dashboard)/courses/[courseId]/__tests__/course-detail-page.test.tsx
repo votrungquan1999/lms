@@ -7,11 +7,14 @@ import {
   teardownTestDb,
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import CourseDetailPage from "../page";
+import CourseTabsLayout from "../(tabs)/layout";
+import CourseDetailPage from "../(tabs)/page";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ push: vi.fn() }),
   notFound: vi.fn(() => {
     throw new Error("notFound called");
   }),
@@ -71,19 +74,20 @@ describe("Feature: CourseDetailPage X/Y graded badge links to grading", () => {
       createdBy: "admin",
     });
 
-    const ui = await CourseDetailPage({
+    const ui = await CourseTabsLayout({
+      children: null,
       params: Promise.resolve({ courseId: course.id }),
     });
     render(ui);
 
-    const link = screen.getByRole("link", { name: /export results/i });
+    const link = screen.getByRole("link", { name: "Export results" });
     expect(link.getAttribute("href")).toBe(
       `/admin/courses/${course.id}/results-report`,
     );
   });
 });
 
-describe("Feature: Course page always shows the Tests heading beside Add Test", () => {
+describe("Feature: Course page header offers New test on every tab", () => {
   beforeEach(async () => {
     await setupTestDb();
   });
@@ -92,7 +96,7 @@ describe("Feature: Course page always shows the Tests heading beside Add Test", 
     await teardownTestDb();
   });
 
-  it("shows a 'Tests (0)' heading next to Add Test even when the course has no tests yet", async () => {
+  it("shows New test in the header even when the course has no tests yet", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Course",
@@ -100,17 +104,19 @@ describe("Feature: Course page always shows the Tests heading beside Add Test", 
       createdBy: "admin",
     });
 
-    const ui = await CourseDetailPage({
+    const ui = await CourseTabsLayout({
+      children: null,
       params: Promise.resolve({ courseId: course.id }),
     });
     render(ui);
 
-    const heading = screen.getByRole("heading", { name: "Tests (0)" });
-    const addTestButton = screen.getByRole("button", { name: "Add Test" });
-    expect(heading.parentElement).toContainElement(addTestButton);
+    expect(
+      screen.getByRole("button", { name: "New test" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("0 students · 0 tests")).toBeInTheDocument();
   });
 
-  it("styles the empty Tests message the same as its sibling empty sections, not centred", async () => {
+  it("styles the empty Tests message like a quiet note", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Course",
@@ -123,8 +129,8 @@ describe("Feature: Course page always shows the Tests heading beside Add Test", 
     });
     render(ui);
 
-    expect(screen.getByText(/no tests yet/i).className).toBe(
-      screen.getByText("No materials yet.").className,
+    expect(screen.getByText(/no tests yet/i).className).toContain(
+      "text-muted-foreground",
     );
   });
 });

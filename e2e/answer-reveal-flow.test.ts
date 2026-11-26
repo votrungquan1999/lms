@@ -61,7 +61,7 @@ test.describe("Answer Reveal — plain mode", () => {
     // exercises those defaults, not an explicit settings change.
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
-    await page.getByRole("button", { name: "Add Test" }).click();
+    await page.getByRole("button", { name: "New test" }).click();
     await page.getByLabel("Test Title").fill(TEST_TITLE);
     await page.getByRole("button", { name: "Create Test" }).click();
     await expect(page.getByText("created successfully")).toBeVisible({
@@ -94,6 +94,10 @@ test.describe("Answer Reveal — plain mode", () => {
 
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
+    await page
+      .getByRole("navigation", { name: "Course sections" })
+      .getByRole("link", { name: "Students" })
+      .click();
     await page.getByRole("button", { name: "Manage Enrollments" }).click();
     await page.getByText(`@${STUDENT_USERNAME}`).click();
     await page.getByRole("button", { name: "Confirm Enrollments" }).click();
@@ -226,7 +230,7 @@ test.describe("Answer Reveal — diff mode", () => {
 
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
-    await page.getByRole("button", { name: "Add Test" }).click();
+    await page.getByRole("button", { name: "New test" }).click();
     await page.getByLabel("Test Title").fill(TEST_TITLE);
     await page.getByRole("button", { name: "Create Test" }).click();
     await expect(page.getByText("created successfully")).toBeVisible({
@@ -268,6 +272,10 @@ test.describe("Answer Reveal — diff mode", () => {
 
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
+    await page
+      .getByRole("navigation", { name: "Course sections" })
+      .getByRole("link", { name: "Students" })
+      .click();
     await page.getByRole("button", { name: "Manage Enrollments" }).click();
     await page.getByText(`@${STUDENT_USERNAME}`).click();
     await page.getByRole("button", { name: "Confirm Enrollments" }).click();

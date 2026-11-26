@@ -41,7 +41,7 @@ async function harvestInvitePath(browser: Browser): Promise<string> {
   });
   try {
     const adminPage = await context.newPage();
-    await adminPage.goto("/admin/courses/seed-course-fundamentals");
+    await adminPage.goto("/admin/courses/seed-course-fundamentals/students");
     await expect(
       adminPage.getByRole("heading", { name: "Sandbox: Fundamentals" }),
     ).toBeVisible();

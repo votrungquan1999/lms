@@ -140,7 +140,7 @@ async function recreateSandboxTest(
     }).toPass({ timeout: 30_000 });
   }
 
-  await page.getByRole("button", { name: "Add Test" }).click();
+  await page.getByRole("button", { name: "New test" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Test Title").fill(SANDBOX_TEST);
   await dialog

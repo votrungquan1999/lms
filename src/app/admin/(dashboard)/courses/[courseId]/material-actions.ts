@@ -152,6 +152,7 @@ export async function addCourseMaterialAction(
           size: parsed.data.size,
         });
         revalidatePath(`/admin/courses/${courseId}`);
+        revalidatePath(`/admin/courses/${courseId}/materials`);
         return { success: true, message: "Material added" };
       },
     );
@@ -193,6 +194,7 @@ export async function removeCourseMaterialAction(
         const courseService = await getCourseService(schoolId);
         await courseService.removeCourseMaterial(courseId, materialKey);
         revalidatePath(`/admin/courses/${courseId}`);
+        revalidatePath(`/admin/courses/${courseId}/materials`);
         return { success: true, message: "Material removed" };
       },
     );

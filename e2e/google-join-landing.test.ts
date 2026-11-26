@@ -31,6 +31,10 @@ test.describe("Google sign-in on a course invite link", () => {
     });
     await page.goto(`${BASE_URL}/admin/courses`);
     await page.getByText(courseTitle).click();
+    await page
+      .getByRole("navigation", { name: "Course sections" })
+      .getByRole("link", { name: "Students" })
+      .click();
     await page.getByRole("button", { name: "Get Join Link" }).click();
     const codeLocator = page.locator("code");
     await expect(codeLocator).toBeVisible({ timeout: 10000 });

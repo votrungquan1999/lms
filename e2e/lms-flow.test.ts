@@ -122,6 +122,10 @@ test.describe("LMS E2E Flow", () => {
     ).toBeVisible();
 
     // When clicking "Manage Enrollments" and ticking the student
+    await page
+      .getByRole("navigation", { name: "Course sections" })
+      .getByRole("link", { name: "Students" })
+      .click();
     await page.getByRole("button", { name: "Manage Enrollments" }).click();
     await expect(
       page.getByRole("heading", { name: "Manage Enrollments" }),
@@ -210,8 +214,8 @@ test.describe("LMS E2E Flow", () => {
       page.getByRole("heading", { name: "E2E Test Course" }),
     ).toBeVisible();
 
-    // When clicking "Add Test" and filling the form
-    await page.getByRole("button", { name: "Add Test" }).click();
+    // When clicking "New test" and filling the form
+    await page.getByRole("button", { name: "New test" }).click();
     await expect(
       page.getByRole("heading", { name: "Create Test" }),
     ).toBeVisible();
@@ -280,7 +284,7 @@ test.describe("LMS E2E Flow", () => {
     ).toBeVisible();
 
     // Create a separate test for this so it doesn't break the Midterm grading math
-    await page.getByRole("button", { name: "Add Test" }).click();
+    await page.getByRole("button", { name: "New test" }).click();
     await page.getByLabel("Test Title").fill("E2E Title Only Test");
     await page.getByRole("button", { name: "Create Test" }).click();
     await expect(page.getByText("created successfully")).toBeVisible({

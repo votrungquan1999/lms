@@ -37,14 +37,18 @@ test.describe("Course layout", () => {
     await expect(
       page.getByRole("heading", { name: unbrokenTitle }),
     ).toBeVisible();
+    await expectWrapped(page.getByText(unbrokenDescription, { exact: true }));
+    await expect(
+      page.getByRole("link", { name: "Export results" }),
+    ).toBeInViewport({ ratio: 1 });
+    await expectNoPageOverflow(page);
+
+    // The enrolled student's name lives on the Students tab
+    await page.goto(`/admin/courses/${courseId}/students`);
     await expect(
       page.getByText(unbrokenStudentName, { exact: true }),
     ).toBeVisible();
-    await expectWrapped(page.getByText(unbrokenDescription, { exact: true }));
     await expectWrapped(page.getByText(unbrokenStudentName, { exact: true }));
-    await expect(
-      page.getByRole("link", { name: "Export Results" }),
-    ).toBeInViewport({ ratio: 1 });
     await expectNoPageOverflow(page);
   });
 
@@ -107,57 +111,21 @@ test.describe("Course layout", () => {
     await expectNoPageOverflow(page);
   });
 
-  test("a test's graded counter and a pool's question counter never wrap onto a second line next to a long title", async ({
+  test("a pool's question counter never wraps onto a second line next to a long name", async ({
     page,
   }) => {
     // Long enough to fill the full-width row, so the counter beside it is squeezed.
     const longTail =
       " And Keeps Going Well Past The Full Width Of The Page".repeat(2);
-    const longTestTitle = `[layout] Very Long Test Title That Wraps Across Many Words${longTail}`;
-    const shortTestTitle = "[layout] Short Test";
     // The pool list is global, so a random tag keeps a re-run's rows distinct.
     const tag = crypto.randomUUID().slice(0, 8);
     const longPoolName = `[layout] ${tag} Very Long Pool Name That Wraps Across Many Words${longTail}`;
     const shortPoolName = `[layout] ${tag} Short Pool`;
 
-    const { courseId } = await withDb(async (db) => {
-      const courseId = await insertCourse(db);
-      const studentId = await insertStudent(db);
-      await enroll(db, { courseId, studentId });
-      await insertTest(db, courseId, { title: longTestTitle });
-      await insertTest(db, courseId, { title: shortTestTitle });
+    await withDb(async (db) => {
       await insertPool(db, { name: longPoolName });
       await insertPool(db, { name: shortPoolName });
-      return { courseId };
     });
-
-    await page.goto(`/admin/courses/${courseId}`);
-    const longCard = page
-      .locator('[data-slot="card"]')
-      .filter({ hasText: longTestTitle });
-    const shortCard = page
-      .locator('[data-slot="card"]')
-      .filter({ hasText: shortTestTitle });
-
-    const longTitleBox = await longCard
-      .getByRole("link", { name: longTestTitle })
-      .boundingBox();
-    const longCounterBox = await longCard
-      .getByRole("link", { name: /graded$/ })
-      .boundingBox();
-    const shortCounterBox = await shortCard
-      .getByRole("link", { name: /graded$/ })
-      .boundingBox();
-    if (!longTitleBox || !longCounterBox || !shortCounterBox) {
-      throw new Error("Test row title or counter not found");
-    }
-    await expectWrapped(longCard.getByText(longTestTitle, { exact: true }));
-    // The counter never wraps to a second line, whatever the title's length.
-    expect(longCounterBox.height).toBeCloseTo(shortCounterBox.height, 0);
-    // Title and counter stay side by side, never overlapping.
-    expect(longTitleBox.x + longTitleBox.width).toBeLessThanOrEqual(
-      longCounterBox.x,
-    );
 
     await page.goto("/admin/pools");
     const poolCard = page
@@ -260,7 +228,7 @@ test.describe("Course layout", () => {
       return insertCourse(db, { title: "[layout] Enrollment Course" });
     });
 
-    await page.goto(`/admin/courses/${courseId}`);
+    await page.goto(`/admin/courses/${courseId}/students`);
     await page.getByRole("button", { name: "Manage Enrollments" }).click();
 
     const dialog = page.getByRole("dialog", { name: "Manage Enrollments" });

@@ -56,6 +56,14 @@ test.describe("Grading Hub Flow", () => {
       page.getByRole("heading", { name: COURSE_TITLE }),
     ).toBeVisible();
 
+    await page
+
+      .getByRole("navigation", { name: "Course sections" })
+
+      .getByRole("link", { name: "Students" })
+
+      .click();
+
     await page.getByRole("button", { name: "Manage Enrollments" }).click();
     await page.getByText(`@${STUDENT_USERNAME}`).click();
     await page.getByRole("button", { name: "Confirm Enrollments" }).click();
@@ -67,7 +75,7 @@ test.describe("Grading Hub Flow", () => {
   }) => {
     await page.goto("/admin/courses");
     await page.getByText(COURSE_TITLE).click();
-    await page.getByRole("button", { name: "Add Test" }).click();
+    await page.getByRole("button", { name: "New test" }).click();
     await page.getByLabel("Test Title").fill(TEST_TITLE);
     await page.getByLabel("Description").fill("For grading hub e2e");
     await page.getByRole("button", { name: "Create Test" }).click();

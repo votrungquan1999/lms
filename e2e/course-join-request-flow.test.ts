@@ -46,6 +46,10 @@ test.describe("Course Join Request Flow", () => {
     await expect(
       page.getByRole("heading", { name: COURSE_TITLE }),
     ).toBeVisible();
+    await page
+      .getByRole("navigation", { name: "Course sections" })
+      .getByRole("link", { name: "Students" })
+      .click();
     await page.getByRole("button", { name: "Get Join Link" }).click();
 
     // Then the invite path is shown

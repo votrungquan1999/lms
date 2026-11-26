@@ -128,7 +128,7 @@ test("tests: a brand-new test with no questions", async ({ page }) => {
     }).toPass({ timeout: 20000 });
   }
 
-  await page.getByRole("button", { name: "Add Test" }).click();
+  await page.getByRole("button", { name: "New test" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Test Title").fill(SCRATCH_TITLE);
   await dialog.getByLabel("Description").fill(SCRATCH_DESCRIPTION);

@@ -69,6 +69,10 @@ test.describe("Course Materials Flow", () => {
     await expect(
       page.getByRole("heading", { name: COURSE_TITLE }),
     ).toBeVisible();
+    await page
+      .getByRole("navigation", { name: "Course sections" })
+      .getByRole("link", { name: "Students" })
+      .click();
     await page.getByRole("button", { name: "Manage Enrollments" }).click();
     await page.getByText(`@${STUDENT_USERNAME}`).click();
     await page.getByRole("button", { name: "Confirm Enrollments" }).click();
@@ -81,6 +85,10 @@ test.describe("Course Materials Flow", () => {
     await expect(
       page.getByRole("heading", { name: COURSE_TITLE }),
     ).toBeVisible();
+    await page
+      .getByRole("navigation", { name: "Course sections" })
+      .getByRole("link", { name: "Materials" })
+      .click();
 
     // Select the file and upload it.
     await page.getByLabel("Materials file").setInputFiles(fixturePath);

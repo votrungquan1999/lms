@@ -22,7 +22,7 @@ describe("Feature: Create Test dialog", () => {
         message: "Unauthorized: admin access required",
       });
       render(<CreateTestDialog courseId="course-1" />);
-      await user.click(screen.getByRole("button", { name: "Add Test" }));
+      await user.click(screen.getByRole("button", { name: "New test" }));
 
       // Action — type a title, untick "show grades immediately", and submit.
       await user.type(screen.getByLabelText("Test Title"), "Midterm");
@@ -48,7 +48,7 @@ describe("Feature: Create Test dialog", () => {
         message: 'Test "Midterm" created successfully',
       });
       render(<CreateTestDialog courseId="course-1" />);
-      await user.click(screen.getByRole("button", { name: "Add Test" }));
+      await user.click(screen.getByRole("button", { name: "New test" }));
 
       // Action — fill the title, untick "show grades immediately", and submit.
       await user.type(screen.getByLabelText("Test Title"), "Midterm");
@@ -72,7 +72,7 @@ describe("Feature: Create Test dialog", () => {
         fieldErrors: { title: "Test title is required" },
       });
       render(<CreateTestDialog courseId="course-1" />);
-      await user.click(screen.getByRole("button", { name: "Add Test" }));
+      await user.click(screen.getByRole("button", { name: "New test" }));
 
       // Action — type a whitespace-only title and submit.
       await user.type(screen.getByLabelText("Test Title"), "   ");
@@ -95,13 +95,13 @@ describe("Feature: Create Test dialog", () => {
         message: 'Test "Midterm" created successfully',
       });
       render(<CreateTestDialog courseId="course-1" />);
-      await user.click(screen.getByRole("button", { name: "Add Test" }));
+      await user.click(screen.getByRole("button", { name: "New test" }));
       await user.type(screen.getByLabelText("Test Title"), "Midterm");
       await user.click(screen.getByRole("button", { name: "Create Test" }));
       await screen.findByText('Test "Midterm" created successfully');
       await user.keyboard("{Escape}");
 
-      await user.click(screen.getByRole("button", { name: "Add Test" }));
+      await user.click(screen.getByRole("button", { name: "New test" }));
 
       expect(
         screen.queryByText('Test "Midterm" created successfully'),

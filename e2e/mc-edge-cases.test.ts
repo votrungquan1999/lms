@@ -47,8 +47,8 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
     await page.goto("/admin/courses");
     await page.getByText("EC Delayed Course").click();
 
-    // When: admin opens "Add Test" and unchecks "Show grades immediately"
-    await page.getByRole("button", { name: "Add Test" }).click();
+    // When: admin opens "New test" and unchecks "Show grades immediately"
+    await page.getByRole("button", { name: "New test" }).click();
     await expect(
       page.getByRole("heading", { name: "Create Test" }),
     ).toBeVisible();
@@ -100,6 +100,10 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
   test("admin enrolls student in EC delayed course", async ({ page }) => {
     await page.goto("/admin/courses");
     await page.getByText("EC Delayed Course").click();
+    await page
+      .getByRole("navigation", { name: "Course sections" })
+      .getByRole("link", { name: "Students" })
+      .click();
     await page.getByRole("button", { name: "Manage Enrollments" }).click();
     await page.getByText(`@${STUDENT_USERNAME}`).click();
     await page.getByRole("button", { name: "Confirm Enrollments" }).click();
