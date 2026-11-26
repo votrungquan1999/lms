@@ -1,4 +1,3 @@
-import { Separator } from "src/components/ui/separator";
 import {
   SidebarInset,
   SidebarProvider,
@@ -47,9 +46,8 @@ export default async function AdminDashboardLayout({
           <SidebarInset>
             <header className="flex min-h-12 shrink-0 items-center gap-2 border-b px-4 py-2">
               <SidebarTrigger className="-ml-1" />
-              <Separator orientation="vertical" />
-              <div className="min-w-0 flex-1">{breadcrumb}</div>
             </header>
+            <div className="min-w-0 px-6 pt-4 empty:hidden">{breadcrumb}</div>
             {children}
           </SidebarInset>
         </SidebarProvider>

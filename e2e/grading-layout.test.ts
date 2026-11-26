@@ -88,7 +88,7 @@ test.describe("Grading layout", () => {
 });
 
 test.describe("Grading layout — long names, titles and links stay readable", () => {
-  test("the breadcrumb bar never clips its trail on either grading route, even with a long course and test title", async ({
+  test("the breadcrumb never clips its trail on either grading route, even with a long course and test title", async ({
     page,
   }) => {
     const longCourseTitle = `[layout] ${"An Extremely Long Grading Course Title ".repeat(4)}`;
@@ -105,24 +105,23 @@ test.describe("Grading layout — long names, titles and links stay readable", (
     ]) {
       await page.goto(url);
       const nav = page.getByRole("navigation", { name: "breadcrumb" });
-      const header = page.locator("header").filter({ has: nav });
-      const [headerBox, navBox] = await Promise.all([
-        header.boundingBox(),
+      const main = page.getByRole("main");
+      const [mainBox, navBox, titleBox] = await Promise.all([
+        main.boundingBox(),
         nav.boundingBox(),
+        page.getByRole("heading", { level: 1 }).boundingBox(),
       ]);
-      if (!headerBox || !navBox) {
-        throw new Error(`Breadcrumb not found at ${url}`);
+      if (!mainBox || !navBox || !titleBox) {
+        throw new Error(`Breadcrumb or title not found at ${url}`);
       }
-      // The breadcrumb never spills above or below the bar that holds it.
-      expect(navBox.y).toBeGreaterThanOrEqual(headerBox.y - 0.5);
-      expect(navBox.y + navBox.height).toBeLessThanOrEqual(
-        headerBox.y + headerBox.height + 0.5,
-      );
+      // The breadcrumb sits inside the page content, above the title.
+      expect(navBox.y).toBeGreaterThanOrEqual(mainBox.y - 0.5);
+      expect(navBox.y + navBox.height).toBeLessThanOrEqual(titleBox.y + 0.5);
       await expectNoPageOverflow(page);
     }
 
     // The grading route truncates its current segment to one line (full
-    // text in the tooltip); the course route's trail wraps and the bar grows.
+    // text in the tooltip); the course route's trail wraps onto more lines.
     await page.goto(`/admin/grading/${testId}`);
     await expectSingleLine(
       page

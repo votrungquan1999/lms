@@ -43,6 +43,11 @@ const ownerItems = [
   { title: "Schools", href: "/admin/schools", icon: Landmark },
 ];
 
+/** Matches the entry's own page and everything nested under it. */
+function isCurrent(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function AdminSidebar({
   email,
   isOwner = false,
@@ -82,7 +87,10 @@ export function AdminSidebar({
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname.startsWith(item.href)}
+                    isActive={isCurrent(pathname, item.href)}
+                    aria-current={
+                      isCurrent(pathname, item.href) ? "page" : undefined
+                    }
                     tooltip={item.title}
                   >
                     <GuardedLink href={item.href}>
@@ -105,7 +113,10 @@ export function AdminSidebar({
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       asChild
-                      isActive={pathname.startsWith(item.href)}
+                      isActive={isCurrent(pathname, item.href)}
+                      aria-current={
+                        isCurrent(pathname, item.href) ? "page" : undefined
+                      }
                       tooltip={item.title}
                     >
                       <GuardedLink href={item.href}>
