@@ -74,3 +74,6 @@ RESEARCH_FOLLOWUP_*.md
 # Local-only files that must never reach this public repo.
 e2e/fixtures/private/
 .claude/skills/monthly-dca-research/
+
+# Personal knowledge-base memories written by ai-rules sync; never commit
+.claude/rules/kb-memory.md
