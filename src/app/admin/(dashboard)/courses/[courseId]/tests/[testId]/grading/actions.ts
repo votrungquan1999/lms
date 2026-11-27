@@ -12,6 +12,10 @@ import {
   AiGradeOutcome,
   recordAiAcceptance,
 } from "src/lib/ai/ai-acceptance-telemetry";
+import {
+  ANNOTATION_PALETTE,
+  ANNOTATION_TEXT_MAX_LENGTH,
+} from "src/lib/annotation-service";
 import { getAuthService } from "src/lib/auth-singleton";
 import { GradingMode } from "src/lib/grading-mode";
 import { readGradingScreen } from "src/lib/grading-screen-read";
@@ -49,6 +53,12 @@ const annotationStrokeSchema = z.object({
   color: z.string().min(1),
   points: z.array(annotationPointSchema),
 });
+const annotationTextSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  text: z.string().min(1).max(ANNOTATION_TEXT_MAX_LENGTH),
+  color: z.enum(ANNOTATION_PALETTE),
+});
 const saveAnnotationsSchema = z.object({
   testId: z.string().min(1),
   courseId: z.string().min(1),
@@ -58,6 +68,7 @@ const saveAnnotationsSchema = z.object({
     z.object({
       mediaKey: z.string().min(1),
       strokes: z.array(annotationStrokeSchema),
+      texts: z.array(annotationTextSchema).optional(),
     }),
   ),
 });

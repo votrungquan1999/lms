@@ -77,26 +77,42 @@ async function servePhotos(
   );
 }
 
+/** The photo's drawing surface box once the answer pane is scrolled to its top, so the whole photo sits inside the pane's clip. */
+async function photoBox(page: Page) {
+  const surface = page.getByLabel("Drawing surface");
+  await expect(
+    page.getByRole("img", { name: "Student submitted work" }),
+  ).toHaveJSProperty("naturalWidth", PHOTO_WIDTH);
+  // The pane scrolls on its own: wheel until the whole photo sits inside its clip
+  await expect
+    .poll(async () => {
+      const photo = await surface.boundingBox();
+      if (!photo) return false;
+      const wheelBy =
+        photo.y > PANE_TOP + 40
+          ? photo.y - PANE_TOP - 10
+          : photo.y < PANE_TOP
+            ? photo.y - PANE_TOP
+            : 0;
+      if (wheelBy !== 0) {
+        await page.mouse.move(photo.x + 10, PANE_TOP + 100);
+        await page.mouse.wheel(0, wheelBy);
+      }
+      return wheelBy === 0;
+    })
+    .toBe(true);
+  const box = await surface.boundingBox();
+  if (!box) throw new Error("drawing surface has no bounding box");
+  return box;
+}
+
 /** Draws a drag across the photo; the answer pane scrolls on its own, so a wheel brings the photo to the pane's top first. */
 async function dragOnPhoto(
   page: Page,
   from: [number, number],
   to: [number, number],
 ) {
-  const surface = page.getByLabel("Drawing surface");
-  await expect(
-    page.getByRole("img", { name: "Student submitted work" }),
-  ).toHaveJSProperty("naturalWidth", PHOTO_WIDTH);
-  // Scroll the pane back to its top so the whole photo sits inside its clip
-  const initial = await surface.boundingBox();
-  if (!initial) throw new Error("drawing surface has no bounding box");
-  await page.mouse.move(initial.x + 10, 400);
-  await page.mouse.wheel(0, -5000);
-  await expect
-    .poll(async () => ((await surface.boundingBox())?.y ?? 0) > 244)
-    .toBe(true);
-  const box = await surface.boundingBox();
-  if (!box) throw new Error("drawing surface has no bounding box");
+  const box = await photoBox(page);
   await page.mouse.move(
     box.x + box.width * from[0],
     box.y + box.height * from[1],
@@ -105,6 +121,15 @@ async function dragOnPhoto(
   await page.mouse.move(box.x + box.width * to[0], box.y + box.height * to[1]);
   await page.mouse.up();
 }
+
+/** Clicks one spot on the photo. */
+async function clickOnPhoto(page: Page, at: [number, number]) {
+  const box = await photoBox(page);
+  await page.mouse.click(box.x + box.width * at[0], box.y + box.height * at[1]);
+}
+
+/** Where the answer pane starts on screen in a 1280 x 720 window. */
+const PANE_TOP = 244;
 
 const stroke = (color: string) => ({
   color,
@@ -319,6 +344,113 @@ test.describe("The teacher marks a photo with a circle or an arrow", () => {
           }),
         )
         .toEqual([1, true]);
+    });
+  }
+});
+
+test.describe("The teacher types text marks onto a photo", () => {
+  for (const route of routes) {
+    test(`on ${route.name} Enter keeps a text mark, Escape and empty text drop it, undo and clear take marks back in order, and a half-typed mark never reaches another student`, async ({
+      page,
+    }) => {
+      const ids = await seedPhotoTest();
+      await servePhotos(page);
+
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
+      const strip = page.getByRole("group", { name: "Photos" });
+      const text = page.getByRole("button", { name: "Text", exact: true });
+      await hydrated(text);
+      await text.click();
+      const box = page.getByRole("textbox", { name: "Text mark" });
+
+      // Click to place, type, Enter keeps it on the photo
+      await clickOnPhoto(page, [0.3, 0.4]);
+      await box.fill("i never changes");
+      await box.press("Enter");
+      await expect(page.getByText("i never changes")).toBeVisible();
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 1 mark" }),
+      ).toBeVisible();
+
+      // Escape cancels and an empty text is dropped
+      await clickOnPhoto(page, [0.5, 0.7]);
+      await box.fill("dropped");
+      await box.press("Escape");
+      await expect(box).toHaveCount(0);
+      await expect(page.getByText("dropped")).toHaveCount(0);
+      await clickOnPhoto(page, [0.6, 0.8]);
+      await box.press("Enter");
+      await expect(box).toHaveCount(0);
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 1 mark" }),
+      ).toBeVisible();
+
+      // One undo history: the pen stroke goes first, then the text
+      await page.getByRole("button", { name: "Pen", exact: true }).click();
+      await dragOnPhoto(page, [0.1, 0.1], [0.3, 0.2]);
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 2 marks" }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Undo", exact: true }).click();
+      await expect(page.getByText("i never changes")).toBeVisible();
+      await page.getByRole("button", { name: "Undo", exact: true }).click();
+      await expect(page.getByText("i never changes")).toHaveCount(0);
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 0 marks" }),
+      ).toBeVisible();
+
+      // Clear photo removes strokes and texts together
+      await text.click();
+      await clickOnPhoto(page, [0.3, 0.4]);
+      await box.fill("gone soon");
+      await box.press("Enter");
+      await page.getByRole("button", { name: "Clear photo" }).click();
+      await expect(page.getByText("gone soon")).toHaveCount(0);
+
+      // A kept text is saved with the photo and shown again after a reload
+      await clickOnPhoto(page, [0.3, 0.4]);
+      await box.fill("i never changes");
+      await box.press("Enter");
+      await page.getByRole("button", { name: "Save annotations" }).click();
+      await expect
+        .poll(() =>
+          withDb(async (db) => {
+            const doc = await db
+              .collection("annotation")
+              .findOne({ studentId: ids.ben, questionId: ids.questionId });
+            const mark = doc?.entries?.[0]?.texts?.[0];
+            return [
+              doc?.entries?.[0]?.mediaKey,
+              mark?.text,
+              mark?.color,
+              Math.round((mark?.x ?? 0) * 10),
+              Math.round((mark?.y ?? 0) * 10),
+            ];
+          }),
+        )
+        .toEqual([
+          `answers/${ids.ben}/p1.png`,
+          "i never changes",
+          "#ef4444",
+          3,
+          4,
+        ]);
+      await page.reload();
+      await expect(page.getByText("i never changes")).toBeVisible();
+
+      // A half-typed text never follows the grader to the next student
+      await text.click();
+      await clickOnPhoto(page, [0.5, 0.5]);
+      await box.fill("half typed");
+      await page.getByRole("button", { name: "Student picker" }).click();
+      await page.getByRole("menuitem", { name: /Ann Photos/ }).click();
+      await expect(page).toHaveURL(new RegExp(`studentId=${ids.ann}`));
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 2 marks" }),
+      ).toBeVisible();
+      await expect(box).toHaveCount(0);
+      await expect(page.getByText("half typed")).toHaveCount(0);
+      await expect(page.getByText("i never changes")).toHaveCount(0);
     });
   }
 });

@@ -2,9 +2,16 @@
 
 import { useState } from "react";
 import { saveAnnotationsAction } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions";
-import { AnnotationOverlay } from "src/components/annotation-overlay";
+import {
+  AnnotationOverlay,
+  TEXT_MARK_FONT_SIZE,
+} from "src/components/annotation-overlay";
 import { Button } from "src/components/ui/button";
-import type { AnnotationEntry } from "src/lib/annotation-service";
+import {
+  ANNOTATION_PALETTE,
+  ANNOTATION_TEXT_MAX_LENGTH,
+  type AnnotationEntry,
+} from "src/lib/annotation-service";
 import {
   AnnotationToolProvider,
   type MarkTool,
@@ -21,14 +28,13 @@ const TOOLS: { tool: MarkTool; label: string }[] = [
   { tool: "pen", label: "Pen" },
   { tool: "circle", label: "Circle" },
   { tool: "arrow", label: "Arrow" },
+  { tool: "text", label: "Text" },
 ];
 
-/** Palette the grader can draw with (tokenized-ish fixed marker colors). */
-const PALETTE = ["#ef4444", "#2563eb", "#16a34a", "#111827"];
-
 /**
- * Grader annotation tool: draw freehand marks over a student's answer photos,
- * change color, undo, erase, and save. Wraps the body in the tool provider.
+ * Grader marking tool: shows one answer photo at a time with a thumbnail strip,
+ * marks it with pen, circle, arrow or typed text, undoes or clears the shown
+ * photo's marks, and saves. Wraps the body in the tool provider.
  * @param testId - The test id.
  * @param courseId - The course id.
  * @param questionId - The question id.
@@ -78,7 +84,15 @@ function AnnotationToolBody({
   studentId: string;
   photos: AnnotatablePhoto[];
 }): React.ReactNode {
-  const { color, tool, entriesByKey, drawing, dispatch } = useAnnotationTool();
+  const {
+    color,
+    tool,
+    entriesByKey,
+    textsByKey,
+    textDraft,
+    drawing,
+    dispatch,
+  } = useAnnotationTool();
   const [photoIndex, setPhotoIndex] = useState(0);
   const [fit, setFit] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -102,9 +116,15 @@ function AnnotationToolBody({
   async function save() {
     setIsSaving(true);
     setMessage(null);
-    const annotations: AnnotationEntry[] = Object.entries(entriesByKey).map(
-      ([mediaKey, strokes]) => ({ mediaKey, strokes }),
-    );
+    const mediaKeys = new Set([
+      ...Object.keys(entriesByKey),
+      ...Object.keys(textsByKey),
+    ]);
+    const annotations: AnnotationEntry[] = [...mediaKeys].map((mediaKey) => ({
+      mediaKey,
+      strokes: entriesByKey[mediaKey] ?? [],
+      texts: textsByKey[mediaKey] ?? [],
+    }));
     const result = await saveAnnotationsAction({
       testId,
       courseId,
@@ -131,7 +151,7 @@ function AnnotationToolBody({
             {option.label}
           </Button>
         ))}
-        {PALETTE.map((c) => (
+        {ANNOTATION_PALETTE.map((c) => (
           <button
             key={c}
             type="button"
@@ -182,12 +202,14 @@ function AnnotationToolBody({
                 src={photo.url}
                 alt="Student submitted work"
                 strokes={[...committed, ...live]}
+                texts={textsByKey[photo.key] ?? []}
                 fit={fit}
               >
                 <svg
                   aria-label="Drawing surface"
                   className="col-start-1 row-start-1 size-full cursor-crosshair touch-none [contain:size]"
                   onPointerDown={(e) => {
+                    if (tool === "text") return;
                     e.currentTarget.setPointerCapture(e.pointerId);
                     dispatch({
                       type: "START_STROKE",
@@ -200,11 +222,51 @@ function AnnotationToolBody({
                     if (e.buttons !== 1) return;
                     dispatch({ type: "ADD_POINT", point: toPoint(e) });
                   }}
-                  onPointerUp={() => dispatch({ type: "END_STROKE" })}
+                  onPointerUp={(e) => {
+                    // Opened on pointer up: an input opened on pointer down loses focus to the same click
+                    if (tool === "text") {
+                      dispatch({
+                        type: "START_TEXT",
+                        mediaKey: photo.key,
+                        point: toPoint(e),
+                      });
+                      return;
+                    }
+                    dispatch({ type: "END_STROKE" });
+                  }}
                   onPointerCancel={() => dispatch({ type: "END_STROKE" })}
                 >
                   <title>Drawing surface</title>
                 </svg>
+                {textDraft && textDraft.mediaKey === photo.key && (
+                  <div className="pointer-events-none relative col-start-1 row-start-1 size-full overflow-hidden [contain:size] @container">
+                    <input
+                      // Focus without scrolling, or the clipped photo layers shift
+                      ref={(el) => el?.focus({ preventScroll: true })}
+                      aria-label="Text mark"
+                      maxLength={ANNOTATION_TEXT_MAX_LENGTH}
+                      value={textDraft.text}
+                      onChange={(e) =>
+                        dispatch({ type: "SET_TEXT", text: e.target.value })
+                      }
+                      onBlur={() => dispatch({ type: "COMMIT_TEXT" })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          dispatch({ type: "COMMIT_TEXT" });
+                        if (e.key === "Escape")
+                          dispatch({ type: "CANCEL_TEXT" });
+                      }}
+                      className="pointer-events-auto absolute rounded border border-border bg-background/90 px-1 font-semibold leading-tight outline-none"
+                      style={{
+                        left: `${textDraft.point.x * 100}%`,
+                        top: `${textDraft.point.y * 100}%`,
+                        width: `${Math.max(0.25, 1 - textDraft.point.x) * 100}%`,
+                        color: textDraft.color,
+                        fontSize: TEXT_MARK_FONT_SIZE,
+                      }}
+                    />
+                  </div>
+                )}
               </AnnotationOverlay>
             </div>
 
@@ -232,7 +294,9 @@ function AnnotationToolBody({
               className="m-0 flex min-w-0 flex-wrap gap-2 border-0 p-0"
             >
               {photos.map((thumb, index) => {
-                const marks = (entriesByKey[thumb.key] ?? []).length;
+                const marks =
+                  (entriesByKey[thumb.key] ?? []).length +
+                  (textsByKey[thumb.key] ?? []).length;
                 const label = `Photo ${index + 1} · ${marks} ${marks === 1 ? "mark" : "marks"}`;
                 return (
                   <button

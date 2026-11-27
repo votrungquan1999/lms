@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import type { AnnotationStroke } from "src/lib/annotation-service";
 import { describe, expect, it } from "vitest";
 import { AnnotationOverlay } from "../annotation-overlay";
 
@@ -39,5 +40,38 @@ describe("AnnotationOverlay", () => {
     expect(polylines).toHaveLength(2);
     expect(polylines[0].getAttribute("stroke")).toBe("#ff0000");
     expect(polylines[0].getAttribute("points")).toBe("0,0 0.5,0.5");
+  });
+
+  it("still shows the photo when a stored mark has no points", () => {
+    // Given a stored mark that carries a color but no point list
+    const pointless = { color: "#ff0000" } as unknown as AnnotationStroke;
+
+    // When the photo renders with it
+    render(
+      <AnnotationOverlay
+        src="https://files.example/p1.png"
+        alt="work"
+        strokes={[pointless]}
+      />,
+    );
+
+    // Then the photo is still there
+    expect(screen.getByRole("img")).toBeInTheDocument();
+  });
+
+  it("writes each text mark over the photo in its own color at its own spot", () => {
+    // Given a photo with one text mark
+    render(
+      <AnnotationOverlay
+        src="https://files.example/p1.png"
+        alt="work"
+        strokes={[]}
+        texts={[{ x: 0.25, y: 0.5, text: "i never changes", color: "#ef4444" }]}
+      />,
+    );
+
+    // Then the words show, colored and placed by their normalized position
+    const mark = screen.getByText("i never changes");
+    expect(mark).toHaveStyle({ left: "25%", top: "50%", color: "#ef4444" });
   });
 });

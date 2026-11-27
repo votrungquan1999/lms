@@ -5,6 +5,7 @@ import type {
   AnnotationEntry,
   AnnotationPoint,
   AnnotationStroke,
+  AnnotationText,
 } from "src/lib/annotation-service";
 import {
   arrowPoints,
@@ -12,16 +13,33 @@ import {
   type SurfaceSize,
 } from "./annotation-shapes";
 
-/** The mark a drag draws. */
-export type MarkTool = "pen" | "circle" | "arrow";
+/** The kind of mark the grader makes next. */
+export type MarkTool = "pen" | "circle" | "arrow" | "text";
+
+/** Kinds of mark one Undo can take back, in the order they were made. */
+type MarkKind = "stroke" | "text";
+
+/** A text mark being typed: where it goes and what is typed so far. */
+export interface TextDraft {
+  mediaKey: string;
+  point: AnnotationPoint;
+  color: string;
+  text: string;
+}
 
 export interface AnnotationToolState {
-  /** The color new strokes are drawn in. */
+  /** The color new marks are made in. */
   color: string;
-  /** The mark a drag draws. */
+  /** The kind of mark the grader makes next. */
   tool: MarkTool;
   /** Completed strokes per photo S3 key. */
   entriesByKey: Record<string, AnnotationStroke[]>;
+  /** Completed text marks per photo S3 key. */
+  textsByKey: Record<string, AnnotationText[]>;
+  /** What each photo's marks were made in, so Undo takes back the latest of either kind. */
+  historyByKey: Record<string, MarkKind[]>;
+  /** The text mark being typed, if any. */
+  textDraft: TextDraft | null;
   /** The stroke currently being drawn (between pointer down and up). */
   drawing: {
     mediaKey: string;
@@ -55,6 +73,21 @@ interface AddPointAction {
 interface EndStrokeAction {
   type: "END_STROKE";
 }
+interface StartTextAction {
+  type: "START_TEXT";
+  mediaKey: string;
+  point: AnnotationPoint;
+}
+interface SetTextAction {
+  type: "SET_TEXT";
+  text: string;
+}
+interface CommitTextAction {
+  type: "COMMIT_TEXT";
+}
+interface CancelTextAction {
+  type: "CANCEL_TEXT";
+}
 interface UndoAction {
   type: "UNDO";
   mediaKey: string;
@@ -70,6 +103,10 @@ export type AnnotationToolAction =
   | StartStrokeAction
   | AddPointAction
   | EndStrokeAction
+  | StartTextAction
+  | SetTextAction
+  | CommitTextAction
+  | CancelTextAction
   | UndoAction
   | ClearAction;
 
@@ -84,16 +121,68 @@ export function buildInitialAnnotationState(
   color: string,
 ): AnnotationToolState {
   const entriesByKey: Record<string, AnnotationStroke[]> = {};
+  const textsByKey: Record<string, AnnotationText[]> = {};
+  const historyByKey: Record<string, MarkKind[]> = {};
   for (const entry of annotations) {
-    entriesByKey[entry.mediaKey] = entry.strokes;
+    const strokes = entry.strokes ?? [];
+    const texts = entry.texts ?? [];
+    entriesByKey[entry.mediaKey] = strokes;
+    textsByKey[entry.mediaKey] = texts;
+    historyByKey[entry.mediaKey] = [
+      ...strokes.map((): MarkKind => "stroke"),
+      ...texts.map((): MarkKind => "text"),
+    ];
   }
-  return { color, tool: "pen", entriesByKey, drawing: null };
+  return {
+    color,
+    tool: "pen",
+    entriesByKey,
+    textsByKey,
+    historyByKey,
+    textDraft: null,
+    drawing: null,
+  };
+}
+
+function appendHistory(
+  state: AnnotationToolState,
+  mediaKey: string,
+  kind: MarkKind,
+): Record<string, MarkKind[]> {
+  return {
+    ...state.historyByKey,
+    [mediaKey]: [...(state.historyByKey[mediaKey] ?? []), kind],
+  };
+}
+
+/** Keeps the typed text as a mark, or drops it when nothing but spaces was typed. */
+function commitTextDraft(state: AnnotationToolState): AnnotationToolState {
+  const draft = state.textDraft;
+  if (!draft) return state;
+  const text = draft.text.trim();
+  if (!text) return { ...state, textDraft: null };
+  const mark: AnnotationText = {
+    x: draft.point.x,
+    y: draft.point.y,
+    text,
+    color: draft.color,
+  };
+  return {
+    ...state,
+    textDraft: null,
+    textsByKey: {
+      ...state.textsByKey,
+      [draft.mediaKey]: [...(state.textsByKey[draft.mediaKey] ?? []), mark],
+    },
+    historyByKey: appendHistory(state, draft.mediaKey, "text"),
+  };
 }
 
 /**
- * Pure reducer for the annotation drawing tool: tracks the active color and
- * tool, the in-progress stroke, and completed strokes per photo. END_STROKE commits a
- * stroke only if it has at least two points (a single click is not a mark).
+ * Pure reducer for the annotation tool: tracks the active color and tool, the
+ * stroke being drawn, the text being typed, and each photo's strokes, texts and
+ * undo order. END_STROKE commits a stroke only if it has at least two points (a
+ * single click is not a mark).
  * @param state - Current tool state.
  * @param action - Action to apply.
  * @returns The next tool state.
@@ -148,25 +237,64 @@ export function annotationReducer(
           ...state.entriesByKey,
           [mediaKey]: [...(state.entriesByKey[mediaKey] ?? []), stroke],
         },
+        historyByKey: appendHistory(state, mediaKey, "stroke"),
       };
     }
 
-    case "UNDO":
+    case "START_TEXT":
+      return {
+        ...commitTextDraft(state),
+        textDraft: {
+          mediaKey: action.mediaKey,
+          point: action.point,
+          color: state.color,
+          text: "",
+        },
+      };
+
+    case "SET_TEXT":
+      if (!state.textDraft) return state;
+      return {
+        ...state,
+        textDraft: { ...state.textDraft, text: action.text },
+      };
+
+    case "COMMIT_TEXT":
+      return commitTextDraft(state);
+
+    case "CANCEL_TEXT":
+      return { ...state, textDraft: null };
+
+    case "UNDO": {
+      const history = state.historyByKey[action.mediaKey] ?? [];
+      const latest = history[history.length - 1];
+      if (!latest) return state;
+      const strokes = state.entriesByKey[action.mediaKey] ?? [];
+      const texts = state.textsByKey[action.mediaKey] ?? [];
       return {
         ...state,
         entriesByKey: {
           ...state.entriesByKey,
-          [action.mediaKey]: (state.entriesByKey[action.mediaKey] ?? []).slice(
-            0,
-            -1,
-          ),
+          [action.mediaKey]:
+            latest === "stroke" ? strokes.slice(0, -1) : strokes,
+        },
+        textsByKey: {
+          ...state.textsByKey,
+          [action.mediaKey]: latest === "text" ? texts.slice(0, -1) : texts,
+        },
+        historyByKey: {
+          ...state.historyByKey,
+          [action.mediaKey]: history.slice(0, -1),
         },
       };
+    }
 
     case "CLEAR":
       return {
         ...state,
         entriesByKey: { ...state.entriesByKey, [action.mediaKey]: [] },
+        textsByKey: { ...state.textsByKey, [action.mediaKey]: [] },
+        historyByKey: { ...state.historyByKey, [action.mediaKey]: [] },
       };
 
     default:

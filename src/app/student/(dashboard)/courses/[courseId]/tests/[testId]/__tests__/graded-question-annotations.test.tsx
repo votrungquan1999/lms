@@ -78,4 +78,40 @@ describe("GradedQuestion — image answer with annotations", () => {
     );
     expect(container.querySelector("polyline")).not.toBeNull();
   });
+
+  it("shows the text marks the grader typed on a photo that has no strokes", () => {
+    // Given a revealed grade whose only mark on the photo is typed text
+    const textOnly: AnnotationEntry[] = [
+      {
+        mediaKey: "answers/student-1/p1.png",
+        strokes: [],
+        texts: [{ x: 0.2, y: 0.3, text: "i never changes", color: "#ef4444" }],
+      },
+    ];
+    render(
+      <GradedQuestion
+        question={question}
+        studentAnswer={{
+          type: "image",
+          mediaKeys: ["answers/student-1/p1.png"],
+        }}
+        grade={grade}
+        annotations={textOnly}
+        isMC={false}
+        options={[]}
+        mode="diff"
+        correctAnswersVisible={false}
+        testStatus={TestStatus.Graded}
+        answerImages={[
+          {
+            key: "answers/student-1/p1.png",
+            url: "https://files.example/p1.png",
+          },
+        ]}
+      />,
+    );
+
+    // Then the student reads the grader's words on her photo
+    expect(screen.getByText("i never changes")).toBeInTheDocument();
+  });
 });

@@ -151,17 +151,20 @@ export function GradedQuestion({
             <p className="whitespace-pre-wrap text-sm">{studentText}</p>
           ) : studentAnswer.type === "image" ? (
             <div className="grid gap-3">
-              {(answerImages ?? []).map((photo) => (
-                <AnnotationOverlay
-                  key={photo.key}
-                  src={photo.url}
-                  alt="Your submitted work"
-                  strokes={
-                    annotations?.find((a) => a.mediaKey === photo.key)
-                      ?.strokes ?? []
-                  }
-                />
-              ))}
+              {(answerImages ?? []).map((photo) => {
+                const marks = annotations?.find(
+                  (a) => a.mediaKey === photo.key,
+                );
+                return (
+                  <AnnotationOverlay
+                    key={photo.key}
+                    src={photo.url}
+                    alt="Your submitted work"
+                    strokes={marks?.strokes ?? []}
+                    texts={marks?.texts ?? []}
+                  />
+                );
+              })}
             </div>
           ) : null}
         </div>

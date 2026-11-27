@@ -275,6 +275,64 @@ describe("Feature: a school admin can never grade another school's test", () => 
     ).toEqual([]);
   });
 
+  it("saveAnnotationsAction keeps the text marks typed onto a photo", async () => {
+    signInAsDefaultAdmin();
+    const own = await createForeignFixture();
+    const entries = [
+      {
+        mediaKey: "media/answer.png",
+        strokes: [],
+        texts: [{ x: 0.25, y: 0.5, text: "i never changes", color: "#ef4444" }],
+      },
+    ];
+
+    const result = await saveAnnotationsAction({
+      testId: own.testId,
+      courseId: own.courseId,
+      questionId: own.questionId,
+      studentId: own.studentId,
+      annotationsJson: JSON.stringify(entries),
+    });
+
+    expect(result.success).toBe(true);
+    expect(
+      await getTestServices().annotationService.getAnnotations(
+        own.testId,
+        own.questionId,
+        own.studentId,
+      ),
+    ).toEqual(entries);
+  });
+
+  it("saveAnnotationsAction refuses a text mark off the palette or over 200 characters and stores nothing", async () => {
+    signInAsDefaultAdmin();
+    const own = await createForeignFixture();
+    const badTexts = [
+      { x: 0.25, y: 0.5, text: "ok", color: "#ff00ff" },
+      { x: 0.25, y: 0.5, text: "a".repeat(201), color: "#ef4444" },
+    ];
+
+    for (const bad of badTexts) {
+      const result = await saveAnnotationsAction({
+        testId: own.testId,
+        courseId: own.courseId,
+        questionId: own.questionId,
+        studentId: own.studentId,
+        annotationsJson: JSON.stringify([
+          { mediaKey: "media/answer.png", strokes: [], texts: [bad] },
+        ]),
+      });
+      expect(result.success).toBe(false);
+    }
+    expect(
+      await getTestServices().annotationService.getAnnotations(
+        own.testId,
+        own.questionId,
+        own.studentId,
+      ),
+    ).toEqual([]);
+  });
+
   it("setTestFeedbackAction refuses a foreign test and writes no feedback", async () => {
     await signInAsOtherSchoolAdmin();
     const foreign = await createForeignFixture();

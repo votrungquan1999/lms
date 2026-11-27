@@ -1,3 +1,4 @@
+import type { AnnotationEntry } from "src/lib/annotation-service";
 import { describe, expect, it } from "vitest";
 import { arrowPoints, ellipsePoints } from "../annotation-shapes";
 import {
@@ -94,5 +95,22 @@ describe("annotationReducer", () => {
       "#ff0000",
     );
     expect(state.entriesByKey[KEY]).toHaveLength(1);
+  });
+
+  it("loads a stored photo entry that holds only text marks, and Undo takes the text back", () => {
+    // Given a stored entry with text marks and no stroke list
+    const textOnly = {
+      mediaKey: KEY,
+      texts: [{ x: 0.2, y: 0.3, text: "i never changes", color: "#ef4444" }],
+    } as unknown as AnnotationEntry;
+
+    // When the tool loads it
+    let state = buildInitialAnnotationState([textOnly], "#ff0000");
+    expect(state.entriesByKey[KEY]).toEqual([]);
+    expect(state.textsByKey[KEY]).toHaveLength(1);
+
+    // Then one Undo removes the text
+    state = annotationReducer(state, { type: "UNDO", mediaKey: KEY });
+    expect(state.textsByKey[KEY]).toEqual([]);
   });
 });

@@ -1,6 +1,17 @@
 import type { Collection, Db } from "mongodb";
 import type { TestService } from "./test-service";
 
+/** Marker colors a grader can draw and type with. */
+export const ANNOTATION_PALETTE = [
+  "#ef4444",
+  "#2563eb",
+  "#16a34a",
+  "#111827",
+] as const;
+
+/** Longest text mark, in characters. */
+export const ANNOTATION_TEXT_MAX_LENGTH = 200;
+
 /** A single point of a freehand annotation stroke, in normalized (0..1) coords. */
 export interface AnnotationPoint {
   x: number;
@@ -13,11 +24,21 @@ export interface AnnotationStroke {
   points: AnnotationPoint[];
 }
 
+/** A line of text a grader types onto a photo, anchored at a normalized (0..1) point. */
+export interface AnnotationText {
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+}
+
 /** A grader's annotations for one of a student's answer photos. */
 export interface AnnotationEntry {
   /** The S3 key of the photo these strokes are drawn over. */
   mediaKey: string;
   strokes: AnnotationStroke[];
+  /** Text marks; absent on photos annotated before text marks existed. */
+  texts?: AnnotationText[];
 }
 
 /**
