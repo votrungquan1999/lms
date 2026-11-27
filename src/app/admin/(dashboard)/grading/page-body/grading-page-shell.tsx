@@ -2,6 +2,7 @@ import { GradingMode } from "src/lib/grading-mode";
 import { readGradingScreen } from "src/lib/grading-screen-read";
 import { needsGrade } from "src/lib/needs-grade";
 import type { Question } from "src/lib/question-service";
+import { gradeReleaseState } from "src/lib/release-state";
 import type { Test } from "src/lib/test-service";
 import { GradingDetailQuestion } from "./grading-detail-question";
 import { GradingDetailStudent } from "./grading-detail-student";
@@ -19,6 +20,7 @@ import { gradingHref } from "./href";
 import { QuestionPicker } from "./question-picker";
 import { StudentRow } from "./question-row";
 import { buildStudentBoxes } from "./question-row-state";
+import { ReleaseMenu } from "./release-menu";
 import { StillWritingProvider } from "./still-writing-confirm";
 import { StudentPicker } from "./student-picker";
 import {
@@ -42,8 +44,6 @@ interface GradingPageShellProps {
   basePath: string;
   /** URL-driven selection. An unknown student opens the oldest waiting one, else the first graded (By question: the first who needs a grade on the question); an unknown question opens the first one (By student: her first answer to grade). */
   selection: GradingSelection;
-  /** Controls shown at the right end of the top bar. */
-  barActions?: React.ReactNode;
 }
 
 /**
@@ -59,7 +59,6 @@ export async function GradingPageShell({
   schoolId,
   basePath,
   selection,
-  barActions,
 }: GradingPageShellProps) {
   const screen = await readGradingScreen(schoolId, test);
   const { questions, students: orderedStudents } = screen;
@@ -294,7 +293,23 @@ export async function GradingPageShell({
               )
             }
             progress={<GradingProgress {...progress} />}
-            actions={barActions}
+            actions={
+              <ReleaseMenu
+                testId={test.id}
+                courseId={courseId}
+                state={gradeReleaseState(test, {
+                  releasedTo: screen.counts?.releasedTo ?? 0,
+                  fullyGraded: screen.counts?.fullyGraded ?? 0,
+                })}
+                offerGrades={
+                  !test.showGradeAfterSubmit && !test.gradesReleasedAt
+                }
+                offerCorrectAnswers={
+                  !test.showCorrectAnswerAfterSubmit &&
+                  !test.correctAnswersReleasedAt
+                }
+              />
+            }
           />
         }
         roster={null}

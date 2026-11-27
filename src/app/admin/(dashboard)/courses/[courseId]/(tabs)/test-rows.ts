@@ -2,6 +2,12 @@ import type { SchoolGradingCounts } from "src/lib/grading-count-service";
 import { pluralize } from "src/lib/pluralize";
 import { questionTypeSummary } from "src/lib/question-type-words";
 import { relativeDay } from "src/lib/relative-time";
+import {
+  GradeReleaseKind,
+  type GradeReleaseState,
+  gradeReleaseState,
+  gradeReleaseText,
+} from "src/lib/release-state";
 import type { Test } from "src/lib/test-service";
 
 export enum PillTone {
@@ -54,6 +60,22 @@ const NO_TYPE_COUNTS = {
   image_answer: 0,
 };
 
+const SEE_TONES: Record<GradeReleaseKind, PillTone> = {
+  [GradeReleaseKind.ShownOnSubmit]: PillTone.Blue,
+  [GradeReleaseKind.Released]: PillTone.Green,
+  [GradeReleaseKind.ReleasedToSome]: PillTone.Amber,
+  [GradeReleaseKind.NotReleased]: PillTone.Grey,
+};
+
+/**
+ * The pill that shows a test's release state next to a test row.
+ * @param state - The test's grade release state.
+ * @returns The pill's text and tone.
+ */
+function seeFromState(state: GradeReleaseState): TestRowPill {
+  return { text: gradeReleaseText(state), tone: SEE_TONES[state.kind] };
+}
+
 /**
  * Builds the Tests tab's rows from the course's tests and the school's grading
  * counts, keeping the tests' own (newest first) order.
@@ -91,16 +113,7 @@ export function buildTestRows(
       ? { text: "Answers as they go", tone: PillTone.Blue }
       : submitted === 0
         ? { text: "Nothing yet", tone: PillTone.Plain }
-        : test.showGradeAfterSubmit
-          ? { text: "Shown on submit", tone: PillTone.Blue }
-          : test.gradesReleasedAt
-            ? { text: "Released", tone: PillTone.Green }
-            : releasedTo > 0
-              ? {
-                  text: `Released to ${releasedTo} of ${fullyGraded}`,
-                  tone: PillTone.Amber,
-                }
-              : { text: "Not released", tone: PillTone.Grey };
+        : seeFromState(gradeReleaseState(test, { releasedTo, fullyGraded }));
 
     const action =
       waiting > 0

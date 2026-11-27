@@ -870,7 +870,7 @@ describe("Feature: GradingVariantPage", () => {
     },
   );
 
-  it("offers the correct-answer release here too, and only while it is needed", async () => {
+  it("offers Release correct answers in Release ▾ only while they are withheld", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Release Course",
@@ -889,64 +889,25 @@ describe("Feature: GradingVariantPage", () => {
         params: Promise.resolve({ testId: withheld.id }),
       }),
     );
+    await userEvent.click(screen.getByRole("button", { name: /^release/i }));
     expect(
-      screen.getByRole("button", { name: /release correct answers/i }),
+      await screen.findByRole("menuitem", { name: /release correct answers/i }),
     ).toBeInTheDocument();
     unmount();
 
-    // This page carries its own copy of the gate; without a test here the
-    // whole block could be deleted and the suite would stay green.
     await services.testService.releaseCorrectAnswers(withheld.id, "admin");
     render(
       await GradingVariantPage({
         params: Promise.resolve({ testId: withheld.id }),
       }),
     );
+    // Nothing is left to release, so the chip stands alone.
     expect(
-      screen.queryByRole("button", { name: /release correct answers/i }),
+      screen.queryByRole("button", { name: /^release/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("shows a persistent 'released at' line, reusing Test Settings' wording, once Grades or Correct Answers are released", async () => {
-    const services = getTestServices();
-    const course = await services.courseService.createCourse({
-      title: "Release Course 2",
-      description: "",
-      createdBy: "admin",
-    });
-    const test = await services.testService.createTest(course.id, {
-      title: "Delayed",
-      description: "",
-      createdBy: "admin",
-      showGradeAfterSubmit: false,
-      showCorrectAnswerAfterSubmit: false,
-    });
-
-    await services.testService.releaseGrades(test.id, "admin");
-    await services.testService.releaseCorrectAnswers(test.id, "admin");
-
-    render(
-      await GradingVariantPage({
-        params: Promise.resolve({ testId: test.id }),
-      }),
-    );
-
-    // The button is gone, replaced by the same "released at <date>" wording
-    // Test Settings already uses — not a bare success checkmark that
-    // vanishes on the next render.
-    expect(
-      screen.queryByRole("button", { name: /release grades/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /release correct answers/i }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText(/^Grades released at /)).toBeInTheDocument();
-    expect(
-      screen.getByText(/^Correct answers released at /),
-    ).toBeInTheDocument();
-  });
-
-  it("offers Release Grades only while grades are withheld and shows nothing once auto-show is on, even after a release", async () => {
+  it("offers Release grades… only while grades are withheld and shows a chip without a menu once auto-show is on", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Release Course 3",
@@ -965,8 +926,9 @@ describe("Feature: GradingVariantPage", () => {
         params: Promise.resolve({ testId: withheld.id }),
       }),
     );
+    await userEvent.click(screen.getByRole("button", { name: /^release/i }));
     expect(
-      screen.getByRole("button", { name: /release grades/i }),
+      await screen.findByRole("menuitem", { name: /release grades/i }),
     ).toBeInTheDocument();
     unmount();
 
@@ -975,20 +937,21 @@ describe("Feature: GradingVariantPage", () => {
       description: "",
       createdBy: "admin",
       showGradeAfterSubmit: true,
+      showCorrectAnswerAfterSubmit: true,
     });
-    // A stored release date must not bring the line back while auto-show is on.
+    // A stored release date must not change what an auto-show test says.
     await services.testService.releaseGrades(autoShow.id, "admin");
     render(
       await GradingVariantPage({
         params: Promise.resolve({ testId: autoShow.id }),
       }),
     );
-    // Auto-show is on — the per-test release control is moot, so it renders
-    // nothing at all, not a disabled or hidden button.
+    expect(screen.getByTestId("release-state")).toHaveTextContent(
+      "Shown on submit",
+    );
     expect(
-      screen.queryByRole("button", { name: /release grades/i }),
+      screen.queryByRole("button", { name: /^release/i }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText(/grades released/i)).not.toBeInTheDocument();
   });
 
   it("keeps Needs grading only on in the links to the next student, to By student and By question and to each student in the picker", async () => {

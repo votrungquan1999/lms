@@ -196,9 +196,7 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
 
   // ── Step 1 + Step 2b: Admin releases grades, student sees score ──────────
 
-  test("admin sees Release Grades button and releases grades", async ({
-    page,
-  }) => {
+  test("admin releases grades from Release ▾", async ({ page }) => {
     // Given: admin is on the grading page for EC Delayed Test
     await page.goto("/admin/courses");
     await page.getByText("EC Delayed Course").click();
@@ -211,13 +209,12 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
       page.getByRole("heading", { name: "Grade: EC Delayed Test" }),
     ).toBeVisible();
 
-    // When: admin clicks "Release Grades" (visible only for delayed-release tests)
-    await page.getByRole("button", { name: "Release Grades" }).click();
+    // When: admin opens Release ▾ and picks "Release grades…" (offered for delayed-release tests)
+    await page.getByRole("button", { name: /^Release .+▾$/ }).click();
+    await page.getByRole("menuitem", { name: "Release grades…" }).click();
 
-    // Then: the button is replaced by a persistent "Grades released at
-    // <date>" line — a positive signal, not the button's absence, which
-    // raced the pending "Releasing…" label before.
-    await expect(page.getByText(/grades released at/i)).toBeVisible({
+    // Then: the chip reads Released, which shows only once the release has landed and the page re-rendered.
+    await expect(page.getByTestId("release-state")).toHaveText("Released", {
       timeout: 10_000,
     });
   });

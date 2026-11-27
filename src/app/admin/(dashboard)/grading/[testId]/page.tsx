@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { GradingPageShell } from "src/app/admin/(dashboard)/grading/page-body/grading-page-shell";
-import { GradingReleaseActions } from "src/app/admin/(dashboard)/grading/page-body/grading-release-actions";
 import { GradingMode } from "src/lib/grading-mode";
 import { getPageGuard, getTestService } from "src/lib/services-singleton";
 
@@ -58,7 +57,6 @@ export default async function GradingVariantPage({
           schoolId: session.school.id,
           basePath: `/admin/grading/${testId}`,
           selection: { mode, studentId, questionId, needsOnly },
-          barActions: <GradingReleaseActions test={test} courseId={courseId} />,
         })
       }
     </div>

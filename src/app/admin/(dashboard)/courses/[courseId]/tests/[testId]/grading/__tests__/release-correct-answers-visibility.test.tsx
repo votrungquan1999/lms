@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -58,6 +59,15 @@ async function renderGradingPageFor(opts: SeedOptions) {
 }
 
 const RELEASE_CONTROL = /release correct answers/i;
+const RELEASE_MENU = /^release/i;
+
+/** Opens Release ▾ (when there is one) and returns whether it offers the correct-answers entry. */
+async function releaseMenuOffersCorrectAnswers() {
+  const trigger = screen.queryByRole("button", { name: RELEASE_MENU });
+  if (!trigger) return false;
+  await userEvent.click(trigger);
+  return screen.queryByRole("menuitem", { name: RELEASE_CONTROL }) !== null;
+}
 
 describe("Feature: the release-correct-answers control appears only when it is needed", () => {
   beforeEach(async () => {
@@ -72,17 +82,13 @@ describe("Feature: the release-correct-answers control appears only when it is n
   it("offers the release when the teacher withheld correct answers", async () => {
     await renderGradingPageFor({ showCorrectAnswerAfterSubmit: false });
 
-    expect(
-      screen.getByRole("button", { name: RELEASE_CONTROL }),
-    ).toBeInTheDocument();
+    expect(await releaseMenuOffersCorrectAnswers()).toBe(true);
   });
 
   it("does not offer it when correct answers already show automatically", async () => {
     await renderGradingPageFor({ showCorrectAnswerAfterSubmit: true });
 
-    expect(
-      screen.queryByRole("button", { name: RELEASE_CONTROL }),
-    ).not.toBeInTheDocument();
+    expect(await releaseMenuOffersCorrectAnswers()).toBe(false);
   });
 
   it("does not offer it a second time once answers have been released", async () => {
@@ -91,9 +97,7 @@ describe("Feature: the release-correct-answers control appears only when it is n
       alreadyReleased: true,
     });
 
-    expect(
-      screen.queryByRole("button", { name: RELEASE_CONTROL }),
-    ).not.toBeInTheDocument();
+    expect(await releaseMenuOffersCorrectAnswers()).toBe(false);
   });
 });
 
@@ -137,30 +141,23 @@ describe("Feature: this grading page shows when grades and correct answers were 
     );
   }
 
-  it("replaces both release buttons with a 'released at' line once each has been released", async () => {
+  it("shows Released with no menu once both have been released", async () => {
     await renderAfterBothReleases(false);
 
+    expect(screen.getByTestId("release-state")).toHaveTextContent(/^Released$/);
     expect(
-      screen.queryByRole("button", { name: /release grades/i }),
+      screen.queryByRole("button", { name: RELEASE_MENU }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: RELEASE_CONTROL }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText(/^Grades released at /)).toBeInTheDocument();
-    expect(
-      screen.getByText(/^Correct answers released at /),
-    ).toBeInTheDocument();
   });
 
-  it("shows neither a button nor a release line while both auto-show settings are on", async () => {
+  it("shows Shown on submit with no menu while both auto-show settings are on", async () => {
     await renderAfterBothReleases(true);
 
+    expect(screen.getByTestId("release-state")).toHaveTextContent(
+      "Shown on submit",
+    );
     expect(
-      screen.queryByRole("button", { name: /release grades/i }),
+      screen.queryByRole("button", { name: RELEASE_MENU }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: RELEASE_CONTROL }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText(/released at/i)).not.toBeInTheDocument();
   });
 });

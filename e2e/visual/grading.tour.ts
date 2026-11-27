@@ -286,11 +286,12 @@ test("grading: course-scoped page with the release controls", async ({
   await expect(
     page.getByRole("heading", { name: "Grade: Sandbox: All visibility OFF" }),
   ).toBeVisible({ timeout: 60_000 });
+  await page.getByRole("button", { name: /^Release .+▾$/ }).click();
   await expect(
-    page.getByRole("button", { name: "Release Grades" }),
+    page.getByRole("menuitem", { name: "Release grades…" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Release Correct Answers" }),
+    page.getByRole("menuitem", { name: "Release correct answers" }),
   ).toBeVisible();
   await snap(page, "grading/course-scoped-unreleased", {
     sources: [
@@ -324,12 +325,12 @@ test("grading: empty roster and the grade-release control", async ({
     ],
   });
 
-  // Releasing revalidates the page, which drops the whole control — the
-  // "Grades released ✓" confirmation never survives to be captured.
-  await page.getByRole("button", { name: "Release Grades" }).click();
-  await expect(
-    page.getByRole("button", { name: "Release Grades" }),
-  ).toHaveCount(0, { timeout: 30_000 });
+  // Releasing revalidates the page, so the chip reads Released.
+  await page.getByRole("button", { name: /^Release .+▾$/ }).click();
+  await page.getByRole("menuitem", { name: "Release grades…" }).click();
+  await expect(page.getByTestId("release-state")).toHaveText("Released", {
+    timeout: 30_000,
+  });
   await snap(page, "grading/grades-released", {
     sources: [
       "src/app/admin/(dashboard)/grading/[testId]/page.tsx",

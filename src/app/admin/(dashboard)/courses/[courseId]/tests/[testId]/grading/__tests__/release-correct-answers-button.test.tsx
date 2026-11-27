@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ReleaseMenu } from "src/app/admin/(dashboard)/grading/page-body/release-menu";
+import { GradeReleaseKind } from "src/lib/release-state";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ReleaseCorrectAnswersButton } from "../grading-forms";
 
 // `vi.hoisted` — `vi.mock` is lifted above every top-level const, so a plain
 // one would still be uninitialised when the factory runs.
@@ -10,14 +11,13 @@ const { releaseCorrectAnswersAction } = vi.hoisted(() => ({
   releaseCorrectAnswersAction: vi.fn(),
 }));
 
-vi.mock("../actions", () => ({
-  setTestFeedbackAction: vi.fn(),
-  releaseGradesAction: vi.fn(),
-  requestRedoAction: vi.fn(),
-  releaseGradeForStudentAction: vi.fn(),
-  saveAndNextAction: vi.fn(),
-  releaseCorrectAnswersAction,
-}));
+vi.mock(
+  "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions",
+  () => ({
+    releaseGradesAction: vi.fn(),
+    releaseCorrectAnswersAction,
+  }),
+);
 
 beforeEach(() => {
   releaseCorrectAnswersAction.mockReset();
@@ -27,13 +27,22 @@ beforeEach(() => {
   });
 });
 
-describe("Feature: the release-correct-answers control", () => {
+describe("Feature: the release-correct-answers entry of Release ▾", () => {
   it("releases the correct answers for the test it was given", async () => {
     const user = userEvent.setup();
-    render(<ReleaseCorrectAnswersButton testId="test-1" courseId="course-1" />);
+    render(
+      <ReleaseMenu
+        testId="test-1"
+        courseId="course-1"
+        state={{ kind: GradeReleaseKind.Released }}
+        offerGrades={false}
+        offerCorrectAnswers
+      />,
+    );
 
+    await user.click(screen.getByRole("button", { name: /^release/i }));
     await user.click(
-      screen.getByRole("button", { name: /release correct answers/i }),
+      await screen.findByRole("menuitem", { name: /release correct answers/i }),
     );
 
     expect(releaseCorrectAnswersAction).toHaveBeenCalledTimes(1);
