@@ -61,6 +61,12 @@ async function renderWithSuggestions(
     studentId: string;
     answerId: string;
   }) => AiGradeSuggestionDocument[],
+  /** Runs after the suggestions are saved and before the page renders. */
+  prepare?: (ids: {
+    testId: string;
+    questionId: string;
+    studentId: string;
+  }) => Promise<void>,
 ) {
   const services = getTestServices();
   const course = await services.courseService.createCourse({
@@ -109,6 +115,12 @@ async function renderWithSuggestions(
       answerId: answer?.id ?? "",
     }),
   );
+
+  await prepare?.({
+    testId: testDoc.id,
+    questionId: question.id,
+    studentId: student.id,
+  });
 
   render(
     await GradingDetailStudent({
@@ -165,7 +177,7 @@ describe("Feature: the AI suggestion card in the grade panel", () => {
     expect(card).toHaveTextContent("Regen reason: be stricter");
   });
 
-  it("shows each older suggestion's own fix, folded, next to its own apply button", async () => {
+  it("shows each older suggestion's own fix, folded, next to its own Use button", async () => {
     await renderWithSuggestions(db, (ids) => [
       suggestion({
         id: "s-new",
@@ -206,10 +218,10 @@ describe("Feature: the AI suggestion card in the grade panel", () => {
       }),
     );
 
-    // Then: that row shows its own fix beside its apply button, and the middle row stays folded
+    // Then: that row shows its own fix beside its Use button, and the middle row stays folded
     expect(oldest).toHaveTextContent("oldest fix");
     expect(
-      within(oldest as HTMLElement).getByRole("button", { name: /apply/i }),
+      within(oldest as HTMLElement).getByRole("button", { name: /^use/i }),
     ).toBeInTheDocument();
     expect(middle).not.toHaveTextContent("middle fix");
   });
@@ -239,5 +251,159 @@ describe("Feature: the AI suggestion card in the grade panel", () => {
       "data-suggestion-id",
       "s-b",
     );
+  });
+
+  it("offers Use, which says what it saves, on a suggestion that has not been used", async () => {
+    await renderWithSuggestions(db, (ids) => [
+      suggestion({ id: "s-1", ...ids, gradedAgainstAnswerId: ids.answerId }),
+    ]);
+
+    const row = screen.getByTestId("ai-suggestion-row");
+    expect(
+      within(row).getByRole("button", {
+        name: "Use · saves score, feedback & solution",
+      }),
+    ).toBeEnabled();
+    expect(within(row).queryByTestId("ai-suggestion-applied-badge")).toBeNull();
+  });
+
+  it("shows Used on the suggestion whose score, feedback and solution are the saved grade", async () => {
+    await renderWithSuggestions(
+      db,
+      (ids) => [
+        suggestion({
+          id: "s-1",
+          ...ids,
+          gradedAgainstAnswerId: ids.answerId,
+          score: 64,
+          feedback: "ok work",
+          solution: "line a\nline B\nline c",
+        }),
+      ],
+      async ({ testId, studentId }) => {
+        await getTestServices().aiGradeService.applySuggestion(
+          "s-1",
+          "admin-1",
+          { testId, studentId },
+        );
+      },
+    );
+
+    const row = screen.getByTestId("ai-suggestion-row");
+    expect(
+      within(row).getByTestId("ai-suggestion-applied-badge"),
+    ).toHaveTextContent("Used");
+    expect(
+      within(screen.getByTestId("grade-card")).getByLabelText(/Score/),
+    ).toHaveValue(64);
+  });
+
+  it("offers Use again, without Used, once the teacher has changed the grade by hand after using a suggestion", async () => {
+    await renderWithSuggestions(
+      db,
+      (ids) => [
+        suggestion({
+          id: "s-1",
+          ...ids,
+          gradedAgainstAnswerId: ids.answerId,
+          score: 64,
+          feedback: "ok work",
+        }),
+      ],
+      async ({ testId, questionId, studentId }) => {
+        const services = getTestServices();
+        await services.aiGradeService.applySuggestion("s-1", "admin-1", {
+          testId,
+          studentId,
+        });
+        await services.gradeService.gradeQuestion({
+          testId,
+          questionId,
+          studentId,
+          score: 90,
+          feedback: "ok work",
+          gradedBy: "admin-1",
+        });
+      },
+    );
+
+    const row = screen.getByTestId("ai-suggestion-row");
+    expect(within(row).queryByTestId("ai-suggestion-applied-badge")).toBeNull();
+    expect(
+      within(row).getByRole("button", {
+        name: "Use · saves score, feedback & solution",
+      }),
+    ).toBeEnabled();
+  });
+
+  it.each([
+    { changed: "feedback", feedback: "better work", solution: "fix" },
+    { changed: "solution", feedback: "ok work", solution: "another fix" },
+  ])(
+    "drops Used once the teacher has changed only the $changed by hand after using a suggestion",
+    async ({ feedback, solution }) => {
+      await renderWithSuggestions(
+        db,
+        (ids) => [
+          suggestion({
+            id: "s-1",
+            ...ids,
+            gradedAgainstAnswerId: ids.answerId,
+            score: 64,
+            feedback: "ok work",
+            solution: "fix",
+          }),
+        ],
+        async ({ testId, questionId, studentId }) => {
+          const services = getTestServices();
+          await services.aiGradeService.applySuggestion("s-1", "admin-1", {
+            testId,
+            studentId,
+          });
+          await services.gradeService.gradeQuestion({
+            testId,
+            questionId,
+            studentId,
+            score: 64,
+            feedback,
+            solution,
+            gradedBy: "admin-1",
+          });
+        },
+      );
+
+      const row = screen.getByTestId("ai-suggestion-row");
+      expect(
+        within(row).queryByTestId("ai-suggestion-applied-badge"),
+      ).toBeNull();
+    },
+  );
+
+  it("shows Used on a suggestion with no fix once it is used, though the saved grade has no solution either", async () => {
+    await renderWithSuggestions(
+      db,
+      (ids) => [
+        suggestion({
+          id: "s-1",
+          ...ids,
+          gradedAgainstAnswerId: ids.answerId,
+          score: 64,
+          feedback: "ok work",
+        }),
+      ],
+      async ({ testId, studentId }) => {
+        await getTestServices().aiGradeService.applySuggestion(
+          "s-1",
+          "admin-1",
+          { testId, studentId },
+        );
+      },
+    );
+
+    expect(
+      within(screen.getByTestId("ai-suggestion-row")).getByTestId(
+        "ai-suggestion-applied-badge",
+      ),
+    ).toHaveTextContent("Used");
   });
 });

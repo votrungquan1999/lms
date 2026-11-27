@@ -357,6 +357,13 @@ export async function GradingDetailStudent({
                     latestAnswerId={
                       latestAnswerIdByQuestion.get(selectedQuestion.id) ?? null
                     }
+                    savedGrade={
+                      selectedGrade && {
+                        score: selectedGrade.score,
+                        feedback: selectedGrade.feedback,
+                        solution: selectedGrade.solution ?? null,
+                      }
+                    }
                     studentAnswer={
                       selectedAnswer?.type === "free_text"
                         ? selectedAnswer.text

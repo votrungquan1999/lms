@@ -32,6 +32,8 @@ interface AiSuggestionPanelProps {
   latestAnswerId?: string | null;
   /** The student's current answer text, which the latest suggestion's fix is compared with. */
   studentAnswer?: string;
+  /** The grade saved now; a suggestion only reads as used while the grade still equals it. */
+  savedGrade?: { score: number; feedback: string; solution: string | null };
   /**
    * When true the history (`suggestions.slice(1)`) is expanded on first
    * render. Useful for tests; defaults to false in production usage.
@@ -50,18 +52,19 @@ interface SuggestionRowProps {
   /** The row is the latest suggestion, whose fix is shown on the left. */
   isLatest: boolean;
   studentAnswer?: string;
+  savedGrade?: AiSuggestionPanelProps["savedGrade"];
 }
 
 /**
  * AI suggestion panel — renders the latest suggestion plus a toggle to reveal
- * the rest of the history newest-first. Each row carries an inline Apply form
+ * the rest of the history newest-first. Each row carries an inline Use form
  * posting to `applyAiSuggestionAction`. The exclusive-applied invariant is
- * enforced server-side; this component does not gate Apply by row identity.
+ * enforced server-side; this component does not gate Use by row identity.
  *
  * Stable selectors for tests (per testing-pillars Resilience):
  *   - `data-testid="ai-suggestion-row"` on every row
  *   - `data-suggestion-id={row.id}` on every row
- *   - `data-applied={row.appliedAt ? "true" : "false"}` on every row
+ *   - `data-applied="true"` on the row that reads "Used" (applied and still equal to the saved grade)
  *   - `data-testid="ai-suggestion-history-toggle"` on the View History button
  */
 export function AiSuggestionPanel({
@@ -72,6 +75,7 @@ export function AiSuggestionPanel({
   suggestions,
   latestAnswerId = null,
   studentAnswer,
+  savedGrade,
   defaultHistoryOpen = false,
   regenerateDisabled = false,
 }: AiSuggestionPanelProps) {
@@ -116,6 +120,7 @@ export function AiSuggestionPanel({
         isStale={isRowStale(latest)}
         isLatest
         studentAnswer={studentAnswer}
+        savedGrade={savedGrade}
       />
 
       {older.length > 0 && (
@@ -142,6 +147,7 @@ export function AiSuggestionPanel({
                     isStale={isRowStale(row)}
                     isLatest={false}
                     studentAnswer={studentAnswer}
+                    savedGrade={savedGrade}
                   />
                 </li>
               ))}
@@ -155,7 +161,7 @@ export function AiSuggestionPanel({
 
 /**
  * Single suggestion row — renders the score, feedback, model, regenerate
- * reason (if any), applied marker, and an Apply submit button posting to
+ * reason (if any), the "Used" marker, and a Use submit button posting to
  * `applyAiSuggestionAction`.
  */
 function SuggestionRow({
@@ -166,6 +172,7 @@ function SuggestionRow({
   isStale,
   isLatest,
   studentAnswer,
+  savedGrade,
 }: SuggestionRowProps) {
   const [state, formAction, isPending] = useActionState<
     ApplyAiSuggestionState | null,
@@ -175,7 +182,14 @@ function SuggestionRow({
   // An older suggestion's fix is not on the left, so its row can unfold it before the teacher uses it.
   const [fixOpen, setFixOpen] = useState(false);
 
-  const applied = suggestion.appliedAt !== null;
+  // A hand edit after using the suggestion makes the grade differ from it, so the row stops reading as used.
+  const applied =
+    suggestion.appliedAt !== null &&
+    savedGrade !== undefined &&
+    savedGrade.score === suggestion.score &&
+    savedGrade.feedback === suggestion.feedback &&
+    (typeof suggestion.solution !== "string" ||
+      savedGrade.solution === suggestion.solution);
   const fix =
     typeof suggestion.solution === "string" ? suggestion.solution : null;
   const fixLines = fix === null ? 0 : lineDiffCount(studentAnswer ?? "", fix);
@@ -192,7 +206,7 @@ function SuggestionRow({
         <span className="font-medium">{suggestion.score} / 100</span>
         {applied && (
           <Badge variant="default" data-testid="ai-suggestion-applied-badge">
-            Applied
+            Used
           </Badge>
         )}
         {isStale && (
@@ -256,7 +270,7 @@ function SuggestionRow({
           disabled={isPending}
           data-testid="ai-suggestion-apply-button"
         >
-          {isPending ? "Applying…" : "Apply"}
+          {isPending ? "Using…" : "Use · saves score, feedback & solution"}
         </Button>
         {state?.message && (
           <p

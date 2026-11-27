@@ -11,7 +11,7 @@ import { AutoGradeWithAiButton } from "../auto-grade-with-ai-button";
  * Feature: AI Suggestion Panel for Admin Grading Page (Step 7)
  *
  * As a teacher
- * I want to expand a suggestion's history and pick a non-latest row to Apply
+ * I want to expand a suggestion's history and pick a non-latest row to Use
  * So that I can switch the official grade between any prior AI suggestion.
  */
 
@@ -36,7 +36,7 @@ function buildSuggestion(
 }
 
 describe("Feature: AiSuggestionPanel history expansion (Step 7)", () => {
-  it("given three suggestions newest-first and the history opened on first render, when the panel renders, then three rows are visible each with a stable data-suggestion-id attribute and an Apply button", () => {
+  it("given three suggestions newest-first and the history opened on first render, when the panel renders, then three rows are visible each with a stable data-suggestion-id attribute and a Use button", () => {
     // Given: a panel populated with three suggestions, sorted newest-first.
     const suggestions: AiGradeSuggestion[] = [
       buildSuggestion({
@@ -70,6 +70,7 @@ describe("Feature: AiSuggestionPanel history expansion (Step 7)", () => {
         studentId="student-1"
         questionId="q-1"
         suggestions={suggestions}
+        savedGrade={{ score: 60, feedback: "oldest", solution: null }}
         defaultHistoryOpen={true}
       />,
     );
@@ -89,16 +90,16 @@ describe("Feature: AiSuggestionPanel history expansion (Step 7)", () => {
     expect(middleRow.getAttribute("data-applied")).toBe("false");
     expect(oldestRow.getAttribute("data-applied")).toBe("true");
 
-    // Then: every row carries its own Apply submit button.
+    // Then: every row carries its own Use submit button.
     for (const row of rows) {
-      const applyButton = within(row).getByRole("button", { name: /apply/i });
+      const applyButton = within(row).getByRole("button", { name: /^use/i });
       expect(applyButton).toBeInTheDocument();
     }
 
-    // Then: the previously-applied row shows the "Applied" badge.
+    // Then: the previously-used row shows the "Used" badge.
     expect(
       within(oldestRow).getByTestId("ai-suggestion-applied-badge"),
-    ).toHaveTextContent(/applied/i);
+    ).toHaveTextContent(/used/i);
   });
 });
 
