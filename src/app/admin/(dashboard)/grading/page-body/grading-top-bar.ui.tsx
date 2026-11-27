@@ -52,7 +52,8 @@ export function GradingTopBar({
 }
 
 interface StudentPositionProps {
-  name: string;
+  /** The student picker, naming the student on screen. */
+  picker: ReactNode;
   /** 1-based place among the submitted students; null when the student is not one of them. */
   index: number | null;
   submittedCount: number;
@@ -61,9 +62,9 @@ interface StudentPositionProps {
   nextHref: string | null;
 }
 
-/** The current student with ‹ k of N submitted › to step through the students who handed in. */
+/** The student picker with ‹ k of N submitted › to step through the students who handed in. */
 export function StudentPosition({
-  name,
+  picker,
   index,
   submittedCount,
   previousHref,
@@ -74,7 +75,7 @@ export function StudentPosition({
       className="flex min-w-0 items-center gap-2 text-sm"
       data-testid="grading-student-position"
     >
-      <span className="truncate font-medium">{name}</span>
+      {picker}
       <StepControl href={previousHref} label="Previous submitted student">
         ‹
       </StepControl>

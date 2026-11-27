@@ -177,11 +177,13 @@ test.describe("Grading Hub Flow", () => {
     await expect(
       page.getByRole("heading", { name: new RegExp(`Grade: ${TEST_TITLE}`) }),
     ).toBeVisible();
-    // The student's card has a Submitted badge (data-status='submitted').
-    const submittedBadge = page
-      .locator(`[data-student-name="${STUDENT_NAME}"]`)
-      .locator('[data-status="submitted"]');
-    await expect(submittedBadge).toBeVisible({ timeout: 10000 });
-    await expect(submittedBadge).toHaveText(/Submitted/i);
+    // The student picker lists the submitted student under Needs grading.
+    await page.getByRole("button", { name: "Student picker" }).click();
+    await expect(page.getByText("Needs grading · 1")).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(
+      page.getByRole("menuitem", { name: new RegExp(STUDENT_NAME) }),
+    ).toBeVisible();
   });
 });

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
@@ -29,6 +30,17 @@ vi.mock("src/lib/auth-singleton", () => ({
       .mockResolvedValue({ userId: "admin-1", school: TEST_SCHOOL }),
   }),
 }));
+
+/** The group headers of the student picker, in order. */
+async function pickerGroups(): Promise<(string | undefined)[]> {
+  await userEvent.click(
+    screen.getByRole("button", { name: /student picker/i }),
+  );
+  const menu = await screen.findByRole("menu");
+  return [...menu.querySelectorAll('[data-slot="dropdown-menu-label"]')].map(
+    (el) => el.textContent?.trim(),
+  );
+}
 
 describe("Feature: Admin grading hub treats a submitted test with one blank question as fully graded once the answered question is graded", () => {
   beforeEach(async () => {
@@ -116,7 +128,7 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     const card = await screen.findByTestId(`student-card-${student.id}`);
     expect(within(card).getByRole("link", { name: "Q1 graded" })).toBeVisible();
     expect(within(card).getByRole("link", { name: "Q2 blank" })).toBeVisible();
-    expect(within(card).getByText("Graded")).toBeInTheDocument();
+    expect(await pickerGroups()).toEqual(["Graded · 1"]);
     // And the blank free-text question reads as a counted 0 for a Graded
     // student, not as an answer still to come.
     expect(
@@ -314,14 +326,14 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     });
     render(ui);
 
-    // Then: neither the roster cell nor the question row admits a blank yet.
-    const cell = screen.getByTestId(`roster-cell-${student.id}`);
-    expect(within(cell).getByText("0/1 graded")).toBeInTheDocument();
+    // Then: neither the picker nor the question row admits a blank yet.
     const card = screen.getByTestId(`student-card-${student.id}`);
     expect(
       within(card).getByRole("link", { name: "Q1 needs grading" }),
     ).toBeVisible();
     expect(within(card).queryByRole("link", { name: /blank/ })).toBeNull();
+    expect(screen.queryByText(/blank/)).toBeNull();
+    expect(await pickerGroups()).toEqual(["Still writing · 1"]);
     expect(screen.queryByText(/blank/)).toBeNull();
   });
 
@@ -394,16 +406,14 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     });
     render(ui);
 
-    // Then: the roster cell reads "1/1 graded" and the question row shows
+    // Then: the student reads "1/1 graded" and the question row shows
     // only the live question — the deleted question's dangling answer
     // inflates nothing and leaves no blank box — and the status badge
     // reads Graded, not stuck at Submitted.
-    const cell = screen.getByTestId(`roster-cell-${student.id}`);
-    expect(within(cell).getByText("1/1 graded")).toBeInTheDocument();
     const card = screen.getByTestId(`student-card-${student.id}`);
     expect(within(card).getAllByRole("link", { name: /^Q\d/ })).toHaveLength(1);
     expect(within(card).getByRole("link", { name: "Q1 graded" })).toBeVisible();
-    expect(within(card).getByText("Graded")).toBeInTheDocument();
+    expect(await pickerGroups()).toEqual(["Graded · 1"]);
     expect(screen.queryByText(/blank/)).toBeNull();
   });
 
@@ -474,12 +484,11 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     render(ui);
 
     // Then: the deleted question's leftover grade is not counted — the
-    // roster cell reads "1/1 graded", never "2/1", and the question row
+    // student reads "1/1 graded", never "2/1", and the question row
     // has one box.
-    const cell = screen.getByTestId(`roster-cell-${student.id}`);
-    expect(within(cell).getByText("1/1 graded")).toBeInTheDocument();
     const card = screen.getByTestId(`student-card-${student.id}`);
     expect(within(card).getAllByRole("link", { name: /^Q\d/ })).toHaveLength(1);
     expect(within(card).getByRole("link", { name: "Q1 graded" })).toBeVisible();
+    expect(await pickerGroups()).toEqual(["Graded · 1"]);
   });
 });

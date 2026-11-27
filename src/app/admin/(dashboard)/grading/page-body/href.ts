@@ -1,12 +1,11 @@
 import { GradingMode } from "src/lib/grading-mode";
-import { GradingRouteKind, GradingSort } from "./grading-page-body.type";
+import { GradingRouteKind } from "./grading-page-body.type";
 
 interface GradingHrefInput {
   basePath: string;
   mode?: GradingMode;
   studentId?: string;
   questionId?: string;
-  sort?: GradingSort;
   /** Keep only the answers that need a grade in the question row. */
   needsOnly?: boolean;
 }
@@ -23,9 +22,6 @@ export function gradingHref(input: GradingHrefInput): string {
 
   if (input.studentId) params.set("studentId", input.studentId);
   if (input.questionId) params.set("questionId", input.questionId);
-  if (input.sort && input.sort !== GradingSort.Enrollment) {
-    params.set("sort", input.sort);
-  }
   if (input.needsOnly) params.set("needsOnly", "1");
 
   const qs = params.toString();

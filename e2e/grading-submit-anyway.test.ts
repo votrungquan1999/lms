@@ -35,7 +35,9 @@ test.describe("Grading a student who is still writing", () => {
     await page.goto(
       `/admin/courses/${courseId}/tests/${testId}/grading?studentId=${studentId}`,
     );
-    await expect(page.getByText("In Progress").first()).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Student picker" }),
+    ).toBeVisible();
 
     const gradeCard = page.getByTestId("grade-card");
     await gradeCard.getByLabel("Score (0–100):").fill("73");

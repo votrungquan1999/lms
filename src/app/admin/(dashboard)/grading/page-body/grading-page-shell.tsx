@@ -2,28 +2,27 @@ import { GradingMode } from "src/lib/grading-mode";
 import { readGradingScreen } from "src/lib/grading-screen-read";
 import { needsGrade } from "src/lib/needs-grade";
 import type { Test } from "src/lib/test-service";
-import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
+import { hasSubmitted } from "src/lib/test-status-service";
 import { GradingDetailQuestion } from "./grading-detail-question";
 import { GradingDetailStudent } from "./grading-detail-student";
-import {
-  GradingSort,
-  type RosterStudentCellModel,
-} from "./grading-page-body.type";
 import {
   GradingProgress,
   PivotToggle,
   TwoPaneShell,
 } from "./grading-page-shell.ui";
-import { GradingRoster } from "./grading-roster";
 import { GradingRosterQuestions } from "./grading-roster-questions";
 import { GradingTopBar, StudentPosition } from "./grading-top-bar.ui";
 import { gradingHref } from "./href";
+import { StudentPicker } from "./student-picker";
+import {
+  buildStudentPickerRows,
+  StudentPickerGroup,
+} from "./student-picker-rows";
 
 interface GradingSelection {
   mode: GradingMode;
   studentId?: string;
   questionId?: string;
-  sort: GradingSort;
   needsOnly?: boolean;
 }
 
@@ -32,19 +31,19 @@ interface GradingPageShellProps {
   courseId: string;
   /** The page's school — never resolved here. */
   schoolId: string;
-  /** Base URL (no query string) used to build roster cell + pivot toggle hrefs. */
+  /** Base URL (no query string) every grading link on the page is built on; also tells Save & next which route it is on. */
   basePath: string;
-  /** URL-driven selection. Unknown ids soft-fall-back to the first student/question. */
+  /** URL-driven selection. An unknown student opens the oldest waiting one, else the first graded; an unknown question opens the first one (By student: her first answer to grade). */
   selection: GradingSelection;
   /** Controls shown at the right end of the top bar. */
   barActions?: React.ReactNode;
 }
 
 /**
- * Grading shell: a top bar over a roster and the focused detail. Student-mode
- * renders the student roster on the left and the focused student's full detail
- * on the right. Question-mode swaps the roster to a list of questions and the
- * right pane to one row per enrolled student for the focused question.
+ * Grading shell: a top bar over the focused detail. By student puts the
+ * student picker and ‹ › in the top bar and the student's full detail below.
+ * By question adds a question list on the left and one row per enrolled
+ * student for the focused question on the right.
  */
 export async function GradingPageShell({
   test,
@@ -57,33 +56,22 @@ export async function GradingPageShell({
   const screen = await readGradingScreen(schoolId, test);
   const { questions, students: orderedStudents } = screen;
 
-  const cellsInEnrollmentOrder: RosterStudentCellModel[] = orderedStudents.map(
-    (s) => {
-      const status = screen.pairs.get(s.id)?.status ?? TestStatus.NotStarted;
-      const answeredCount = screen.answers.get(s.id)?.size ?? 0;
-      return {
-        id: s.id,
-        name: s.name,
-        username: s.username,
-        status,
-        gradedCount: screen.grades.get(s.id)?.size ?? 0,
-        answeredCount,
-        // A question is only "blank" once the student can no longer answer it.
-        blankCount: hasSubmitted(status) ? questions.length - answeredCount : 0,
-      };
-    },
-  );
-
-  // Apply the selected sort. Tiebreaker is enrollment index (newest-first),
-  // which matches the legacy body's behavior for status sort.
-  const cells = sortCells(cellsInEnrollmentOrder, selection.sort);
-  const sortedStudentIds = cells.map((c) => c.id);
+  const pickerRows = buildStudentPickerRows({
+    students: orderedStudents,
+    pairs: screen.pairs,
+    answers: screen.answers,
+    questionCount: questions.length,
+  });
   const studentByIdLookup = new Map(orderedStudents.map((s) => [s.id, s]));
 
+  // Without a valid ?studentId= the oldest waiting student opens, else the first graded one.
   const requestedId = selection.studentId;
+  const defaultRow =
+    pickerRows.find((r) => r.group === StudentPickerGroup.NeedsGrading) ??
+    pickerRows.find((r) => r.group === StudentPickerGroup.Graded);
   const focused =
     (requestedId && studentByIdLookup.get(requestedId)) ||
-    studentByIdLookup.get(sortedStudentIds[0] ?? "") ||
+    (defaultRow && studentByIdLookup.get(defaultRow.id)) ||
     null;
 
   const requestedQuestionId = selection.questionId;
@@ -116,14 +104,11 @@ export async function GradingPageShell({
           courseId,
           schoolId,
           questionId: focusedQuestion.id,
-          students: sortedStudentIds
-            .map((id) => studentByIdLookup.get(id))
-            .filter((s): s is NonNullable<typeof s> => s !== undefined)
-            .map((s) => ({
-              id: s.id,
-              name: s.name,
-              username: s.username,
-            })),
+          students: orderedStudents.map((s) => ({
+            id: s.id,
+            name: s.name,
+            username: s.username,
+          })),
           basePath,
         })
       ) : (
@@ -131,7 +116,7 @@ export async function GradingPageShell({
           This test has no questions yet.
         </p>
       )
-    ) : focused && questions.length === 0 ? (
+    ) : orderedStudents.length > 0 && questions.length === 0 ? (
       <p className="text-sm text-muted-foreground">
         This test has no questions yet.
       </p>
@@ -150,12 +135,13 @@ export async function GradingPageShell({
             student: focused,
             questionId: focusedQuestion?.id,
             basePath,
-            sort: selection.sort,
             needsOnly: selection.needsOnly,
             screen,
           })
         }
       </>
+    ) : orderedStudents.length > 0 ? (
+      <p className="text-sm text-muted-foreground">Nobody has submitted yet.</p>
     ) : (
       <p className="text-sm text-muted-foreground">
         No students enrolled in this course yet.
@@ -171,13 +157,15 @@ export async function GradingPageShell({
     label: "fully graded",
   };
   if (selection.mode === GradingMode.Question && focusedQuestion) {
-    const resolved = cellsInEnrollmentOrder.filter((c) => {
-      if (screen.grades.get(c.id)?.has(focusedQuestion.id)) return true;
+    const resolved = orderedStudents.filter((student) => {
+      if (screen.grades.get(student.id)?.has(focusedQuestion.id)) return true;
       // No grade row: only a submitted student's blank counts as
       // resolved — an in-progress student may still go back and answer.
+      const status = screen.pairs.get(student.id)?.status;
       return (
-        hasSubmitted(c.status) &&
-        !screen.answers.get(c.id)?.has(focusedQuestion.id)
+        status !== undefined &&
+        hasSubmitted(status) &&
+        !screen.answers.get(student.id)?.has(focusedQuestion.id)
       );
     });
     progress = {
@@ -187,10 +175,14 @@ export async function GradingPageShell({
     };
   }
 
-  // ‹ › step through the students who handed in, in roster order.
-  const submittedIds = cells
-    .filter((c) => hasSubmitted(c.status))
-    .map((c) => c.id);
+  // ‹ › step through the students who handed in, in picker order.
+  const submittedIds = pickerRows
+    .filter(
+      (r) =>
+        r.group === StudentPickerGroup.NeedsGrading ||
+        r.group === StudentPickerGroup.Graded,
+    )
+    .map((r) => r.id);
   const focusedIndex = focused ? submittedIds.indexOf(focused.id) : -1;
   const studentHref = (id: string | undefined) =>
     id === undefined
@@ -199,7 +191,6 @@ export async function GradingPageShell({
           basePath,
           mode: GradingMode.Student,
           studentId: id,
-          sort: selection.sort,
           needsOnly: selection.needsOnly,
         });
   // A student outside the list opens the first one with › and the last with ‹.
@@ -226,9 +217,17 @@ export async function GradingPageShell({
             />
           }
           position={
-            selection.mode === GradingMode.Student && focused ? (
+            selection.mode === GradingMode.Student ? (
               <StudentPosition
-                name={focused.name}
+                picker={
+                  <StudentPicker
+                    rows={pickerRows}
+                    currentId={focused?.id ?? null}
+                    currentName={focused?.name ?? null}
+                    basePath={basePath}
+                    needsOnly={selection.needsOnly}
+                  />
+                }
                 index={focusedIndex === -1 ? null : focusedIndex + 1}
                 submittedCount={submittedIds.length}
                 previousHref={studentHref(previousId)}
@@ -247,59 +246,10 @@ export async function GradingPageShell({
             basePath={basePath}
             activeQuestionId={focusedQuestion?.id ?? null}
           />
-        ) : (
-          <GradingRoster
-            cells={cells}
-            basePath={basePath}
-            activeStudentId={focused?.id ?? null}
-            sort={selection.sort}
-            needsOnly={selection.needsOnly}
-          />
-        )
+        ) : null
       }
       main={main}
       fillScreen={selection.mode === GradingMode.Student}
     />
   );
-}
-
-const STATUS_SORT_RANK: Record<TestStatus, number> = {
-  [TestStatus.Submitted]: 0,
-  [TestStatus.InProgress]: 1,
-  [TestStatus.NotStarted]: 2,
-  [TestStatus.Graded]: 3,
-};
-
-/**
- * Applies the URL-selected sort to the roster cells. The input order is
- * enrollment order (newest-first); that order is the tiebreaker for every
- * sort criterion, matching the legacy body's status-sort behavior.
- */
-function sortCells(
-  enrollmentOrder: RosterStudentCellModel[],
-  sort: GradingSort,
-): RosterStudentCellModel[] {
-  // Capture enrollment index per id BEFORE sorting so the tiebreaker is stable.
-  const indexById = new Map(enrollmentOrder.map((c, i) => [c.id, i]));
-  const indexed = [...enrollmentOrder];
-
-  switch (sort) {
-    case GradingSort.Name:
-      indexed.sort((a, b) => {
-        const byName = a.name.localeCompare(b.name);
-        if (byName !== 0) return byName;
-        return (indexById.get(a.id) ?? 0) - (indexById.get(b.id) ?? 0);
-      });
-      return indexed;
-    case GradingSort.Status:
-      indexed.sort((a, b) => {
-        const byStatus =
-          STATUS_SORT_RANK[a.status] - STATUS_SORT_RANK[b.status];
-        if (byStatus !== 0) return byStatus;
-        return (indexById.get(a.id) ?? 0) - (indexById.get(b.id) ?? 0);
-      });
-      return indexed;
-    default:
-      return enrollmentOrder;
-  }
 }

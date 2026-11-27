@@ -2,7 +2,6 @@ import type { StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
 import { GradingMode } from "src/lib/grading-mode";
 import type { Question } from "src/lib/question-service";
-import type { GradingSort } from "./grading-page-body.type";
 import { gradingHref } from "./href";
 import { QuestionRowUi } from "./question-row.ui";
 import {
@@ -22,7 +21,6 @@ interface QuestionRowProps {
   handedIn: boolean;
   isPractice: boolean;
   basePath: string;
-  sort?: GradingSort;
   needsOnly: boolean;
 }
 
@@ -36,7 +34,6 @@ export function QuestionRow({
   handedIn,
   isPractice,
   basePath,
-  sort,
   needsOnly,
 }: QuestionRowProps) {
   const boxes = questions.map((question) => ({
@@ -54,7 +51,6 @@ export function QuestionRow({
       mode: GradingMode.Student,
       studentId,
       questionId: question.id,
-      sort,
       needsOnly,
     }),
     current: question.id === currentQuestionId,
@@ -76,7 +72,6 @@ export function QuestionRow({
         mode: GradingMode.Student,
         studentId,
         questionId: currentQuestionId,
-        sort,
         needsOnly: !needsOnly,
       })}
       nothingNeedsGrading={

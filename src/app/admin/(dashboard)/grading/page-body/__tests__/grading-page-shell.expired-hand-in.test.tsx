@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Db } from "mongodb";
 import { GradingMode } from "src/lib/grading-mode";
 import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
@@ -11,7 +12,6 @@ import {
 } from "src/tests/render-server-page";
 import { seedExpiredNeverHandedIn } from "src/tests/seed-expired-attempt";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GradingSort } from "../grading-page-body.type";
 import { GradingPageShell } from "../grading-page-shell";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
@@ -53,13 +53,18 @@ describe("Feature: the grading page shell hands in an attempt whose time ran out
       courseId: course.id,
       schoolId: TEST_SCHOOL_ID,
       basePath: `/admin/grading/${test.id}`,
-      selection: { mode: GradingMode.Student, sort: GradingSort.Enrollment },
+      selection: { mode: GradingMode.Student },
     });
     render(ui);
 
-    // Then this very render lists the student as handed in with the auto-grade counted
-    const cell = within(screen.getByTestId(`roster-cell-${student.id}`));
-    expect(cell.getByText("1/1 graded")).toBeInTheDocument();
-    expect(cell.getByText("Graded")).toBeInTheDocument();
+    // Then this very render lists the student as handed in and graded
+    await userEvent.click(
+      screen.getByRole("button", { name: /student picker/i }),
+    );
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByText("Graded · 1")).toBeInTheDocument();
+    expect(
+      within(menu).getByRole("menuitem", { name: new RegExp(student.name) }),
+    ).toBeInTheDocument();
   });
 });

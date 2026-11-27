@@ -113,6 +113,7 @@ describe("Feature: AI suggestion stale-badge", () => {
 
     const ui = await GradingPage({
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
+      searchParams: Promise.resolve({ studentId: student.id }),
     });
     render(ui);
 

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -40,7 +41,7 @@ describe("Feature: GradingVariantPage", () => {
     await teardownTestDb();
   });
 
-  it("should render the test title in the heading, plus a roster cell for the enrolled student", async () => {
+  it("should render the test title in the heading, plus the student picker", async () => {
     const services = getTestServices();
 
     const course = await services.courseService.createCourse({
@@ -89,154 +90,13 @@ describe("Feature: GradingVariantPage", () => {
       screen.getByRole("heading", { name: /Midterm/i }),
     ).toBeInTheDocument();
 
-    // Body renders the roster cell for the enrolled student.
-    expect(screen.getByTestId(`roster-cell-${student.id}`)).toBeInTheDocument();
-  });
-
-  it("should render a roster of enrolled students in newest-first enrollment order and show the first student in the main pane", async () => {
-    const services = getTestServices();
-
-    const course = await services.courseService.createCourse({
-      title: "Algebra 101",
-      description: "",
-      createdBy: "admin",
-    });
-    const test = await services.testService.createTest(course.id, {
-      title: "Midterm",
-      description: "",
-      createdBy: "admin",
-    });
-    await services.questionService.addQuestion(test.id, {
-      type: "free_text",
-      title: "Q",
-      content: "Q",
-      createdBy: "admin",
-    });
-
-    // Given: three students enrolled sequentially. Newest-first ordering
-    // means the third-enrolled student appears first in the roster.
-    const alice = await services.studentService.createStudentDocument({
-      authUserId: "auth-alice",
-      username: "alice",
-      name: "Alice",
-      createdBy: "admin",
-    });
-    await services.enrollmentService.enrollStudent(
-      course.id,
-      alice.id,
-      "admin",
-    );
-    // Small delay so subsequent enrollments land on distinct millisecond ticks
-    // (enrolledAt: -1 sort depends on monotonic timestamps).
-    await new Promise((r) => setTimeout(r, 5));
-
-    const bob = await services.studentService.createStudentDocument({
-      authUserId: "auth-bob",
-      username: "bob",
-      name: "Bob",
-      createdBy: "admin",
-    });
-    await services.enrollmentService.enrollStudent(course.id, bob.id, "admin");
-    await new Promise((r) => setTimeout(r, 5));
-
-    const carol = await services.studentService.createStudentDocument({
-      authUserId: "auth-carol",
-      username: "carol",
-      name: "Carol",
-      createdBy: "admin",
-    });
-    await services.enrollmentService.enrollStudent(
-      course.id,
-      carol.id,
-      "admin",
-    );
-
-    // When: the variant page renders.
-    const ui = await GradingVariantPage({
-      params: Promise.resolve({ testId: test.id }),
-    });
-    render(ui);
-
-    // Then: roster cells appear in newest-first enrollment order (Carol, Bob, Alice).
-    const rosterCells = screen.getAllByTestId(/^roster-cell-/);
-    expect(rosterCells.map((c) => c.getAttribute("data-testid"))).toEqual([
-      `roster-cell-${carol.id}`,
-      `roster-cell-${bob.id}`,
-      `roster-cell-${alice.id}`,
-    ]);
-
-    // Then: the main pane shows the first (newest-enrolled) student.
-    const mainPane = screen.getByTestId("grading-main-pane");
+    // The top bar carries the student picker.
     expect(
-      within(mainPane).getByTestId(`student-card-${carol.id}`),
+      screen.getByRole("button", { name: /student picker/i }),
     ).toBeInTheDocument();
   });
 
-  it("should render each roster cell with the student name, a status badge, and an 'n/m graded' count", async () => {
-    const services = getTestServices();
-
-    const course = await services.courseService.createCourse({
-      title: "Algebra 101",
-      description: "",
-      createdBy: "admin",
-    });
-    const test = await services.testService.createTest(course.id, {
-      title: "Midterm",
-      description: "",
-      createdBy: "admin",
-    });
-    await services.questionService.addQuestion(test.id, {
-      type: "free_text",
-      title: "Q1",
-      content: "Q1",
-      createdBy: "admin",
-    });
-    await services.questionService.addQuestion(test.id, {
-      type: "free_text",
-      title: "Q2",
-      content: "Q2",
-      createdBy: "admin",
-    });
-    const [q1] = await services.questionService.listQuestions(test.id);
-
-    const student = await services.studentService.createStudentDocument({
-      authUserId: "auth-z",
-      username: "zara",
-      name: "Zara",
-      createdBy: "admin",
-    });
-    await services.enrollmentService.enrollStudent(
-      course.id,
-      student.id,
-      "admin",
-    );
-
-    // Given: Zara answered Q1 and submitted the test (status = submitted,
-    // 1 of 1 answered question is ungraded).
-    await services.answerService.submitAnswer({
-      testId: test.id,
-      questionId: q1.id,
-      studentId: student.id,
-      answer: { type: "free_text", text: "answer" },
-    });
-    await services.testSubmissionService.submitTest(test.id, student.id);
-
-    // When: the variant page renders.
-    const ui = await GradingVariantPage({
-      params: Promise.resolve({ testId: test.id }),
-    });
-    render(ui);
-
-    // Then: the roster cell contains the name, a status badge, and the
-    // literal "0/1 graded · 1 blank" count text (Q2 was never answered).
-    const cell = screen.getByTestId(`roster-cell-${student.id}`);
-    expect(within(cell).getByText("Zara")).toBeInTheDocument();
-    const badge = cell.querySelector("[data-status]");
-    expect(badge?.getAttribute("data-status")).toBe("submitted");
-    expect(within(cell).getByText("0/1 graded · 1 blank")).toBeInTheDocument();
-  });
-
-  it("should focus the student identified by ?studentId= in the main pane and mark that roster cell aria-current", async () => {
+  it("should focus the student identified by ?studentId= in the main pane and name her on the student picker", async () => {
     const services = getTestServices();
 
     const course = await services.courseService.createCourse({
@@ -292,11 +152,10 @@ describe("Feature: GradingVariantPage", () => {
     ).toBeInTheDocument();
     expect(within(mainPane).queryByTestId(`student-card-${bob.id}`)).toBeNull();
 
-    // Then: Alice's roster cell is marked aria-current; Bob's is not.
-    const aliceCell = screen.getByTestId(`roster-cell-${alice.id}`);
-    const bobCell = screen.getByTestId(`roster-cell-${bob.id}`);
-    expect(aliceCell.closest('[aria-current="page"]')).not.toBeNull();
-    expect(bobCell.closest('[aria-current="page"]')).toBeNull();
+    // Then: the picker names Alice.
+    expect(
+      screen.getByRole("button", { name: /student picker/i }),
+    ).toHaveTextContent("Alice");
   });
 
   it("should show the focused student's full submission in the main pane — their free-text answer, the overall-feedback form, and the auto-grade-with-AI button when submitted", async () => {
@@ -676,152 +535,6 @@ describe("Feature: GradingVariantPage", () => {
     expect(fraction.textContent).toMatch(/2\s*of\s*3/);
   });
 
-  it("should order the roster alphabetically by name when ?sort=name, regardless of enrollment order", async () => {
-    const services = getTestServices();
-
-    const course = await services.courseService.createCourse({
-      title: "Algebra 101",
-      description: "",
-      createdBy: "admin",
-    });
-    const test = await services.testService.createTest(course.id, {
-      title: "Midterm",
-      description: "",
-      createdBy: "admin",
-    });
-    await services.questionService.addQuestion(test.id, {
-      type: "free_text",
-      title: "Q",
-      content: "Q",
-      createdBy: "admin",
-    });
-
-    // Given: 3 students enrolled in non-alphabetical order (Carol → Alice → Bob).
-    const carol = await services.studentService.createStudentDocument({
-      authUserId: "auth-c",
-      username: "carol",
-      name: "Carol",
-      createdBy: "admin",
-    });
-    await services.enrollmentService.enrollStudent(
-      course.id,
-      carol.id,
-      "admin",
-    );
-    await new Promise((r) => setTimeout(r, 5));
-    const alice = await services.studentService.createStudentDocument({
-      authUserId: "auth-a",
-      username: "alice",
-      name: "Alice",
-      createdBy: "admin",
-    });
-    await services.enrollmentService.enrollStudent(
-      course.id,
-      alice.id,
-      "admin",
-    );
-    await new Promise((r) => setTimeout(r, 5));
-    const bob = await services.studentService.createStudentDocument({
-      authUserId: "auth-b",
-      username: "bob",
-      name: "Bob",
-      createdBy: "admin",
-    });
-    await services.enrollmentService.enrollStudent(course.id, bob.id, "admin");
-
-    // When: the page renders with ?sort=name.
-    const ui = await GradingVariantPage({
-      params: Promise.resolve({ testId: test.id }),
-      searchParams: Promise.resolve({ sort: "name" }),
-    });
-    render(ui);
-
-    // Then: roster cells appear in alphabetical order (Alice, Bob, Carol).
-    // Newest-first enrollment would be (Bob, Alice, Carol) — different result.
-    const cells = screen.getAllByTestId(/^roster-cell-/);
-    expect(cells.map((c) => c.getAttribute("data-testid"))).toEqual([
-      `roster-cell-${alice.id}`,
-      `roster-cell-${bob.id}`,
-      `roster-cell-${carol.id}`,
-    ]);
-  });
-
-  it("when I finish grading a student, their card stays in the same spot in the list (no surprise reorder)", async () => {
-    // Locks in the user's stated problem: 'when i finish grading a test, it
-    // jumps un expectedly.'
-    const services = getTestServices();
-
-    const course = await services.courseService.createCourse({
-      title: "Algebra 101",
-      description: "",
-      createdBy: "admin",
-    });
-    const test = await services.testService.createTest(course.id, {
-      title: "Midterm",
-      description: "",
-      createdBy: "admin",
-    });
-    await services.questionService.addQuestion(test.id, {
-      type: "free_text",
-      title: "Q1",
-      content: "Q1",
-      createdBy: "admin",
-    });
-    const [q1] = await services.questionService.listQuestions(test.id);
-
-    // Given: 3 students enrolled. Capture the initial render order.
-    const ids = [];
-    for (const u of ["a", "b", "c"]) {
-      const s = await services.studentService.createStudentDocument({
-        authUserId: `auth-${u}`,
-        username: u,
-        name: u.toUpperCase(),
-        createdBy: "admin",
-      });
-      await services.enrollmentService.enrollStudent(course.id, s.id, "admin");
-      await services.answerService.submitAnswer({
-        testId: test.id,
-        questionId: q1.id,
-        studentId: s.id,
-        answer: { type: "free_text", text: u },
-      });
-      await services.testSubmissionService.submitTest(test.id, s.id);
-      ids.push(s.id);
-      await new Promise((r) => setTimeout(r, 5));
-    }
-
-    const ui1 = await GradingVariantPage({
-      params: Promise.resolve({ testId: test.id }),
-    });
-    const { unmount } = render(ui1);
-    const initialOrder = screen
-      .getAllByTestId(/^roster-cell-/)
-      .map((c) => c.getAttribute("data-testid"));
-    unmount();
-
-    // When: the admin grades the first student in the roster (which would
-    // have caused the legacy body to re-sort that card to the Graded slot).
-    await services.gradeService.gradeQuestion({
-      testId: test.id,
-      questionId: q1.id,
-      studentId: ids[0] as string,
-      score: 90,
-      feedback: "ok",
-      gradedBy: "admin",
-    });
-
-    // Then: re-rendering with the SAME (default) sort produces the SAME order.
-    const ui2 = await GradingVariantPage({
-      params: Promise.resolve({ testId: test.id }),
-    });
-    render(ui2);
-    const afterGradeOrder = screen
-      .getAllByTestId(/^roster-cell-/)
-      .map((c) => c.getAttribute("data-testid"));
-
-    expect(afterGradeOrder).toEqual(initialOrder);
-  });
-
   it("when I've already asked a student to redo, opening their card shows me a 'Redo requested' marker instead of the Request-Redo button", async () => {
     const services = getTestServices();
 
@@ -875,6 +588,11 @@ describe("Feature: GradingVariantPage", () => {
     // button — the user can see the redo state at a glance.
     const detail = screen.getByTestId(`student-card-${student.id}`);
     expect(within(detail).getByText(/Redo requested/i)).toBeInTheDocument();
+    // And the picker lists her under Redo requested
+    await userEvent.click(
+      screen.getByRole("button", { name: /student picker/i }),
+    );
+    expect(await screen.findByText("Redo requested · 1")).toBeInTheDocument();
     expect(
       within(detail).queryByRole("button", { name: /request redo/i }),
     ).toBeNull();
@@ -962,13 +680,12 @@ describe("Feature: GradingVariantPage", () => {
 
     // Then: zero roster cells, and the main pane shows the empty-class
     // placeholder text (no crash).
-    expect(screen.queryAllByTestId(/^roster-cell-/)).toHaveLength(0);
     const mainPane = screen.getByTestId("grading-main-pane");
     expect(
       within(mainPane).getByText(/No students enrolled/i),
     ).toBeInTheDocument();
   });
-  it("when students are enrolled but nobody has handed in, I see 'Nobody has submitted yet.' and the roster still lists them", async () => {
+  it("when students are enrolled but nobody has handed in, I see 'Nobody has submitted yet.' and the picker still lists them", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Quiet Class",
@@ -1004,12 +721,17 @@ describe("Feature: GradingVariantPage", () => {
     });
     render(ui);
 
-    // Then: the main pane says so, and the student is still in the roster
+    // Then: the main pane says so, and the student is still in the picker
     const mainPane = screen.getByTestId("grading-main-pane");
     expect(
       within(mainPane).getByText("Nobody has submitted yet."),
     ).toBeInTheDocument();
-    expect(screen.getByTestId(`roster-cell-${student.id}`)).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: /student picker/i }),
+    );
+    expect(
+      within(await screen.findByRole("menu")).getByText("Still Writing"),
+    ).toBeInTheDocument();
   });
 
   it.each([
@@ -1178,7 +900,7 @@ describe("Feature: GradingVariantPage", () => {
     expect(screen.queryByText(/grades released/i)).not.toBeInTheDocument();
   });
 
-  it("keeps Needs grading only on in the links to the next student, to By student and By question and to each roster student", async () => {
+  it("keeps Needs grading only on in the links to the next student, to By student and By question and to each student in the picker", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({
       title: "Algebra 101",
@@ -1236,9 +958,14 @@ describe("Feature: GradingVariantPage", () => {
         expect.stringContaining("needsOnly=1"),
       );
     }
+    await userEvent.click(
+      screen.getByRole("button", { name: /student picker/i }),
+    );
     for (const student of students) {
       expect(
-        screen.getByTestId(`roster-cell-${student.id}`).closest("a"),
+        within(await screen.findByRole("menu")).getByRole("menuitem", {
+          name: new RegExp(student.name),
+        }),
       ).toHaveAttribute("href", expect.stringContaining("needsOnly=1"));
     }
   });

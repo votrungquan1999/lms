@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { GradingSort } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { GradingPageShell } from "src/app/admin/(dashboard)/grading/page-body/grading-page-shell";
 import { GradingReleaseActions } from "src/app/admin/(dashboard)/grading/page-body/grading-release-actions";
 import { GradingMode } from "src/lib/grading-mode";
@@ -38,13 +37,6 @@ export default async function GradingVariantPage({
     sp.mode === GradingMode.Question
       ? GradingMode.Question
       : GradingMode.Student;
-  const sort =
-    sp.sort === GradingSort.Name
-      ? GradingSort.Name
-      : sp.sort === GradingSort.Status
-        ? GradingSort.Status
-        : GradingSort.Enrollment;
-
   const needsOnly = sp.needsOnly === "1";
 
   const testService = await getTestService(session.school.id);
@@ -71,7 +63,7 @@ export default async function GradingVariantPage({
           courseId,
           schoolId: session.school.id,
           basePath: `/admin/grading/${testId}`,
-          selection: { mode, studentId, questionId, sort, needsOnly },
+          selection: { mode, studentId, questionId, needsOnly },
           barActions: <GradingReleaseActions test={test} courseId={courseId} />,
         })
       }

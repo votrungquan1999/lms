@@ -34,7 +34,7 @@ interface GradingDetailQuestionProps {
   schoolId: string;
   /** Question selected via URL (or first-in-order fallback). */
   questionId: string;
-  /** Students in roster sort order. */
+  /** The course's students, newest enrolment first. */
   students: RosterStudent[];
   /** Base path the page is rendered at (no query string). */
   basePath: string;
@@ -43,8 +43,7 @@ interface GradingDetailQuestionProps {
 /**
  * Question-mode main pane. Renders the focused question's title + content
  * at the top, then one row per enrolled student with their answer and a
- * compact grading form. Sort dropdown is hidden in question-mode; question
- * order is fixed by `question.order`.
+ * compact grading form. Questions keep their `question.order`.
  */
 export async function GradingDetailQuestion({
   test,

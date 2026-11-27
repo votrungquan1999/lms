@@ -49,8 +49,6 @@ import {
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
-import { StudentStatusBadge } from "../student-status-badge";
-import type { GradingSort } from "./grading-page-body.type";
 import { gradingRouteKind } from "./href";
 import { QuestionRow } from "./question-row";
 
@@ -64,8 +62,6 @@ interface GradingDetailStudentProps {
   questionId?: string;
   /** Base path the page is rendered at (no query string). */
   basePath: string;
-  /** Current `?sort=` value, preserved in the Save & Next redirect target. */
-  sort?: GradingSort;
   /** Show only the answers that need a grade in the question row. */
   needsOnly?: boolean;
   /** The screen's read of the test; read here when the caller has none. */
@@ -74,8 +70,8 @@ interface GradingDetailStudentProps {
 
 /**
  * Renders one student's answer to one question in the shell's right pane:
- * the per-student controls (request redo, release grades, auto-grade with
- * AI), the answer pane, its grade form and AI suggestions, and the overall
+ * the per-student controls (request redo, release grades), the answer pane,
+ * its grade form with the More menu and AI suggestions, and the overall
  * feedback form.
  */
 export async function GradingDetailStudent({
@@ -85,7 +81,6 @@ export async function GradingDetailStudent({
   student,
   questionId,
   basePath,
-  sort,
   needsOnly = false,
   screen: givenScreen,
 }: GradingDetailStudentProps) {
@@ -265,7 +260,6 @@ export async function GradingDetailStudent({
               </span>
             </CardTitle>
             <div className="flex items-center gap-3">
-              <StudentStatusBadge status={status} />
               {!test.isPractice && (
                 <RequestRedoButton
                   testId={testId}
@@ -295,7 +289,6 @@ export async function GradingDetailStudent({
               handedIn={hasSubmitted(status)}
               isPractice={test.isPractice}
               basePath={basePath}
-              sort={sort}
               needsOnly={needsOnly}
             />
           </div>

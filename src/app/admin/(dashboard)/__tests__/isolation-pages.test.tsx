@@ -68,6 +68,22 @@ async function signInAsOtherSchoolAdmin(): Promise<{
 }
 
 /** Creates a course in the DEFAULT school — a foreign record for these rows. */
+/** Answers the test's only question and hands in, so the student is waiting to be graded. */
+async function handIn(
+  services: ReturnType<typeof getTestServices>,
+  testId: string,
+  studentId: string,
+): Promise<void> {
+  const [question] = await services.questionService.listQuestions(testId);
+  await services.answerService.submitAnswer({
+    testId,
+    questionId: question.id,
+    studentId,
+    answer: { type: "free_text", text: "answer" },
+  });
+  await services.testSubmissionService.submitTest(testId, studentId);
+}
+
 async function createForeignCourse(): Promise<string> {
   const course = await getTestServices().courseService.createCourse({
     title: "Foreign Course",
@@ -377,7 +393,7 @@ describe("Feature: a school admin's breadcrumbs never name another school's reco
  * I want the page to render the first enrolled roster student instead
  * So that another school's (or an un-enrolled) student is never shown
  */
-describe("Feature: a grading link naming a student who isn't on the roster falls back to the first roster student", () => {
+describe("Feature: a grading link naming a student who isn't on the roster falls back to the oldest waiting student", () => {
   let db: Db;
 
   beforeEach(async () => {
@@ -388,7 +404,7 @@ describe("Feature: a grading link naming a student who isn't on the roster falls
     await teardownTestDb();
   });
 
-  it("shows the first enrolled roster student instead of a foreign ?studentId=", async () => {
+  it("shows the oldest waiting student instead of a foreign ?studentId=", async () => {
     const school = await signInAsOtherSchoolAdmin();
     const own = getTestServices(school.id);
     const course = await own.courseService.createCourse({
@@ -414,6 +430,7 @@ describe("Feature: a grading link naming a student who isn't on the roster falls
       createdBy: "school-b-admin",
     });
     await own.enrollmentService.enrollStudent(course.id, ownStudent.id, "seed");
+    await handIn(own, test.id, ownStudent.id);
 
     // Legacy data can enrol a foreign student here; the school-bound
     // enrolment service hides them from the roster regardless.
@@ -434,9 +451,6 @@ describe("Feature: a grading link naming a student who isn't on the roster falls
     );
 
     expect(
-      screen.queryByTestId(`roster-cell-${foreignStudent.id}`),
-    ).not.toBeInTheDocument();
-    expect(
       within(screen.getByTestId("grading-main-pane")).getByTestId(
         `student-card-${ownStudent.id}`,
       ),
@@ -446,7 +460,7 @@ describe("Feature: a grading link naming a student who isn't on the roster falls
     ).not.toBeInTheDocument();
   });
 
-  it("shows the first enrolled roster student instead of a same-school student not in the course", async () => {
+  it("shows the oldest waiting student instead of a same-school student not in the course", async () => {
     const school = await signInAsOtherSchoolAdmin();
     const own = getTestServices(school.id);
     const course = await own.courseService.createCourse({
@@ -476,6 +490,7 @@ describe("Feature: a grading link naming a student who isn't on the roster falls
       rosterStudent.id,
       "seed",
     );
+    await handIn(own, test.id, rosterStudent.id);
     const outsider = await own.studentService.createStudentDocument({
       authUserId: "auth-outsider",
       username: "outsider",

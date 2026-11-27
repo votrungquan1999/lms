@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Db } from "mongodb";
 import { isValidElement, type ReactNode } from "react";
 import { AdminSession } from "src/lib/session";
@@ -196,7 +197,6 @@ describe("Feature: a school admin's lists show only their current school's stude
   let schoolId: string;
   let ownCourseId: string;
   let ownStudentId: string;
-  let foreignStudentId: string;
 
   beforeEach(async () => {
     ({ db } = await setupTestDb());
@@ -229,7 +229,6 @@ describe("Feature: a school admin's lists show only their current school's stude
     await insertRawEnrollment(db, course.id, foreign.id);
     await own.enrollmentService.enrollStudent(course.id, ownStudent.id, "seed");
     ownStudentId = ownStudent.id;
-    foreignStudentId = foreign.id;
   });
 
   afterEach(async () => {
@@ -329,7 +328,7 @@ describe("Feature: a school admin's lists show only their current school's stude
     expect(screen.getAllByText("0 of 1").length).toBeGreaterThan(0);
   });
 
-  it("the grading roster lists only the current school's enrolled students", async () => {
+  it("the grading student picker lists only the current school's enrolled students", async () => {
     const test = await getTestServices(schoolId).testService.createTest(
       ownCourseId,
       { title: "Own Test", description: "", createdBy: "school-b-admin" },
@@ -341,12 +340,12 @@ describe("Feature: a school admin's lists show only their current school's stude
       }),
     );
 
-    expect(
-      screen.getByTestId(`roster-cell-${ownStudentId}`),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByTestId(`roster-cell-${foreignStudentId}`),
-    ).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: /student picker/i }),
+    );
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByText("Own Student")).toBeInTheDocument();
+    expect(within(menu).queryByText("Foreign Student")).not.toBeInTheDocument();
   });
 });
 

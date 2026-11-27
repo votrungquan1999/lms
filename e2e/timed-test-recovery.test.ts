@@ -209,11 +209,11 @@ test.describe("Timed test redo", () => {
 
     // And when the teacher opens the grading page, the second student reads as handed in
     await adminPage.goto(`/admin/courses/${courseId}/tests/${testId}/grading`);
+    await adminPage.getByRole("button", { name: "Student picker" }).click();
     await expect(
-      adminPage
-        .locator('[data-student-name="Expired Teacher View"] [data-status]')
-        .first(),
-    ).toHaveAttribute("data-status", "submitted", { timeout: 10000 });
+      adminPage.getByRole("menuitem", { name: /Expired Teacher View/ }),
+    ).toBeVisible({ timeout: 10000 });
+    await expect(adminPage.getByText(/^Still writing/)).toHaveCount(0);
 
     await studentContext.close();
   });

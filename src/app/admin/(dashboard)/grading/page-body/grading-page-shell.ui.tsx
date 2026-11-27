@@ -9,6 +9,7 @@ import { gradingHref } from "./href";
 
 interface TwoPaneShellProps {
   topBar: React.ReactNode;
+  /** The left pane; none leaves the main pane the full width. */
   roster: React.ReactNode;
   main: React.ReactNode;
   /** The panes fill the screen and scroll inside it, instead of the page growing. */
@@ -35,19 +36,22 @@ export function TwoPaneShell({
       {topBar}
       <div
         className={cn(
-          "grid grid-cols-[18rem_minmax(0,1fr)] gap-6",
+          "grid gap-6",
+          roster ? "grid-cols-[18rem_minmax(0,1fr)]" : "grid-cols-1",
           fillScreen ? "min-h-0 flex-1" : "items-start",
         )}
       >
-        <aside
-          className={cn(
-            "rounded-md border border-border bg-card p-2",
-            fillScreen && "min-h-0 overflow-y-auto",
-          )}
-          data-testid="grading-roster"
-        >
-          {roster}
-        </aside>
+        {roster && (
+          <aside
+            className={cn(
+              "rounded-md border border-border bg-card p-2",
+              fillScreen && "min-h-0 overflow-y-auto",
+            )}
+            data-testid="grading-roster"
+          >
+            {roster}
+          </aside>
+        )}
         <section
           className={fillScreen ? "min-h-0" : undefined}
           data-testid="grading-main-pane"

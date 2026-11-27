@@ -14,6 +14,19 @@ import {
   withDb,
 } from "./seed";
 
+const routes = [
+  {
+    name: "the grading page",
+    path: (ids: { courseId: string; testId: string }) =>
+      `/admin/grading/${ids.testId}`,
+  },
+  {
+    name: "the course Tests tab grading",
+    path: (ids: { courseId: string; testId: string }) =>
+      `/admin/courses/${ids.courseId}/tests/${ids.testId}/grading`,
+  },
+];
+
 test.describe("Grading workspace", () => {
   for (const route of ["To grade", "the test page"] as const) {
     test(`the answer and the grade panel scroll on their own and the save button stays in view, opened from ${route}`, async ({
@@ -117,7 +130,7 @@ test.describe("Leaving a grade that was typed but not saved", () => {
         title: "[discard] Question",
       });
       const studentIds: string[] = [];
-      for (const name of ["Ann Discard", "Ben Discard"]) {
+      for (const [index, name] of ["Ann Discard", "Ben Discard"].entries()) {
         const studentId = await insertStudent(db, { name });
         await enroll(db, { courseId, studentId });
         await insertAnswer(db, {
@@ -126,230 +139,252 @@ test.describe("Leaving a grade that was typed but not saved", () => {
           studentId,
           answer: { type: "free_text", text: `${name} answer` },
         });
-        await insertSubmission(db, { testId, studentId });
+        await insertSubmission(db, {
+          testId,
+          studentId,
+          submittedAt: new Date(Date.UTC(2026, 10, 1, 8, index)),
+        });
         studentIds.push(studentId);
       }
       return { courseId, testId, questionId, studentIds };
     });
   }
 
-  test("a typed score asks before the back link leaves; Stay keeps it, Leave drops it", async ({
-    page,
-  }) => {
-    const { courseId, testId, questionId, studentIds } =
-      await seedTwoStudents();
-    const [studentId] = studentIds;
+  for (const route of routes) {
+    test(`on ${route.name} a typed score asks before the back link leaves; Stay keeps it, Leave drops it`, async ({
+      page,
+    }) => {
+      const { courseId, testId, questionId, studentIds } =
+        await seedTwoStudents();
+      const [studentId] = studentIds;
 
-    await page.goto(
-      `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionId}`,
-    );
-    const panel = page.getByTestId("grade-card");
-    await hydrated(panel.getByRole("button", { name: /^Save & next/ }));
-    const score = panel.getByLabel("Score (0–100):");
-    await score.fill("70");
+      await page.goto(
+        `${route.path({ courseId, testId })}?studentId=${studentId}&questionId=${questionId}`,
+      );
+      const panel = page.getByTestId("grade-card");
+      await hydrated(panel.getByRole("button", { name: /^Save & next/ }));
+      const score = panel.getByLabel("Score (0–100):");
+      await score.fill("70");
 
-    // When: she clicks the back link
-    await page.getByRole("link", { name: "[discard] Test" }).click();
+      // When: she clicks the back link
+      await page.getByRole("link", { name: "[discard] Test" }).click();
 
-    // Then: she is asked first, and Stay keeps the typed score
-    const dialog = page.getByRole("alertdialog", {
-      name: "Discard your unsaved grade?",
+      // Then: she is asked first, and Stay keeps the typed score
+      const dialog = page.getByRole("alertdialog", {
+        name: "Discard your unsaved grade?",
+      });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("button", { name: "Stay" }).click();
+      await expect(dialog).toBeHidden();
+      await expect(score).toHaveValue("70");
+
+      // When: she asks again and leaves
+      await page.getByRole("link", { name: "[discard] Test" }).click();
+      await dialog.getByRole("button", { name: "Leave" }).click();
+
+      // Then: the test page opens and nothing was saved
+      await expect(page).toHaveURL(
+        `/admin/courses/${courseId}/tests/${testId}`,
+      );
+      const grade = await withDb((db) =>
+        db.collection("grade").findOne({ testId, questionId }),
+      );
+      expect(grade).toBeNull();
     });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Stay" }).click();
-    await expect(dialog).toBeHidden();
-    await expect(score).toHaveValue("70");
+  }
 
-    // When: she asks again and leaves
-    await page.getByRole("link", { name: "[discard] Test" }).click();
-    await dialog.getByRole("button", { name: "Leave" }).click();
+  for (const route of routes) {
+    test(`on ${route.name} a saved grade is not unsaved work, so leaving afterwards asks nothing`, async ({
+      page,
+    }) => {
+      const { courseId, testId, questionId, studentIds } =
+        await seedTwoStudents();
+      const [studentId] = studentIds;
 
-    // Then: the test page opens and nothing was saved
-    await expect(page).toHaveURL(`/admin/courses/${courseId}/tests/${testId}`);
-    const grade = await withDb((db) =>
-      db.collection("grade").findOne({ testId, questionId }),
-    );
-    expect(grade).toBeNull();
-  });
+      await page.goto(
+        `${route.path({ courseId, testId })}?studentId=${studentId}&questionId=${questionId}`,
+      );
+      const panel = page.getByTestId("grade-card");
+      const save = panel.getByRole("button", { name: /^Save & next/ });
+      await hydrated(save);
+      await panel.getByLabel("Score (0–100):").fill("70");
+      await save.click();
+      // The other student waits, so Save & next leaves this one; the saved grade is in the database.
+      await expect
+        .poll(() =>
+          withDb((db) =>
+            db.collection("grade").countDocuments({ testId, questionId }),
+          ),
+        )
+        .toBe(1);
+      await expect(page).not.toHaveURL(new RegExp(`studentId=${studentId}`));
 
-  test("a saved grade is not unsaved work, so leaving afterwards asks nothing", async ({
-    page,
-  }) => {
-    const { courseId, testId, questionId, studentIds } =
-      await seedTwoStudents();
-    const [studentId] = studentIds;
+      await page.getByRole("link", { name: "[discard] Test" }).click();
 
-    await page.goto(
-      `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionId}`,
-    );
-    const panel = page.getByTestId("grade-card");
-    const save = panel.getByRole("button", { name: /^Save & next/ });
-    await hydrated(save);
-    await panel.getByLabel("Score (0–100):").fill("70");
-    await save.click();
-    // The other student waits, so Save & next leaves this one; the saved grade is in the database.
-    await expect
-      .poll(() =>
-        withDb((db) =>
-          db.collection("grade").countDocuments({ testId, questionId }),
-        ),
-      )
-      .toBe(1);
-    await expect(page).not.toHaveURL(new RegExp(`studentId=${studentId}`));
-
-    await page.getByRole("link", { name: "[discard] Test" }).click();
-
-    await expect(page).toHaveURL(`/admin/courses/${courseId}/tests/${testId}`);
-  });
-
-  test("overall feedback typed for one student is dropped, not carried, when she moves to another student", async ({
-    page,
-  }) => {
-    const { courseId, testId, questionId, studentIds } =
-      await seedTwoStudents();
-    const [studentId] = studentIds;
-
-    await page.goto(
-      `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionId}`,
-    );
-    await hydrated(
-      page
-        .getByTestId("grade-card")
-        .getByRole("button", { name: /^Save & next/ }),
-    );
-    await page.getByText("Overall feedback for Ann Discard").click();
-    await page.getByLabel("Overall Test Feedback:").fill("draft for Ann");
-
-    // When: she steps to the other student and confirms leaving
-    await page
-      .getByRole("link", { name: "Previous submitted student" })
-      .click();
-    const dialog = page.getByRole("alertdialog", {
-      name: "Discard your unsaved grade?",
+      await expect(page).toHaveURL(
+        `/admin/courses/${courseId}/tests/${testId}`,
+      );
     });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Leave" }).click();
+  }
 
-    // Then: the next student's overall feedback is empty and leaving asks nothing
-    await expect(page.getByTestId("grade-card")).toContainText("Ben Discard");
-    await page.getByText("Overall feedback for Ben Discard").click();
-    await expect(page.getByLabel("Overall Test Feedback:")).toHaveValue("");
-    await page.getByRole("link", { name: "[discard] Test" }).click();
-    await expect(page).toHaveURL(`/admin/courses/${courseId}/tests/${testId}`);
-  });
+  for (const route of routes) {
+    test(`on ${route.name} overall feedback typed for one student is dropped, not carried, when she moves to another student`, async ({
+      page,
+    }) => {
+      const { courseId, testId, questionId, studentIds } =
+        await seedTwoStudents();
+      const [studentId] = studentIds;
+
+      await page.goto(
+        `${route.path({ courseId, testId })}?studentId=${studentId}&questionId=${questionId}`,
+      );
+      await hydrated(
+        page
+          .getByTestId("grade-card")
+          .getByRole("button", { name: /^Save & next/ }),
+      );
+      await page.getByText("Overall feedback for Ann Discard").click();
+      await page.getByLabel("Overall Test Feedback:").fill("draft for Ann");
+
+      // When: she steps to the other student and confirms leaving
+      await page.getByRole("link", { name: "Next submitted student" }).click();
+      const dialog = page.getByRole("alertdialog", {
+        name: "Discard your unsaved grade?",
+      });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("button", { name: "Leave" }).click();
+
+      // Then: the next student's overall feedback is empty and leaving asks nothing
+      await expect(page.getByTestId("grade-card")).toContainText("Ben Discard");
+      await page.getByText("Overall feedback for Ben Discard").click();
+      await expect(page.getByLabel("Overall Test Feedback:")).toHaveValue("");
+      await page.getByRole("link", { name: "[discard] Test" }).click();
+      await expect(page).toHaveURL(
+        `/admin/courses/${courseId}/tests/${testId}`,
+      );
+    });
+  }
 });
 
 test.describe("Question number row", () => {
-  test("a 60-question test wraps its boxes without sideways scroll, rings the current one and opens a question on click", async ({
-    page,
-  }) => {
-    const { testId, studentId, questionIds } = await withDb(async (db) => {
-      const courseId = await insertCourse(db);
-      const testId = await insertTest(db, courseId);
-      const studentId = await insertStudent(db, { name: "Row Student" });
-      await enroll(db, { courseId, studentId });
-      const questionIds: string[] = [];
-      for (let order = 1; order <= 60; order++) {
-        const questionId = await insertQuestion(db, testId, {
-          order,
-          title: `[row] Question ${order}`,
-        });
-        questionIds.push(questionId);
-        await insertAnswer(db, {
-          testId,
-          questionId,
-          studentId,
-          answer: { type: "free_text", text: `answer ${order}` },
-        });
-      }
-      await insertSubmission(db, { testId, studentId });
-      return { testId, studentId, questionIds };
+  for (const route of routes) {
+    test(`on ${route.name} a 60-question test wraps its boxes without sideways scroll, rings the current one and opens a question on click`, async ({
+      page,
+    }) => {
+      const { courseId, testId, studentId, questionIds } = await withDb(
+        async (db) => {
+          const courseId = await insertCourse(db);
+          const testId = await insertTest(db, courseId);
+          const studentId = await insertStudent(db, { name: "Row Student" });
+          await enroll(db, { courseId, studentId });
+          const questionIds: string[] = [];
+          for (let order = 1; order <= 60; order++) {
+            const questionId = await insertQuestion(db, testId, {
+              order,
+              title: `[row] Question ${order}`,
+            });
+            questionIds.push(questionId);
+            await insertAnswer(db, {
+              testId,
+              questionId,
+              studentId,
+              answer: { type: "free_text", text: `answer ${order}` },
+            });
+          }
+          await insertSubmission(db, { testId, studentId });
+          return { courseId, testId, studentId, questionIds };
+        },
+      );
+
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(
+        `${route.path({ courseId, testId })}?studentId=${studentId}&questionId=${questionIds[0]}`,
+      );
+
+      // Then: the 60 boxes wrap onto several lines and the page does not widen
+      await expect(page.getByTestId("question-row-boxes")).toBeVisible();
+      await expectWrapped(page.getByTestId("question-row-boxes"));
+      await expectNoPageOverflow(page);
+      await expect(
+        page.getByRole("link", { name: "Q1 needs grading" }),
+      ).toHaveAttribute("aria-current", "true");
+
+      // When: the teacher clicks the box of question 42
+      await page.getByRole("link", { name: "Q42 needs grading" }).click();
+
+      // Then: that question opens and its box is the current one
+      await expect(
+        page
+          .getByTestId("grade-card")
+          .getByRole("heading", { name: "Grade · Q42 · Row Student" }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Q42 needs grading" }),
+      ).toHaveAttribute("aria-current", "true");
+      await expect(
+        page.getByRole("link", { name: "Q1 needs grading" }),
+      ).not.toHaveAttribute("aria-current", "true");
     });
+  }
 
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(
-      `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionIds[0]}`,
-    );
+  for (const route of routes) {
+    test(`on ${route.name} a draft typed on one answer is asked about and never lands on the answer the next box opens`, async ({
+      page,
+    }) => {
+      const { courseId, testId, studentId, questionIds } = await withDb(
+        async (db) => {
+          const courseId = await insertCourse(db);
+          const testId = await insertTest(db, courseId);
+          const studentId = await insertStudent(db, { name: "Draft Student" });
+          await enroll(db, { courseId, studentId });
+          const questionIds: string[] = [];
+          for (const order of [1, 2]) {
+            const questionId = await insertQuestion(db, testId, { order });
+            questionIds.push(questionId);
+            await insertAnswer(db, {
+              testId,
+              questionId,
+              studentId,
+              answer: { type: "free_text", text: `answer ${order}` },
+            });
+          }
+          await insertSubmission(db, { testId, studentId });
+          return { courseId, testId, studentId, questionIds };
+        },
+      );
 
-    // Then: the 60 boxes wrap onto several lines and the page does not widen
-    await expect(page.getByTestId("question-row-boxes")).toBeVisible();
-    await expectWrapped(page.getByTestId("question-row-boxes"));
-    await expectNoPageOverflow(page);
-    await expect(
-      page.getByRole("link", { name: "Q1 needs grading" }),
-    ).toHaveAttribute("aria-current", "true");
+      await page.goto(
+        `${route.path({ courseId, testId })}?studentId=${studentId}&questionId=${questionIds[0]}`,
+      );
+      const panel = page.getByTestId("grade-card");
+      await hydrated(panel.getByRole("button", { name: /^Save & next/ }));
+      await panel.getByLabel("Score (0–100):").fill("70");
+      await panel.getByLabel("Feedback:", { exact: true }).fill("draft one");
 
-    // When: the teacher clicks the box of question 42
-    await page.getByRole("link", { name: "Q42 needs grading" }).click();
+      // When: she clicks the second box
+      await page.getByRole("link", { name: "Q2 needs grading" }).click();
+      const dialog = page.getByRole("alertdialog", {
+        name: "Discard your unsaved grade?",
+      });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("button", { name: "Leave" }).click();
 
-    // Then: that question opens and its box is the current one
-    await expect(
-      page
-        .getByTestId("grade-card")
-        .getByRole("heading", { name: "Grade · Q42 · Row Student" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("link", { name: "Q42 needs grading" }),
-    ).toHaveAttribute("aria-current", "true");
-    await expect(
-      page.getByRole("link", { name: "Q1 needs grading" }),
-    ).not.toHaveAttribute("aria-current", "true");
-  });
+      // Then: the second answer opens with an empty form
+      await expect(
+        panel.getByRole("heading", { name: "Grade · Q2 · Draft Student" }),
+      ).toBeVisible();
+      await expect(panel.getByLabel("Score (0–100):")).toHaveValue("");
+      await expect(panel.getByLabel("Feedback:", { exact: true })).toHaveValue(
+        "",
+      );
 
-  test("a draft typed on one answer is asked about and never lands on the answer the next box opens", async ({
-    page,
-  }) => {
-    const { testId, studentId, questionIds } = await withDb(async (db) => {
-      const courseId = await insertCourse(db);
-      const testId = await insertTest(db, courseId);
-      const studentId = await insertStudent(db, { name: "Draft Student" });
-      await enroll(db, { courseId, studentId });
-      const questionIds: string[] = [];
-      for (const order of [1, 2]) {
-        const questionId = await insertQuestion(db, testId, { order });
-        questionIds.push(questionId);
-        await insertAnswer(db, {
-          testId,
-          questionId,
-          studentId,
-          answer: { type: "free_text", text: `answer ${order}` },
-        });
-      }
-      await insertSubmission(db, { testId, studentId });
-      return { testId, studentId, questionIds };
+      // And: going back to the first box asks nothing, as nothing is typed
+      await page.getByRole("link", { name: "Q1 needs grading" }).click();
+      await expect(
+        panel.getByRole("heading", { name: "Grade · Q1 · Draft Student" }),
+      ).toBeVisible();
     });
-
-    await page.goto(
-      `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionIds[0]}`,
-    );
-    const panel = page.getByTestId("grade-card");
-    await hydrated(panel.getByRole("button", { name: /^Save & next/ }));
-    await panel.getByLabel("Score (0–100):").fill("70");
-    await panel.getByLabel("Feedback:", { exact: true }).fill("draft one");
-
-    // When: she clicks the second box
-    await page.getByRole("link", { name: "Q2 needs grading" }).click();
-    const dialog = page.getByRole("alertdialog", {
-      name: "Discard your unsaved grade?",
-    });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Leave" }).click();
-
-    // Then: the second answer opens with an empty form
-    await expect(
-      panel.getByRole("heading", { name: "Grade · Q2 · Draft Student" }),
-    ).toBeVisible();
-    await expect(panel.getByLabel("Score (0–100):")).toHaveValue("");
-    await expect(panel.getByLabel("Feedback:", { exact: true })).toHaveValue(
-      "",
-    );
-
-    // And: going back to the first box asks nothing, as nothing is typed
-    await page.getByRole("link", { name: "Q1 needs grading" }).click();
-    await expect(
-      panel.getByRole("heading", { name: "Grade · Q1 · Draft Student" }),
-    ).toBeVisible();
-  });
+  }
 });
 
 test.describe("Needs grading only", () => {

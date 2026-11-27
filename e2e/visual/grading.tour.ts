@@ -19,8 +19,8 @@ const SHELL = [
   "src/app/admin/(dashboard)/grading/[testId]/page.tsx",
   "src/app/admin/(dashboard)/grading/page-body/grading-page-shell.tsx",
   "src/app/admin/(dashboard)/grading/page-body/grading-page-shell.ui.tsx",
-  "src/app/admin/(dashboard)/grading/page-body/grading-roster.tsx",
-  "src/app/admin/(dashboard)/grading/page-body/grading-roster.ui.tsx",
+  "src/app/admin/(dashboard)/grading/page-body/student-picker.tsx",
+  "src/app/admin/(dashboard)/grading/page-body/student-picker.ui.tsx",
   "src/app/admin/(dashboard)/grading/student-status-badge.tsx",
 ];
 
@@ -50,27 +50,21 @@ test.beforeEach(async ({ page }) => {
   await prepareVisualPage(page);
 });
 
-/** Opens the variant grading page and waits for the full seeded roster. */
+/** Opens the variant grading page and waits for the student picker. */
 async function openVariantRoster(page: Page): Promise<void> {
   await page.goto(VARIANT_PATH);
   await expect(
     page.getByRole("heading", { name: "Grade: Sandbox: All visibility ON" }),
   ).toBeVisible({ timeout: 60_000 });
   await expect(
-    page
-      .getByTestId("grading-roster")
-      .getByText("Hank Submitted (MC autograded, free-text pending)"),
+    page.getByRole("button", { name: "Student picker" }),
   ).toBeVisible({ timeout: 60_000 });
 }
 
-/** Clicks a roster cell by student name and waits for that student's detail card. */
+/** Picks a student by name from the student picker and waits for that student's detail card. */
 async function focusStudent(page: Page, name: string): Promise<void> {
-  await page
-    .getByTestId("grading-roster")
-    .locator("a")
-    .filter({ hasText: name })
-    .first()
-    .click();
+  await page.getByRole("button", { name: "Student picker" }).click();
+  await page.getByRole("menuitem").filter({ hasText: name }).first().click();
   await expect(
     page
       .getByTestId("grading-main-pane")
@@ -296,7 +290,7 @@ test("grading: course-scoped page with the release controls", async ({
       "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms.tsx",
       "src/app/admin/(dashboard)/grading/page-body/grading-page-shell.tsx",
       "src/app/admin/(dashboard)/grading/page-body/grading-detail-student.tsx",
-      "src/app/admin/(dashboard)/grading/page-body/grading-roster.ui.tsx",
+      "src/app/admin/(dashboard)/grading/page-body/student-picker.ui.tsx",
     ],
   });
 });
