@@ -209,11 +209,14 @@ export class GradeService {
     const existing = await this.grades.findOne(filter);
 
     if (existing) {
+      // An empty solution clears the saved one; an absent one keeps it.
+      const solution =
+        input.solution === "" ? null : (input.solution ?? existing.solution);
       await this.grades.updateOne(filter, {
         $set: {
           score: input.score,
           feedback: input.feedback,
-          solution: input.solution ?? existing.solution,
+          solution,
           updatedAt: now,
           updatedBy: input.gradedBy,
         },
@@ -223,7 +226,7 @@ export class GradeService {
         ...existing,
         score: input.score,
         feedback: input.feedback,
-        solution: input.solution ?? existing.solution,
+        solution,
         updatedAt: now,
         updatedBy: input.gradedBy,
       });
@@ -236,7 +239,7 @@ export class GradeService {
       studentId: input.studentId,
       score: input.score,
       feedback: input.feedback,
-      solution: input.solution ?? null,
+      solution: input.solution || null,
       gradedAt: now,
       gradedBy: input.gradedBy,
       updatedAt: null,

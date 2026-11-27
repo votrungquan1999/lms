@@ -1,13 +1,10 @@
 // @vitest-environment jsdom
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TestStatus } from "src/lib/test-status-service";
 import { describe, expect, it, vi } from "vitest";
 import { gradeQuestionAction } from "../actions";
-import {
-  FreeTextQuestionGradeForm,
-  McQuestionGradeForm,
-} from "../grading-forms";
+import { CompactGradeForm } from "../grading-forms";
 
 vi.mock("../actions", () => ({
   gradeQuestionAction: vi.fn(),
@@ -17,19 +14,6 @@ vi.mock("../actions", () => ({
   requestRedoAction: vi.fn(),
   saveAndJumpToNextAction: vi.fn(),
 }));
-
-/**
- * Feature: MC Answer Visual Display on Grading Page
- * As an admin
- * I want to see a student's MC selection as visual badges
- * So that I can quickly see what they chose and whether it was correct
- */
-
-const MC_OPTIONS = [
-  { id: "opt-a", text: "Berlin", isCorrect: false },
-  { id: "opt-b", text: "Paris", isCorrect: true },
-  { id: "opt-c", text: "Rome", isCorrect: false },
-];
 
 const BASE_PROPS = {
   testId: "test-1",
@@ -43,222 +27,6 @@ const BASE_PROPS = {
   existingSolution: null,
 };
 
-describe("Feature: McQuestionGradeForm", () => {
-  describe("Scenario: Student selected a correct option", () => {
-    it("should render the selected option as a selected-correct chip (not a raw [MC] string)", () => {
-      render(
-        <McQuestionGradeForm
-          {...BASE_PROPS}
-          selectedIds={["opt-b"]}
-          options={MC_OPTIONS}
-        />,
-      );
-
-      expect(screen.queryByText(/\[MC\]/)).not.toBeInTheDocument();
-      const chip = screen.getByTestId("mc-chip-opt-b");
-      expect(chip).toHaveTextContent("Paris");
-      expect(chip).toHaveAttribute("data-state", "selected-correct");
-    });
-  });
-
-  describe("Scenario: Student selected a wrong option", () => {
-    it("should render the selected option as a selected-wrong chip", () => {
-      render(
-        <McQuestionGradeForm
-          {...BASE_PROPS}
-          selectedIds={["opt-a"]}
-          options={MC_OPTIONS}
-        />,
-      );
-
-      const chip = screen.getByTestId("mc-chip-opt-a");
-      expect(chip).toHaveTextContent("Berlin");
-      expect(chip).toHaveAttribute("data-state", "selected-wrong");
-      // The unselected correct option never renders a missed-correct
-      // outline chip in this view.
-      expect(screen.queryByTestId("mc-chip-opt-b")).not.toBeInTheDocument();
-    });
-  });
-});
-
-describe("Feature: McQuestionGradeForm read-only display", () => {
-  describe("Scenario: MC grading is read-only, keyed on the student's selection", () => {
-    it("should hide the grade form controls and show 'No answer submitted' before submit, or the real score when answered wrong", () => {
-      // Given an MC question the student never answered (no selection),
-      // not yet submitted (BASE_PROPS carries no studentStatus).
-      const { container: unanswered } = render(
-        <McQuestionGradeForm
-          {...BASE_PROPS}
-          selectedIds={[]}
-          options={MC_OPTIONS}
-        />,
-      );
-
-      // Then no editable grade form renders — MC is auto-graded, not manual
-      expect(
-        within(unanswered).queryByRole("spinbutton"),
-      ).not.toBeInTheDocument();
-      expect(
-        within(unanswered).queryByRole("button", { name: /save/i }),
-      ).not.toBeInTheDocument();
-      // And the blank reads the same pre-submit wording as free text and
-      // image, not a counted 0 before the student submits.
-      expect(
-        within(unanswered).getByText("No answer submitted"),
-      ).toBeInTheDocument();
-
-      // Given the same question, this time answered wrong (real score 0)
-      const { container: answeredWrong } = render(
-        <McQuestionGradeForm
-          {...BASE_PROPS}
-          existingScore={0}
-          selectedIds={["opt-a"]}
-          options={MC_OPTIONS}
-        />,
-      );
-
-      // Then it shows the real score, not the "not answered" framing
-      expect(
-        within(answeredWrong).queryByText("No answer submitted"),
-      ).not.toBeInTheDocument();
-      expect(within(answeredWrong).getByText(/score/i)).toHaveTextContent("0");
-
-      // Given the rare answered-but-not-yet-auto-graded MC: the student DID
-      // select an option, but no grade row exists (score null). The label is
-      // keyed on the SELECTION, not on the null grade (R2) — so this must show
-      // the score, NOT the blank wording (which a `score === null` key gives).
-      const { container: answeredNoGrade } = render(
-        <McQuestionGradeForm
-          {...BASE_PROPS}
-          existingScore={null}
-          selectedIds={["opt-a"]}
-          options={MC_OPTIONS}
-        />,
-      );
-
-      expect(
-        within(answeredNoGrade).queryByText("No answer submitted"),
-      ).not.toBeInTheDocument();
-      expect(within(answeredNoGrade).getByText(/score/i)).toBeInTheDocument();
-    });
-
-    it("should show 'No answer — counts as 0' for a blank MC question once the student has submitted", () => {
-      // Given an MC question the student left blank, test now submitted.
-      const { container } = render(
-        <McQuestionGradeForm
-          {...BASE_PROPS}
-          selectedIds={[]}
-          options={MC_OPTIONS}
-          studentStatus={TestStatus.Graded}
-        />,
-      );
-
-      // Then the blank reads the same wording as free text and image,
-      // not the pre-submit "No answer submitted".
-      expect(
-        within(container).getByText("No answer — counts as 0"),
-      ).toBeInTheDocument();
-      expect(
-        within(container).queryByText("No answer submitted"),
-      ).not.toBeInTheDocument();
-    });
-  });
-});
-
-describe("Feature: FreeTextQuestionGradeForm", () => {
-  describe("Scenario: Student answered a free-text question", () => {
-    it("should render the answer as plain text (no chips)", () => {
-      render(
-        <FreeTextQuestionGradeForm
-          {...BASE_PROPS}
-          answerText="A sample answer"
-        />,
-      );
-
-      expect(screen.getByText("A sample answer")).toBeInTheDocument();
-      expect(screen.queryByTestId(/mc-chip/)).not.toBeInTheDocument();
-    });
-  });
-
-  describe("Scenario: Student has not answered", () => {
-    it("should show 'No answer submitted' when answerText is null and the student has not submitted yet", () => {
-      render(
-        <FreeTextQuestionGradeForm
-          {...BASE_PROPS}
-          answerText={null}
-          studentStatus={TestStatus.InProgress}
-        />,
-      );
-
-      expect(screen.getByText("No answer submitted")).toBeInTheDocument();
-    });
-
-    it("should show 'No answer — counts as 0' once the student has submitted, with no grading form", () => {
-      render(
-        <FreeTextQuestionGradeForm
-          {...BASE_PROPS}
-          answerText={null}
-          studentStatus={TestStatus.Submitted}
-        />,
-      );
-
-      expect(screen.getByText("No answer — counts as 0")).toBeInTheDocument();
-      expect(screen.queryByLabelText(/score/i)).not.toBeInTheDocument();
-    });
-
-    it("should show the stored score instead of 'counts as 0' when the blank question was already graded", () => {
-      render(
-        <FreeTextQuestionGradeForm
-          {...BASE_PROPS}
-          answerText={null}
-          studentStatus={TestStatus.Submitted}
-          existingScore={50}
-        />,
-      );
-
-      expect(screen.getByText("No answer — scored 50")).toBeInTheDocument();
-      expect(
-        screen.queryByText("No answer — counts as 0"),
-      ).not.toBeInTheDocument();
-    });
-  });
-});
-
-describe("Feature: FreeTextQuestionGradeForm children slot", () => {
-  describe("Scenario: AI suggestion panel is passed as children", () => {
-    it("should render the children as a descendant of the question box (grade-card)", () => {
-      render(
-        <FreeTextQuestionGradeForm {...BASE_PROPS} answerText="A sample answer">
-          <div data-testid="ai-suggestion-stub">AI suggestion content</div>
-        </FreeTextQuestionGradeForm>,
-      );
-
-      const gradeCard = screen.getByTestId("grade-card");
-      expect(
-        within(gradeCard).getByTestId("ai-suggestion-stub"),
-      ).toBeInTheDocument();
-    });
-  });
-
-  describe("Scenario: Student has no free-text answer", () => {
-    // Guards the documented regression: the AI panel must keep showing even
-    // when there is no current answer — children must sit OUTSIDE the
-    // `answerText && ...` conditional.
-    it("should still render the children inside the question box when answerText is null", () => {
-      render(
-        <FreeTextQuestionGradeForm {...BASE_PROPS} answerText={null}>
-          <div data-testid="ai-suggestion-stub">AI suggestion content</div>
-        </FreeTextQuestionGradeForm>,
-      );
-
-      const gradeCard = screen.getByTestId("grade-card");
-      expect(
-        within(gradeCard).getByTestId("ai-suggestion-stub"),
-      ).toBeInTheDocument();
-    });
-  });
-});
-
 describe("Feature: InProgress confirm dialog", () => {
   describe("Scenario: Admin grades an InProgress student", () => {
     it("should show a confirm dialog before submitting; cancel aborts the form action, confirm proceeds", async () => {
@@ -266,9 +34,8 @@ describe("Feature: InProgress confirm dialog", () => {
       vi.mocked(gradeQuestionAction).mockClear();
       const user = userEvent.setup();
       render(
-        <FreeTextQuestionGradeForm
+        <CompactGradeForm
           {...BASE_PROPS}
-          answerText="partial"
           studentStatus={TestStatus.InProgress}
         />,
       );

@@ -201,9 +201,14 @@ test.describe("Grading layout — long names, titles and links stay readable", (
     // By-student pivot: name wraps, the graded-count pill stays one line.
     await page.goto(`/admin/grading/${testId}?studentId=${studentId}`);
     const card = page.getByTestId(`student-card-${studentId}`);
-    const name = card.getByText(longName, { exact: false });
+    const name = card.getByText(longName, { exact: false }).first();
     await expect(name).toBeVisible();
     await expectWrapped(name);
+    const panelName = card
+      .getByTestId("grade-card")
+      .getByRole("heading", { name: /Grade · Q1/ });
+    await expect(panelName).toBeVisible();
+    await expectWrapped(panelName);
     const pill = card.getByText(/graded/);
     await expectSingleLine(pill);
     await expectNoPageOverflow(page);

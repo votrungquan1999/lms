@@ -260,6 +260,41 @@ describe("GradeService - Integration Tests", () => {
     },
   );
 
+  dbIt(
+    "should clear a saved solution when re-graded with an empty one, and keep it when none is given",
+    async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      const { gradeService } = buildCoreServices(db);
+      const grade = {
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        score: 80,
+        feedback: "ok",
+        gradedBy: "admin-1",
+      };
+      await gradeService.gradeQuestion({ ...grade, solution: "the fix" });
+
+      // When: re-graded without a solution
+      const kept = await gradeService.gradeQuestion(grade);
+
+      // Then: the saved solution stays
+      expect(kept.solution).toBe("the fix");
+
+      // When: re-graded with an emptied solution
+      const cleared = await gradeService.gradeQuestion({
+        ...grade,
+        solution: "",
+      });
+
+      // Then: the solution is gone
+      expect(cleared.solution).toBeNull();
+      expect(
+        (await gradeService.getGrades("test-1", "student-1"))[0]?.solution,
+      ).toBeNull();
+    },
+  );
+
   dbIt("should update score and feedback when re-grading", async ({ db }) => {
     await insertRawTest(db, "test-1");
     const { questionService, answerService, gradeService } =

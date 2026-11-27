@@ -100,7 +100,7 @@ export async function gradeQuestionAction(
     studentId: formData.get("studentId"),
     score: formData.get("score"),
     feedback: formData.get("feedback"),
-    solution: formData.get("solution") || undefined,
+    solution: formData.get("solution") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -681,7 +681,7 @@ export async function saveAndJumpToNextAction(formData: FormData) {
     mode: formData.get("mode"),
     score: formData.get("score"),
     feedback: formData.get("feedback"),
-    solution: formData.get("solution") || undefined,
+    solution: formData.get("solution") ?? undefined,
     sort: formData.get("sort") || undefined,
   });
 

@@ -1,21 +1,8 @@
 // @vitest-environment jsdom
 import { render, within } from "@testing-library/react";
-import { FreeTextQuestionGradeForm } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
-import { TestStatus } from "src/lib/test-status-service";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { BlankAnswerNote } from "../blank-answer-note.ui";
 import { McReadOnlyScore } from "../mc-read-only-score.ui";
-
-vi.mock(
-  "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions",
-  () => ({
-    gradeQuestionAction: vi.fn(),
-    setTestFeedbackAction: vi.fn(),
-    releaseGradesAction: vi.fn(),
-    releaseCorrectAnswersAction: vi.fn(),
-    requestRedoAction: vi.fn(),
-    saveAndJumpToNextAction: vi.fn(),
-  }),
-);
 
 /**
  * Feature: one shared blank-answer note across question types
@@ -33,19 +20,7 @@ describe("Feature: shared blank-answer note", () => {
         <McReadOnlyScore selectedIds={[]} score={null} isSubmitted={false} />,
       );
       const { container: freeTextContainer } = render(
-        <FreeTextQuestionGradeForm
-          testId="test-1"
-          courseId="course-1"
-          questionId="q-1"
-          studentId="student-1"
-          questionTitle="Capital of France?"
-          questionOrder={1}
-          existingScore={null}
-          existingFeedback={null}
-          existingSolution={null}
-          studentStatus={TestStatus.InProgress}
-          answerText={null}
-        />,
+        <BlankAnswerNote isSubmitted={false} score={null} />,
       );
 
       // When reading each one's blank note

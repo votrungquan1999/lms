@@ -3,13 +3,13 @@ import { AiGradingInProgressNote } from "src/app/admin/(dashboard)/courses/[cour
 import { AiSuggestionPanel } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-suggestion-panel";
 import { AutoGradeWithAiButton } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/auto-grade-with-ai-button";
 import {
-  CompactGradeForm,
   OverallFeedbackForm,
   RequestRedoButton,
 } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { PendingAiGradingRefresher } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/pending-ai-grading-refresher.ui";
 import { ReleaseGradeForStudentControl } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/release-grade-for-student";
 import { AnswerPane } from "src/app/admin/(dashboard)/grading/page-body/answer-pane";
+import { GradePanel } from "src/app/admin/(dashboard)/grading/page-body/grade-panel";
 import {
   Card,
   CardContent,
@@ -287,8 +287,6 @@ export async function GradingDetailStudent({
               studentName={student.name}
               question={selectedQuestion}
               answer={selectedAnswer}
-              score={selectedGrade?.score ?? null}
-              isSubmitted={hasSubmitted(status)}
               photos={photos}
               annotations={annotations}
               correctAnswersVisible={
@@ -299,53 +297,45 @@ export async function GradingDetailStudent({
             />
           )}
 
-          {selectedQuestion &&
-            !isMcQuestion(selectedQuestion) &&
-            (selectedAnswer?.type === "free_text"
-              ? !!selectedAnswer.text
-              : photos.length > 0) && (
-              <div className="space-y-3" data-testid="grade-card">
-                <CompactGradeForm
-                  testId={testId}
-                  courseId={courseId}
-                  questionId={selectedQuestion.id}
-                  studentId={student.id}
-                  questionTitle={selectedQuestion.title}
-                  questionOrder={selectedQuestion.order}
-                  existingScore={selectedGrade?.score ?? null}
-                  existingFeedback={selectedGrade?.feedback ?? null}
-                  existingSolution={selectedGrade?.solution ?? null}
-                  studentStatus={status}
-                  saveAndNext={
-                    selectedAnswer?.type === "free_text"
-                      ? {
-                          candidateIds: formBearingQuestionIds,
-                          currentStudentId: student.id,
-                          returnPath: basePath,
-                          mode: "student" as const,
-                          sort,
-                        }
-                      : undefined
-                  }
-                />
-                {selectedQuestion.type === "free_text" &&
-                  selectedSuggestions.length > 0 && (
-                    <AiSuggestionPanel
-                      key={aiJobStateKey}
-                      testId={testId}
-                      courseId={courseId}
-                      studentId={student.id}
-                      questionId={selectedQuestion.id}
-                      suggestions={selectedSuggestions}
-                      latestAnswerId={
-                        latestAnswerIdByQuestion.get(selectedQuestion.id) ??
-                        null
-                      }
-                      regenerateDisabled={aiGradingStartedAt !== null}
-                    />
-                  )}
-              </div>
-            )}
+          {selectedQuestion && (
+            <GradePanel
+              testId={testId}
+              courseId={courseId}
+              student={student}
+              question={selectedQuestion}
+              answer={selectedAnswer}
+              hasPhotos={photos.length > 0}
+              grade={selectedGrade}
+              status={status}
+              saveAndNext={
+                selectedAnswer?.type === "free_text"
+                  ? {
+                      candidateIds: formBearingQuestionIds,
+                      currentStudentId: student.id,
+                      returnPath: basePath,
+                      mode: "student" as const,
+                      sort,
+                    }
+                  : undefined
+              }
+            >
+              {selectedQuestion.type === "free_text" &&
+                selectedSuggestions.length > 0 && (
+                  <AiSuggestionPanel
+                    key={aiJobStateKey}
+                    testId={testId}
+                    courseId={courseId}
+                    studentId={student.id}
+                    questionId={selectedQuestion.id}
+                    suggestions={selectedSuggestions}
+                    latestAnswerId={
+                      latestAnswerIdByQuestion.get(selectedQuestion.id) ?? null
+                    }
+                    regenerateDisabled={aiGradingStartedAt !== null}
+                  />
+                )}
+            </GradePanel>
+          )}
 
           {hasAnswers && (
             <OverallFeedbackForm

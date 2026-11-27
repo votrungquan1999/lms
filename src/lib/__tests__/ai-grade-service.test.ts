@@ -930,7 +930,7 @@ describe("AiGradeService.applySuggestion - Step 7 (switch applied back to a non-
 
 describe("AiGradeService.applySuggestion - Step 7 (solutionOverride precedence)", () => {
   dbIt(
-    "given a suggestion with solution='ai-solution', when applying with solutionOverride='', then the grade row stores solution='' (empty-string is honored as an intentional override via ?? not ||)",
+    "given a suggestion with solution='ai-solution', when applying with solutionOverride='', then the grade row has no solution (an empty override is an intentional clear)",
     async ({ db }) => {
       await insertRawCourses(db, ["course-1"]);
       const stubAiClient: AiClient = {
@@ -994,7 +994,7 @@ describe("AiGradeService.applySuggestion - Step 7 (solutionOverride precedence)"
       );
 
       const grade = await gradeService.getGrade(test.id, q1.id, "student-1");
-      expect(grade!.solution).toBe("");
+      expect(grade!.solution).toBeNull();
     },
   );
 });
@@ -1772,7 +1772,7 @@ describe("AiGradeService.applySuggestion - Step 7 (switch applied back to a non-
 
 describe("AiGradeService.applySuggestion - Step 7 (solutionOverride precedence)", () => {
   dbIt(
-    "given a suggestion with solution='ai-solution', when applying with solutionOverride='', then the grade row stores solution='' (empty-string is honored as an intentional override via ?? not ||)",
+    "given a suggestion with solution='ai-solution', when applying with solutionOverride='', then the grade row has no solution (an empty override is an intentional clear)",
     async ({ db }) => {
       await insertRawCourses(db, ["course-1"]);
       const stubAiClient: AiClient = {
@@ -1836,7 +1836,7 @@ describe("AiGradeService.applySuggestion - Step 7 (solutionOverride precedence)"
       );
 
       const grade = await gradeService.getGrade(test.id, q1.id, "student-1");
-      expect(grade!.solution).toBe("");
+      expect(grade!.solution).toBeNull();
     },
   );
 });

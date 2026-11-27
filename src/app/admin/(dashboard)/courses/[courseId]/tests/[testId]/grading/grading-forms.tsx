@@ -1,10 +1,7 @@
 "use client";
 
-import { useActionState, useId } from "react";
+import { useActionState, useId, useState } from "react";
 import { formatReleaseLine } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/test-settings-panel";
-import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
-import { McAnswerChips } from "src/components/mc-answer-chips";
-import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,8 +16,7 @@ import {
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
-import type { McOption } from "src/lib/question-service";
-import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
+import { TestStatus } from "src/lib/test-status-service";
 import {
   type GradeQuestionState,
   gradeQuestionAction,
@@ -73,23 +69,34 @@ interface BaseGradeFormProps {
   studentStatus?: TestStatus;
   /** When present, renders a "Save & Next" button alongside the save. */
   saveAndNext?: SaveAndNextNavigation;
-  /** DOM id on the outer wrapper — scroll target for `#question-<id>` links. */
-  id?: string;
+  /** Offers 0 / 50 / 100 buttons that fill the score field. */
+  showQuickScores?: boolean;
+  /**
+   * Changes whenever the saved grade changes. The fields remount on a new
+   * value, so they show the saved grade instead of a stale draft.
+   */
+  formKey?: string;
 }
 
 // ── Shared primitive: score / feedback / solution inputs ──────────────────────
+
+const QUICK_SCORES = [0, 50, 100];
 
 function GradeInputs({
   questionId,
   existingScore,
   existingFeedback,
   existingSolution,
+  showQuickScores,
 }: {
   questionId: string;
   existingScore: number | null;
   existingFeedback: string | null;
   existingSolution: string | null;
+  showQuickScores: boolean;
 }) {
+  const [score, setScore] = useState(existingScore?.toString() ?? "");
+
   return (
     <>
       <div className="flex items-center gap-3">
@@ -102,10 +109,23 @@ function GradeInputs({
           name="score"
           min={0}
           max={100}
-          defaultValue={existingScore ?? ""}
+          value={score}
+          onChange={(event) => setScore(event.target.value)}
           className="w-24"
           required
         />
+        {showQuickScores &&
+          QUICK_SCORES.map((quick) => (
+            <Button
+              key={quick}
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setScore(String(quick))}
+            >
+              {quick}
+            </Button>
+          ))}
       </div>
 
       <div>
@@ -146,123 +166,9 @@ function GradeInputs({
   );
 }
 
-// ── FreeTextQuestionGradeForm ─────────────────────────────────────────────────
-
-interface FreeTextQuestionGradeFormProps extends BaseGradeFormProps {
-  /** The student's plain-text answer, or null if not submitted. */
-  answerText: string | null;
-  /** Extra content (e.g. an AI suggestion panel) rendered inside the box. */
-  children?: React.ReactNode;
-}
-
-export function FreeTextQuestionGradeForm({
-  answerText,
-  questionTitle,
-  questionOrder,
-  children,
-  id,
-  ...rest
-}: FreeTextQuestionGradeFormProps) {
-  const { studentStatus, existingScore } = rest;
-  // Blank labelling only kicks in once the student has submitted — before
-  // that, the question is simply not answered yet, not "counted".
-  const isSubmitted =
-    studentStatus !== undefined && hasSubmitted(studentStatus);
-
-  const answerDisplay = answerText ? (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground">
-        Student Answer:
-      </p>
-      <pre className="whitespace-pre-wrap rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
-        {answerText}
-      </pre>
-    </div>
-  ) : (
-    <BlankAnswerNote isSubmitted={isSubmitted} score={existingScore} />
-  );
-
-  return (
-    <div
-      id={id}
-      className="rounded-lg border p-4 space-y-3"
-      data-testid="grade-card"
-    >
-      <h4 className="font-medium text-sm">
-        <span className="text-muted-foreground">#{questionOrder}</span>{" "}
-        {questionTitle}
-      </h4>
-      {answerDisplay}
-      {answerText && (
-        <GradeFormInner
-          questionTitle={questionTitle}
-          questionOrder={questionOrder}
-          {...rest}
-        />
-      )}
-      {children}
-    </div>
-  );
-}
-
-// ── McQuestionGradeForm ───────────────────────────────────────────────────────
-
-interface McQuestionGradeFormProps extends BaseGradeFormProps {
-  /** IDs of the options the student selected. */
-  selectedIds: string[];
-  /** All available options for the question (with isCorrect). */
-  options: McOption[];
-}
-
-export function McQuestionGradeForm({
-  selectedIds,
-  options,
-  questionTitle,
-  questionOrder,
-  existingScore,
-  studentStatus,
-  id,
-}: McQuestionGradeFormProps) {
-  const isSubmitted =
-    studentStatus !== undefined && hasSubmitted(studentStatus);
-  const answerDisplay = (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground">
-        Student Answer:
-      </p>
-      <McAnswerChips
-        selectedIds={selectedIds}
-        options={options}
-        colorPicks={true}
-        showMissedCorrect={false}
-      />
-    </div>
-  );
-
-  return (
-    <div
-      id={id}
-      className="rounded-lg border p-4 space-y-3"
-      data-testid="grade-card"
-    >
-      <h4 className="font-medium text-sm">
-        <span className="text-muted-foreground">#{questionOrder}</span>{" "}
-        {questionTitle}
-      </h4>
-      {answerDisplay}
-      <McReadOnlyScore
-        selectedIds={selectedIds}
-        score={existingScore}
-        isSubmitted={isSubmitted}
-      />
-    </div>
-  );
-}
-
 // ── CompactGradeForm: grade inputs only (no outer card) ─────────────────────
-// Exported for the question-mode rows in the grading shell, where the
-// per-student grading form needs to render inside a compact row (no card,
-// no question heading — those are owned by the row/header).
+// The grade panel and the question-mode rows render it with no card and no
+// question heading — those belong to the panel / row.
 export { GradeFormInner as CompactGradeForm };
 
 function GradeFormInner({
@@ -275,6 +181,8 @@ function GradeFormInner({
   existingSolution,
   studentStatus,
   saveAndNext,
+  showQuickScores = false,
+  formKey,
 }: BaseGradeFormProps) {
   const [state, formAction, isPending] = useActionState<
     GradeQuestionState | null,
@@ -293,91 +201,94 @@ function GradeFormInner({
   const formId = useId();
 
   return (
-    <form id={formId} action={formAction} className="space-y-3">
-      <input type="hidden" name="testId" value={testId} />
-      <input type="hidden" name="courseId" value={courseId} />
-      <input type="hidden" name="questionId" value={questionId} />
-      <input type="hidden" name="studentId" value={studentId} />
-      {saveAndNext && (
-        <>
-          <input
-            type="hidden"
-            name="candidateIds"
-            value={saveAndNext.candidateIds}
-          />
-          <input
-            type="hidden"
-            name="currentStudentId"
-            value={saveAndNext.currentStudentId}
-          />
-          <input
-            type="hidden"
-            name="returnPath"
-            value={saveAndNext.returnPath}
-          />
-          <input type="hidden" name="mode" value={saveAndNext.mode} />
-          {saveAndNext.sort && (
-            <input type="hidden" name="sort" value={saveAndNext.sort} />
-          )}
-        </>
-      )}
-
-      <GradeInputs
-        questionId={questionId}
-        existingScore={existingScore}
-        existingFeedback={existingFeedback}
-        existingSolution={existingSolution}
-      />
-
-      <div className="flex items-center gap-3">
-        {requiresConfirm ? (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button type="button" size="sm" disabled={isPending}>
-                {submitLabel}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Submit grade anyway?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This student hasn&apos;t submitted their test yet. Are you
-                  sure you want to grade their in-progress work?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction type="submit" form={formId}>
-                  Submit Anyway
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ) : (
-          <Button type="submit" size="sm" disabled={isPending}>
-            {submitLabel}
-          </Button>
-        )}
+    <div className="space-y-3">
+      <form key={formKey} id={formId} action={formAction} className="space-y-3">
+        <input type="hidden" name="testId" value={testId} />
+        <input type="hidden" name="courseId" value={courseId} />
+        <input type="hidden" name="questionId" value={questionId} />
+        <input type="hidden" name="studentId" value={studentId} />
         {saveAndNext && (
-          <Button
-            type="submit"
-            size="sm"
-            variant="secondary"
-            disabled={isPending}
-            formAction={saveAndJumpToNextAction}
-          >
-            Save & Next
-          </Button>
+          <>
+            <input
+              type="hidden"
+              name="candidateIds"
+              value={saveAndNext.candidateIds}
+            />
+            <input
+              type="hidden"
+              name="currentStudentId"
+              value={saveAndNext.currentStudentId}
+            />
+            <input
+              type="hidden"
+              name="returnPath"
+              value={saveAndNext.returnPath}
+            />
+            <input type="hidden" name="mode" value={saveAndNext.mode} />
+            {saveAndNext.sort && (
+              <input type="hidden" name="sort" value={saveAndNext.sort} />
+            )}
+          </>
         )}
-        {state?.message && (
-          <p
-            className={`text-sm ${state.success ? "text-green-600" : "text-destructive"}`}
-          >
-            {state.message}
-          </p>
-        )}
-      </div>
-    </form>
+
+        <GradeInputs
+          questionId={questionId}
+          existingScore={existingScore}
+          existingFeedback={existingFeedback}
+          existingSolution={existingSolution}
+          showQuickScores={showQuickScores}
+        />
+
+        <div className="flex items-center gap-3">
+          {requiresConfirm ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" size="sm" disabled={isPending}>
+                  {submitLabel}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Submit grade anyway?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This student hasn&apos;t submitted their test yet. Are you
+                    sure you want to grade their in-progress work?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction type="submit" form={formId}>
+                    Submit Anyway
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button type="submit" size="sm" disabled={isPending}>
+              {submitLabel}
+            </Button>
+          )}
+          {saveAndNext && (
+            <Button
+              type="submit"
+              size="sm"
+              variant="secondary"
+              disabled={isPending}
+              formAction={saveAndJumpToNextAction}
+            >
+              Save & Next
+            </Button>
+          )}
+        </div>
+      </form>
+      {state?.message && (
+        <p
+          className={`text-sm ${state.success ? "text-green-600" : "text-destructive"}`}
+        >
+          {state.message}
+        </p>
+      )}
+    </div>
   );
 }
 
