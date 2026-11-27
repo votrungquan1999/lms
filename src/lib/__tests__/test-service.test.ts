@@ -511,6 +511,103 @@ describe("TestService", () => {
   );
 });
 
+describe("Feature: releasing a test's grades and correct answers in one write", () => {
+  dbIt(
+    "stamps the grade release time, and the correct-answer time only when asked",
+    async ({ db }) => {
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "",
+        createdBy: "admin",
+      });
+      const withheld = {
+        description: "",
+        createdBy: "admin",
+        showGradeAfterSubmit: false,
+        showCorrectAnswerAfterSubmit: false,
+      };
+      const gradesOnly = await testService.createTest(course.id, {
+        ...withheld,
+        title: "Grades only",
+      });
+      const both = await testService.createTest(course.id, {
+        ...withheld,
+        title: "Both",
+      });
+
+      await testService.releaseGradesAndAnswers(gradesOnly.id, "admin", false);
+      await testService.releaseGradesAndAnswers(both.id, "admin", true);
+
+      const gradesOnlyAfter = await testService.getTest(gradesOnly.id);
+      expect(gradesOnlyAfter?.gradesReleasedAt).toBeInstanceOf(Date);
+      expect(gradesOnlyAfter?.correctAnswersReleasedAt).toBeNull();
+      const bothAfter = await testService.getTest(both.id);
+      expect(bothAfter?.gradesReleasedAt).toBeInstanceOf(Date);
+      expect(bothAfter?.correctAnswersReleasedAt).toBeInstanceOf(Date);
+    },
+  );
+
+  dbIt(
+    "keeps the time of an earlier release instead of stamping a new one",
+    async ({ db }) => {
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "",
+        createdBy: "admin",
+      });
+      const test = await testService.createTest(course.id, {
+        title: "Released before",
+        description: "",
+        createdBy: "admin",
+        showGradeAfterSubmit: false,
+        showCorrectAnswerAfterSubmit: false,
+      });
+      await testService.releaseGrades(test.id, "admin");
+      await testService.releaseCorrectAnswers(test.id, "admin");
+      const first = await testService.getTest(test.id);
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await testService.releaseGradesAndAnswers(test.id, "admin", true);
+
+      const after = await testService.getTest(test.id);
+      expect(after?.gradesReleasedAt).toEqual(first?.gradesReleasedAt);
+      expect(after?.correctAnswersReleasedAt).toEqual(
+        first?.correctAnswersReleasedAt,
+      );
+    },
+  );
+
+  dbIt(
+    "stamps no time for a part that students already see on submit",
+    async ({ db }) => {
+      const courseService = new CourseService(db, TEST_SCHOOL_ID);
+      const testService = buildTestService(db);
+      const course = await courseService.createCourse({
+        title: "Course",
+        description: "",
+        createdBy: "admin",
+      });
+      const test = await testService.createTest(course.id, {
+        title: "Grades shown on submit",
+        description: "",
+        createdBy: "admin",
+        showGradeAfterSubmit: true,
+        showCorrectAnswerAfterSubmit: false,
+      });
+
+      await testService.releaseGradesAndAnswers(test.id, "admin", true);
+
+      const after = await testService.getTest(test.id);
+      expect(after?.gradesReleasedAt).toBeNull();
+      expect(after?.correctAnswersReleasedAt).toBeInstanceOf(Date);
+    },
+  );
+});
+
 /**
  * Feature: a school admin can never open another school's test by id
  * As a school admin

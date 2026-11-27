@@ -34,6 +34,15 @@ describe("Feature: the release-correct-answers entry of Release ▾", () => {
       <ReleaseMenu
         testId="test-1"
         courseId="course-1"
+        testTitle="Midterm"
+        counts={{
+          graded: 0,
+          waiting: 0,
+          stillWriting: 0,
+          redoRequested: 0,
+          notStarted: 0,
+        }}
+        choiceQuestionCount={0}
         state={{ kind: GradeReleaseKind.Released }}
         offerGrades={false}
         offerCorrectAnswers

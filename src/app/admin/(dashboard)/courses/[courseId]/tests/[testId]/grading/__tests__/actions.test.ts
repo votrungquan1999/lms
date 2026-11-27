@@ -12,7 +12,7 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 
 const setTestFeedback = vi.fn().mockResolvedValue(undefined);
-const releaseGrades = vi.fn().mockResolvedValue(undefined);
+const releaseGradesAndAnswers = vi.fn().mockResolvedValue(undefined);
 const requestRedo = vi.fn().mockResolvedValue(undefined);
 const getActiveRedoRequest = vi.fn().mockResolvedValue(null);
 // Parent-check stubs — a fixed test-1/course-1/q-1, always enrolled, so
@@ -29,7 +29,7 @@ const clearActiveStart = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("src/lib/services-singleton", () => ({
   getTestFeedbackService: vi.fn(async () => ({ setTestFeedback })),
-  getTestService: vi.fn(async () => ({ releaseGrades, getTest })),
+  getTestService: vi.fn(async () => ({ releaseGradesAndAnswers, getTest })),
   getRedoRequestService: vi.fn(async () => ({
     requestRedo,
     getActiveRedoRequest,
@@ -42,7 +42,7 @@ vi.mock("src/lib/services-singleton", () => ({
 
 import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
-  releaseGradesAction,
+  releaseTestAction,
   requestRedoAction,
   setTestFeedbackAction,
 } from "../actions";
@@ -70,7 +70,8 @@ describe("Feature: grading actions extend revalidatePath to hub and variant page
     const fdRel = new FormData();
     fdRel.set("testId", testId);
     fdRel.set("courseId", courseId);
-    await releaseGradesAction(null, fdRel);
+    fdRel.set("mode", "whole");
+    await releaseTestAction(null, fdRel);
 
     const fdRedo = new FormData();
     fdRedo.set("testId", testId);

@@ -313,6 +313,92 @@ export async function releaseGradesAction(
   }
 }
 
+const releaseTestSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("whole"),
+    testId: z.string().min(1),
+    courseId: z.string().min(1),
+    alsoCorrectAnswers: z.boolean(),
+  }),
+]);
+
+export interface ReleaseTestState {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Server action: releases a test's grades to every student, and its correct
+ * answers too when asked, in one write.
+ */
+export async function releaseTestAction(
+  _prevState: ReleaseTestState | null,
+  formData: FormData,
+): Promise<ReleaseTestState> {
+  const requestHeaders = await headers();
+  const authService = await getAuthService();
+
+  let adminUserId: string;
+  let schoolId: string;
+  try {
+    const session = await authService.requireAdminSession(requestHeaders);
+    adminUserId = session.userId;
+    schoolId = session.school.id;
+  } catch {
+    return {
+      success: false,
+      message: "Unauthorized: admin access required",
+    };
+  }
+
+  const parsed = releaseTestSchema.safeParse({
+    mode: formData.get("mode"),
+    testId: formData.get("testId"),
+    courseId: formData.get("courseId"),
+    alsoCorrectAnswers: formData.get("alsoCorrectAnswers") === "true",
+  });
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+  const { testId, courseId, alsoCorrectAnswers } = parsed.data;
+
+  try {
+    return await withSpan(
+      "action.releaseTestAction",
+      {
+        "lms.action.name": "releaseTestAction",
+        "lms.test.id": testId,
+        "lms.course.id": courseId,
+      },
+      async () => {
+        const testService = await getTestService(schoolId);
+        await resolveOwnedTest(testService, testId, courseId);
+        await testService.releaseGradesAndAnswers(
+          testId,
+          adminUserId,
+          alsoCorrectAnswers,
+        );
+
+        revalidatePath(`/admin/courses/${courseId}/tests/${testId}/grading`);
+        revalidatePath(`/admin/courses/${courseId}/tests/${testId}`);
+        revalidatePath(`/admin/courses/${courseId}`);
+        revalidatePath("/admin/grading");
+        revalidatePath(`/admin/grading/${testId}`);
+        revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
+
+        return { success: true, message: "Released" };
+      },
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Failed to release",
+    };
+  }
+}
+
 const requestRedoSchema = z.object({
   testId: z.string().min(1),
   courseId: z.string().min(1),

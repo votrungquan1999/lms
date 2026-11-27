@@ -30,6 +30,7 @@ import {
   releaseCorrectAnswersAction,
   releaseGradeForStudentAction,
   releaseGradesAction,
+  releaseTestAction,
   requestRedoAction,
   saveAndNextAction,
   saveAnnotationsAction,
@@ -310,6 +311,23 @@ describe("Feature: a school admin can never grade another school's test", () => 
       (await getTestServices().testService.getTest(foreign.testId))
         ?.gradesReleasedAt,
     ).toBeNull();
+  });
+
+  it("releaseTestAction refuses a foreign test and releases neither grades nor correct answers", async () => {
+    await signInAsOtherSchoolAdmin();
+    const foreign = await createForeignFixture();
+    const formData = new FormData();
+    formData.set("testId", foreign.testId);
+    formData.set("courseId", foreign.courseId);
+    formData.set("mode", "whole");
+    formData.set("alsoCorrectAnswers", "true");
+
+    const result = await releaseTestAction(null, formData);
+
+    expect(result.success).toBe(false);
+    const test = await getTestServices().testService.getTest(foreign.testId);
+    expect(test?.gradesReleasedAt).toBeNull();
+    expect(test?.correctAnswersReleasedAt).toBeNull();
   });
 
   it("releaseCorrectAnswersAction refuses a foreign test and leaves it un-released", async () => {

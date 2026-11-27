@@ -209,9 +209,13 @@ test.describe("MC Edge Cases — Delayed grade reveal", () => {
       page.getByRole("heading", { name: "Grade: EC Delayed Test" }),
     ).toBeVisible();
 
-    // When: admin opens Release ▾ and picks "Release grades…" (offered for delayed-release tests)
+    // When: admin opens Release ▾ and picks "Release grades…" and confirms (offered for delayed-release tests)
     await page.getByRole("button", { name: /^Release .+▾$/ }).click();
-    await page.getByRole("menuitem", { name: "Release grades…" }).click();
+    await page.getByRole("menuitem", { name: /Release grades…/ }).click();
+    await page
+      .getByRole("dialog", { name: "Release grades · EC Delayed Test" })
+      .getByRole("button", { name: "Release" })
+      .click();
 
     // Then: the chip reads Released, which shows only once the release has landed and the page re-rendered.
     await expect(page.getByTestId("release-state")).toHaveText("Released", {

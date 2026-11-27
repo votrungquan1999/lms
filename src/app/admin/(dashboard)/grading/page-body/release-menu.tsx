@@ -1,17 +1,17 @@
 "use client";
 
-import { startTransition, useActionState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import {
   type ReleaseCorrectAnswersState,
-  type ReleaseGradesState,
   releaseCorrectAnswersAction,
-  releaseGradesAction,
 } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions";
 import {
   GradeReleaseKind,
   type GradeReleaseState,
   gradeReleaseText,
 } from "src/lib/release-state";
+import { ReleaseDialog } from "./release-dialog";
+import type { ReleaseStudentCounts } from "./release-dialog.ui";
 import {
   type ReleaseChipTone,
   type ReleaseMenuEntry,
@@ -28,6 +28,9 @@ const CHIP_TONES: Record<GradeReleaseKind, ReleaseChipTone> = {
 interface ReleaseMenuProps {
   testId: string;
   courseId: string;
+  testTitle: string;
+  counts: ReleaseStudentCounts;
+  choiceQuestionCount: number;
   state: GradeReleaseState;
   offerGrades: boolean;
   offerCorrectAnswers: boolean;
@@ -37,15 +40,15 @@ interface ReleaseMenuProps {
 export function ReleaseMenu({
   testId,
   courseId,
+  testTitle,
+  counts,
+  choiceQuestionCount,
   state,
   offerGrades,
   offerCorrectAnswers,
 }: ReleaseMenuProps) {
-  // The actions live here, outside the menu content, so they outlive the menu closing.
-  const [gradesState, releaseGrades] = useActionState<
-    ReleaseGradesState | null,
-    FormData
-  >(releaseGradesAction, null);
+  // The dialog and the action live here, outside the menu content, so they outlive the menu closing.
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [answersState, releaseAnswers] = useActionState<
     ReleaseCorrectAnswersState | null,
     FormData
@@ -63,7 +66,7 @@ export function ReleaseMenu({
     entries.push({
       label: "Release grades…",
       description: "Students see their grades",
-      onSelect: () => post(releaseGrades),
+      onSelect: () => setDialogOpen(true),
     });
   }
   if (offerCorrectAnswers) {
@@ -82,14 +85,26 @@ export function ReleaseMenu({
         }
       : null;
 
-  const failed = [gradesState, answersState].find((s) => s && !s.success);
+  const failed = answersState && !answersState.success ? answersState : null;
   return (
-    <ReleaseMenuView
-      stateText={gradeReleaseText(state)}
-      tone={CHIP_TONES[state.kind]}
-      entries={entries}
-      note={note}
-      error={failed?.message ?? null}
-    />
+    <>
+      <ReleaseMenuView
+        stateText={gradeReleaseText(state)}
+        tone={CHIP_TONES[state.kind]}
+        entries={entries}
+        note={note}
+        error={failed?.message ?? null}
+      />
+      <ReleaseDialog
+        testId={testId}
+        courseId={courseId}
+        testTitle={testTitle}
+        counts={counts}
+        offerCorrectAnswers={offerCorrectAnswers}
+        choiceQuestionCount={choiceQuestionCount}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
+    </>
   );
 }

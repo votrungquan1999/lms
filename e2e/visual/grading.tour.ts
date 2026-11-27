@@ -288,10 +288,10 @@ test("grading: course-scoped page with the release controls", async ({
   ).toBeVisible({ timeout: 60_000 });
   await page.getByRole("button", { name: /^Release .+▾$/ }).click();
   await expect(
-    page.getByRole("menuitem", { name: "Release grades…" }),
+    page.getByRole("menuitem", { name: /Release grades…/ }),
   ).toBeVisible();
   await expect(
-    page.getByRole("menuitem", { name: "Release correct answers" }),
+    page.getByRole("menuitem", { name: /Release correct answers/ }),
   ).toBeVisible();
   await snap(page, "grading/course-scoped-unreleased", {
     sources: [
@@ -327,7 +327,11 @@ test("grading: empty roster and the grade-release control", async ({
 
   // Releasing revalidates the page, so the chip reads Released.
   await page.getByRole("button", { name: /^Release .+▾$/ }).click();
-  await page.getByRole("menuitem", { name: "Release grades…" }).click();
+  await page.getByRole("menuitem", { name: /Release grades…/ }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Release" })
+    .click();
   await expect(page.getByTestId("release-state")).toHaveText("Released", {
     timeout: 30_000,
   });

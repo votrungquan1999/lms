@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   getTestServices,
@@ -20,11 +20,16 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(), cookies: vi.fn() }));
 vi.mock("src/lib/auth-singleton", () => ({ getAuthService: vi.fn() }));
+const { releaseTestAction } = vi.hoisted(() => ({
+  releaseTestAction: vi.fn(),
+}));
+
 vi.mock(
   "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions",
   () => ({
     setTestFeedbackAction: vi.fn(),
     releaseGradesAction: vi.fn(),
+    releaseTestAction,
     releaseCorrectAnswersAction: vi.fn(),
     requestRedoAction: vi.fn(),
     releaseGradeForStudentAction: vi.fn(),
@@ -101,6 +106,7 @@ async function renderPage(testId: string) {
 
 describe("Feature: the Release ▾ chip in the grading top bar", () => {
   beforeEach(async () => {
+    releaseTestAction.mockReset();
     await setupTestDb();
   });
 
@@ -212,5 +218,172 @@ describe("Feature: the Release ▾ chip in the grading top bar", () => {
     expect(
       within(menu).getByRole("menuitem", { name: /release correct answers/i }),
     ).toBeInTheDocument();
+  });
+
+  it("releases the whole test's grades and its correct answers with one request from the release dialog", async () => {
+    releaseTestAction.mockResolvedValue({ success: true, message: "" });
+    const { test } = await seedTest({ graded: 2 });
+    await renderPage(test.id);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Release .+▾$/ }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /release grades/i }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Release grades · Midterm",
+    });
+    expect(
+      within(dialog).getByRole("radio", { name: /whole test/i }),
+    ).toBeChecked();
+    await userEvent.click(
+      within(dialog).getByRole("checkbox", {
+        name: /also show correct answers/i,
+      }),
+    );
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Release" }),
+    );
+
+    expect(releaseTestAction).toHaveBeenCalledTimes(1);
+    const form = releaseTestAction.mock.calls[0][1] as FormData;
+    expect(Object.fromEntries(form)).toEqual({
+      testId: test.id,
+      courseId: test.courseId,
+      mode: "whole",
+      alsoCorrectAnswers: "true",
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("sends one request when Release is clicked again while the first is on its way", async () => {
+    let finish: (value: { success: boolean; message: string }) => void =
+      () => {};
+    releaseTestAction.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { test } = await seedTest({ graded: 2 });
+    await renderPage(test.id);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Release .+▾$/ }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /release grades/i }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Release" }),
+    );
+    const releasing = within(dialog).getByRole("button", {
+      name: "Releasing…",
+    });
+    expect(releasing).toBeDisabled();
+    await userEvent.click(releasing);
+
+    expect(releaseTestAction).toHaveBeenCalledTimes(1);
+    finish({ success: true, message: "" });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("sums up the students in the dialog and leaves out the correct-answers tick when students already see them", async () => {
+    const { test } = await seedTest({
+      graded: 1,
+      showCorrectAnswerAfterSubmit: true,
+    });
+    await renderPage(test.id);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Release .+▾$/ }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /release grades/i }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        "1 graded · 1 waiting · 0 still writing · 0 not started",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("checkbox", {
+        name: /also show correct answers/i,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the dialog open and shows the reason when the release fails", async () => {
+    releaseTestAction.mockResolvedValue({
+      success: false,
+      message: "Test not found",
+    });
+    const { test } = await seedTest({ graded: 2 });
+    await renderPage(test.id);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Release .+▾$/ }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /release grades/i }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Release" }),
+    );
+
+    expect(
+      await within(dialog).findByText("Test not found"),
+    ).toBeInTheDocument();
+  });
+
+  it("opens again unticked and without the last failure after Cancel", async () => {
+    releaseTestAction.mockResolvedValue({
+      success: false,
+      message: "Test not found",
+    });
+    const { test } = await seedTest({ graded: 2 });
+    await renderPage(test.id);
+    const openDialog = async () => {
+      await userEvent.click(
+        screen.getByRole("button", { name: /^Release .+▾$/ }),
+      );
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: /release grades/i }),
+      );
+      return screen.findByRole("dialog");
+    };
+
+    const first = await openDialog();
+    await userEvent.click(
+      within(first).getByRole("checkbox", {
+        name: /also show correct answers/i,
+      }),
+    );
+    await userEvent.click(
+      within(first).getByRole("button", { name: "Release" }),
+    );
+    await within(first).findByText("Test not found");
+    await userEvent.click(
+      within(first).getByRole("button", { name: "Cancel" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+
+    const again = await openDialog();
+    expect(
+      within(again).getByRole("checkbox", {
+        name: /also show correct answers/i,
+      }),
+    ).not.toBeChecked();
+    expect(within(again).queryByText("Test not found")).not.toBeInTheDocument();
   });
 });

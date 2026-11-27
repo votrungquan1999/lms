@@ -273,6 +273,58 @@ export class TestService {
   }
 
   /**
+   * Releases a test's grades to every student, and its correct answers when asked, in one write.
+   * @param testId - The test to release.
+   * @param updatedBy - The admin releasing.
+   * @param alsoCorrectAnswers - Release the correct answers too.
+   * @throws "Test not found" when the test is missing or another school's.
+   */
+  async releaseGradesAndAnswers(
+    testId: string,
+    updatedBy: string,
+    alsoCorrectAnswers: boolean,
+  ): Promise<void> {
+    const now = new Date();
+    // Keeps a time already set, and sets none the "show on submit" setting already covers.
+    const stampIfUnset = (field: string, shownOnSubmitField: string) => ({
+      $cond: [
+        {
+          $or: [
+            { $ne: [{ $ifNull: [`$${field}`, null] }, null] },
+            { $eq: [`$${shownOnSubmitField}`, true] },
+          ],
+        },
+        `$${field}`,
+        now,
+      ],
+    });
+    const result = await this.tests.updateOne(
+      { id: testId, schoolId: this.schoolId },
+      [
+        {
+          $set: {
+            gradesReleasedAt: stampIfUnset(
+              "gradesReleasedAt",
+              "showGradeAfterSubmit",
+            ),
+            ...(alsoCorrectAnswers && {
+              correctAnswersReleasedAt: stampIfUnset(
+                "correctAnswersReleasedAt",
+                "showCorrectAnswerAfterSubmit",
+              ),
+            }),
+            updatedBy,
+            updatedAt: now,
+          },
+        },
+      ],
+    );
+    if (result.matchedCount === 0) {
+      throw new Error("Test not found");
+    }
+  }
+
+  /**
    * Soft-deletes a test so it no longer appears in lists or lookups.
    * @param testId - The test to delete.
    * @param deletedBy - The admin deleting.
