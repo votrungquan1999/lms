@@ -6,6 +6,8 @@ interface GradePanelShellProps {
   studentName: string;
   studentUsername: string;
   aiJobNotes?: ReactNode;
+  /** Student-level actions shown beside the title (the More menu). */
+  headerAction?: ReactNode;
   children: ReactNode;
 }
 
@@ -16,6 +18,7 @@ export function GradePanelShell({
   studentName,
   studentUsername,
   aiJobNotes,
+  headerAction,
   children,
 }: GradePanelShellProps) {
   return (
@@ -23,13 +26,16 @@ export function GradePanelShell({
       className="flex min-h-0 flex-col gap-3 rounded-lg border p-4"
       data-testid="grade-card"
     >
-      <header className="shrink-0">
-        <h3 className="text-sm font-semibold wrap-anywhere">
-          Grade · Q{questionOrder} · {studentName}
-        </h3>
-        <p className="text-xs text-muted-foreground wrap-anywhere">
-          {questionTitle} · @{studentUsername}
-        </p>
+      <header className="flex shrink-0 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold wrap-anywhere">
+            Grade · Q{questionOrder} · {studentName}
+          </h3>
+          <p className="text-xs text-muted-foreground wrap-anywhere">
+            {questionTitle} · @{studentUsername}
+          </p>
+        </div>
+        {headerAction}
       </header>
       {aiJobNotes}
       {children}

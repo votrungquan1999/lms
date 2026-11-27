@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
@@ -40,7 +41,7 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
     await teardownTestDb();
   });
 
-  it("should render the Auto-grade with AI button only on the Submitted student card, hiding it on NotStarted, InProgress, and Graded cards", async () => {
+  it("should offer Auto-grade with AI in More only on the Submitted student card, with no More menu on NotStarted, InProgress, and Graded cards", async () => {
     // Given: a single test with 4 students, one in each TestStatus
     const services = getTestServices();
 
@@ -177,8 +178,8 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
     });
 
     // When + Then: each student is focused via ?studentId=, the detail pane
-    // shows only that student, and the Auto-grade button appears iff their
-    // status is Submitted.
+    // shows only that student, and the Auto-grade entry in More appears iff
+    // their status is Submitted.
     const renderForStudent = async (studentId: string) => {
       cleanup();
       const ui = await GradingPage({
@@ -192,38 +193,30 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
     const submittedCard = await screen.findByTestId(
       `student-card-${submittedStudent.id}`,
     );
+    // The entry lives in More, not in the student header.
     expect(
-      within(submittedCard).getByRole("button", {
+      within(submittedCard).queryByRole("button", {
         name: /auto-grade with ai/i,
       }),
-    ).toBeInTheDocument();
-
-    await renderForStudent(notStartedStudent.id);
-    const notStartedCard = screen.getByTestId(
-      `student-card-${notStartedStudent.id}`,
+    ).toBeNull();
+    await userEvent.click(
+      within(submittedCard).getByRole("button", { name: /more/i }),
     );
     expect(
-      within(notStartedCard).queryByRole("button", {
-        name: /auto-grade with ai/i,
-      }),
-    ).toBeNull();
+      await screen.findByRole("menuitem", { name: "Auto-grade with AI" }),
+    ).toBeEnabled();
 
-    await renderForStudent(inProgressStudent.id);
-    const inProgressCard = screen.getByTestId(
-      `student-card-${inProgressStudent.id}`,
-    );
-    expect(
-      within(inProgressCard).queryByRole("button", {
-        name: /auto-grade with ai/i,
-      }),
-    ).toBeNull();
-
-    await renderForStudent(gradedStudent.id);
-    const gradedCard = screen.getByTestId(`student-card-${gradedStudent.id}`);
-    expect(
-      within(gradedCard).queryByRole("button", {
-        name: /auto-grade with ai/i,
-      }),
-    ).toBeNull();
+    for (const [studentId, name] of [
+      [notStartedStudent.id, "not started"],
+      [inProgressStudent.id, "in progress"],
+      [gradedStudent.id, "graded"],
+    ] as const) {
+      await renderForStudent(studentId);
+      const card = screen.getByTestId(`student-card-${studentId}`);
+      expect(
+        within(card).queryByRole("button", { name: /more/i }),
+        `${name} student has no More menu`,
+      ).toBeNull();
+    }
   });
 });

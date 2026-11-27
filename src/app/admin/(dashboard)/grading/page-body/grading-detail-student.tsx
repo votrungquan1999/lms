@@ -10,6 +10,7 @@ import { PendingAiGradingRefresher } from "src/app/admin/(dashboard)/courses/[co
 import { ReleaseGradeForStudentControl } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/release-grade-for-student";
 import { AnswerPane } from "src/app/admin/(dashboard)/grading/page-body/answer-pane";
 import { GradePanel } from "src/app/admin/(dashboard)/grading/page-body/grade-panel";
+import { MoreMenu } from "src/app/admin/(dashboard)/grading/page-body/more-menu";
 import {
   Card,
   CardContent,
@@ -238,17 +239,17 @@ export async function GradingDetailStudent({
                   hasActiveRedoRequest={hasActiveRedoRequest}
                 />
               )}
-              {!test.isPractice && status === TestStatus.Submitted && (
-                <AutoGradeWithAiButton
-                  key={aiJobStateKey}
-                  testId={testId}
-                  courseId={courseId}
-                  studentId={student.id}
-                  status={status}
-                  hasExistingSuggestions={aiSuggestionsByQuestion.size > 0}
-                  aiGradingStartedAt={aiGradingStartedAt}
-                />
-              )}
+              {!test.isPractice &&
+                status === TestStatus.Submitted &&
+                aiSuggestionsByQuestion.size > 0 && (
+                  <AutoGradeWithAiButton
+                    key={aiJobStateKey}
+                    testId={testId}
+                    courseId={courseId}
+                    studentId={student.id}
+                    aiGradingStartedAt={aiGradingStartedAt}
+                  />
+                )}
               <ReleaseGradeForStudentControl
                 test={test}
                 courseId={courseId}
@@ -321,6 +322,21 @@ export async function GradingDetailStudent({
                     existingFeedback={testFeedback}
                   />
                 )
+              }
+              moreMenu={
+                !test.isPractice &&
+                status === TestStatus.Submitted &&
+                aiSuggestionsByQuestion.size === 0 ? (
+                  // Remounts with the job, so a "started" message does not outlive its job.
+                  <MoreMenu
+                    key={aiJobStateKey}
+                    testId={testId}
+                    courseId={courseId}
+                    studentId={student.id}
+                    offerAutoGrade
+                    aiGradingStartedAt={aiGradingStartedAt}
+                  />
+                ) : undefined
               }
               aiJobNotes={
                 <>

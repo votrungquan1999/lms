@@ -91,12 +91,10 @@ describe("Feature: practice tests suppress the grading footguns (AI-grade + redo
     vi.clearAllMocks();
   });
 
-  it("hides the Auto-grade with AI button for a submitted practice test (a click would create Grade docs on a test required to have none)", async () => {
+  it("hides the More menu with Auto-grade with AI for a submitted practice test (a click would create Grade docs on a test required to have none)", async () => {
     await renderGradingDetail(true);
 
-    expect(
-      screen.queryByRole("button", { name: /auto-grade with ai/i }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /more/i })).toBeNull();
   });
 
   it("hides the Request Redo button for a practice test (redo reopens a graded test — practice has no grades to redo against)", async () => {
@@ -108,9 +106,7 @@ describe("Feature: practice tests suppress the grading footguns (AI-grade + redo
   it("shows both grading controls for a non-practice submitted test (proves the practice gate is conditional, not an unconditional hide)", async () => {
     await renderGradingDetail(false);
 
-    expect(
-      screen.getByRole("button", { name: /auto-grade with ai/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /more/i })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /request redo/i }),
     ).toBeInTheDocument();

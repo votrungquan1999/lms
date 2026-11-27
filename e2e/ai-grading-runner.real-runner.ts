@@ -112,7 +112,8 @@ test.describe("AI grading — real runner", () => {
     await page.goto(
       `/admin/grading/${seed.testId}?studentId=${seed.studentId}`,
     );
-    await page.getByRole("button", { name: "Auto-grade with AI" }).click();
+    await page.getByRole("button", { name: /More/ }).click();
+    await page.getByRole("menuitem", { name: "Auto-grade with AI" }).click();
     // The in-progress note replaces the one-off "started" message once the page re-renders.
     await expect(page.getByTestId("ai-grading-in-progress")).toBeVisible();
 

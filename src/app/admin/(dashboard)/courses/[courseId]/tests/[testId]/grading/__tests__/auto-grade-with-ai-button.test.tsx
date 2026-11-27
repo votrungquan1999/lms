@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TestStatus } from "src/lib/test-status-service";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../ai-grade-actions", () => ({
@@ -14,11 +13,11 @@ import { AutoGradeWithAiButton } from "../auto-grade-with-ai-button";
 /**
  * Feature: Regenerate Dialog UI (Step 5 follow-up)
  * As a teacher
- * I want a button that morphs to "Regenerate" once AI suggestions exist
+ * I want a "Regenerate all" button once AI suggestions exist
  * So that I can request a fresh round of suggestions with a reason
  */
-describe("Feature: AutoGradeWithAiButton — morphs to Regenerate when suggestions exist", () => {
-  describe("Scenario: hasExistingSuggestions=true on a Submitted submission", () => {
+describe("Feature: AutoGradeWithAiButton — offers Regenerate all once suggestions exist", () => {
+  describe("Scenario: a submission that already has AI suggestions", () => {
     it("shows label 'Regenerate' and opens a dialog with a reason textarea and submit button on click", async () => {
       // Given — a submission already has prior AI suggestions
       render(
@@ -26,8 +25,6 @@ describe("Feature: AutoGradeWithAiButton — morphs to Regenerate when suggestio
           testId="test-1"
           courseId="course-1"
           studentId="stu-1"
-          status={TestStatus.Submitted}
-          hasExistingSuggestions={true}
         />,
       );
 
@@ -67,8 +64,6 @@ describe("Feature: Regenerate all can include questions the teacher already grad
         testId="test-1"
         courseId="course-1"
         studentId="stu-1"
-        status={TestStatus.Submitted}
-        hasExistingSuggestions={true}
       />,
     );
     const user = userEvent.setup();
@@ -96,8 +91,6 @@ describe("Feature: a Regenerate all dialog left open cannot submit once AI gradi
         testId="test-1"
         courseId="course-1"
         studentId="stu-1"
-        status={TestStatus.Submitted}
-        hasExistingSuggestions={true}
         aiGradingStartedAt={aiGradingStartedAt}
       />
     );

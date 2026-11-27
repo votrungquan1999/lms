@@ -2,7 +2,6 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
-import { TestStatus } from "src/lib/test-status-service";
 import { describe, expect, it } from "vitest";
 import { AiSuggestionPanel } from "../ai-suggestion-panel";
 import { AutoGradeWithAiButton } from "../auto-grade-with-ai-button";
@@ -142,9 +141,9 @@ describe("Feature: AiSuggestionPanel per-question regenerate control (Step A3)",
     expect(questionIdInput!.value).toBe("q-42");
   });
 
-  it("given the per-question regenerate control and the whole-submission auto-grade control rendered together, when both render, then each is present and independent (no regression to the whole-submission control)", () => {
+  it("given the per-question regenerate control and the whole-submission regenerate control rendered together, when both render, then each is present and independent (no regression to the whole-submission control)", () => {
     // Given: a panel (with its per-question regenerate trigger) and the
-    // whole-submission Auto-grade button rendered side by side, as the
+    // whole-submission Regenerate all button rendered side by side, as the
     // grading page composes them.
     const suggestions: AiGradeSuggestion[] = [
       buildSuggestion({ id: "sugg-1", questionId: "q-42" }),
@@ -156,8 +155,6 @@ describe("Feature: AiSuggestionPanel per-question regenerate control (Step A3)",
           testId="test-1"
           courseId="course-1"
           studentId="student-1"
-          status={TestStatus.Submitted}
-          hasExistingSuggestions={false}
         />
         <AiSuggestionPanel
           testId="test-1"
@@ -171,7 +168,7 @@ describe("Feature: AiSuggestionPanel per-question regenerate control (Step A3)",
 
     // Then: the whole-submission control still renders unchanged.
     expect(
-      screen.getByRole("button", { name: /auto-grade with ai/i }),
+      screen.getByRole("button", { name: /regenerate all/i }),
     ).toBeInTheDocument();
 
     // Then: the per-question regenerate trigger renders inside the panel,
@@ -293,8 +290,6 @@ describe("Feature: Regenerate labels say what they regenerate", () => {
           testId="test-1"
           courseId="course-1"
           studentId="student-1"
-          status={TestStatus.Submitted}
-          hasExistingSuggestions={true}
         />
         <AiSuggestionPanel
           testId="test-1"

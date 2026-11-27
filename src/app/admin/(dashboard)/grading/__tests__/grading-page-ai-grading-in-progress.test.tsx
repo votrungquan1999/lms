@@ -198,9 +198,10 @@ describe("Feature: a teacher sees AI grading in progress and cannot start anothe
     );
 
     // And Auto-grade cannot be clicked again
+    await userEvent.click(screen.getByRole("button", { name: /more/i }));
     expect(
-      screen.getByRole("button", { name: /auto-grade with ai/i }),
-    ).toBeDisabled();
+      await screen.findByRole("menuitem", { name: "Auto-grade with AI" }),
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("disables Regenerate all and Regenerate this answer while a job is pending over an earlier round", async () => {
@@ -298,8 +299,9 @@ describe("Feature: the teacher's click confirmation does not outlive the job it 
     const { rerender } = render(await buildPage());
 
     // When the teacher clicks Auto-grade and sees the confirmation
+    await userEvent.click(screen.getByRole("button", { name: /more/i }));
     await userEvent.click(
-      screen.getByRole("button", { name: /auto-grade with ai/i }),
+      await screen.findByRole("menuitem", { name: "Auto-grade with AI" }),
     );
     expect(await screen.findByText(/AI grading started/)).toBeInTheDocument();
 

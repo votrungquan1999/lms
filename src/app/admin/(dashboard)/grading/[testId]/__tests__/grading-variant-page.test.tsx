@@ -363,9 +363,9 @@ describe("Feature: GradingVariantPage", () => {
       within(detail).getByText(/Overall Test Feedback/i),
     ).toBeInTheDocument();
 
-    // Auto-grade button appears because the student is Submitted.
+    // The More menu appears because the student is Submitted.
     expect(
-      within(detail).getByRole("button", { name: /Auto-grade with AI/i }),
+      within(detail).getByRole("button", { name: /more/i }),
     ).toBeInTheDocument();
   });
 

@@ -25,6 +25,8 @@ interface GradePanelProps {
   saveAndNext?: SaveAndNextNavigation;
   /** What the AI grading job is doing, shown under the panel's title. */
   aiJobNotes?: React.ReactNode;
+  /** The More menu, shown beside the panel's title. */
+  moreMenu?: React.ReactNode;
   /** Shown under the form (the AI suggestion card). */
   children?: React.ReactNode;
   /** The student's overall-feedback row, shown last. */
@@ -46,6 +48,7 @@ export function GradePanel({
   status,
   saveAndNext,
   aiJobNotes,
+  moreMenu,
   children,
   overallFeedback,
 }: GradePanelProps) {
@@ -111,6 +114,7 @@ export function GradePanel({
         studentName={student.name}
         studentUsername={student.username}
         aiJobNotes={aiJobNotes}
+        headerAction={moreMenu}
       >
         {renderBody()}
       </GradePanelShell>

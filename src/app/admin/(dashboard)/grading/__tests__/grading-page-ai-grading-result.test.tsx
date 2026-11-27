@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { AiGradeBatchInput } from "src/lib/ai/ai-client";
 import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
 import { RunnerCheckAction, RunnerEventKind } from "src/lib/ai/runner-event";
@@ -391,9 +392,10 @@ describe("Feature: a teacher finds the runner's finished suggestions when the gr
       "The last AI grading attempt did not finish. You can try again.",
     );
     expect(screen.queryByTestId("ai-grading-in-progress")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /more/i }));
     expect(
-      screen.getByRole("button", { name: /auto-grade with ai/i }),
-    ).toBeEnabled();
+      await screen.findByRole("menuitem", { name: "Auto-grade with AI" }),
+    ).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("still renders the page with the in-progress note and the job pending when the runner cannot be reached", async () => {
@@ -416,9 +418,10 @@ describe("Feature: a teacher finds the runner's finished suggestions when the gr
 
     // Then the page still says grading is in progress, with the trigger disabled
     expect(screen.getByTestId("ai-grading-in-progress")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /more/i }));
     expect(
-      screen.getByRole("button", { name: /auto-grade with ai/i }),
-    ).toBeDisabled();
+      await screen.findByRole("menuitem", { name: "Auto-grade with AI" }),
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.queryByTestId("ai-suggestion-row")).toBeNull();
 
     // And the job is untouched, so a later check can pick the result up
