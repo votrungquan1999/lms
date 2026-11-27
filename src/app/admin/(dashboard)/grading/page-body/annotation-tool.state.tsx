@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useReducer } from "react";
+import { createContext, useContext, useReducer, useState } from "react";
 import type {
   AnnotationEntry,
   AnnotationPoint,
@@ -13,8 +13,8 @@ import {
   type SurfaceSize,
 } from "./annotation-shapes";
 
-/** The kind of mark the grader makes next. */
-export type MarkTool = "pen" | "circle" | "arrow" | "text";
+/** The kind of mark the grader makes next, or "move" to pan the photo without marking. */
+export type MarkTool = "pen" | "circle" | "arrow" | "text" | "move";
 
 /** Kinds of mark one Undo can take back, in the order they were made. */
 type MarkKind = "stroke" | "text";
@@ -126,12 +126,23 @@ export function buildInitialAnnotationState(
   for (const entry of annotations) {
     const strokes = entry.strokes ?? [];
     const texts = entry.texts ?? [];
-    entriesByKey[entry.mediaKey] = strokes;
-    textsByKey[entry.mediaKey] = texts;
-    historyByKey[entry.mediaKey] = [
-      ...strokes.map((): MarkKind => "stroke"),
-      ...texts.map((): MarkKind => "text"),
-    ];
+    // Marks saved without an order come first (strokes, then texts); the rest follow in the order they were made
+    const marks = [
+      ...strokes.map((mark) => ({ kind: "stroke" as const, mark })),
+      ...texts.map((mark) => ({ kind: "text" as const, mark })),
+    ]
+      .map((item, position) => ({ ...item, position }))
+      .sort(
+        (a, b) =>
+          (a.mark.seq ?? -1) - (b.mark.seq ?? -1) || a.position - b.position,
+      );
+    entriesByKey[entry.mediaKey] = marks.flatMap((m) =>
+      m.kind === "stroke" ? [m.mark as AnnotationStroke] : [],
+    );
+    textsByKey[entry.mediaKey] = marks.flatMap((m) =>
+      m.kind === "text" ? [m.mark as AnnotationText] : [],
+    );
+    historyByKey[entry.mediaKey] = marks.map((m) => m.kind);
   }
   return {
     color,
@@ -142,6 +153,45 @@ export function buildInitialAnnotationState(
     textDraft: null,
     drawing: null,
   };
+}
+
+/**
+ * Lists each photo's marks as the entries the server stores, leaving out
+ * photos without marks so a photo that was never marked equals one cleared.
+ * @param state - Current tool state.
+ * @returns The entries with at least one stroke or text.
+ */
+export function collectAnnotations(
+  state: Pick<
+    AnnotationToolState,
+    "entriesByKey" | "textsByKey" | "historyByKey"
+  >,
+): AnnotationEntry[] {
+  const mediaKeys = new Set([
+    ...Object.keys(state.entriesByKey),
+    ...Object.keys(state.textsByKey),
+  ]);
+  return [...mediaKeys]
+    .map((mediaKey) => {
+      // Each mark takes its place in the photo's history as its order, so reopening restores what Undo takes back first
+      const strokes = state.entriesByKey[mediaKey] ?? [];
+      const texts = state.textsByKey[mediaKey] ?? [];
+      const history = state.historyByKey[mediaKey] ?? [];
+      let strokeCount = 0;
+      let textCount = 0;
+      const orderOf = new Map<AnnotationStroke | AnnotationText, number>();
+      history.forEach((kind, seq) => {
+        const mark =
+          kind === "stroke" ? strokes[strokeCount++] : texts[textCount++];
+        if (mark) orderOf.set(mark, seq);
+      });
+      return {
+        mediaKey,
+        strokes: strokes.map((s) => ({ ...s, seq: orderOf.get(s) })),
+        texts: texts.map((t) => ({ ...t, seq: orderOf.get(t) })),
+      };
+    })
+    .filter((entry) => entry.strokes.length > 0 || entry.texts.length > 0);
 }
 
 function appendHistory(
@@ -304,6 +354,10 @@ export function annotationReducer(
 
 interface AnnotationToolContextValue extends AnnotationToolState {
   dispatch: React.Dispatch<AnnotationToolAction>;
+  /** The photo marks as the JSON the Save & next form posts. */
+  marksJson: string;
+  /** The marks differ from the ones the provider started with. */
+  hasUnsavedMarks: boolean;
 }
 
 const AnnotationToolContext = createContext<AnnotationToolContextValue | null>(
@@ -323,15 +377,71 @@ export function AnnotationToolProvider({
   initialAnnotations: AnnotationEntry[];
   children: React.ReactNode;
 }): React.ReactNode {
-  const [state, dispatch] = useReducer(
-    annotationReducer,
+  const [initialState] = useState(() =>
     buildInitialAnnotationState(initialAnnotations, "#ef4444"),
   );
+  const [savedJson] = useState(() =>
+    JSON.stringify(collectAnnotations(initialState)),
+  );
+  const [state, dispatch] = useReducer(annotationReducer, initialState);
+  const marksJson = JSON.stringify(collectAnnotations(state));
   return (
-    <AnnotationToolContext.Provider value={{ ...state, dispatch }}>
+    <AnnotationToolContext.Provider
+      value={{
+        ...state,
+        dispatch,
+        marksJson,
+        hasUnsavedMarks: marksJson !== savedJson,
+      }}
+    >
       {children}
     </AnnotationToolContext.Provider>
   );
+}
+
+/**
+ * Holds the photo marks for the answer on screen, shared by the marking tool and the grade panel's form.
+ * Remounts when `scopeKey` changes, so marks never follow the teacher to another student, question or saved grade.
+ * @param active - False when the answer has no marking tool, so nothing is held.
+ * @param scopeKey - Names the student, question and saved grade the marks belong to.
+ * @param initialAnnotations - The marks saved so far.
+ * @param children - The answer pane and the grade panel.
+ * @returns The children, inside the provider when active.
+ */
+export function PhotoMarksScope({
+  active,
+  scopeKey,
+  initialAnnotations,
+  children,
+}: {
+  active: boolean;
+  scopeKey: string;
+  initialAnnotations: AnnotationEntry[];
+  children: React.ReactNode;
+}): React.ReactNode {
+  if (!active) return children;
+  return (
+    <AnnotationToolProvider
+      key={scopeKey}
+      initialAnnotations={initialAnnotations}
+    >
+      {children}
+    </AnnotationToolProvider>
+  );
+}
+
+/**
+ * The photo marks when a marking tool is on screen, or null when the answer has no photos to mark.
+ * @returns The marks JSON and whether they are unsaved, or null.
+ */
+export function usePhotoMarks(): {
+  marksJson: string;
+  hasUnsavedMarks: boolean;
+} | null {
+  const value = useContext(AnnotationToolContext);
+  return value
+    ? { marksJson: value.marksJson, hasUnsavedMarks: value.hasUnsavedMarks }
+    : null;
 }
 
 /**

@@ -31,7 +31,6 @@ import {
   releaseTestAction,
   requestRedoAction,
   saveAndNextAction,
-  saveAnnotationsAction,
   setTestFeedbackAction,
 } from "../courses/[courseId]/tests/[testId]/grading/actions";
 import {
@@ -129,6 +128,21 @@ const ANNOTATIONS_JSON = JSON.stringify([
   },
 ]);
 
+/** A Save & next form for the fixture's answer, carrying the photo marks as JSON. */
+function markedForm(fixture: Fixture, annotationsJson: string): FormData {
+  const formData = new FormData();
+  formData.set("testId", fixture.testId);
+  formData.set("courseId", fixture.courseId);
+  formData.set("questionId", fixture.questionId);
+  formData.set("studentId", fixture.studentId);
+  formData.set("routeKind", "hub");
+  formData.set("mode", "student");
+  formData.set("score", "80");
+  formData.set("feedback", "ok");
+  formData.set("annotations", annotationsJson);
+  return formData;
+}
+
 /** A student of the default school who is enrolled in no course. */
 async function createOutsider(): Promise<string> {
   const outsider = await getTestServices().studentService.createStudentDocument(
@@ -208,9 +222,9 @@ describe("Feature: a school admin can never grade another school's test", () => 
     formData.set("score", "80");
     formData.set("feedback", "ok");
 
-    await expect(saveAndNextAction(formData)).rejects.toThrow(
-      "Student not found",
-    );
+    expect(await saveAndNextAction(formData)).toEqual({
+      message: "Student not found",
+    });
     expect(
       await getTestServices().gradeService.getGrade(
         own.testId,
@@ -241,9 +255,9 @@ describe("Feature: a school admin can never grade another school's test", () => 
     formData.set("score", "80");
     formData.set("feedback", "ok");
 
-    await expect(saveAndNextAction(formData)).rejects.toThrow(
-      "Question not found",
-    );
+    expect(await saveAndNextAction(formData)).toEqual({
+      message: "Question not found",
+    });
     expect(
       await getTestServices().gradeService.getGrade(
         otherTest.id,
@@ -253,48 +267,32 @@ describe("Feature: a school admin can never grade another school's test", () => 
     ).toBeNull();
   });
 
-  it("saveAnnotationsAction refuses a foreign test and saves no annotation", async () => {
-    await signInAsOtherSchoolAdmin();
-    const foreign = await createForeignFixture();
-
-    const result = await saveAnnotationsAction({
-      testId: foreign.testId,
-      courseId: foreign.courseId,
-      questionId: foreign.questionId,
-      studentId: foreign.studentId,
-      annotationsJson: ANNOTATIONS_JSON,
-    });
-
-    expect(result.success).toBe(false);
-    expect(
-      await getTestServices().annotationService.getAnnotations(
-        foreign.testId,
-        foreign.questionId,
-        foreign.studentId,
-      ),
-    ).toEqual([]);
-  });
-
-  it("saveAnnotationsAction keeps the text marks typed onto a photo", async () => {
+  it("saveAndNextAction stores the photo marks, strokes and texts, together with the grade", async () => {
     signInAsDefaultAdmin();
-    const own = await createForeignFixture();
+    const own = await seedFixture(getTestServices(), "default-school-admin");
+    const photoKey = `answers/${own.studentId}/p.png`;
+    await getTestServices().answerService.submitAnswer({
+      testId: own.testId,
+      questionId: own.questionId,
+      studentId: own.studentId,
+      answer: { type: "image", mediaKeys: [photoKey] },
+    });
+    await getTestServices().testSubmissionService.submitTest(
+      own.testId,
+      own.studentId,
+    );
     const entries = [
       {
-        mediaKey: "media/answer.png",
-        strokes: [],
+        mediaKey: photoKey,
+        strokes: [{ color: "#f00", points: [{ x: 0.1, y: 0.2 }] }],
         texts: [{ x: 0.25, y: 0.5, text: "i never changes", color: "#ef4444" }],
       },
     ];
 
-    const result = await saveAnnotationsAction({
-      testId: own.testId,
-      courseId: own.courseId,
-      questionId: own.questionId,
-      studentId: own.studentId,
-      annotationsJson: JSON.stringify(entries),
-    });
+    await expect(
+      saveAndNextAction(markedForm(own, JSON.stringify(entries))),
+    ).rejects.toThrow("__REDIRECT__");
 
-    expect(result.success).toBe(true);
     expect(
       await getTestServices().annotationService.getAnnotations(
         own.testId,
@@ -302,27 +300,82 @@ describe("Feature: a school admin can never grade another school's test", () => 
         own.studentId,
       ),
     ).toEqual(entries);
+    expect(
+      (
+        await getTestServices().gradeService.getGrade(
+          own.testId,
+          own.questionId,
+          own.studentId,
+        )
+      )?.score,
+    ).toBe(80);
   });
 
-  it("saveAnnotationsAction refuses a text mark off the palette or over 200 characters and stores nothing", async () => {
+  it("saveAndNextAction stores no photo marks when the grade fails to save", async () => {
+    signInAsDefaultAdmin();
+    const own = await createForeignFixture();
+    vi.spyOn(
+      getTestServices().gradeService,
+      "gradeQuestion",
+    ).mockRejectedValueOnce(new Error("Database unavailable"));
+
+    expect(await saveAndNextAction(markedForm(own, ANNOTATIONS_JSON))).toEqual({
+      message: "Database unavailable",
+    });
+
+    expect(
+      await getTestServices().annotationService.getAnnotations(
+        own.testId,
+        own.questionId,
+        own.studentId,
+      ),
+    ).toEqual([]);
+  });
+
+  it("saveAndNextAction refuses a foreign test and stores neither a grade nor marks", async () => {
+    await signInAsOtherSchoolAdmin();
+    const foreign = await createForeignFixture();
+
+    expect(
+      await saveAndNextAction(markedForm(foreign, ANNOTATIONS_JSON)),
+    ).toEqual({ message: "Test not found" });
+
+    expect(
+      await getTestServices().annotationService.getAnnotations(
+        foreign.testId,
+        foreign.questionId,
+        foreign.studentId,
+      ),
+    ).toEqual([]);
+    expect(
+      await getTestServices().gradeService.getGrade(
+        foreign.testId,
+        foreign.questionId,
+        foreign.studentId,
+      ),
+    ).toBeNull();
+  });
+
+  it("saveAndNextAction refuses a text mark off the palette or over 200 characters and stores no grade or marks", async () => {
     signInAsDefaultAdmin();
     const own = await createForeignFixture();
     const badTexts = [
       { x: 0.25, y: 0.5, text: "ok", color: "#ff00ff" },
       { x: 0.25, y: 0.5, text: "a".repeat(201), color: "#ef4444" },
+      { x: 1.5, y: 0.5, text: "ok", color: "#ef4444" },
     ];
 
     for (const bad of badTexts) {
-      const result = await saveAnnotationsAction({
-        testId: own.testId,
-        courseId: own.courseId,
-        questionId: own.questionId,
-        studentId: own.studentId,
-        annotationsJson: JSON.stringify([
-          { mediaKey: "media/answer.png", strokes: [], texts: [bad] },
-        ]),
-      });
-      expect(result.success).toBe(false);
+      expect(
+        await saveAndNextAction(
+          markedForm(
+            own,
+            JSON.stringify([
+              { mediaKey: "media/answer.png", strokes: [], texts: [bad] },
+            ]),
+          ),
+        ),
+      ).toEqual({ message: expect.any(String) });
     }
     expect(
       await getTestServices().annotationService.getAnnotations(
@@ -331,6 +384,13 @@ describe("Feature: a school admin can never grade another school's test", () => 
         own.studentId,
       ),
     ).toEqual([]);
+    expect(
+      await getTestServices().gradeService.getGrade(
+        own.testId,
+        own.questionId,
+        own.studentId,
+      ),
+    ).toBeNull();
   });
 
   it("setTestFeedbackAction refuses a foreign test and writes no feedback", async () => {
@@ -482,7 +542,9 @@ describe("Feature: a school admin can never grade another school's test", () => 
     formData.set("score", "80");
     formData.set("feedback", "hacked");
 
-    await expect(saveAndNextAction(formData)).rejects.toThrow("Test not found");
+    expect(await saveAndNextAction(formData)).toEqual({
+      message: "Test not found",
+    });
     expect(
       await getTestServices().gradeService.getGrade(
         foreign.testId,
@@ -507,7 +569,9 @@ describe("Feature: a school admin can never grade another school's test", () => 
       formData.set("score", "80");
       formData.set("feedback", "x");
 
-      await expect(saveAndNextAction(formData)).rejects.toThrow();
+      expect(await saveAndNextAction(formData)).toEqual({
+        message: expect.any(String),
+      });
       expect(
         await getTestServices().gradeService.getGrade(
           own.testId,
@@ -641,24 +705,6 @@ describe("Feature: a school admin can never grade another school's test", () => 
 describe("Feature: grading work only lands on a student enrolled in the test's course", () => {
   it.each<[string, (own: Fixture, studentId: string) => Promise<void>]>([
     [
-      "saveAnnotationsAction",
-      async (own, studentId) => {
-        const result = await saveAnnotationsAction({
-          ...own,
-          studentId,
-          annotationsJson: ANNOTATIONS_JSON,
-        });
-        expect(result.success).toBe(false);
-        expect(
-          await getTestServices().annotationService.getAnnotations(
-            own.testId,
-            own.questionId,
-            studentId,
-          ),
-        ).toEqual([]);
-      },
-    ],
-    [
       "setTestFeedbackAction",
       async (own, studentId) => {
         const formData = new FormData();
@@ -705,9 +751,17 @@ describe("Feature: grading work only lands on a student enrolled in the test's c
         formData.set("mode", "student");
         formData.set("score", "80");
         formData.set("feedback", "misplaced");
-        await expect(saveAndNextAction(formData)).rejects.toThrow(
-          "Student not found",
-        );
+        formData.set("annotations", ANNOTATIONS_JSON);
+        expect(await saveAndNextAction(formData)).toEqual({
+          message: "Student not found",
+        });
+        expect(
+          await getTestServices().annotationService.getAnnotations(
+            own.testId,
+            own.questionId,
+            studentId,
+          ),
+        ).toEqual([]);
         expect(
           await getTestServices().gradeService.getGrade(
             own.testId,

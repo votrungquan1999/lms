@@ -4,6 +4,7 @@ import { AiSuggestionPanel } from "src/app/admin/(dashboard)/courses/[courseId]/
 import type { SaveAndNextNavigation } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { OverallFeedbackForm } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { PendingAiGradingRefresher } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/pending-ai-grading-refresher.ui";
+import { PhotoMarksScope } from "src/app/admin/(dashboard)/grading/page-body/annotation-tool.state";
 import { AnswerPane } from "src/app/admin/(dashboard)/grading/page-body/answer-pane";
 import { GradePanel } from "src/app/admin/(dashboard)/grading/page-body/grade-panel";
 import { MoreMenu } from "src/app/admin/(dashboard)/grading/page-body/more-menu";
@@ -265,157 +266,163 @@ export async function GradingDetailStudent({
             />
           </div>
         )}
-        <CardContent
-          className={cn(
-            "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4",
-            test.isPractice
-              ? "grid-cols-[minmax(0,1fr)]"
-              : "grid-cols-[minmax(0,1fr)_24rem]",
-          )}
+        <PhotoMarksScope
+          active={showGradePanel && photos.length > 0}
+          scopeKey={`${student.id}:${selectedQuestion?.id}:${(selectedGrade?.updatedAt ?? selectedGrade?.gradedAt)?.toISOString()}`}
+          initialAnnotations={annotations}
         >
-          {selectedQuestion && (
-            <div
-              data-testid="grading-answer-scroll"
-              className="min-h-0 space-y-4 overflow-y-auto"
-            >
-              <AnswerPane
+          <CardContent
+            className={cn(
+              "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4",
+              test.isPractice
+                ? "grid-cols-[minmax(0,1fr)]"
+                : "grid-cols-[minmax(0,1fr)_24rem]",
+            )}
+          >
+            {selectedQuestion && (
+              <div
+                data-testid="grading-answer-scroll"
+                className="min-h-0 space-y-4 overflow-y-auto"
+              >
+                <AnswerPane
+                  studentName={student.name}
+                  question={selectedQuestion}
+                  answer={selectedAnswer}
+                  photos={photos}
+                  annotations={annotations}
+                  correctAnswersVisible={
+                    test.showCorrectAnswerAfterSubmit ||
+                    test.correctAnswersReleasedAt !== null
+                  }
+                  aiFix={selectedSuggestions[0]?.solution}
+                  gradeLine={finish?.gradeLine}
+                  isPractice={test.isPractice}
+                  marksEditable={showGradePanel}
+                />
+              </div>
+            )}
+
+            {selectedQuestion && hasActiveRedoRequest && (
+              <p className="text-sm text-muted-foreground">
+                {student.name}'s answers are read-only while the redo is open.
+                Grading opens again when {student.name} hands in.
+              </p>
+            )}
+
+            {selectedQuestion && !hasActiveRedoRequest && finish?.panel}
+
+            {selectedQuestion && showGradePanel && (
+              <GradePanel
                 testId={testId}
+                testTitle={test.title}
                 courseId={courseId}
-                studentId={student.id}
-                studentName={student.name}
+                student={student}
                 question={selectedQuestion}
                 answer={selectedAnswer}
-                photos={photos}
-                annotations={annotations}
-                correctAnswersVisible={
-                  test.showCorrectAnswerAfterSubmit ||
-                  test.correctAnswersReleasedAt !== null
+                answerSavedAt={answerSavedAt.get(selectedQuestion.id)}
+                grade={selectedGrade}
+                status={status}
+                overallFeedback={
+                  hasAnswers && (
+                    // Keyed by student so a typed draft never saves onto the next student.
+                    <OverallFeedbackForm
+                      key={student.id}
+                      testId={testId}
+                      courseId={courseId}
+                      studentId={student.id}
+                      studentName={student.name}
+                      existingFeedback={testFeedback}
+                    />
+                  )
                 }
-                aiFix={selectedSuggestions[0]?.solution}
-                gradeLine={finish?.gradeLine}
-                isPractice={test.isPractice}
-              />
-            </div>
-          )}
-
-          {selectedQuestion && hasActiveRedoRequest && (
-            <p className="text-sm text-muted-foreground">
-              {student.name}'s answers are read-only while the redo is open.
-              Grading opens again when {student.name} hands in.
-            </p>
-          )}
-
-          {selectedQuestion && !hasActiveRedoRequest && finish?.panel}
-
-          {selectedQuestion && showGradePanel && (
-            <GradePanel
-              testId={testId}
-              testTitle={test.title}
-              courseId={courseId}
-              student={student}
-              question={selectedQuestion}
-              answer={selectedAnswer}
-              hasPhotos={photos.length > 0}
-              answerSavedAt={answerSavedAt.get(selectedQuestion.id)}
-              grade={selectedGrade}
-              status={status}
-              overallFeedback={
-                hasAnswers && (
-                  // Keyed by student so a typed draft never saves onto the next student.
-                  <OverallFeedbackForm
-                    key={student.id}
-                    testId={testId}
-                    courseId={courseId}
-                    studentId={student.id}
-                    studentName={student.name}
-                    existingFeedback={testFeedback}
-                  />
-                )
-              }
-              moreMenu={
-                !test.isPractice &&
-                (status === TestStatus.Submitted ||
-                  releaseOffer !== null ||
-                  redoOffer) ? (
-                  // Remounts per student and job, so a release or "started" message never carries over.
-                  <MoreMenu
-                    key={`${student.id}:${aiJobStateKey}`}
-                    testId={testId}
-                    courseId={courseId}
-                    studentId={student.id}
-                    offerAutoGrade={
-                      status === TestStatus.Submitted &&
-                      aiSuggestionsByQuestion.size === 0
-                    }
-                    offerRegenerateAll={
-                      status === TestStatus.Submitted &&
-                      aiSuggestionsByQuestion.size > 0
-                    }
-                    aiGradingStartedAt={aiGradingStartedAt}
-                    requestRedo={
-                      redoOffer
-                        ? {
-                            testTitle: test.title,
-                            student,
-                            submittedAt: pair?.submittedAt ?? null,
-                          }
-                        : undefined
-                    }
-                    releaseTo={
-                      releaseOffer === null
-                        ? undefined
-                        : {
-                            studentName: student.name,
-                            released:
-                              releaseOffer === StudentReleaseOffer.Released,
-                          }
-                    }
-                  />
-                ) : undefined
-              }
-              aiJobNotes={
-                <>
-                  {aiGradingStartedAt !== null && (
-                    <>
-                      <AiGradingInProgressNote startedAt={aiGradingStartedAt} />
-                      <PendingAiGradingRefresher />
-                    </>
-                  )}
-                  {aiGradingFailed && <AiGradingFailedNote />}
-                </>
-              }
-              saveAndNext={saveAndNext}
-            >
-              {selectedQuestion.type === "free_text" &&
-                selectedSuggestions.length > 0 && (
-                  <AiSuggestionPanel
-                    key={aiJobStateKey}
-                    testId={testId}
-                    courseId={courseId}
-                    studentId={student.id}
-                    questionId={selectedQuestion.id}
-                    suggestions={selectedSuggestions}
-                    latestAnswerId={
-                      latestAnswerIdByQuestion.get(selectedQuestion.id) ?? null
-                    }
-                    savedGrade={
-                      selectedGrade && {
-                        score: selectedGrade.score,
-                        feedback: selectedGrade.feedback,
-                        solution: selectedGrade.solution ?? null,
+                moreMenu={
+                  !test.isPractice &&
+                  (status === TestStatus.Submitted ||
+                    releaseOffer !== null ||
+                    redoOffer) ? (
+                    // Remounts per student and job, so a release or "started" message never carries over.
+                    <MoreMenu
+                      key={`${student.id}:${aiJobStateKey}`}
+                      testId={testId}
+                      courseId={courseId}
+                      studentId={student.id}
+                      offerAutoGrade={
+                        status === TestStatus.Submitted &&
+                        aiSuggestionsByQuestion.size === 0
                       }
-                    }
-                    studentAnswer={
-                      selectedAnswer?.type === "free_text"
-                        ? selectedAnswer.text
-                        : undefined
-                    }
-                    regenerateDisabled={aiGradingStartedAt !== null}
-                  />
-                )}
-            </GradePanel>
-          )}
-        </CardContent>
+                      offerRegenerateAll={
+                        status === TestStatus.Submitted &&
+                        aiSuggestionsByQuestion.size > 0
+                      }
+                      aiGradingStartedAt={aiGradingStartedAt}
+                      requestRedo={
+                        redoOffer
+                          ? {
+                              testTitle: test.title,
+                              student,
+                              submittedAt: pair?.submittedAt ?? null,
+                            }
+                          : undefined
+                      }
+                      releaseTo={
+                        releaseOffer === null
+                          ? undefined
+                          : {
+                              studentName: student.name,
+                              released:
+                                releaseOffer === StudentReleaseOffer.Released,
+                            }
+                      }
+                    />
+                  ) : undefined
+                }
+                aiJobNotes={
+                  <>
+                    {aiGradingStartedAt !== null && (
+                      <>
+                        <AiGradingInProgressNote
+                          startedAt={aiGradingStartedAt}
+                        />
+                        <PendingAiGradingRefresher />
+                      </>
+                    )}
+                    {aiGradingFailed && <AiGradingFailedNote />}
+                  </>
+                }
+                saveAndNext={saveAndNext}
+              >
+                {selectedQuestion.type === "free_text" &&
+                  selectedSuggestions.length > 0 && (
+                    <AiSuggestionPanel
+                      key={aiJobStateKey}
+                      testId={testId}
+                      courseId={courseId}
+                      studentId={student.id}
+                      questionId={selectedQuestion.id}
+                      suggestions={selectedSuggestions}
+                      latestAnswerId={
+                        latestAnswerIdByQuestion.get(selectedQuestion.id) ??
+                        null
+                      }
+                      savedGrade={
+                        selectedGrade && {
+                          score: selectedGrade.score,
+                          feedback: selectedGrade.feedback,
+                          solution: selectedGrade.solution ?? null,
+                        }
+                      }
+                      studentAnswer={
+                        selectedAnswer?.type === "free_text"
+                          ? selectedAnswer.text
+                          : undefined
+                      }
+                      regenerateDisabled={aiGradingStartedAt !== null}
+                    />
+                  )}
+              </GradePanel>
+            )}
+          </CardContent>
+        </PhotoMarksScope>
       </Card>
     </div>
   );

@@ -1,14 +1,26 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import {
+  startTransition,
+  useActionState,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { usePhotoMarks } from "src/app/admin/(dashboard)/grading/page-body/annotation-tool.state";
 import type { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { useGradeLocked } from "src/app/admin/(dashboard)/grading/page-body/still-writing-confirm";
-import { useReportUnsavedGrade } from "src/app/admin/(dashboard)/grading/page-body/unsaved-grade.state";
+import {
+  useHasUnsavedGrade,
+  useReportUnsavedGrade,
+} from "src/app/admin/(dashboard)/grading/page-body/unsaved-grade.state";
+import { useLeaveGuard } from "src/app/admin/(dashboard)/leave-guard.state";
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
 import type { GradingMode } from "src/lib/grading-mode";
 import {
+  type SaveAndNextState,
   saveAndNextAction,
   setTestFeedbackAction,
   type TestFeedbackState,
@@ -174,15 +186,19 @@ function GradeFormInner({
 }: BaseGradeFormProps) {
   // The Save & next button sits outside the form, so it targets the form by id.
   const formId = useId();
+  const formRef = useRef<HTMLFormElement>(null);
   const locked = useGradeLocked();
+  // Null when the answer has no photo to mark.
+  const photoMarks = usePhotoMarks();
+  useReportUnsavedGrade("photo-marks", photoMarks?.hasUnsavedMarks ?? false);
+  // The overall-feedback form is outside this form, so Save & next would move on without it.
+  const hasOverallDraft = useHasUnsavedGrade("overall-feedback");
+  const { requestLeave } = useLeaveGuard();
   // The save and its redirect run as one pending action, so the button locks until the next answer opens.
-  const [, saveAction, isSaving] = useActionState(
-    async (_previous: null, formData: FormData) => {
-      await saveAndNextAction(formData);
-      return null;
-    },
-    null,
-  );
+  const [saveState, saveAction, isSaving] = useActionState<
+    SaveAndNextState | null,
+    FormData
+  >((_previous, formData) => saveAndNextAction(formData), null);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -190,7 +206,13 @@ function GradeFormInner({
         <form
           key={formKey}
           id={formId}
-          action={saveAction}
+          ref={formRef}
+          // Submitting by hand, not through `action`, so a failed save does not reset what was typed.
+          onSubmit={(event) => {
+            event.preventDefault();
+            const formData = new FormData(event.currentTarget);
+            startTransition(() => saveAction(formData));
+          }}
           className="space-y-3"
         >
           <input type="hidden" name="testId" value={testId} />
@@ -208,6 +230,13 @@ function GradeFormInner({
           <input type="hidden" name="mode" value={saveAndNext.mode} />
           {saveAndNext.needsOnly && (
             <input type="hidden" name="needsOnly" value="1" />
+          )}
+          {photoMarks && (
+            <input
+              type="hidden"
+              name="annotations"
+              value={photoMarks.marksJson}
+            />
           )}
 
           <GradeInputs
@@ -228,12 +257,23 @@ function GradeFormInner({
             {saveAndNext.leftLine}
           </p>
         )}
+        {saveState?.message && (
+          <p role="alert" className="text-sm text-destructive wrap-anywhere">
+            {saveState.message}
+          </p>
+        )}
         <Button
           type="submit"
           form={formId}
           size="sm"
           className="w-full"
           disabled={isSaving || locked}
+          onClick={(event) => {
+            if (!hasOverallDraft) return;
+            // Hold the submit until the teacher confirms losing the overall draft.
+            event.preventDefault();
+            requestLeave(() => formRef.current?.requestSubmit());
+          }}
         >
           {saveAndNext.label}
         </Button>

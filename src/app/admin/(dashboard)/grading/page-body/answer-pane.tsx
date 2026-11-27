@@ -14,9 +14,6 @@ import type { StudentAnswer } from "src/lib/answer-service";
 import { isMcQuestion, type Question } from "src/lib/question-service";
 
 interface AnswerPaneProps {
-  testId: string;
-  courseId: string;
-  studentId: string;
   studentName: string;
   /** The question with its media URLs already minted. */
   question: Question;
@@ -33,6 +30,8 @@ interface AnswerPaneProps {
   gradeLine?: string;
   /** A practice test is not graded, so photos carry no marks or mark tools and there is no AI fix to compare. */
   isPractice: boolean;
+  /** The marking tool is on screen; false shows the saved marks read-only. */
+  marksEditable: boolean;
 }
 
 /**
@@ -41,9 +40,6 @@ interface AnswerPaneProps {
  * the grade panel says so.
  */
 export function AnswerPane({
-  testId,
-  courseId,
-  studentId,
   studentName,
   question,
   answer,
@@ -53,6 +49,7 @@ export function AnswerPane({
   aiFix,
   gradeLine,
   isPractice,
+  marksEditable,
 }: AnswerPaneProps) {
   const modelAnswer =
     question.type === "free_text" ? question.referenceAnswer?.trim() : "";
@@ -84,18 +81,29 @@ export function AnswerPane({
       );
     }
 
+    if (answer?.type === "image" && photos.length > 0 && marksEditable) {
+      return (
+        <PhotoAnswerBlock>
+          <AnnotationTool photos={photos} />
+        </PhotoAnswerBlock>
+      );
+    }
+
     if (answer?.type === "image" && photos.length > 0) {
       return (
         <PhotoAnswerBlock>
-          <AnnotationTool
-            key={`${studentId}:${question.id}`}
-            testId={testId}
-            courseId={courseId}
-            questionId={question.id}
-            studentId={studentId}
-            photos={photos}
-            initialAnnotations={annotations}
-          />
+          {photos.map((photo) => {
+            const entry = annotations.find((e) => e.mediaKey === photo.key);
+            return (
+              <AnnotationOverlay
+                key={photo.key}
+                src={photo.url}
+                alt="Student submitted work"
+                strokes={entry?.strokes ?? []}
+                texts={entry?.texts ?? []}
+              />
+            );
+          })}
         </PhotoAnswerBlock>
       );
     }

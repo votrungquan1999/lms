@@ -5,6 +5,7 @@ import {
   type AnnotationToolState,
   annotationReducer,
   buildInitialAnnotationState,
+  collectAnnotations,
 } from "../annotation-tool.state";
 
 const KEY = "answers/s/p1.png";
@@ -112,5 +113,58 @@ describe("annotationReducer", () => {
     // Then one Undo removes the text
     state = annotationReducer(state, { type: "UNDO", mediaKey: KEY });
     expect(state.textsByKey[KEY]).toEqual([]);
+  });
+  it("keeps one true order across save and reopen, so Undo takes back a stroke made after a text", () => {
+    // Given a text made first, then a stroke, saved and reopened
+    let state = buildInitialAnnotationState([], "#ff0000");
+    state = annotationReducer(state, {
+      type: "START_TEXT",
+      mediaKey: KEY,
+      point: { x: 0.2, y: 0.2 },
+    });
+    state = annotationReducer(state, { type: "SET_TEXT", text: "first" });
+    state = annotationReducer(state, { type: "COMMIT_TEXT" });
+    state = drawStroke(state, [
+      { x: 0.5, y: 0.5 },
+      { x: 0.6, y: 0.6 },
+    ]);
+    const reopened = buildInitialAnnotationState(
+      JSON.parse(JSON.stringify(collectAnnotations(state))),
+      "#ff0000",
+    );
+
+    // When she presses Undo once
+    const undone = annotationReducer(reopened, { type: "UNDO", mediaKey: KEY });
+
+    // Then the stroke goes and the text stays
+    expect(undone.entriesByKey[KEY]).toEqual([]);
+    expect(undone.textsByKey[KEY]).toHaveLength(1);
+  });
+
+  it("opens marks saved without an order as strokes then texts, ahead of marks made after", () => {
+    // Given a photo saved before marks carried an order
+    const old: AnnotationEntry = {
+      mediaKey: KEY,
+      strokes: [{ color: "#000", points: [{ x: 0, y: 0 }] }],
+      texts: [{ x: 0.2, y: 0.3, text: "old", color: "#ef4444" }],
+    };
+    let state = buildInitialAnnotationState([old], "#ff0000");
+
+    // When a new stroke is made and the marks are saved and reopened
+    state = drawStroke(state, [
+      { x: 0.5, y: 0.5 },
+      { x: 0.6, y: 0.6 },
+    ]);
+    state = buildInitialAnnotationState(
+      JSON.parse(JSON.stringify(collectAnnotations(state))),
+      "#ff0000",
+    );
+
+    // Then Undo takes the new stroke, then the old text, then the old stroke
+    state = annotationReducer(state, { type: "UNDO", mediaKey: KEY });
+    expect(state.entriesByKey[KEY]).toHaveLength(1);
+    state = annotationReducer(state, { type: "UNDO", mediaKey: KEY });
+    expect(state.textsByKey[KEY]).toEqual([]);
+    expect(state.entriesByKey[KEY]).toHaveLength(1);
   });
 });

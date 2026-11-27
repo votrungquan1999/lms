@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { saveAnnotationsAction } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions";
 import {
   AnnotationOverlay,
   TEXT_MARK_FONT_SIZE,
@@ -10,13 +9,8 @@ import { Button } from "src/components/ui/button";
 import {
   ANNOTATION_PALETTE,
   ANNOTATION_TEXT_MAX_LENGTH,
-  type AnnotationEntry,
 } from "src/lib/annotation-service";
-import {
-  AnnotationToolProvider,
-  type MarkTool,
-  useAnnotationTool,
-} from "./annotation-tool.state";
+import { type MarkTool, useAnnotationTool } from "./annotation-tool.state";
 
 /** Photo (key + presigned url) a grader can annotate. */
 export interface AnnotatablePhoto {
@@ -33,55 +27,15 @@ const TOOLS: { tool: MarkTool; label: string }[] = [
 
 /**
  * Grader marking tool: shows one answer photo at a time with a thumbnail strip,
- * marks it with pen, circle, arrow or typed text, undoes or clears the shown
- * photo's marks, and saves. Wraps the body in the tool provider.
- * @param testId - The test id.
- * @param courseId - The course id.
- * @param questionId - The question id.
- * @param studentId - The student whose photos are annotated.
+ * marks it with pen, circle, arrow or typed text, and undoes or clears the shown
+ * photo's marks. The marks live in the surrounding tool provider and are saved
+ * by the grade panel's Save & next.
  * @param photos - The student's answer photos (key + presigned url).
- * @param initialAnnotations - Previously saved annotations to seed from.
  * @returns The annotation tool element.
  */
 export function AnnotationTool({
-  testId,
-  courseId,
-  questionId,
-  studentId,
-  photos,
-  initialAnnotations,
-}: {
-  testId: string;
-  courseId: string;
-  questionId: string;
-  studentId: string;
-  photos: AnnotatablePhoto[];
-  initialAnnotations: AnnotationEntry[];
-}): React.ReactNode {
-  return (
-    <AnnotationToolProvider initialAnnotations={initialAnnotations}>
-      <AnnotationToolBody
-        testId={testId}
-        courseId={courseId}
-        questionId={questionId}
-        studentId={studentId}
-        photos={photos}
-      />
-    </AnnotationToolProvider>
-  );
-}
-
-function AnnotationToolBody({
-  testId,
-  courseId,
-  questionId,
-  studentId,
   photos,
 }: {
-  testId: string;
-  courseId: string;
-  questionId: string;
-  studentId: string;
   photos: AnnotatablePhoto[];
 }): React.ReactNode {
   const {
@@ -95,8 +49,6 @@ function AnnotationToolBody({
   } = useAnnotationTool();
   const [photoIndex, setPhotoIndex] = useState(0);
   const [fit, setFit] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
   /** Rendered size of the drawing surface in pixels. */
   function toSize(event: React.PointerEvent<SVGSVGElement>) {
@@ -111,29 +63,6 @@ function AnnotationToolBody({
       x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
       y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)),
     };
-  }
-
-  async function save() {
-    setIsSaving(true);
-    setMessage(null);
-    const mediaKeys = new Set([
-      ...Object.keys(entriesByKey),
-      ...Object.keys(textsByKey),
-    ]);
-    const annotations: AnnotationEntry[] = [...mediaKeys].map((mediaKey) => ({
-      mediaKey,
-      strokes: entriesByKey[mediaKey] ?? [],
-      texts: textsByKey[mediaKey] ?? [],
-    }));
-    const result = await saveAnnotationsAction({
-      testId,
-      courseId,
-      questionId,
-      studentId,
-      annotationsJson: JSON.stringify(annotations),
-    });
-    setMessage(result.message);
-    setIsSaving(false);
   }
 
   return (
@@ -321,18 +250,11 @@ function AnnotationToolBody({
               })}
             </fieldset>
             <p className="text-xs text-muted-foreground">
-              Marks are saved with each photo
+              Marks are saved with Save & next
             </p>
           </div>
         );
       })()}
-
-      <div className="flex items-center gap-3">
-        <Button type="button" size="sm" disabled={isSaving} onClick={save}>
-          {isSaving ? "Saving…" : "Save annotations"}
-        </Button>
-        {message && <p className="text-sm text-muted-foreground">{message}</p>}
-      </div>
     </div>
   );
 }

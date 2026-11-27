@@ -1,6 +1,16 @@
 import type { Collection, Db } from "mongodb";
 import type { TestService } from "./test-service";
 
+/** A line of text a grader types onto a photo, anchored at a normalized (0..1) point. */
+export interface AnnotationText {
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  /** Position in the order the photo's marks were made; absent on marks saved before marks carried one. */
+  seq?: number;
+}
+
 /** Marker colors a grader can draw and type with. */
 export const ANNOTATION_PALETTE = [
   "#ef4444",
@@ -22,14 +32,8 @@ export interface AnnotationPoint {
 export interface AnnotationStroke {
   color: string;
   points: AnnotationPoint[];
-}
-
-/** A line of text a grader types onto a photo, anchored at a normalized (0..1) point. */
-export interface AnnotationText {
-  x: number;
-  y: number;
-  text: string;
-  color: string;
+  /** Position in the order the photo's marks were made; absent on marks saved before marks carried one. */
+  seq?: number;
 }
 
 /** A grader's annotations for one of a student's answer photos. */

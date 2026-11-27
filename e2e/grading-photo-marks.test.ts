@@ -128,6 +128,23 @@ async function clickOnPhoto(page: Page, at: [number, number]) {
   await page.mouse.click(box.x + box.width * at[0], box.y + box.height * at[1]);
 }
 
+/** Grades the shown answer and presses Save & next, which saves the photo marks in the same call. */
+async function gradeAndSaveNext(page: Page, score: string) {
+  await page.getByLabel("Score (0–100):").fill(score);
+  await page.getByRole("button", { name: /^Save & next/ }).click();
+}
+
+/** Opens another student from the picker, confirming the leave prompt that unsaved marks raise. */
+async function pickStudentDiscardingMarks(page: Page, name: RegExp) {
+  await page.getByRole("button", { name: "Student picker" }).click();
+  await page.getByRole("menuitem", { name }).click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Discard your unsaved grade?",
+  });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Leave" }).click();
+}
+
 /** Where the answer pane starts on screen in a 1280 x 720 window. */
 const PANE_TOP = 244;
 
@@ -253,9 +270,7 @@ test.describe("Photo answers show one photo at a time", () => {
         .toBe(fitWidth);
 
       // Another student opens on his first photo with no marks, never Ann's
-      const picker = page.getByRole("button", { name: "Student picker" });
-      await picker.click();
-      await page.getByRole("menuitem", { name: /Ben Photos/ }).click();
+      await pickStudentDiscardingMarks(page, /Ben Photos/);
       await expect(page).toHaveURL(new RegExp(`studentId=${ids.ben}`));
       await expect(page.getByText("2 photos · showing photo 1")).toBeVisible();
       await expect(
@@ -331,8 +346,8 @@ test.describe("The teacher marks a photo with a circle or an arrow", () => {
       ).toBeVisible();
       await expect(page.locator("svg polyline")).toHaveCount(1);
 
-      // Saving stores the circle as an ordinary stroke with many points
-      await page.getByRole("button", { name: "Save annotations" }).click();
+      // Save & next stores the circle as an ordinary stroke with many points
+      await gradeAndSaveNext(page, "70");
       await expect
         .poll(() =>
           withDb(async (db) => {
@@ -411,7 +426,7 @@ test.describe("The teacher types text marks onto a photo", () => {
       await clickOnPhoto(page, [0.3, 0.4]);
       await box.fill("i never changes");
       await box.press("Enter");
-      await page.getByRole("button", { name: "Save annotations" }).click();
+      await gradeAndSaveNext(page, "70");
       await expect
         .poll(() =>
           withDb(async (db) => {
@@ -435,15 +450,14 @@ test.describe("The teacher types text marks onto a photo", () => {
           3,
           4,
         ]);
-      await page.reload();
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
       await expect(page.getByText("i never changes")).toBeVisible();
 
       // A half-typed text never follows the grader to the next student
       await text.click();
       await clickOnPhoto(page, [0.5, 0.5]);
       await box.fill("half typed");
-      await page.getByRole("button", { name: "Student picker" }).click();
-      await page.getByRole("menuitem", { name: /Ann Photos/ }).click();
+      await pickStudentDiscardingMarks(page, /Ann Photos/);
       await expect(page).toHaveURL(new RegExp(`studentId=${ids.ann}`));
       await expect(
         strip.getByRole("button", { name: "Photo 1 · 2 marks" }),
@@ -451,6 +465,171 @@ test.describe("The teacher types text marks onto a photo", () => {
       await expect(box).toHaveCount(0);
       await expect(page.getByText("half typed")).toHaveCount(0);
       await expect(page.getByText("i never changes")).toHaveCount(0);
+    });
+  }
+});
+
+test.describe("Undo follows the order marks were made, also after a save and reopen", () => {
+  for (const route of routes) {
+    test(`on ${route.name} a stroke drawn after a text is the first thing Undo takes back once saved and reopened`, async ({
+      page,
+    }) => {
+      const ids = await seedPhotoTest();
+      await servePhotos(page);
+
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
+      const text = page.getByRole("button", { name: "Text", exact: true });
+      await hydrated(text);
+      await text.click();
+      await clickOnPhoto(page, [0.3, 0.4]);
+      const box = page.getByRole("textbox", { name: "Text mark" });
+      await box.fill("first the text");
+      await box.press("Enter");
+      await page.getByRole("button", { name: "Pen", exact: true }).click();
+      await dragOnPhoto(page, [0.1, 0.1], [0.3, 0.2]);
+      await gradeAndSaveNext(page, "70");
+      await expect
+        .poll(() =>
+          withDb(async (db) => {
+            const doc = await db
+              .collection("annotation")
+              .findOne({ studentId: ids.ben, questionId: ids.questionId });
+            return doc?.entries?.[0]?.texts?.length;
+          }),
+        )
+        .toBe(1);
+
+      // After reopening, one Undo takes the stroke and the text stays
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
+      const strip = page.getByRole("group", { name: "Photos" });
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 2 marks" }),
+      ).toBeVisible();
+      const undo = page.getByRole("button", { name: "Undo", exact: true });
+      await hydrated(undo);
+      await undo.click();
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 1 mark" }),
+      ).toBeVisible();
+      await expect(page.getByText("first the text")).toBeVisible();
+      await expect(page.locator("svg polyline")).toHaveCount(0);
+    });
+  }
+});
+
+test.describe("Photo marks save with Save & next", () => {
+  for (const route of routes) {
+    test(`on ${route.name} drawn marks are unsaved work until Save & next stores them with the grade, and they never follow the teacher to another student`, async ({
+      page,
+    }) => {
+      const ids = await seedPhotoTest();
+      await servePhotos(page);
+
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
+      const strip = page.getByRole("group", { name: "Photos" });
+      const pen = page.getByRole("button", { name: "Pen", exact: true });
+      await hydrated(pen);
+
+      // There is no separate save button for marks
+      await expect(
+        page.getByRole("button", { name: "Save annotations" }),
+      ).toHaveCount(0);
+
+      // A drawn mark is not stored yet, and leaving asks first
+      await dragOnPhoto(page, [0.2, 0.2], [0.6, 0.6]);
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 1 mark" }),
+      ).toBeVisible();
+      expect(
+        await withDb((db) =>
+          db
+            .collection("annotation")
+            .findOne({ studentId: ids.ben, questionId: ids.questionId }),
+        ),
+      ).toBeNull();
+      await page.getByRole("link", { name: "[photos] Test" }).click();
+      const dialog = page.getByRole("alertdialog", {
+        name: "Discard your unsaved grade?",
+      });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("button", { name: "Stay" }).click();
+      await expect(dialog).toBeHidden();
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 1 mark" }),
+      ).toBeVisible();
+
+      // Leaving to another student drops the marks; they are not on Ben when she returns
+      await pickStudentDiscardingMarks(page, /Ann Photos/);
+      await expect(page).toHaveURL(new RegExp(`studentId=${ids.ann}`));
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 2 marks" }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Student picker" }).click();
+      await page.getByRole("menuitem", { name: /Ben Photos/ }).click();
+      await expect(page).toHaveURL(new RegExp(`studentId=${ids.ben}`));
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 0 marks" }),
+      ).toBeVisible();
+
+      // Save & next stores the grade and the marks in the same call
+      await hydrated(pen);
+      await dragOnPhoto(page, [0.2, 0.2], [0.6, 0.6]);
+      await gradeAndSaveNext(page, "70");
+      await expect
+        .poll(() =>
+          withDb(async (db) => {
+            const doc = await db
+              .collection("annotation")
+              .findOne({ studentId: ids.ben, questionId: ids.questionId });
+            const grade = await db
+              .collection("grade")
+              .findOne({ studentId: ids.ben, questionId: ids.questionId });
+            return [doc?.entries?.[0]?.strokes?.length, grade?.score];
+          }),
+        )
+        .toEqual([1, 70]);
+    });
+
+    test(`on ${route.name} By question counts drawn marks as unsaved work and Save & next stores them with the grade`, async ({
+      page,
+    }) => {
+      const ids = await seedPhotoTest();
+      await servePhotos(page);
+
+      await page.goto(
+        `${route.path(ids)}?mode=question&studentId=${ids.ben}&questionId=${ids.questionId}`,
+      );
+      const strip = page.getByRole("group", { name: "Photos" });
+      await hydrated(page.getByRole("button", { name: "Pen", exact: true }));
+
+      // A drawn mark makes leaving ask first
+      await dragOnPhoto(page, [0.2, 0.2], [0.6, 0.6]);
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 1 mark" }),
+      ).toBeVisible();
+      await page.getByRole("link", { name: "[photos] Test" }).click();
+      const dialog = page.getByRole("alertdialog", {
+        name: "Discard your unsaved grade?",
+      });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("button", { name: "Stay" }).click();
+      await expect(dialog).toBeHidden();
+
+      // Save & next stores the grade and the marks in the same call
+      await gradeAndSaveNext(page, "70");
+      await expect
+        .poll(() =>
+          withDb(async (db) => {
+            const doc = await db
+              .collection("annotation")
+              .findOne({ studentId: ids.ben, questionId: ids.questionId });
+            const grade = await db
+              .collection("grade")
+              .findOne({ studentId: ids.ben, questionId: ids.questionId });
+            return [doc?.entries?.[0]?.strokes?.length, grade?.score];
+          }),
+        )
+        .toEqual([1, 70]);
     });
   }
 });

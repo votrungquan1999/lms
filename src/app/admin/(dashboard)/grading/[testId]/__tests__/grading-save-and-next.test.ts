@@ -12,6 +12,7 @@ import {
   AI_MODEL_NAME,
   type AiGradeSuggestionDocument,
 } from "src/lib/ai-grade-types";
+import { getAuthService } from "src/lib/auth-singleton";
 import { GradingCountService } from "src/lib/grading-count-service";
 import { TestStatus } from "src/lib/test-status-service";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
@@ -555,5 +556,41 @@ describe("Feature: a teacher's own grade on an AI-graded answer records how far 
     expect(
       Object.keys(attributes ?? {}).filter((key) => key.startsWith("lms.ai.")),
     ).toEqual([]);
+  });
+});
+
+describe("Feature: a Save & next that cannot save says why and stays on the answer", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+    vi.clearAllMocks();
+  });
+
+  it("returns the reason, saves nothing and does not move on when the session has expired", async () => {
+    // Given Ann's answer waits and the teacher's session has expired on the server
+    const seed = await seedTest(["written"]);
+    const ann = await seedHandedInStudent(seed, "Ann");
+    vi.mocked(getAuthService).mockResolvedValueOnce({
+      requireAdminSession: vi.fn().mockRejectedValue(new Error("Unauthorized")),
+    } as unknown as Awaited<ReturnType<typeof getAuthService>>);
+
+    // When the teacher presses Save & next
+    const state = await saveAndNextAction(
+      saveForm(seed, ann.id, seed.questions[0].id),
+    );
+
+    // Then she is told why, nothing is saved and the page stays
+    expect(state).toEqual({ message: "Unauthorized: admin access required" });
+    expect(redirect).not.toHaveBeenCalled();
+    expect(
+      await seed.services.gradeService.getGrade(
+        seed.test.id,
+        seed.questions[0].id,
+        ann.id,
+      ),
+    ).toBeNull();
   });
 });

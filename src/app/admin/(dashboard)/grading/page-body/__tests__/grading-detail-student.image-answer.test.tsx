@@ -154,4 +154,101 @@ describe("Feature: per-student grading view renders image_answer submissions", (
       screen.queryByRole("spinbutton", { name: /score/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("shows the saved marks read-only, with no marking tools, while a redo is open", async () => {
+    // Given a graded photo answer with saved marks, and an open redo.
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const testDoc = await services.testService.createTest(course.id, {
+      title: "Test",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(testDoc.id, {
+      type: "image_answer",
+      title: "Handwritten Q",
+      content: "Upload your work",
+      createdBy: "admin",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-3",
+      username: "stu3",
+      name: "Stu3",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin",
+    );
+    const mediaKey = `answers/${student.id}/p1.png`;
+    await services.answerService.submitAnswer({
+      testId: testDoc.id,
+      questionId: question.id,
+      studentId: student.id,
+      answer: { type: "image", mediaKeys: [mediaKey] },
+    });
+    await services.testSubmissionService.submitTest(testDoc.id, student.id);
+    await services.gradeService.gradeQuestion({
+      testId: testDoc.id,
+      questionId: question.id,
+      studentId: student.id,
+      score: 70,
+      feedback: "ok",
+      gradedBy: "admin",
+    });
+    await services.annotationService.saveAnnotations({
+      testId: testDoc.id,
+      questionId: question.id,
+      studentId: student.id,
+      gradedBy: "admin",
+      annotations: [
+        {
+          mediaKey,
+          strokes: [
+            {
+              color: "#ef4444",
+              points: [
+                { x: 0.1, y: 0.1 },
+                { x: 0.5, y: 0.5 },
+              ],
+            },
+          ],
+          texts: [{ x: 0.3, y: 0.7, text: "look here", color: "#ef4444" }],
+        },
+      ],
+    });
+    await services.redoRequestService.requestRedo(
+      testDoc.id,
+      student.id,
+      "admin",
+    );
+
+    // When the per-student grading view renders.
+    const ui = await GradingDetailStudent({
+      test: testDoc,
+      courseId: course.id,
+      schoolId: TEST_SCHOOL_ID,
+      student: {
+        id: student.id,
+        name: student.name,
+        username: student.username,
+      },
+      basePath: "/admin/grading/test-1",
+    });
+    const { container } = render(ui);
+
+    // Then the photo shows its saved marks, but nothing can draw on it.
+    expect(
+      screen.getByRole("img", { name: "Student submitted work" }),
+    ).toBeInTheDocument();
+    expect(container.querySelectorAll("polyline")).toHaveLength(1);
+    expect(screen.getByText("look here")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pen" })).toBeNull();
+    expect(screen.queryByLabelText("Drawing surface")).toBeNull();
+  });
 });

@@ -12,7 +12,16 @@ import { useLeaveGuard } from "src/app/admin/(dashboard)/leave-guard.state";
 
 type ReportDraft = (source: string, hasDraft: boolean) => void;
 
-const UnsavedGradeContext = createContext<ReportDraft>(() => {});
+interface UnsavedGradeValue {
+  report: ReportDraft;
+  /** The forms that currently hold a typed draft. */
+  drafts: ReadonlySet<string>;
+}
+
+const UnsavedGradeContext = createContext<UnsavedGradeValue>({
+  report: () => {},
+  drafts: new Set(),
+});
 
 const LEAVE_TITLE = "Discard your unsaved grade?";
 const LEAVE_MESSAGE =
@@ -43,7 +52,7 @@ export function UnsavedGradeProvider({ children }: { children: ReactNode }) {
   }, [hasDraft, setHasWork]);
 
   return (
-    <UnsavedGradeContext.Provider value={report}>
+    <UnsavedGradeContext.Provider value={{ report, drafts }}>
       {children}
     </UnsavedGradeContext.Provider>
   );
@@ -55,9 +64,17 @@ export function UnsavedGradeProvider({ children }: { children: ReactNode }) {
  * @param source - Names the form, so two forms in the panel do not hide each other.
  */
 export function useReportUnsavedGrade(source: string, hasDraft: boolean) {
-  const report = useContext(UnsavedGradeContext);
+  const { report } = useContext(UnsavedGradeContext);
   useEffect(() => {
     report(source, hasDraft);
     return () => report(source, false);
   }, [report, source, hasDraft]);
+}
+
+/**
+ * Whether a form in the panel holds a typed draft right now.
+ * @param source - The name the form reports under.
+ */
+export function useHasUnsavedGrade(source: string): boolean {
+  return useContext(UnsavedGradeContext).drafts.has(source);
 }

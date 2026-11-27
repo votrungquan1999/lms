@@ -7,7 +7,10 @@ import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
 import type { StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
-import { needsGrade } from "src/lib/needs-grade";
+import {
+  answerNeedsGrade,
+  isGradableAnswer,
+} from "src/lib/next-answer-to-grade";
 import { isMcQuestion, type Question } from "src/lib/question-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 
@@ -19,8 +22,6 @@ interface GradePanelProps {
   question: Question;
   /** The student's latest answer, or undefined when there is none. */
   answer: StudentAnswer | undefined;
-  /** The answer has a photo to grade. */
-  hasPhotos: boolean;
   /** When the answer was saved; omitted when not known. */
   answerSavedAt?: Date;
   /** The saved grade, or undefined when there is none. */
@@ -48,7 +49,6 @@ export function GradePanel({
   student,
   question,
   answer,
-  hasPhotos,
   answerSavedAt,
   grade,
   status,
@@ -60,17 +60,15 @@ export function GradePanel({
 }: GradePanelProps) {
   const isSubmitted = hasSubmitted(status);
   const score = grade?.score ?? null;
-  const gradable =
-    !isMcQuestion(question) &&
-    (answer?.type === "free_text" ? !!answer.text : hasPhotos);
+  const gradable = isGradableAnswer(question, answer);
 
   // The panel is not shown while a redo is open, so the redo clause never applies here.
   const answerChanged =
-    gradable &&
     grade !== undefined &&
-    needsGrade({
-      answered: true,
-      latestAnswerAt: answerSavedAt ?? null,
+    answerNeedsGrade({
+      question,
+      answer,
+      answeredAt: answerSavedAt ?? null,
       grade,
       redoOpen: false,
     });

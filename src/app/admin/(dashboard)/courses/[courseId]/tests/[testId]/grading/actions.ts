@@ -52,117 +52,26 @@ const annotationPointSchema = z.object({ x: z.number(), y: z.number() });
 const annotationStrokeSchema = z.object({
   color: z.string().min(1),
   points: z.array(annotationPointSchema),
+  seq: z.number().int().min(0).optional(),
 });
 const annotationTextSchema = z.object({
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1),
   text: z.string().min(1).max(ANNOTATION_TEXT_MAX_LENGTH),
   color: z.enum(ANNOTATION_PALETTE),
+  seq: z.number().int().min(0).optional(),
 });
-const saveAnnotationsSchema = z.object({
-  testId: z.string().min(1),
-  courseId: z.string().min(1),
-  questionId: z.string().min(1),
-  studentId: z.string().min(1),
-  annotations: z.array(
-    z.object({
-      mediaKey: z.string().min(1),
-      strokes: z.array(annotationStrokeSchema),
-      texts: z.array(annotationTextSchema).optional(),
-    }),
-  ),
-});
-
-export interface SaveAnnotationsState {
-  success: boolean;
-  message: string;
-}
+const annotationEntriesSchema = z.array(
+  z.object({
+    mediaKey: z.string().min(1),
+    strokes: z.array(annotationStrokeSchema),
+    texts: z.array(annotationTextSchema).optional(),
+  }),
+);
 
 export interface TestFeedbackState {
   success: boolean;
   message: string;
-}
-
-/**
- * Server action: saves a grader's vector annotations over a student's answer
- * photos. Admin-guarded; accepts a JSON-encoded annotation entry array.
- * @param input - Target ids and the JSON-encoded annotation entries.
- * @returns Success or a failure message.
- */
-export async function saveAnnotationsAction(input: {
-  testId: string;
-  courseId: string;
-  questionId: string;
-  studentId: string;
-  annotationsJson: string;
-}): Promise<SaveAnnotationsState> {
-  const requestHeaders = await headers();
-  const authService = await getAuthService();
-
-  let adminUserId: string;
-  let schoolId: string;
-  try {
-    const session = await authService.requireAdminSession(requestHeaders);
-    adminUserId = session.userId;
-    schoolId = session.school.id;
-  } catch {
-    return { success: false, message: "Unauthorized: admin access required" };
-  }
-
-  let rawAnnotations: unknown;
-  try {
-    rawAnnotations = JSON.parse(input.annotationsJson);
-  } catch {
-    return { success: false, message: "Invalid annotations format" };
-  }
-
-  const parsed = saveAnnotationsSchema.safeParse({
-    testId: input.testId,
-    courseId: input.courseId,
-    questionId: input.questionId,
-    studentId: input.studentId,
-    annotations: rawAnnotations,
-  });
-  if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0].message };
-  }
-
-  try {
-    return await withSpan(
-      "action.saveAnnotationsAction",
-      {
-        "lms.action.name": "saveAnnotationsAction",
-        "lms.test.id": parsed.data.testId,
-        "lms.student.id": parsed.data.studentId,
-      },
-      async () => {
-        await assertGradingTarget(schoolId, parsed.data);
-
-        const annotationService = await getAnnotationService(schoolId);
-        await annotationService.saveAnnotations({
-          testId: parsed.data.testId,
-          questionId: parsed.data.questionId,
-          studentId: parsed.data.studentId,
-          gradedBy: adminUserId,
-          annotations: parsed.data.annotations,
-        });
-
-        revalidatePath(
-          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-        );
-        revalidatePath(`/admin/grading/${parsed.data.testId}`);
-
-        return { success: true, message: "Annotations saved" };
-      },
-    );
-  } catch (error) {
-    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
-    return {
-      success: false,
-      message:
-        error instanceof Error ? error.message : "Failed to save annotations",
-    };
-  }
 }
 
 /**
@@ -519,18 +428,47 @@ const saveAndNextSchema = z.object({
   feedback: z.string(),
   solution: z.string().optional(),
   needsOnly: z.literal("1").optional(),
+  // The answer's photo marks as JSON; absent for an answer with no photos.
+  annotations: z
+    .string()
+    .transform((json, ctx) => {
+      try {
+        return JSON.parse(json) as unknown;
+      } catch {
+        ctx.addIssue({ code: "custom", message: "Invalid annotations format" });
+        return z.NEVER;
+      }
+    })
+    .pipe(annotationEntriesSchema)
+    .optional(),
 });
 
+/** Why Save & next stayed on the answer; a successful save redirects instead of returning. */
+export interface SaveAndNextState {
+  message: string;
+}
+
 /**
- * Server action: grades one answer, then redirects to the next answer that
- * needs a grade. When the AI had suggested a grade for the answer, records
- * how far the teacher's grade is from it. `redirect()` throws, so it stays
- * outside any try/catch.
+ * Server action: grades one answer, then stores its photo marks when sent,
+ * and redirects to the next answer that needs a grade. When the AI had
+ * suggested a grade for the answer, records how far the teacher's grade is
+ * from it. Any failure returns its reason so the screen keeps what the
+ * teacher typed; `redirect()` throws, so it stays outside the try/catch.
+ * @param formData - The grade form.
+ * @returns Why nothing moved on; never returns after a successful save.
  */
-export async function saveAndNextAction(formData: FormData) {
+export async function saveAndNextAction(
+  formData: FormData,
+): Promise<SaveAndNextState> {
   const requestHeaders = await headers();
   const authService = await getAuthService();
-  const session = await authService.requireAdminSession(requestHeaders);
+
+  let session: Awaited<ReturnType<typeof authService.requireAdminSession>>;
+  try {
+    session = await authService.requireAdminSession(requestHeaders);
+  } catch {
+    return { message: "Unauthorized: admin access required" };
+  }
 
   const parsed = saveAndNextSchema.safeParse({
     routeKind: formData.get("routeKind"),
@@ -544,12 +482,37 @@ export async function saveAndNextAction(formData: FormData) {
     feedback: formData.get("feedback"),
     solution: formData.get("solution") ?? undefined,
     needsOnly: formData.get("needsOnly") ?? undefined,
+    annotations: formData.get("annotations") ?? undefined,
   });
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Invalid form data");
+    return { message: parsed.error.issues[0]?.message ?? "Invalid form data" };
   }
   const input = parsed.data;
 
+  let nextHref: string;
+  try {
+    nextHref = await saveAndFindNext(session, input);
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
+    return {
+      message: error instanceof Error ? error.message : "Failed to save grade",
+    };
+  }
+  redirect(nextHref);
+}
+
+/**
+ * Checks the target, saves the grade and its photo marks, and works out
+ * where Save & next goes.
+ * @param session - The acting admin.
+ * @param input - The parsed grade form.
+ * @returns The link of the next answer to grade, or the finish panel's.
+ * @throws When the target is not this school's or a read or write fails.
+ */
+async function saveAndFindNext(
+  session: { userId: string; school: { id: string } },
+  input: z.infer<typeof saveAndNextSchema>,
+): Promise<string> {
   await assertGradingTarget(session.school.id, input);
 
   const previousGrade = await withSpan(
@@ -585,6 +548,16 @@ export async function saveAndNextAction(formData: FormData) {
         gradedBy: session.userId,
         gradedAnswerAt: input.gradedAnswerAt,
       });
+      // After the grade, so a failed grade save never leaves marks on an ungraded answer.
+      if (input.annotations) {
+        await (await getAnnotationService(session.school.id)).saveAnnotations({
+          testId: input.testId,
+          questionId: input.questionId,
+          studentId: input.studentId,
+          gradedBy: session.userId,
+          annotations: input.annotations,
+        });
+      }
 
       if (suggestion) {
         recordAiAcceptance(span, AiGradeOutcome.ManuallyGraded, suggestion, {
@@ -644,16 +617,14 @@ export async function saveAndNextAction(formData: FormData) {
     grades: screen.grades,
   });
 
-  redirect(
-    gradingHref({
-      basePath: gradingBasePath(input),
-      mode: input.mode,
-      studentId: next?.studentId ?? input.studentId,
-      questionId: next?.questionId ?? input.questionId,
-      needsOnly: input.needsOnly === "1",
-      done: next === null,
-    }),
-  );
+  return gradingHref({
+    basePath: gradingBasePath(input),
+    mode: input.mode,
+    studentId: next?.studentId ?? input.studentId,
+    questionId: next?.questionId ?? input.questionId,
+    needsOnly: input.needsOnly === "1",
+    done: next === null,
+  });
 }
 
 const releaseCorrectAnswersSchema = z.object({

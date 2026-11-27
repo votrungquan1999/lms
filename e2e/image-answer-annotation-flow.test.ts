@@ -2,7 +2,7 @@
  * Feature: Image-answer questions + grader annotation (E2E)
  *
  * A student uploads a photo of handwritten work as their answer; a grader views
- * the photo, draws an annotation over it and saves; once the grade is revealed
+ * the photo, draws an annotation over it and saves with Save & next; once the grade is revealed
  * the student sees the grader's annotation on their photo.
  *
  * Self-contained — creates its own student, course, test, and image-answer
@@ -184,19 +184,7 @@ test.describe("Image-answer + annotation flow", () => {
     await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.6);
     await page.mouse.up();
 
-    await page.getByRole("button", { name: "Save annotations" }).click();
-    await expect(page.getByText("Annotations saved")).toBeVisible({
-      timeout: 10000,
-    });
-
-    // Grade + release so the student can see it. Named "Save & next" —
-    // "Save annotations" (above) and "Save Feedback" (below) also match
-    // /Save/, so `.first()` on that regex would re-click "Save
-    // annotations" and never submit a score at all. Wait for the save to
-    // actually persist — without this the test ends and Playwright tears
-    // down the page while the grade-save request is still in flight, so it
-    // never lands (same class of bug as the materials upload: a page
-    // closing mid-request aborts it server-side).
+    // Marks save together with the grade: Save & next is the only save.
     await page.getByLabel("Score").first().fill("80");
     await page.getByRole("button", { name: /^Save & next/ }).click();
     await expect(
