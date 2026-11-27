@@ -10,6 +10,8 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { type Db, MongoClient } from "mongodb";
+import type { AiGradeSuggestionDocument } from "../src/lib/ai-grade-types";
+import { AI_GRADER_ID, AI_MODEL_NAME } from "../src/lib/ai-grade-types";
 import type { AnswerDocument } from "../src/lib/answer-service";
 import type { CourseJoinRequestDocument } from "../src/lib/course-join-request-service";
 import { JoinRequestStatus } from "../src/lib/course-join-request-service";
@@ -257,6 +259,32 @@ export async function insertGrade(
   return doc.id;
 }
 
+/** An AI suggestion for one student's answer to one question, with no AI call. */
+export async function insertAiGrade(
+  db: Db,
+  fields: Pick<
+    AiGradeSuggestionDocument,
+    "testId" | "questionId" | "studentId" | "gradedAgainstAnswerId"
+  > &
+    Partial<AiGradeSuggestionDocument>,
+): Promise<string> {
+  const doc: AiGradeSuggestionDocument = {
+    id: crypto.randomUUID(),
+    score: 50,
+    feedback: "seeded suggestion",
+    model: AI_MODEL_NAME,
+    gradedBy: AI_GRADER_ID,
+    generatedByAdminId: "seed",
+    generatedAt: new Date(),
+    regenerateReason: null,
+    appliedAt: null,
+    appliedBy: null,
+    ...fields,
+  };
+  await db.collection<AiGradeSuggestionDocument>("ai_grade").insertOne(doc);
+  return doc.id;
+}
+
 /**
  * Deletes everything a school's courses, tests and students own, so a count
  * spec starts from nothing even after an earlier run left rows behind.
@@ -277,6 +305,7 @@ export async function clearSchoolData(db: Db, schoolId: string): Promise<void> {
       "test_submission",
       "test_start",
       "redo_request",
+      "ai_grade",
     ].map((name) => db.collection(name).deleteMany(byTest)),
   );
   await db

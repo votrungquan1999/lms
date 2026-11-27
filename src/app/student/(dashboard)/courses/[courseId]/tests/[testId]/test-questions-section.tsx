@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DiffViewer } from "src/components/diff-viewer";
 import { McAnswerChips } from "src/components/mc-answer-chips";
 import { StudentQuestionCard } from "src/components/student-question-card.ui";
 import { Separator } from "src/components/ui/separator";
@@ -11,7 +12,6 @@ import type { AnswerRevealMode } from "src/lib/test-service";
 import type { TestStatus } from "src/lib/test-status-service";
 import { isTextEquivalent } from "src/lib/text-normalization";
 import { AnswerForm } from "./answer-form";
-import { DiffViewer } from "./diff-viewer";
 import { GradedQuestion } from "./graded-question";
 import { questionAnchorId } from "./question-anchor";
 import { SubmitTestButton } from "./submit-test-button";

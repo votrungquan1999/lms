@@ -1,4 +1,5 @@
 import { AnnotationTool } from "src/app/admin/(dashboard)/grading/page-body/annotation-tool";
+import { CompareWithAiFix } from "src/app/admin/(dashboard)/grading/page-body/compare-with-ai-fix";
 import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import { McAnswerChips } from "src/components/mc-answer-chips";
 import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
@@ -13,6 +14,7 @@ interface AnswerPaneProps {
   testId: string;
   courseId: string;
   studentId: string;
+  studentName: string;
   /** The question with its media URLs already minted. */
   question: Question;
   /** The student's latest answer, or undefined when there is none. */
@@ -26,6 +28,8 @@ interface AnswerPaneProps {
   annotations: AnnotationEntry[];
   /** Students can already see the correct answers. */
   correctAnswersVisible: boolean;
+  /** The latest AI suggestion's fixed answer; absent when there is none. */
+  aiFix?: string;
 }
 
 /**
@@ -36,6 +40,7 @@ export function AnswerPane({
   testId,
   courseId,
   studentId,
+  studentName,
   question,
   answer,
   score,
@@ -43,6 +48,7 @@ export function AnswerPane({
   photos,
   annotations,
   correctAnswersVisible,
+  aiFix,
 }: AnswerPaneProps) {
   const modelAnswer =
     question.type === "free_text" ? question.referenceAnswer?.trim() : "";
@@ -99,6 +105,13 @@ export function AnswerPane({
           <pre className="whitespace-pre-wrap wrap-anywhere rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
             {answer.text}
           </pre>
+          {aiFix && (
+            <CompareWithAiFix
+              studentName={studentName}
+              studentAnswer={answer.text}
+              aiFix={aiFix}
+            />
+          )}
         </div>
       );
     }

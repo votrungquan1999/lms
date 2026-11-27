@@ -284,6 +284,7 @@ export async function GradingDetailStudent({
               testId={testId}
               courseId={courseId}
               studentId={student.id}
+              studentName={student.name}
               question={selectedQuestion}
               answer={selectedAnswer}
               score={selectedGrade?.score ?? null}
@@ -294,6 +295,7 @@ export async function GradingDetailStudent({
                 test.showCorrectAnswerAfterSubmit ||
                 test.correctAnswersReleasedAt !== null
               }
+              aiFix={selectedSuggestions[0]?.solution}
             />
           )}
 

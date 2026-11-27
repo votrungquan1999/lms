@@ -8,7 +8,9 @@ vi.mock("react-diff-viewer-continued", () => ({
   default: (props: {
     oldValue: string;
     newValue: string;
+    leftTitle?: string;
     rightTitle?: string;
+    splitView?: boolean;
   }) => {
     diffProps(props);
     return null;
@@ -58,5 +60,28 @@ describe("DiffViewer", () => {
     );
     // Then: the diff library gets the caller's label instead
     expect(diffProps.mock.calls[0]?.[0]?.rightTitle).toBe("Model Answer");
+  });
+
+  it("defaults to a two-column view titled 'Your Answer', and passes a caller's left title and view through", () => {
+    diffProps.mockClear();
+    render(<DiffViewer studentAnswer="a" solution="b" />);
+    expect(diffProps.mock.calls[0]?.[0]).toMatchObject({
+      leftTitle: "Your Answer",
+      splitView: true,
+    });
+
+    diffProps.mockClear();
+    render(
+      <DiffViewer
+        studentAnswer="a"
+        solution="b"
+        leftTitle="Ann's answer"
+        splitView={false}
+      />,
+    );
+    expect(diffProps.mock.calls[0]?.[0]).toMatchObject({
+      leftTitle: "Ann's answer",
+      splitView: false,
+    });
   });
 });

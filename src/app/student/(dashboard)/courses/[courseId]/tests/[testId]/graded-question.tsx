@@ -1,4 +1,5 @@
 import { AnnotationOverlay } from "src/components/annotation-overlay";
+import { DiffViewer } from "src/components/diff-viewer";
 import { MarkdownContent } from "src/components/markdown-content";
 import { McAnswerChips } from "src/components/mc-answer-chips";
 import { QuestionMedia } from "src/components/question-media.ui";
@@ -16,7 +17,6 @@ import type { AnswerRevealMode } from "src/lib/test-service";
 import { TestStatus } from "src/lib/test-status-service";
 import { isTextEquivalent } from "src/lib/text-normalization";
 import { cn } from "src/lib/utils";
-import { DiffViewer } from "./diff-viewer";
 import {
   GradedQuestionShell,
   QuestionPromptCollapsible,

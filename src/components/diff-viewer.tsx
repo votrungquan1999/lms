@@ -7,8 +7,12 @@ import { normalizeText } from "src/lib/text-normalization";
 interface DiffViewerProps {
   studentAnswer: string;
   solution: string;
+  /** Label for the left-hand column; defaults to the student's view of her own answer. */
+  leftTitle?: string;
   /** Label for the right-hand column; defaults to the graded view's label. */
   rightTitle?: string;
+  /** Two columns when true; one interleaved column when false. */
+  splitView?: boolean;
 }
 
 const diffStyles = {
@@ -20,14 +24,16 @@ const diffStyles = {
 };
 
 /**
- * Side-by-side diff view comparing a student's answer against the correct solution.
+ * Diff view (two columns unless `splitView` is false) comparing a student's answer against a solution.
  * Uses react-diff-viewer-continued for GitHub-style highlighting.
  * Subscribes to the global ThemeProvider context for dark mode detection.
  */
 export function DiffViewer({
   studentAnswer,
   solution,
+  leftTitle = "Your Answer",
   rightTitle = "Correct Solution",
+  splitView = true,
 }: DiffViewerProps) {
   const { isDark } = useTheme();
 
@@ -36,8 +42,8 @@ export function DiffViewer({
       <ReactDiffViewer
         oldValue={normalizeText(studentAnswer)}
         newValue={normalizeText(solution)}
-        splitView={true}
-        leftTitle="Your Answer"
+        splitView={splitView}
+        leftTitle={leftTitle}
         rightTitle={rightTitle}
         useDarkTheme={isDark}
         styles={diffStyles}
