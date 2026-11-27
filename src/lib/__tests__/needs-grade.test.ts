@@ -27,6 +27,39 @@ describe("needsGrade", () => {
     ).toBe(expected);
   });
 
+  const later = new Date(now.getTime() + 1000);
+  it.each([
+    ["an answer saved after its grade", later, grade, false, true],
+    [
+      "an answer saved after the grade was last re-saved",
+      later,
+      { gradedAt: new Date(0), updatedAt: now },
+      false,
+      true,
+    ],
+    [
+      "an answer saved before a re-saved grade",
+      now,
+      { gradedAt: new Date(0), updatedAt: later },
+      false,
+      false,
+    ],
+    ["an answer saved at the grade's own time", now, grade, false, false],
+    ["an answer changed during an open redo", later, grade, true, false],
+  ])(
+    "is decided for %s",
+    (_label, latestAnswerAt, savedGrade, redoOpen, expected) => {
+      expect(
+        needsGrade({
+          answered: true,
+          latestAnswerAt,
+          grade: savedGrade,
+          redoOpen,
+        }),
+      ).toBe(expected);
+    },
+  );
+
   dbIt(
     "agrees with the status service: a handed-in student is Submitted exactly when one live answer needs a grade",
     async ({ db }) => {

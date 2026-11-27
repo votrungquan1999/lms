@@ -4,6 +4,7 @@ import type { CourseDocument } from "src/lib/course-service";
 import type { EnrollmentDocument } from "src/lib/enrollment-service";
 import type { GradeDocument } from "src/lib/grade-service";
 import { GradingCountService } from "src/lib/grading-count-service";
+import { needsGrade } from "src/lib/needs-grade";
 import type { QuestionDocument } from "src/lib/question-service";
 import type { RedoRequestDocument } from "src/lib/redo-request-service";
 import type { StudentDocument } from "src/lib/student-service";
@@ -166,7 +167,12 @@ function seeds(db: Db) {
         ...overrides,
       });
     },
-    async grade(testId: string, questionId: string, studentId: string) {
+    async grade(
+      testId: string,
+      questionId: string,
+      studentId: string,
+      overrides: Partial<GradeDocument> = {},
+    ) {
       await db.collection<GradeDocument>("grade").insertOne({
         id: id(),
         testId,
@@ -179,6 +185,7 @@ function seeds(db: Db) {
         gradedBy: "seed",
         updatedAt: null,
         updatedBy: null,
+        ...overrides,
       });
     },
     async start(
@@ -233,14 +240,26 @@ async function referenceFor(db: Db, testId: string, studentId: string) {
     studentId,
   );
   const answers = await core.answerService.getLatestAnswers(testId, studentId);
-  const graded = new Set(
-    (await core.gradeService.getGrades(testId, studentId)).map(
-      (g) => g.questionId,
-    ),
+  const gradeByQuestion = new Map(
+    (await core.gradeService.getGrades(testId, studentId)).map((g) => [
+      g.questionId,
+      g,
+    ]),
+  );
+  const redoOpen = await core.testSubmissionService.hasOpenRedo(
+    testId,
+    studentId,
   );
   const liveIds = new Set(live.map((q) => q.id));
   const answersLeft = answers.filter(
-    (a) => liveIds.has(a.questionId) && !graded.has(a.questionId),
+    (a) =>
+      liveIds.has(a.questionId) &&
+      needsGrade({
+        answered: true,
+        latestAnswerAt: a.submittedAt,
+        grade: gradeByQuestion.get(a.questionId) ?? null,
+        redoOpen,
+      }),
   ).length;
   const visible = await core.gradeVisibilityService.canRevealGrades(
     testId,
@@ -786,6 +805,64 @@ describe("GradingCountService", () => {
       expect(counts.courses.map((c) => c.courseId)).toEqual([course]);
       expect(counts.tests.map((t) => t.testId)).toEqual([test]);
       expect(counts.pairs).toHaveLength(1);
+    },
+  );
+
+  dbIt(
+    "counts a handed-in student as waiting for exactly the graded answers she changed after their grade, as the status service reads her",
+    async ({ db }) => {
+      // Given: two answers graded, then one answer replaced and handed in again
+      const seed = seeds(db);
+      const course = await seed.course("Course");
+      const student = await seed.student("s1");
+      await seed.enroll(course, student);
+      const test = await seed.test(course);
+      const q1 = await seed.question(test);
+      const q2 = await seed.question(test, { order: 2 });
+      const gradedAt = new Date(Date.now() - 10 * MINUTE);
+      await seed.answer(
+        test,
+        q1,
+        student,
+        undefined,
+        new Date(gradedAt.getTime() - MINUTE),
+      );
+      await seed.answer(
+        test,
+        q2,
+        student,
+        undefined,
+        new Date(gradedAt.getTime() - MINUTE),
+      );
+      await seed.grade(test, q1, student, { gradedAt });
+      await seed.grade(test, q2, student, { gradedAt });
+      await seed.answer(
+        test,
+        q1,
+        student,
+        { type: "free_text", text: "improved" },
+        new Date(Date.now() - 2 * MINUTE),
+      );
+      await seed.handIn(test, student);
+
+      // When: the school is counted
+      const counts = await new GradingCountService(
+        db,
+        TEST_SCHOOL_ID,
+      ).getCounts();
+
+      // Then: she waits with that one answer, as the per-student services say
+      const reference = await referenceFor(db, test, student);
+      expect(reference).toMatchObject({ status: "submitted", answersLeft: 1 });
+      expect(counts.pairs[0]).toMatchObject({
+        status: reference.status,
+        answersLeft: reference.answersLeft,
+      });
+      expect(counts.tests[0]).toMatchObject({
+        waiting: 1,
+        answersLeft: 1,
+        fullyGraded: 0,
+      });
     },
   );
 });

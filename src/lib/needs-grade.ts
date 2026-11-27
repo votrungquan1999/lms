@@ -12,10 +12,16 @@ export interface NeedsGradeInput {
 
 /**
  * Whether an answer still waits for the teacher's grade. The one rule the
- * default question, the number row, the next-answer search and the picker share.
+ * default question, the number row, the next-answer search, the picker, the
+ * status and the school counts share.
  * @param input - The answer and its grade.
- * @returns True when the student answered and no grade is saved.
+ * @returns True when the student answered and either no grade is saved or the answer is newer than its grade.
  */
 export function needsGrade(input: NeedsGradeInput): boolean {
-  return input.answered && input.grade === null;
+  if (!input.answered) return false;
+  if (input.grade === null) return true;
+  // While a redo is open her edits wait for the hand-in.
+  if (input.redoOpen || input.latestAnswerAt === null) return false;
+  const gradeAt = input.grade.updatedAt ?? input.grade.gradedAt;
+  return input.latestAnswerAt.getTime() > gradeAt.getTime();
 }

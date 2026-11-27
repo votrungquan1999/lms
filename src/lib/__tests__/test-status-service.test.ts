@@ -1,5 +1,6 @@
 import type { Db } from "mongodb";
 import type { SingleSelectQuestion } from "src/lib/question-service";
+import type { TestDocument } from "src/lib/test-service";
 import { TestStatusService } from "src/lib/test-status-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
@@ -17,6 +18,8 @@ function makeServices(db: Db, now?: () => Date) {
     testStartService,
     testService,
     questionService,
+    redoRequestService,
+    gradeVisibilityService,
   } = buildCoreServices(db, { now });
   const testStatusService = new TestStatusService(
     answerService,
@@ -34,8 +37,13 @@ function makeServices(db: Db, now?: () => Date) {
     testStartService,
     testService,
     questionService,
+    redoRequestService,
+    gradeVisibilityService,
   };
 }
+
+/** Lets the next write carry a later timestamp than the previous one. */
+const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 
 describe("TestStatusService", () => {
   dbIt(
@@ -816,6 +824,161 @@ describe("TestStatusService", () => {
       expect(
         await s.testSubmissionService.isTestSubmitted(test.id, "student-1"),
       ).toBe(false);
+    },
+  );
+
+  dbIt(
+    "is Submitted again after a redo hand-in that changed one graded answer, and Graded when the redo changed nothing",
+    async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      const {
+        questionService,
+        answerService,
+        gradeService,
+        testSubmissionService,
+        redoRequestService,
+        testStatusService,
+      } = makeServices(db);
+      const [q1, q2] = await Promise.all(
+        ["Q1", "Q2"].map((title) =>
+          questionService.addQuestion("test-1", {
+            title,
+            content: title,
+            createdBy: "admin-1",
+            type: "free_text",
+          }),
+        ),
+      );
+      if (!q1 || !q2) throw new Error("questions not seeded");
+      const write = (questionId: string, text: string) =>
+        answerService.submitAnswer({
+          testId: "test-1",
+          questionId,
+          studentId: "student-1",
+          answer: { type: "free_text", text },
+        });
+      const handIn = async () => {
+        await testSubmissionService.deleteSubmission("test-1", "student-1");
+        await testSubmissionService.submitTest("test-1", "student-1");
+        await redoRequestService.resolveRedoRequest("test-1", "student-1");
+      };
+      const status = () =>
+        testStatusService.getStatus("test-1", "student-1", 2);
+
+      // Given: both answers graded, then a redo opened
+      await write(q1.id, "first");
+      await write(q2.id, "second");
+      await testSubmissionService.submitTest("test-1", "student-1");
+      await tick();
+      for (const q of [q1, q2]) {
+        await gradeService.gradeQuestion({
+          testId: "test-1",
+          questionId: q.id,
+          studentId: "student-1",
+          score: 50,
+          feedback: "",
+          gradedBy: "teacher",
+        });
+      }
+      await redoRequestService.requestRedo("test-1", "student-1", "teacher");
+
+      // When: she hands in again with every answer as it was
+      await handIn();
+      // Then: nothing is newer than its grade
+      expect(await status()).toBe("graded");
+
+      // When: she redoes one answer, with the redo still open
+      await redoRequestService.requestRedo("test-1", "student-1", "teacher");
+      await tick();
+      await write(q1.id, "first, improved");
+      // Then: her edit waits for the hand-in
+      expect(await status()).toBe("graded");
+
+      // When: she hands in again
+      await handIn();
+
+      // Then: the changed answer needs a grade
+      expect(await status()).toBe("submitted");
+    },
+  );
+
+  dbIt(
+    "keeps re-graded work hidden from a student released one at a time until she is released again after her redo hand-in",
+    async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      // Only the per-student release can show her the grade.
+      await db
+        .collection<TestDocument>("test")
+        .updateOne({ id: "test-1" }, { $set: { showGradeAfterSubmit: false } });
+      const {
+        questionService,
+        answerService,
+        gradeService,
+        testSubmissionService,
+        redoRequestService,
+        testStatusService,
+        gradeVisibilityService,
+      } = makeServices(db);
+      const q1 = await questionService.addQuestion("test-1", {
+        title: "Q1",
+        content: "Q1",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      if (!q1) throw new Error("question not seeded");
+      const write = (text: string) =>
+        answerService.submitAnswer({
+          testId: "test-1",
+          questionId: q1.id,
+          studentId: "student-1",
+          answer: { type: "free_text", text },
+        });
+      const grade = () =>
+        gradeService.gradeQuestion({
+          testId: "test-1",
+          questionId: q1.id,
+          studentId: "student-1",
+          score: 50,
+          feedback: "",
+          gradedBy: "teacher",
+        });
+      const canSee = async () =>
+        gradeVisibilityService.canRevealGrades(
+          "test-1",
+          "student-1",
+          await testStatusService.getStatus("test-1", "student-1", 1),
+        );
+
+      // Given: her grade was released to her alone
+      await write("first");
+      await testSubmissionService.submitTest("test-1", "student-1");
+      await tick();
+      await grade();
+      await testSubmissionService.releaseGradeToStudent(
+        "test-1",
+        "student-1",
+        "teacher",
+      );
+      expect(await canSee()).toBe(true);
+
+      // When: she redoes the answer, hands in, and the teacher grades it again
+      await redoRequestService.requestRedo("test-1", "student-1", "teacher");
+      await tick();
+      await write("first, improved");
+      await testSubmissionService.deleteSubmission("test-1", "student-1");
+      await testSubmissionService.submitTest("test-1", "student-1");
+      await redoRequestService.resolveRedoRequest("test-1", "student-1");
+      await tick();
+      await grade();
+
+      // Then: the new grade stays hidden until she is released again
+      expect(await canSee()).toBe(false);
+      await testSubmissionService.releaseGradeToStudent(
+        "test-1",
+        "student-1",
+        "teacher",
+      );
+      expect(await canSee()).toBe(true);
     },
   );
 });

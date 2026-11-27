@@ -260,6 +260,28 @@ describe("Feature: Save & next moves to the next answer that needs a grade", () 
     expect(url.searchParams.get("questionId")).toBe(q2.id);
   });
 
+  it("opens an answer the student changed after its grade, as it needs a grade again", async () => {
+    // Given Ann's three answers are graded and she then replaced Q3 and handed in again
+    const seed = await seedTest(["written", "written", "written"]);
+    const ann = await seedHandedInStudent(seed, "Ann", { graded: [0, 1, 2] });
+    const [q1, , q3] = seed.questions;
+    // The changed answer must be saved strictly after its grade.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await seed.services.answerService.submitAnswer({
+      testId: seed.test.id,
+      questionId: q3.id,
+      studentId: ann.id,
+      answer: { type: "free_text", text: "a better answer" },
+    });
+
+    // When the teacher saves Q1 with Save & next
+    const url = await redirectedTo(saveForm(seed, ann.id, q1.id));
+
+    // Then Q3 opens on the same student
+    expect(url.searchParams.get("studentId")).toBe(ann.id);
+    expect(url.searchParams.get("questionId")).toBe(q3.id);
+  });
+
   it("stays on the saved answer when nothing in the test is left to grade", async () => {
     // Given Ann's Q1 is the only answer in the test without a grade
     const seed = await seedTest(["written", "written"]);

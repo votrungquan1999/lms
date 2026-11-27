@@ -83,6 +83,34 @@ describe("Feature: the state a question's box shows", () => {
     ).toBe(QuestionBoxState.Plain);
   });
 
+  it("shows a graded written answer saved after its grade as needing a grade", () => {
+    const gradedAt = new Date("2026-01-01T10:00:00Z");
+    expect(
+      questionBoxState({
+        question: written,
+        answered: true,
+        latestAnswerAt: new Date("2026-01-02T10:00:00Z"),
+        grade: { score: 80, gradedAt },
+        handedIn: true,
+        isPractice: false,
+      }),
+    ).toBe(QuestionBoxState.NeedsGrade);
+  });
+
+  it("keeps a graded written answer the student changed during an open redo as graded", () => {
+    expect(
+      questionBoxState({
+        question: written,
+        answered: true,
+        latestAnswerAt: new Date("2026-01-02T10:00:00Z"),
+        grade: { score: 80, gradedAt: new Date("2026-01-01T10:00:00Z") },
+        handedIn: true,
+        redoOpen: true,
+        isPractice: false,
+      }),
+    ).toBe(QuestionBoxState.Graded);
+  });
+
   it("shows a written answer that is still being written as needing a grade", () => {
     expect(
       questionBoxState({

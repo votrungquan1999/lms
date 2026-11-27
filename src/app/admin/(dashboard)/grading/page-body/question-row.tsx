@@ -17,9 +17,13 @@ interface QuestionRowProps {
   studentId: string;
   currentQuestionId: string;
   answers: Map<string, StudentAnswer>;
+  /** When each question's latest answer was saved. */
+  answerSavedAt: Map<string, Date>;
   grades: Map<string, Grade>;
   /** The student's test is handed in. */
   handedIn: boolean;
+  /** The student has an open redo request. */
+  redoOpen: boolean;
   isPractice: boolean;
   basePath: string;
   needsOnly: boolean;
@@ -31,8 +35,10 @@ export function QuestionRow({
   studentId,
   currentQuestionId,
   answers,
+  answerSavedAt,
   grades,
   handedIn,
+  redoOpen,
   isPractice,
   basePath,
   needsOnly,
@@ -44,8 +50,10 @@ export function QuestionRow({
     state: questionBoxState({
       question,
       answered: answers.has(question.id),
+      latestAnswerAt: answerSavedAt.get(question.id),
       grade: grades.get(question.id),
       handedIn,
+      redoOpen,
       isPractice,
     }),
     href: gradingHref({

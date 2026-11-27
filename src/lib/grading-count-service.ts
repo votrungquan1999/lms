@@ -4,6 +4,7 @@ import type { CourseDocument } from "src/lib/course-service";
 import { isPastEnforcementDeadline } from "src/lib/enforcement-deadline";
 import type { EnrollmentDocument } from "src/lib/enrollment-service";
 import type { GradeDocument } from "src/lib/grade-service";
+import { needsGrade } from "src/lib/needs-grade";
 import type { QuestionDocument, QuestionType } from "src/lib/question-service";
 import type { RedoRequestDocument } from "src/lib/redo-request-service";
 import type { StudentDocument } from "src/lib/student-service";
@@ -17,7 +18,7 @@ export interface PairGradingResult {
   testId: string;
   studentId: string;
   status: TestStatus;
-  /** Live answered questions with no grade; 0 unless the status is Submitted. */
+  /** Live answers that still need a grade; 0 unless the status is Submitted. */
   answersLeft: number;
   submittedAt: Date | null;
   /** The student is Graded but cannot see the grade yet. */
@@ -43,7 +44,7 @@ export interface TestGradingCounts {
   submitted: number;
   /** Submitted students on a non-practice test. */
   waiting: number;
-  /** Answers still without a grade, summed over the waiting students. */
+  /** Answers that still need a grade, summed over the waiting students. */
   answersLeft: number;
   /** Graded students. */
   fullyGraded: number;
@@ -235,14 +236,18 @@ export class GradingCountService {
           >
         >({ _id: 0, testId: 1, studentId: 1, submittedAt: 1, releasedAt: 1 })
         .toArray(),
-      // Any answer row means "answered"; only the distinct triples travel
+      // Any answer row means "answered"; only the distinct triples and their latest save time travel
       db
         .collection<AnswerDocument>("answer")
-        .aggregate<{ _id: { t: string; s: string; q: string } }>([
+        .aggregate<{
+          _id: { t: string; s: string; q: string };
+          latestAt: Date;
+        }>([
           { $match: byTestId },
           {
             $group: {
               _id: { t: "$testId", s: "$studentId", q: "$questionId" },
+              latestAt: { $max: "$submittedAt" },
             },
           },
         ])
@@ -250,11 +255,18 @@ export class GradingCountService {
       db
         .collection<GradeDocument>("grade")
         .find(byTestId)
-        .project<Pick<GradeDocument, "testId" | "studentId" | "questionId">>({
+        .project<
+          Pick<
+            GradeDocument,
+            "testId" | "studentId" | "questionId" | "gradedAt" | "updatedAt"
+          >
+        >({
           _id: 0,
           testId: 1,
           studentId: 1,
           questionId: 1,
+          gradedAt: 1,
+          updatedAt: 1,
         })
         .toArray(),
       db
@@ -292,19 +304,22 @@ export class GradingCountService {
     const submissionByPair = new Map(
       submissions.map((s) => [pairKey(s.testId, s.studentId), s]),
     );
-    const answeredByPair = new Map<string, Set<string>>();
+    const answeredByPair = new Map<string, Map<string, Date>>();
     for (const a of answered) {
       const key = pairKey(a._id.t, a._id.s);
-      const set = answeredByPair.get(key) ?? new Set<string>();
-      set.add(a._id.q);
-      answeredByPair.set(key, set);
+      const byQuestion = answeredByPair.get(key) ?? new Map<string, Date>();
+      byQuestion.set(a._id.q, a.latestAt);
+      answeredByPair.set(key, byQuestion);
     }
-    const gradedByPair = new Map<string, Set<string>>();
+    const gradedByPair = new Map<
+      string,
+      Map<string, (typeof grades)[number]>
+    >();
     for (const g of grades) {
       const key = pairKey(g.testId, g.studentId);
-      const set = gradedByPair.get(key) ?? new Set<string>();
-      set.add(g.questionId);
-      gradedByPair.set(key, set);
+      const byQuestion = gradedByPair.get(key) ?? new Map();
+      byQuestion.set(g.questionId, g);
+      gradedByPair.set(key, byQuestion);
     }
     const startByPair = new Map(
       starts.map((s) => [pairKey(s.testId, s.studentId), s]),
@@ -381,7 +396,8 @@ export class GradingCountService {
 
         let status: TestStatus;
         let answersLeft = 0;
-        const answeredLive = [...(answeredByPair.get(key) ?? [])].filter((q) =>
+        const answeredAt = answeredByPair.get(key);
+        const answeredLive = [...(answeredAt?.keys() ?? [])].filter((q) =>
           live?.has(q),
         );
         if (!live || live.size === 0) {
@@ -394,7 +410,15 @@ export class GradingCountService {
             const graded = gradedByPair.get(key);
             const auto = autoGradedByPair.get(key);
             answersLeft = answeredLive.filter(
-              (q) => !graded?.has(q) && !auto?.has(q),
+              (q) =>
+                !auto?.has(q) &&
+                needsGrade({
+                  answered: true,
+                  latestAnswerAt: answeredAt?.get(q) ?? null,
+                  grade: graded?.get(q) ?? null,
+                  // An expired attempt hands in over its redo, so the redo is closed.
+                  redoOpen: redoPairs.has(key) && !inferred,
+                }),
             ).length;
             status = answersLeft > 0 ? TestStatus.Submitted : TestStatus.Graded;
           }

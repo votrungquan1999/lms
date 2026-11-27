@@ -1,5 +1,6 @@
 import type { AnswerService } from "./answer-service";
 import type { GradeService } from "./grade-service";
+import { needsGrade } from "./needs-grade";
 import type { QuestionService } from "./question-service";
 import type { TestService } from "./test-service";
 import type { TestStartService } from "./test-start-service";
@@ -53,10 +54,11 @@ export class TestStatusService {
    * - in_progress: not explicitly submitted, and either some live questions
    *   are answered or a timed test's clock has started — only pressing
    *   Submit moves past this
-   * - submitted: student explicitly submitted the test and answered at
-   *   least one live question that still needs a grade row
-   * - graded: test was explicitly submitted AND every live question the
-   *   student answered has a grade row. Blanks need no grade row — they
+   * - submitted: student explicitly submitted the test and at least one
+   *   live answer still needs a grade (see `needsGrade`: no grade row, or
+   *   saved after its grade)
+   * - graded: test was explicitly submitted AND no live answer needs a
+   *   grade. Blanks need no grade row — they
    *   score 0 by convention — so an entirely blank submission is Graded
    *   too, unless the test is practice (practice tests never grade, so a
    *   blank practice submission stays Submitted).
@@ -107,11 +109,20 @@ export class TestStatusService {
         return TestStatus.Graded;
       }
       const grades = await this.gradeService.getGrades(testId, studentId);
-      const gradedQuestionIds = new Set(grades.map((g) => g.questionId));
-      const everyAnsweredHasGrade = liveAnswers.every((a) =>
-        gradedQuestionIds.has(a.questionId),
+      const gradeByQuestion = new Map(grades.map((g) => [g.questionId, g]));
+      const redoOpen = await this.testSubmissionService.hasOpenRedo(
+        testId,
+        studentId,
       );
-      return everyAnsweredHasGrade ? TestStatus.Graded : TestStatus.Submitted;
+      const anyNeedsGrade = liveAnswers.some((a) =>
+        needsGrade({
+          answered: true,
+          latestAnswerAt: a.submittedAt,
+          grade: gradeByQuestion.get(a.questionId) ?? null,
+          redoOpen,
+        }),
+      );
+      return anyNeedsGrade ? TestStatus.Submitted : TestStatus.Graded;
     }
 
     if (liveAnswers.length === 0) {

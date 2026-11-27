@@ -245,6 +245,17 @@ export class TestSubmissionService {
   }
 
   /**
+   * Whether the student has an open (unresolved) redo request on the test.
+   */
+  async hasOpenRedo(testId: string, studentId: string): Promise<boolean> {
+    const redo = await this.redoRequestService.getActiveRedoRequest(
+      testId,
+      studentId,
+    );
+    return redo !== null;
+  }
+
+  /**
    * Returns the active (non-soft-deleted) submission for a student on a test,
    * including the audit fields used by the per-student grade-release flow.
    * Missing `releasedAt` / `releasedBy` on legacy rows are coerced to null.

@@ -28,6 +28,10 @@ interface QuestionBoxInput {
   question: Pick<Question, "type">;
   /** The student has an answer to this question. */
   answered: boolean;
+  /** When the student's latest answer was saved; omitted when not known. */
+  latestAnswerAt?: Date | null;
+  /** The student has an open redo, so her edits wait for the hand-in. */
+  redoOpen?: boolean;
   /** The saved grade, or undefined when there is none. */
   grade: { score: number; gradedAt: Date; updatedAt?: Date | null } | undefined;
   /** The student's test is handed in. */
@@ -42,6 +46,7 @@ interface QuestionBoxInput {
  */
 export function questionBoxState(input: QuestionBoxInput): QuestionBoxState {
   const { question, answered, grade, handedIn, isPractice } = input;
+  const latestAnswerAt = input.latestAnswerAt ?? null;
   if (isPractice) {
     if (answered) return QuestionBoxState.Answered;
     return handedIn ? QuestionBoxState.Blank : QuestionBoxState.Plain;
@@ -67,9 +72,9 @@ export function questionBoxState(input: QuestionBoxInput): QuestionBoxState {
 
   const waiting = needsGrade({
     answered,
-    latestAnswerAt: null,
+    latestAnswerAt,
     grade: grade ?? null,
-    redoOpen: false,
+    redoOpen: input.redoOpen ?? false,
   });
   return waiting ? QuestionBoxState.NeedsGrade : QuestionBoxState.Graded;
 }
@@ -100,7 +105,7 @@ interface StudentBoxesInput {
   rows: StudentPickerRow[];
   question: Pick<Question, "id" | "type">;
   /** Latest answers: student id, then question id. */
-  answers: Map<string, Map<string, unknown>>;
+  answers: Map<string, Map<string, { submittedAt: Date }>>;
   /** Grades: student id, then question id. */
   grades: Map<
     string,
@@ -133,6 +138,8 @@ export function buildStudentBoxes(input: StudentBoxesInput): {
               question: input.question,
               answered:
                 input.answers.get(row.id)?.has(input.question.id) ?? false,
+              latestAnswerAt: input.answers.get(row.id)?.get(input.question.id)
+                ?.submittedAt,
               grade: input.grades.get(row.id)?.get(input.question.id),
               handedIn: true,
               isPractice: input.isPractice,

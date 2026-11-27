@@ -1033,6 +1033,51 @@ describe("GradeService - Re-grade Override", () => {
   );
 });
 
+describe("GradeService - Re-saving identical values", () => {
+  dbIt(
+    "stamps a fresh updatedAt each time the same score, feedback and solution are saved again",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      const { testService, questionService, gradeService } =
+        buildCoreServices(db);
+      const test = await testService.createTest("course-1", {
+        title: "Re-save",
+        description: "",
+        createdBy: "admin",
+      });
+      const q = await questionService.addQuestion(test.id, {
+        title: "Q?",
+        content: "Explain.",
+        createdBy: "admin",
+        type: "free_text",
+      });
+      const save = () =>
+        gradeService.gradeQuestion({
+          testId: test.id,
+          questionId: q.id,
+          studentId: "student-1",
+          score: 70,
+          feedback: "same words",
+          solution: "same solution",
+          gradedBy: "teacher-1",
+        });
+
+      await save();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const second = await save();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const third = await save();
+
+      expect(second.updatedAt).toBeInstanceOf(Date);
+      expect(third.updatedAt?.getTime()).toBeGreaterThan(
+        second.updatedAt?.getTime() ?? Number.POSITIVE_INFINITY,
+      );
+      const stored = await gradeService.getGrade(test.id, q.id, "student-1");
+      expect(stored?.updatedAt?.getTime()).toBe(third.updatedAt?.getTime());
+    },
+  );
+});
+
 describe("GradeService - Test-wide grades", () => {
   dbIt(
     "returns every student's grades on the test with the time of a re-grade, and none of another test's",

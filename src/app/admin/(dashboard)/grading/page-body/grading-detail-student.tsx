@@ -108,6 +108,9 @@ export async function GradingDetailStudent({
   const rawAnswerMap = new Map(
     latestAnswers.map((a) => [a.questionId, a.answer]),
   );
+  const answerSavedAt = new Map(
+    latestAnswers.map((a) => [a.questionId, a.submittedAt]),
+  );
   const latestAnswerIdByQuestion = new Map(
     latestAnswers.map((a) => [a.questionId, a.id]),
   );
@@ -269,8 +272,10 @@ export async function GradingDetailStudent({
               studentId={student.id}
               currentQuestionId={selectedQuestion.id}
               answers={rawAnswerMap}
+              answerSavedAt={answerSavedAt}
               grades={gradeMap}
               handedIn={hasSubmitted(status)}
+              redoOpen={hasActiveRedoRequest}
               isPractice={test.isPractice}
               basePath={basePath}
               needsOnly={needsOnly}
