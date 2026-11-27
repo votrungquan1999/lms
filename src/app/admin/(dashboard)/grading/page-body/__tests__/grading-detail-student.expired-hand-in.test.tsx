@@ -14,6 +14,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GradingDetailStudent } from "../grading-detail-student";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 
@@ -108,6 +111,6 @@ describe("Feature: the grading view hands in an attempt whose time ran out", () 
     render(ui);
 
     // Then this very render counts the auto-grade written by the hand-in
-    expect(screen.getByText("1/1 graded")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Q1 correct" })).toBeVisible();
   });
 });

@@ -39,6 +39,8 @@ import {
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { StudentStatusBadge } from "../student-status-badge";
+import type { GradingSort } from "./grading-page-body.type";
+import { QuestionRow } from "./question-row";
 
 interface GradingDetailStudentProps {
   test: Test;
@@ -51,7 +53,7 @@ interface GradingDetailStudentProps {
   /** Base path the page is rendered at (no query string). */
   basePath: string;
   /** Current `?sort=` value, preserved in the Save & Next redirect target. */
-  sort?: string;
+  sort?: GradingSort;
 }
 
 /**
@@ -190,20 +192,6 @@ export async function GradingDetailStudent({
     ? (aiSuggestionsByQuestion.get(selectedQuestion.id) ?? [])
     : [];
 
-  const gradedCount = grades.length;
-  const answeredCount = latestAnswers.length;
-  // A question is only "blank" once the student can no longer answer it.
-  const blankCount = hasSubmitted(status)
-    ? questions.length - answeredCount
-    : 0;
-  // Graded status alone decides "done", so an all-blank Graded submission
-  // (0/0) is green rather than the not-started grey.
-  const allGraded = status === TestStatus.Graded;
-  const badgeClassName = allGraded
-    ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-    : gradedCount > 0
-      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
-      : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
   const hasAnswers = latestAnswers.length > 0;
   const hasActiveRedoRequest = activeRedoRequest !== null;
 
@@ -239,12 +227,6 @@ export async function GradingDetailStudent({
             </CardTitle>
             <div className="flex items-center gap-3">
               <StudentStatusBadge status={status} />
-              <span
-                className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassName}`}
-              >
-                {gradedCount}/{answeredCount} graded
-                {blankCount > 0 && ` · ${blankCount} blank`}
-              </span>
               {!test.isPractice && (
                 <RequestRedoButton
                   testId={testId}
@@ -279,6 +261,21 @@ export async function GradingDetailStudent({
             </div>
           </div>
         </CardHeader>
+        {selectedQuestion && (
+          <div className="px-4">
+            <QuestionRow
+              questions={questions}
+              studentId={student.id}
+              currentQuestionId={selectedQuestion.id}
+              answers={rawAnswerMap}
+              grades={gradeMap}
+              handedIn={hasSubmitted(status)}
+              isPractice={test.isPractice}
+              basePath={basePath}
+              sort={sort}
+            />
+          </div>
+        )}
         <CardContent className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_24rem] grid-rows-[minmax(0,1fr)] gap-4">
           {selectedQuestion && (
             <div

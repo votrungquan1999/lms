@@ -114,7 +114,8 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     // change + Step 6's denominator change both took effect end-to-end
     // through the UI, plus the blank count the student's pill now admits.
     const card = await screen.findByTestId(`student-card-${student.id}`);
-    expect(within(card).getByText("1/1 graded · 1 blank")).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "Q1 graded" })).toBeVisible();
+    expect(within(card).getByRole("link", { name: "Q2 blank" })).toBeVisible();
     expect(within(card).getByText("Graded")).toBeInTheDocument();
     // And the blank free-text question reads as a counted 0 for a Graded
     // student, not as an answer still to come.
@@ -313,12 +314,14 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     });
     render(ui);
 
-    // Then: neither the roster cell nor the student's own pill admits a
-    // blank yet.
+    // Then: neither the roster cell nor the question row admits a blank yet.
     const cell = screen.getByTestId(`roster-cell-${student.id}`);
     expect(within(cell).getByText("0/1 graded")).toBeInTheDocument();
     const card = screen.getByTestId(`student-card-${student.id}`);
-    expect(within(card).getByText("0/1 graded")).toBeInTheDocument();
+    expect(
+      within(card).getByRole("link", { name: "Q1 needs grading" }),
+    ).toBeVisible();
+    expect(within(card).queryByRole("link", { name: /blank/ })).toBeNull();
     expect(screen.queryByText(/blank/)).toBeNull();
   });
 
@@ -391,14 +394,15 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     });
     render(ui);
 
-    // Then: both the roster cell and the student's own pill read "1/1
-    // graded" — the deleted question's dangling answer no longer inflates
-    // the denominator or leaves a stray blank count — and the status
-    // badge reads Graded, not stuck at Submitted.
+    // Then: the roster cell reads "1/1 graded" and the question row shows
+    // only the live question — the deleted question's dangling answer
+    // inflates nothing and leaves no blank box — and the status badge
+    // reads Graded, not stuck at Submitted.
     const cell = screen.getByTestId(`roster-cell-${student.id}`);
     expect(within(cell).getByText("1/1 graded")).toBeInTheDocument();
     const card = screen.getByTestId(`student-card-${student.id}`);
-    expect(within(card).getByText("1/1 graded")).toBeInTheDocument();
+    expect(within(card).getAllByRole("link", { name: /^Q\d/ })).toHaveLength(1);
+    expect(within(card).getByRole("link", { name: "Q1 graded" })).toBeVisible();
     expect(within(card).getByText("Graded")).toBeInTheDocument();
     expect(screen.queryByText(/blank/)).toBeNull();
   });
@@ -469,11 +473,13 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     });
     render(ui);
 
-    // Then: the deleted question's leftover grade is not counted — both
-    // the roster cell and the pill read "1/1 graded", never "2/1".
+    // Then: the deleted question's leftover grade is not counted — the
+    // roster cell reads "1/1 graded", never "2/1", and the question row
+    // has one box.
     const cell = screen.getByTestId(`roster-cell-${student.id}`);
     expect(within(cell).getByText("1/1 graded")).toBeInTheDocument();
     const card = screen.getByTestId(`student-card-${student.id}`);
-    expect(within(card).getByText("1/1 graded")).toBeInTheDocument();
+    expect(within(card).getAllByRole("link", { name: /^Q\d/ })).toHaveLength(1);
+    expect(within(card).getByRole("link", { name: "Q1 graded" })).toBeVisible();
   });
 });

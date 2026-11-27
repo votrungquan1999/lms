@@ -183,10 +183,10 @@ test.describe("Grading layout — long names, titles and links stay readable", (
     expect(rosterBox.height).toBeLessThan(mainBox.height);
   });
 
-  test("a long student name never breaks the grading card header — the pill stays one line while the name wraps, in both pivots", async ({
+  test("a long student name never breaks the grading card header — the status badge stays one line while the name wraps, in both pivots", async ({
     page,
   }) => {
-    // The spaced words squeeze the pill; the unbroken run has no break point,
+    // The spaced words squeeze the badge; the unbroken run has no break point,
     // so only the name's own wrap-anywhere keeps it inside the card.
     const longName = `[layout] Nguyen Thi Phuong Thao ${"Extra Middle Name ".repeat(6)}${"Averylongunbrokenmiddlename".repeat(7)}`;
     const { testId, questionId, studentId } = await withDb(async (db) => {
@@ -198,7 +198,7 @@ test.describe("Grading layout — long names, titles and links stay readable", (
       return { testId, questionId, studentId };
     });
 
-    // By-student pivot: name wraps, the graded-count pill stays one line.
+    // By-student pivot: name wraps, the status badge stays one line.
     await page.goto(`/admin/grading/${testId}?studentId=${studentId}`);
     const card = page.getByTestId(`student-card-${studentId}`);
     const name = card.getByText(longName, { exact: false }).first();
@@ -209,8 +209,7 @@ test.describe("Grading layout — long names, titles and links stay readable", (
       .getByRole("heading", { name: /Grade · Q1/ });
     await expect(panelName).toBeVisible();
     await expectWrapped(panelName);
-    const pill = card.getByText(/graded/);
-    await expectSingleLine(pill);
+    await expectSingleLine(card.getByText("Not started"));
     await expectNoPageOverflow(page);
 
     // By-question pivot: the per-student row header.

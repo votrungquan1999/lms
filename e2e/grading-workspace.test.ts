@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { hydrated } from "./hydrated";
 import {
   enroll,
+  expectNoPageOverflow,
+  expectWrapped,
   insertAnswer,
   insertCourse,
   insertQuestion,
@@ -225,5 +227,118 @@ test.describe("Leaving a grade that was typed but not saved", () => {
     await expect(page.getByLabel("Overall Test Feedback:")).toHaveValue("");
     await page.getByRole("link", { name: "[discard] Test" }).click();
     await expect(page).toHaveURL(`/admin/courses/${courseId}/tests/${testId}`);
+  });
+});
+
+test.describe("Question number row", () => {
+  test("a 60-question test wraps its boxes without sideways scroll, rings the current one and opens a question on click", async ({
+    page,
+  }) => {
+    const { testId, studentId, questionIds } = await withDb(async (db) => {
+      const courseId = await insertCourse(db);
+      const testId = await insertTest(db, courseId);
+      const studentId = await insertStudent(db, { name: "Row Student" });
+      await enroll(db, { courseId, studentId });
+      const questionIds: string[] = [];
+      for (let order = 1; order <= 60; order++) {
+        const questionId = await insertQuestion(db, testId, {
+          order,
+          title: `[row] Question ${order}`,
+        });
+        questionIds.push(questionId);
+        await insertAnswer(db, {
+          testId,
+          questionId,
+          studentId,
+          answer: { type: "free_text", text: `answer ${order}` },
+        });
+      }
+      await insertSubmission(db, { testId, studentId });
+      return { testId, studentId, questionIds };
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(
+      `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionIds[0]}`,
+    );
+
+    // Then: the 60 boxes wrap onto several lines and the page does not widen
+    await expect(page.getByTestId("question-row-boxes")).toBeVisible();
+    await expectWrapped(page.getByTestId("question-row-boxes"));
+    await expectNoPageOverflow(page);
+    await expect(
+      page.getByRole("link", { name: "Q1 needs grading" }),
+    ).toHaveAttribute("aria-current", "true");
+
+    // When: the teacher clicks the box of question 42
+    await page.getByRole("link", { name: "Q42 needs grading" }).click();
+
+    // Then: that question opens and its box is the current one
+    await expect(
+      page
+        .getByTestId("grade-card")
+        .getByRole("heading", { name: "Grade · Q42 · Row Student" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Q42 needs grading" }),
+    ).toHaveAttribute("aria-current", "true");
+    await expect(
+      page.getByRole("link", { name: "Q1 needs grading" }),
+    ).not.toHaveAttribute("aria-current", "true");
+  });
+
+  test("a draft typed on one answer is asked about and never lands on the answer the next box opens", async ({
+    page,
+  }) => {
+    const { testId, studentId, questionIds } = await withDb(async (db) => {
+      const courseId = await insertCourse(db);
+      const testId = await insertTest(db, courseId);
+      const studentId = await insertStudent(db, { name: "Draft Student" });
+      await enroll(db, { courseId, studentId });
+      const questionIds: string[] = [];
+      for (const order of [1, 2]) {
+        const questionId = await insertQuestion(db, testId, { order });
+        questionIds.push(questionId);
+        await insertAnswer(db, {
+          testId,
+          questionId,
+          studentId,
+          answer: { type: "free_text", text: `answer ${order}` },
+        });
+      }
+      await insertSubmission(db, { testId, studentId });
+      return { testId, studentId, questionIds };
+    });
+
+    await page.goto(
+      `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionIds[0]}`,
+    );
+    const panel = page.getByTestId("grade-card");
+    await hydrated(panel.getByRole("button", { name: "Save Grade" }));
+    await panel.getByLabel("Score (0–100):").fill("70");
+    await panel.getByLabel("Feedback:", { exact: true }).fill("draft one");
+
+    // When: she clicks the second box
+    await page.getByRole("link", { name: "Q2 needs grading" }).click();
+    const dialog = page.getByRole("alertdialog", {
+      name: "Discard your unsaved grade?",
+    });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Leave" }).click();
+
+    // Then: the second answer opens with an empty form
+    await expect(
+      panel.getByRole("heading", { name: "Grade · Q2 · Draft Student" }),
+    ).toBeVisible();
+    await expect(panel.getByLabel("Score (0–100):")).toHaveValue("");
+    await expect(panel.getByLabel("Feedback:", { exact: true })).toHaveValue(
+      "",
+    );
+
+    // And: going back to the first box asks nothing, as nothing is typed
+    await page.getByRole("link", { name: "Q1 needs grading" }).click();
+    await expect(
+      panel.getByRole("heading", { name: "Grade · Q1 · Draft Student" }),
+    ).toBeVisible();
   });
 });

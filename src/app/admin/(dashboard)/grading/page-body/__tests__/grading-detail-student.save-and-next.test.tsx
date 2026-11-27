@@ -16,6 +16,7 @@ vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
   redirect: vi.fn((url: string) => {
     throw new Error(`__REDIRECT__:${url}`);
   }),
