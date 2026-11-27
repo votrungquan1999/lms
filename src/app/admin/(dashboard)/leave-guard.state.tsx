@@ -15,8 +15,8 @@ import {
 interface LeaveGuardValue {
   /** Whether the page has unsaved work on screen. */
   hasWork: boolean;
-  /** Tells the layout whether the page has unsaved work on screen, and what leaving it costs. */
-  setHasWork: (hasWork: boolean, message?: string) => void;
+  /** Tells the layout whether the page has unsaved work on screen, what leaving it costs and the dialog's title. */
+  setHasWork: (hasWork: boolean, message?: string, title?: string) => void;
   /** Runs `onLeave` now, or after the teacher confirms when work is on screen. */
   requestLeave: (onLeave: () => void) => void;
 }
@@ -24,6 +24,7 @@ interface LeaveGuardValue {
 /** Shown when the page does not say what leaving would lose. */
 const DEFAULT_LEAVE_MESSAGE =
   "You have unsaved changes on this page. Leaving now discards them.";
+const DEFAULT_LEAVE_TITLE = "Leave this page?";
 
 const LeaveGuardContext = createContext<LeaveGuardValue>({
   hasWork: false,
@@ -42,10 +43,16 @@ export function LeaveGuardProvider({
 }) {
   const [hasWork, setHasWorkState] = useState(false);
   const [message, setMessage] = useState(DEFAULT_LEAVE_MESSAGE);
+  const [title, setTitle] = useState(DEFAULT_LEAVE_TITLE);
   const setHasWork = useCallback(
-    (work: boolean, leaveMessage: string = DEFAULT_LEAVE_MESSAGE) => {
+    (
+      work: boolean,
+      leaveMessage: string = DEFAULT_LEAVE_MESSAGE,
+      leaveTitle: string = DEFAULT_LEAVE_TITLE,
+    ) => {
       setHasWorkState(work);
       setMessage(leaveMessage);
+      setTitle(leaveTitle);
     },
     [],
   );
@@ -71,7 +78,7 @@ export function LeaveGuardProvider({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Leave this page?</AlertDialogTitle>
+            <AlertDialogTitle>{title}</AlertDialogTitle>
             <AlertDialogDescription>{message}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

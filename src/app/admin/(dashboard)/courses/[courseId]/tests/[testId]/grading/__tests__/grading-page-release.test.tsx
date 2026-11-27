@@ -22,6 +22,7 @@ const mockRequireAdminSession = vi.fn();
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
   notFound: vi.fn(() => {
     throw new Error("notFound called");
   }),

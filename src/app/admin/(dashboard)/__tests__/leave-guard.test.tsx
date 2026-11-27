@@ -12,11 +12,19 @@ import { describe, expect, it, vi } from "vitest";
  * A page that registers unsaved work without its own message, plus a way out.
  * @param onLeave - What leaving does once confirmed.
  */
-function PageWithWork({ onLeave }: { onLeave: () => void }) {
+function PageWithWork({
+  onLeave,
+  message,
+  title,
+}: {
+  onLeave: () => void;
+  message?: string;
+  title?: string;
+}) {
   const { setHasWork, requestLeave } = useLeaveGuard();
   useEffect(() => {
-    setHasWork(true);
-  }, [setHasWork]);
+    setHasWork(true, message, title);
+  }, [setHasWork, message, title]);
   return (
     <button type="button" onClick={() => requestLeave(onLeave)}>
       Go elsewhere
@@ -44,5 +52,28 @@ describe("Feature: admin leave guard — any admin page can ask before leaving",
     );
     expect(dialog).not.toHaveTextContent(/questions/i);
     expect(onLeave).not.toHaveBeenCalled();
+  });
+
+  it("uses the page's own title and message when it gives them", async () => {
+    const user = userEvent.setup();
+    const onLeave = vi.fn();
+    render(
+      <LeaveGuardProvider>
+        <PageWithWork
+          onLeave={onLeave}
+          title="Discard your unsaved grade?"
+          message="Your score is not saved."
+        />
+      </LeaveGuardProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Go elsewhere" }));
+
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Discard your unsaved grade?",
+    });
+    expect(dialog).toHaveTextContent("Your score is not saved.");
+    await user.click(screen.getByRole("button", { name: "Leave" }));
+    expect(onLeave).toHaveBeenCalledOnce();
   });
 });

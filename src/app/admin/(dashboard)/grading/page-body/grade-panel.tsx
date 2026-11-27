@@ -1,6 +1,7 @@
 import type { SaveAndNextNavigation } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { CompactGradeForm } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { GradePanelShell } from "src/app/admin/(dashboard)/grading/page-body/grade-panel.ui";
+import { UnsavedGradeProvider } from "src/app/admin/(dashboard)/grading/page-body/unsaved-grade.state";
 import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
 import type { StudentAnswer } from "src/lib/answer-service";
@@ -100,13 +101,15 @@ export function GradePanel({
   }
 
   return (
-    <GradePanelShell
-      questionOrder={question.order}
-      questionTitle={question.title}
-      studentName={student.name}
-      studentUsername={student.username}
-    >
-      {renderBody()}
-    </GradePanelShell>
+    <UnsavedGradeProvider>
+      <GradePanelShell
+        questionOrder={question.order}
+        questionTitle={question.title}
+        studentName={student.name}
+        studentUsername={student.username}
+      >
+        {renderBody()}
+      </GradePanelShell>
+    </UnsavedGradeProvider>
   );
 }

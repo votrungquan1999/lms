@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { GuardedLink } from "src/app/admin/(dashboard)/guarded-link";
 import { Progress } from "src/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "src/components/ui/tabs";
 import { cn } from "src/lib/utils";
@@ -98,7 +98,7 @@ interface PivotToggleProps {
 
 /**
  * Pivot toggle between By-student and By-question modes. Each trigger
- * navigates via `<Link>` to the same page with `?mode=` updated; selection
+ * navigates via `<GuardedLink>` to the same page with `?mode=` updated; selection
  * persists in the URL so refresh and back-button work.
  */
 export function PivotToggle({
@@ -111,7 +111,7 @@ export function PivotToggle({
     <Tabs value={mode}>
       <TabsList>
         <TabsTrigger value={GradingMode.Student} asChild>
-          <Link
+          <GuardedLink
             href={gradingHref({
               basePath,
               mode: GradingMode.Student,
@@ -121,10 +121,10 @@ export function PivotToggle({
             scroll={false}
           >
             By student
-          </Link>
+          </GuardedLink>
         </TabsTrigger>
         <TabsTrigger value={GradingMode.Question} asChild>
-          <Link
+          <GuardedLink
             href={gradingHref({
               basePath,
               mode: GradingMode.Question,
@@ -134,7 +134,7 @@ export function PivotToggle({
             scroll={false}
           >
             By question
-          </Link>
+          </GuardedLink>
         </TabsTrigger>
       </TabsList>
     </Tabs>

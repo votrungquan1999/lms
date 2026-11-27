@@ -2,6 +2,7 @@
 
 import { useActionState, useId, useState } from "react";
 import { formatReleaseLine } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/test-settings-panel";
+import { useReportUnsavedGrade } from "src/app/admin/(dashboard)/grading/page-body/unsaved-grade.state";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -98,6 +99,14 @@ function GradeInputs({
   showQuickScores: boolean;
 }) {
   const [score, setScore] = useState(existingScore?.toString() ?? "");
+  // The text fields stay uncontrolled; these hold what was typed, null until then.
+  const [typedFeedback, setTypedFeedback] = useState<string | null>(null);
+  const [typedSolution, setTypedSolution] = useState<string | null>(null);
+  const hasDraft =
+    score !== (existingScore?.toString() ?? "") ||
+    (typedFeedback !== null && typedFeedback !== (existingFeedback ?? "")) ||
+    (typedSolution !== null && typedSolution !== (existingSolution ?? ""));
+  useReportUnsavedGrade("grade", hasDraft);
 
   return (
     <>
@@ -142,6 +151,7 @@ function GradeInputs({
           name="feedback"
           placeholder="Feedback for this question..."
           defaultValue={existingFeedback ?? ""}
+          onChange={(event) => setTypedFeedback(event.target.value)}
           rows={2}
           className="mt-1 resize-y"
         />
@@ -160,6 +170,7 @@ function GradeInputs({
           name="solution"
           placeholder="Enter the correct solution..."
           defaultValue={existingSolution ?? ""}
+          onChange={(event) => setTypedSolution(event.target.value)}
           rows={3}
           className="mt-1 resize-y"
         />
@@ -328,6 +339,11 @@ export function OverallFeedbackForm({
     TestFeedbackState | null,
     FormData
   >(setTestFeedbackAction, null);
+  // The field stays uncontrolled; this holds what was typed, null until then.
+  // A save makes the saved feedback equal it, so it stops counting as a draft.
+  const [typed, setTyped] = useState<string | null>(null);
+  const hasDraft = typed !== null && typed !== (existingFeedback ?? "");
+  useReportUnsavedGrade("overall-feedback", hasDraft);
 
   return (
     <details className="rounded-lg border p-3">
@@ -347,6 +363,7 @@ export function OverallFeedbackForm({
           name="feedback"
           placeholder="Overall feedback for this student's test..."
           defaultValue={existingFeedback ?? ""}
+          onChange={(event) => setTyped(event.target.value)}
           rows={3}
           className="resize-y"
         />
