@@ -4,15 +4,12 @@ import { AiSuggestionPanel } from "src/app/admin/(dashboard)/courses/[courseId]/
 import { AutoGradeWithAiButton } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/auto-grade-with-ai-button";
 import {
   CompactGradeForm,
-  FreeTextQuestionGradeForm,
-  McQuestionGradeForm,
   OverallFeedbackForm,
   RequestRedoButton,
 } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { PendingAiGradingRefresher } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/pending-ai-grading-refresher.ui";
 import { ReleaseGradeForStudentControl } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/release-grade-for-student";
-import { AnnotationTool } from "src/app/admin/(dashboard)/grading/page-body/annotation-tool";
-import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
+import { AnswerPane } from "src/app/admin/(dashboard)/grading/page-body/answer-pane";
 import {
   Card,
   CardContent,
@@ -24,11 +21,8 @@ import {
   type AiGradeSuggestion,
   CollectOutcomeKind,
 } from "src/lib/ai-grade-types";
-import type { AnnotationEntry } from "src/lib/annotation-service";
-import {
-  type AnswerImage,
-  attachAnswerImageUrls,
-} from "src/lib/answer-image-urls";
+import { attachAnswerImageUrls } from "src/lib/answer-image-urls";
+import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import { isMcQuestion } from "src/lib/question-service";
 import {
   getAiGradeJobService,
@@ -52,6 +46,8 @@ interface GradingDetailStudentProps {
   /** The page's school — never resolved here. */
   schoolId: string;
   student: { id: string; name: string; username: string };
+  /** The question whose answer is on screen; the first question when absent or not one of the test's. */
+  questionId?: string;
   /** Base path the page is rendered at (no query string). */
   basePath: string;
   /** Current `?sort=` value, preserved in the Save & Next redirect target. */
@@ -59,16 +55,17 @@ interface GradingDetailStudentProps {
 }
 
 /**
- * Renders the full grading surface for one student: per-question forms,
- * AI suggestion panels, overall feedback form, plus per-student controls
- * (request redo, release grades, auto-grade with AI). Ported from the
- * legacy `grading-page-body.tsx`. Lives in the right pane of the new shell.
+ * Renders one student's answer to one question in the shell's right pane:
+ * the per-student controls (request redo, release grades, auto-grade with
+ * AI), the answer pane, its grade form and AI suggestions, and the overall
+ * feedback form.
  */
 export async function GradingDetailStudent({
   test,
   courseId,
   schoolId,
   student,
+  questionId,
   basePath,
   sort,
 }: GradingDetailStudentProps) {
@@ -105,24 +102,30 @@ export async function GradingDetailStudent({
   );
   const gradeMap = new Map(grades.map((g) => [g.questionId, g]));
 
-  // Pre-load photo URLs + annotations for image answers (the map callback
-  // below is synchronous). Annotations live in their own collection, separate
-  // from the grade.
-  const annotationService = await getAnnotationService(schoolId);
-  const answerImagesMap = new Map<string, AnswerImage[]>();
-  const annotationsMap = new Map<string, AnnotationEntry[]>();
-  for (const [questionId, ans] of rawAnswerMap) {
-    if (ans.type === "image") {
-      answerImagesMap.set(
-        questionId,
-        await attachAnswerImageUrls(ans.mediaKeys),
-      );
-      annotationsMap.set(
-        questionId,
-        await annotationService.getAnnotations(testId, questionId, student.id),
-      );
-    }
-  }
+  // The selected question, with its pictures and (for a photo answer) the
+  // answer photos and the marks drawn on them.
+  const selected = questions.find((q) => q.id === questionId) ?? questions[0];
+  const [selectedQuestion] = selected
+    ? await attachQuestionMediaUrls([selected])
+    : [];
+  const selectedAnswer = selectedQuestion
+    ? rawAnswerMap.get(selectedQuestion.id)
+    : undefined;
+  const selectedGrade = selectedQuestion
+    ? gradeMap.get(selectedQuestion.id)
+    : undefined;
+  const photos =
+    selectedAnswer?.type === "image"
+      ? await attachAnswerImageUrls(selectedAnswer.mediaKeys)
+      : [];
+  const annotations =
+    selectedQuestion && selectedAnswer?.type === "image"
+      ? await (await getAnnotationService(schoolId)).getAnnotations(
+          testId,
+          selectedQuestion.id,
+          student.id,
+        )
+      : [];
 
   const testFeedbackService = await getTestFeedbackService(schoolId);
   const testFeedback = await testFeedbackService.getTestFeedback(
@@ -183,6 +186,10 @@ export async function GradingDetailStudent({
   // a click on the previous job does not linger.
   const aiJobStateKey = `${latestAiJob?.id ?? "none"}:${latestAiJob?.status ?? "none"}`;
 
+  const selectedSuggestions: AiGradeSuggestion[] = selectedQuestion
+    ? (aiSuggestionsByQuestion.get(selectedQuestion.id) ?? [])
+    : [];
+
   const gradedCount = grades.length;
   const answeredCount = latestAnswers.length;
   // A question is only "blank" once the student can no longer answer it.
@@ -200,11 +207,10 @@ export async function GradingDetailStudent({
   const hasAnswers = latestAnswers.length > 0;
   const hasActiveRedoRequest = activeRedoRequest !== null;
 
-  // Ordered ids of the questions that actually render a Save & Next button
-  // today: non-MC questions with a non-empty free-text answer (MC is
-  // read-only; unanswered free-text and image_answer render no button).
-  // Must mirror FreeTextQuestionGradeForm's `{answerText && ...}` gate below
-  // exactly, or Save & Next could target a question with nothing to land on.
+  // Ordered ids of the questions whose grade form offers Save & Next: written
+  // answers with text (choice answers are read-only; blank and photo answers
+  // get no Save & Next). Must match the grade form's gate and `saveAndNext`
+  // below, or Save & Next could land on a question with no form.
   const formBearingQuestionIds = questions
     .filter((question) => {
       if (isMcQuestion(question)) {
@@ -273,126 +279,71 @@ export async function GradingDetailStudent({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {questions.map((question) => {
-            const grade = gradeMap.get(question.id);
-            const rawAnswer = rawAnswerMap.get(question.id);
-            const sharedProps = {
-              testId,
-              courseId,
-              questionId: question.id,
-              studentId: student.id,
-              questionTitle: question.title,
-              questionOrder: question.order,
-              existingScore: grade?.score ?? null,
-              existingFeedback: grade?.feedback ?? null,
-              existingSolution: grade?.solution ?? null,
-              studentStatus: status,
-              id: `question-${question.id}`,
-              saveAndNext: {
-                candidateIds: formBearingQuestionIds,
-                currentStudentId: student.id,
-                returnPath: basePath,
-                mode: "student" as const,
-                sort,
-              },
-            };
+          {selectedQuestion && (
+            <AnswerPane
+              testId={testId}
+              courseId={courseId}
+              studentId={student.id}
+              question={selectedQuestion}
+              answer={selectedAnswer}
+              score={selectedGrade?.score ?? null}
+              isSubmitted={hasSubmitted(status)}
+              photos={photos}
+              annotations={annotations}
+              correctAnswersVisible={
+                test.showCorrectAnswerAfterSubmit ||
+                test.correctAnswersReleasedAt !== null
+              }
+            />
+          )}
 
-            if (isMcQuestion(question)) {
-              return (
-                <McQuestionGradeForm
-                  key={question.id}
-                  {...sharedProps}
-                  selectedIds={
-                    rawAnswer?.type === "mc" ? rawAnswer.selectedIds : []
-                  }
-                  options={question.options}
-                />
-              );
-            }
-
-            if (question.type === "image_answer") {
-              const photos = answerImagesMap.get(question.id) ?? [];
-              return (
-                <div
-                  key={question.id}
-                  id={`question-${question.id}`}
-                  className="rounded-lg border p-4 space-y-3"
-                  data-testid="grade-card"
-                >
-                  <h4 className="font-medium text-sm">
-                    <span className="text-muted-foreground">
-                      #{question.order}
-                    </span>{" "}
-                    {question.title}
-                  </h4>
-                  {photos.length > 0 ? (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Student Answer:
-                      </p>
-                      <AnnotationTool
-                        testId={testId}
-                        courseId={courseId}
-                        questionId={question.id}
-                        studentId={student.id}
-                        photos={photos}
-                        initialAnnotations={
-                          annotationsMap.get(question.id) ?? []
+          {selectedQuestion &&
+            !isMcQuestion(selectedQuestion) &&
+            (selectedAnswer?.type === "free_text"
+              ? !!selectedAnswer.text
+              : photos.length > 0) && (
+              <div className="space-y-3" data-testid="grade-card">
+                <CompactGradeForm
+                  testId={testId}
+                  courseId={courseId}
+                  questionId={selectedQuestion.id}
+                  studentId={student.id}
+                  questionTitle={selectedQuestion.title}
+                  questionOrder={selectedQuestion.order}
+                  existingScore={selectedGrade?.score ?? null}
+                  existingFeedback={selectedGrade?.feedback ?? null}
+                  existingSolution={selectedGrade?.solution ?? null}
+                  studentStatus={status}
+                  saveAndNext={
+                    selectedAnswer?.type === "free_text"
+                      ? {
+                          candidateIds: formBearingQuestionIds,
+                          currentStudentId: student.id,
+                          returnPath: basePath,
+                          mode: "student" as const,
+                          sort,
                         }
-                      />
-                    </div>
-                  ) : (
-                    <BlankAnswerNote
-                      isSubmitted={hasSubmitted(status)}
-                      score={grade?.score ?? null}
-                    />
-                  )}
-                  {photos.length > 0 && (
-                    <CompactGradeForm
+                      : undefined
+                  }
+                />
+                {selectedQuestion.type === "free_text" &&
+                  selectedSuggestions.length > 0 && (
+                    <AiSuggestionPanel
+                      key={aiJobStateKey}
                       testId={testId}
                       courseId={courseId}
-                      questionId={question.id}
                       studentId={student.id}
-                      questionTitle={question.title}
-                      questionOrder={question.order}
-                      existingScore={grade?.score ?? null}
-                      existingFeedback={grade?.feedback ?? null}
-                      existingSolution={grade?.solution ?? null}
-                      studentStatus={status}
+                      questionId={selectedQuestion.id}
+                      suggestions={selectedSuggestions}
+                      latestAnswerId={
+                        latestAnswerIdByQuestion.get(selectedQuestion.id) ??
+                        null
+                      }
+                      regenerateDisabled={aiGradingStartedAt !== null}
                     />
                   )}
-                </div>
-              );
-            }
-
-            const aiSuggestions: AiGradeSuggestion[] =
-              aiSuggestionsByQuestion.get(question.id) ?? [];
-
-            return (
-              <FreeTextQuestionGradeForm
-                key={question.id}
-                {...sharedProps}
-                answerText={
-                  rawAnswer?.type === "free_text" ? rawAnswer.text : null
-                }
-              >
-                {aiSuggestions.length > 0 && (
-                  <AiSuggestionPanel
-                    key={aiJobStateKey}
-                    testId={testId}
-                    courseId={courseId}
-                    studentId={student.id}
-                    questionId={question.id}
-                    suggestions={aiSuggestions}
-                    latestAnswerId={
-                      latestAnswerIdByQuestion.get(question.id) ?? null
-                    }
-                    regenerateDisabled={aiGradingStartedAt !== null}
-                  />
-                )}
-              </FreeTextQuestionGradeForm>
-            );
-          })}
+              </div>
+            )}
 
           {hasAnswers && (
             <OverallFeedbackForm

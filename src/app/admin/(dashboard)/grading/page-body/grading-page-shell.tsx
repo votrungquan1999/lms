@@ -1,4 +1,5 @@
 import { readGradingScreen } from "src/lib/grading-screen-read";
+import { needsGrade } from "src/lib/needs-grade";
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { GradingDetailQuestion } from "./grading-detail-question";
@@ -85,9 +86,24 @@ export async function GradingPageShell({
     null;
 
   const requestedQuestionId = selection.questionId;
-  const focusedQuestion =
+  const requestedQuestion =
     (requestedQuestionId &&
       questions.find((q) => q.id === requestedQuestionId)) ||
+    null;
+  const focusedQuestion =
+    requestedQuestion ||
+    // By student opens the student's first answer that needs a grade.
+    (selection.mode === GradingMode.Student && focused
+      ? questions.find((q) =>
+          needsGrade({
+            answered: screen.answers.get(focused.id)?.has(q.id) ?? false,
+            latestAnswerAt:
+              screen.answers.get(focused.id)?.get(q.id)?.submittedAt ?? null,
+            grade: screen.grades.get(focused.id)?.get(q.id) ?? null,
+            redoOpen: screen.pairs.get(focused.id)?.redoRequested ?? false,
+          }),
+        )
+      : undefined) ||
     questions[0] ||
     null;
 
@@ -132,6 +148,7 @@ export async function GradingPageShell({
             courseId,
             schoolId,
             student: focused,
+            questionId: focusedQuestion?.id,
             basePath,
             sort: selection.sort,
           })
@@ -196,7 +213,14 @@ export async function GradingPageShell({
         <GradingTopBar
           backHref={`/admin/courses/${courseId}/tests/${test.id}`}
           testTitle={test.title}
-          pivot={<PivotToggle mode={selection.mode} basePath={basePath} />}
+          pivot={
+            <PivotToggle
+              mode={selection.mode}
+              basePath={basePath}
+              studentId={focused?.id}
+              questionId={focusedQuestion?.id}
+            />
+          }
           position={
             selection.mode === GradingMode.Student && focused ? (
               <StudentPosition

@@ -64,24 +64,24 @@ describe("Feature: Save & Next advances to the next question to grade in student
     vi.restoreAllMocks();
   });
 
-  it("jumps to the next form-bearing question mid-list, and stops with no anchor after the last one", async () => {
+  it("jumps to the next form-bearing question mid-list, and stops with no question id after the last one", async () => {
     // Given: form-bearing question ids [q1, q2, q3], current = q2 (mid-list)
-    // When + Then: redirect stays on the same student and carries the next question's anchor
+    // When + Then: redirect stays on the same student and carries the next question's id
     await expect(saveAndJumpToNextAction(buildFormData("q2"))).rejects.toThrow(
       /__REDIRECT__:/,
     );
     const midListUrl = vi.mocked(redirect).mock.calls[0]?.[0] as string;
     expect(midListUrl).toContain("/admin/grading/test-1");
     expect(midListUrl).toContain("studentId=student-A");
-    expect(midListUrl).toContain("#question-q3");
+    expect(midListUrl).toContain("questionId=q3");
 
     // Given: current = q3, the LAST form-bearing question
-    // When + Then: redirect stays on the same student with NO anchor (stop)
+    // When + Then: redirect stays on the same student with NO question id (stop)
     await expect(saveAndJumpToNextAction(buildFormData("q3"))).rejects.toThrow(
       /__REDIRECT__:/,
     );
     const lastUrl = vi.mocked(redirect).mock.calls[1]?.[0] as string;
     expect(lastUrl).toContain("studentId=student-A");
-    expect(lastUrl).not.toContain("#question-");
+    expect(lastUrl).not.toContain("questionId=");
   });
 });

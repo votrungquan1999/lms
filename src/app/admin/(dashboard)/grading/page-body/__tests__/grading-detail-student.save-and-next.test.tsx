@@ -120,9 +120,7 @@ describe("Feature: Save & Next skips a read-only MC question and lands on the ne
     render(ui);
 
     // Then: Q1's Save & Next form carries a candidateIds list that skips Q2 (MC).
-    const q1Card = screen
-      .getByText("Q1")
-      .closest('[data-testid="grade-card"]') as HTMLElement;
+    const q1Card = screen.getByTestId("grade-card");
     const candidateIdsInput = q1Card.querySelector(
       'input[name="candidateIds"]',
     ) as HTMLInputElement;
@@ -146,7 +144,7 @@ describe("Feature: Save & Next skips a read-only MC question and lands on the ne
     );
     const midListUrl = vi.mocked(redirect).mock.calls[0]?.[0] as string;
     // Then: redirect lands on Q3 — the MC (Q2) is skipped entirely.
-    expect(midListUrl).toContain(`#question-${q3.id}`);
+    expect(midListUrl).toContain(`questionId=${q3.id}`);
     expect(midListUrl).not.toContain(q2.id);
 
     // Given: Q3 is now the LAST form-bearing question (fresh FormData, not
@@ -164,13 +162,13 @@ describe("Feature: Save & Next skips a read-only MC question and lands on the ne
     lastFormData.set("score", "90");
     lastFormData.set("feedback", "Nice");
 
-    // When + Then: stop — redirect keeps the same student with NO anchor.
+    // When + Then: stop — redirect keeps the same student with NO question id.
     await expect(saveAndJumpToNextAction(lastFormData)).rejects.toThrow(
       /__REDIRECT__:/,
     );
     const lastUrl = vi.mocked(redirect).mock.calls[0]?.[0] as string;
     expect(lastUrl).toContain(`studentId=${student.id}`);
-    expect(lastUrl).not.toContain("#question-");
+    expect(lastUrl).not.toContain("questionId=");
   });
 
   it("excludes an unanswered free-text question and an image_answer question from the candidate list (they render no Save & Next button)", async () => {
@@ -261,9 +259,7 @@ describe("Feature: Save & Next skips a read-only MC question and lands on the ne
     // Then: Q1's candidate list contains ONLY the answered free-text questions
     // (Q1, Q4) — the unanswered free-text (Q2) and the image_answer (Q3) are
     // excluded, so Save & Next can never target a question with no button.
-    const q1Card = screen
-      .getByText("Q1")
-      .closest('[data-testid="grade-card"]') as HTMLElement;
+    const q1Card = screen.getByTestId("grade-card");
     const candidateIdsInput = q1Card.querySelector(
       'input[name="candidateIds"]',
     ) as HTMLInputElement;

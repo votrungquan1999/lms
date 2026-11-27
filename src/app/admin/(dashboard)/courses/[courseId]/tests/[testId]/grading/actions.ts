@@ -739,11 +739,9 @@ export async function saveAndJumpToNextAction(formData: FormData) {
 
     const params = new URLSearchParams();
     params.set("studentId", parsed.data.studentId);
+    if (nextQuestionId) params.set("questionId", nextQuestionId);
     if (parsed.data.sort) params.set("sort", parsed.data.sort);
-    const base = `${parsed.data.returnPath}?${params.toString()}`;
-    redirectTarget = nextQuestionId
-      ? `${base}#question-${nextQuestionId}`
-      : base;
+    redirectTarget = `${parsed.data.returnPath}?${params.toString()}`;
   } else {
     const after = candidatesAfter(candidates, parsed.data.currentStudentId);
 

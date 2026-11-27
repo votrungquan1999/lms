@@ -9,8 +9,8 @@ interface GradingHrefInput {
 }
 
 /**
- * Builds a grading-page URL preserving any provided selection params and
- * dropping the ones that don't apply to the requested mode. Centralizes URL
+ * Builds a grading-page URL carrying every provided selection param, so the
+ * student and the question both survive a switch of mode. Centralizes URL
  * construction per server-components-rules.md rule 3.
  */
 export function gradingHref(input: GradingHrefInput): string {
@@ -18,12 +18,8 @@ export function gradingHref(input: GradingHrefInput): string {
   const mode = input.mode ?? GradingMode.Student;
   if (mode !== GradingMode.Student) params.set("mode", mode);
 
-  if (mode === GradingMode.Student && input.studentId) {
-    params.set("studentId", input.studentId);
-  }
-  if (mode === GradingMode.Question && input.questionId) {
-    params.set("questionId", input.questionId);
-  }
+  if (input.studentId) params.set("studentId", input.studentId);
+  if (input.questionId) params.set("questionId", input.questionId);
   if (input.sort && input.sort !== GradingSort.Enrollment) {
     params.set("sort", input.sort);
   }

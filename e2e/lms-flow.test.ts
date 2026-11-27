@@ -542,10 +542,8 @@ test.describe("LMS E2E Flow", () => {
     // The student's free-text answer for Q1 should be visible
     await expect(page.getByText("console.log('hello world')")).toBeVisible();
 
-    // Scope all interactions to the Q1 form to avoid ambiguity with the Q2 (MC) form
-    const q1Form = page.getByTestId("grade-card").filter({
-      hasText: "Q1: Hello World",
-    });
+    // The screen opens on Q1, the first answer that needs a grade
+    const q1Form = page.getByTestId("grade-card");
 
     // When the admin fills in the grade for Q1
     await q1Form.getByLabel("Score (0–100):").fill("85");

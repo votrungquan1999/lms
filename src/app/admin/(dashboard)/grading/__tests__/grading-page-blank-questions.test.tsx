@@ -61,7 +61,7 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
       createdBy: "admin",
       type: "free_text",
     });
-    await services.questionService.addQuestion(test.id, {
+    const q2 = await services.questionService.addQuestion(test.id, {
       title: "Q2",
       content: "Blank question",
       createdBy: "admin",
@@ -97,9 +97,13 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
       gradedBy: "admin",
     });
 
-    // When: the admin grading page renders.
+    // When: the admin opens the blank question's page.
     const ui = await GradingPage({
       params: Promise.resolve({ courseId: course.id, testId: test.id }),
+      searchParams: Promise.resolve({
+        studentId: student.id,
+        questionId: q2.id,
+      }),
     });
     render(ui);
 

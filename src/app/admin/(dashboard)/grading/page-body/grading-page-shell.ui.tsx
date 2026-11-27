@@ -66,6 +66,9 @@ export function GradingProgress({
 interface PivotToggleProps {
   mode: GradingMode;
   basePath: string;
+  /** The student and question on screen, kept when the mode changes. */
+  studentId?: string;
+  questionId?: string;
 }
 
 /**
@@ -73,13 +76,23 @@ interface PivotToggleProps {
  * navigates via `<Link>` to the same page with `?mode=` updated; selection
  * persists in the URL so refresh and back-button work.
  */
-export function PivotToggle({ mode, basePath }: PivotToggleProps) {
+export function PivotToggle({
+  mode,
+  basePath,
+  studentId,
+  questionId,
+}: PivotToggleProps) {
   return (
     <Tabs value={mode}>
       <TabsList>
         <TabsTrigger value={GradingMode.Student} asChild>
           <Link
-            href={gradingHref({ basePath, mode: GradingMode.Student })}
+            href={gradingHref({
+              basePath,
+              mode: GradingMode.Student,
+              studentId,
+              questionId,
+            })}
             scroll={false}
           >
             By student
@@ -87,7 +100,12 @@ export function PivotToggle({ mode, basePath }: PivotToggleProps) {
         </TabsTrigger>
         <TabsTrigger value={GradingMode.Question} asChild>
           <Link
-            href={gradingHref({ basePath, mode: GradingMode.Question })}
+            href={gradingHref({
+              basePath,
+              mode: GradingMode.Question,
+              studentId,
+              questionId,
+            })}
             scroll={false}
           >
             By question

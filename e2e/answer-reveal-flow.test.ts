@@ -164,9 +164,7 @@ test.describe("Answer Reveal — plain mode", () => {
       page.getByRole("heading", { name: `Grade: ${TEST_TITLE}` }),
     ).toBeVisible();
 
-    const gradeForm = page
-      .getByTestId("grade-card")
-      .filter({ hasText: QUESTION_TITLE });
+    const gradeForm = page.getByTestId("grade-card");
     await gradeForm.getByLabel("Score (0–100):").fill("85");
     // "Correct Solution" is deliberately left blank — plain mode must fall
     // back to the question's own authored Model Answer.
@@ -345,9 +343,7 @@ test.describe("Answer Reveal — diff mode", () => {
       page.getByRole("heading", { name: `Grade: ${TEST_TITLE}` }),
     ).toBeVisible();
 
-    const gradeForm = page
-      .getByTestId("grade-card")
-      .filter({ hasText: QUESTION_TITLE });
+    const gradeForm = page.getByTestId("grade-card");
     await gradeForm.getByLabel("Score (0–100):").fill("60");
     await gradeForm
       .getByPlaceholder("Enter the correct solution")
