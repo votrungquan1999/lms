@@ -21,6 +21,7 @@ import { QuestionPicker } from "./question-picker";
 import { StudentRow } from "./question-row";
 import { buildStudentBoxes } from "./question-row-state";
 import { ReleaseMenu } from "./release-menu";
+import { type ReleaseStudent, releaseStatusOfPair } from "./release-students";
 import { StillWritingProvider } from "./still-writing-confirm";
 import { StudentPicker } from "./student-picker";
 import {
@@ -248,6 +249,13 @@ export async function GradingPageShell({
     notStarted: inGroup(StudentPickerGroup.NotStarted),
   };
 
+  const releaseStudents: ReleaseStudent[] = pickerRows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    username: row.username,
+    status: releaseStatusOfPair(screen.pairs.get(row.id)),
+  }));
+
   return (
     <StillWritingProvider>
       <TwoPaneShell
@@ -309,6 +317,7 @@ export async function GradingPageShell({
                 courseId={courseId}
                 testTitle={test.title}
                 counts={releaseCounts}
+                students={releaseStudents}
                 choiceQuestionCount={
                   questions.filter(
                     (q) =>

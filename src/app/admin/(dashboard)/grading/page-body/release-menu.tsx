@@ -13,28 +13,30 @@ import {
 import { ReleaseDialog } from "./release-dialog";
 import type { ReleaseStudentCounts } from "./release-dialog.ui";
 import {
-  type ReleaseChipTone,
+  ReleaseChipTone,
   type ReleaseMenuEntry,
   ReleaseMenuView,
 } from "./release-menu.ui";
-
-const CHIP_TONES: Record<GradeReleaseKind, ReleaseChipTone> = {
-  [GradeReleaseKind.NotReleased]: "secondary",
-  [GradeReleaseKind.ReleasedToSome]: "warning",
-  [GradeReleaseKind.Released]: "success",
-  [GradeReleaseKind.ShownOnSubmit]: "info",
-};
+import type { ReleaseStudent } from "./release-students";
 
 interface ReleaseMenuProps {
   testId: string;
   courseId: string;
   testTitle: string;
   counts: ReleaseStudentCounts;
+  students: ReleaseStudent[];
   choiceQuestionCount: number;
   state: GradeReleaseState;
   offerGrades: boolean;
   offerCorrectAnswers: boolean;
 }
+
+const CHIP_TONES: Record<GradeReleaseKind, ReleaseChipTone> = {
+  [GradeReleaseKind.NotReleased]: ReleaseChipTone.Secondary,
+  [GradeReleaseKind.ReleasedToSome]: ReleaseChipTone.Warning,
+  [GradeReleaseKind.Released]: ReleaseChipTone.Success,
+  [GradeReleaseKind.ShownOnSubmit]: ReleaseChipTone.Info,
+};
 
 /** The grading top bar's Release ▾: the test's release state and what is left to release. */
 export function ReleaseMenu({
@@ -42,6 +44,7 @@ export function ReleaseMenu({
   courseId,
   testTitle,
   counts,
+  students,
   choiceQuestionCount,
   state,
   offerGrades,
@@ -100,6 +103,7 @@ export function ReleaseMenu({
         courseId={courseId}
         testTitle={testTitle}
         counts={counts}
+        students={students}
         offerCorrectAnswers={offerCorrectAnswers}
         choiceQuestionCount={choiceQuestionCount}
         open={dialogOpen}

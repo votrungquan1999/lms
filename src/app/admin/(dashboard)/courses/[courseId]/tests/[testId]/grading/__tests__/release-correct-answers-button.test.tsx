@@ -42,6 +42,7 @@ describe("Feature: the release-correct-answers entry of Release ▾", () => {
           redoRequested: 0,
           notStarted: 0,
         }}
+        students={[]}
         choiceQuestionCount={0}
         state={{ kind: GradeReleaseKind.Released }}
         offerGrades={false}

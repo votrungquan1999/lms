@@ -33,6 +33,7 @@ async function seedTest() {
     title: "Quiz",
     description: "",
     createdBy: ADMIN,
+    showGradeAfterSubmit: false,
   });
   const freeText = await services.questionService.addQuestion(test.id, {
     type: "free_text",
@@ -85,7 +86,7 @@ describe("release roster route", () => {
     const { courseId, testId, freeTextId } = await seedTest();
     const graded = await enrolledStudent(courseId, "Graded");
     const waiting = await enrolledStudent(courseId, "Waiting");
-    await enrolledStudent(courseId, "Idle");
+    const idle = await enrolledStudent(courseId, "Idle");
     for (const studentId of [graded, waiting]) {
       await db.collection("answer").insertOne({
         id: randomUUID(),
@@ -126,7 +127,14 @@ describe("release roster route", () => {
 
     // Then it carries the counts, the correct-answers offer and the choice question count
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const body = await res.json();
+    expect(body.students).toEqual([
+      expect.objectContaining({ id: graded, status: "graded" }),
+      expect.objectContaining({ id: idle, status: "not-started" }),
+      expect.objectContaining({ id: waiting, status: "waiting" }),
+    ]);
+    expect(body).toEqual({
+      students: expect.any(Array),
       counts: {
         graded: 1,
         waiting: 1,

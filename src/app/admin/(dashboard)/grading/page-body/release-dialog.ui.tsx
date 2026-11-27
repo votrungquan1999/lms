@@ -13,6 +13,11 @@ import {
 } from "src/components/ui/dialog";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
+import { ReleaseChecklist } from "./release-checklist.ui";
+import type { ReleaseStudent } from "./release-students";
+
+/** Who a release reaches: every student, or the ticked ones. */
+export type ReleaseMode = "whole" | "chosen";
 
 /** How the test's students stand, for the dialog's summary line. */
 export interface ReleaseStudentCounts {
@@ -41,10 +46,17 @@ interface ReleaseDialogViewProps {
   onOpenChange: (open: boolean) => void;
   testTitle: string;
   counts: ReleaseStudentCounts;
+  students: ReleaseStudent[];
   /** False when students already see the correct answers: the tick is left out. */
   offerCorrectAnswers: boolean;
   /** Single and multiple choice questions, the ones whose right option students see. */
   choiceQuestionCount: number;
+  /** Ids of the ticked students who are not released yet. */
+  chosenIds: ReadonlySet<string>;
+  onChosenChange: (studentId: string, checked: boolean) => void;
+  onSelectAllGraded: (studentIds: string[]) => void;
+  mode: ReleaseMode;
+  onModeChange: (mode: ReleaseMode) => void;
   alsoCorrectAnswers: boolean;
   onAlsoCorrectAnswersChange: (checked: boolean) => void;
   pending: boolean;
@@ -58,8 +70,14 @@ export function ReleaseDialogView({
   onOpenChange,
   testTitle,
   counts,
+  students,
   offerCorrectAnswers,
   choiceQuestionCount,
+  chosenIds,
+  onChosenChange,
+  onSelectAllGraded,
+  mode,
+  onModeChange,
   alsoCorrectAnswers,
   onAlsoCorrectAnswersChange,
   pending,
@@ -70,6 +88,10 @@ export function ReleaseDialogView({
     event.preventDefault();
     onSubmit();
   }
+  const releaseLabel =
+    mode === "chosen"
+      ? `Release to ${chosenIds.size} ${chosenIds.size === 1 ? "student" : "students"}`
+      : "Release";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -81,7 +103,11 @@ export function ReleaseDialogView({
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
             <p className="text-sm font-medium">Who sees their grade</p>
-            <RadioGroup value="whole" aria-label="Who sees their grade">
+            <RadioGroup
+              value={mode}
+              onValueChange={(value) => onModeChange(value as ReleaseMode)}
+              aria-label="Who sees their grade"
+            >
               <div className="flex items-start gap-2">
                 <RadioGroupItem value="whole" id="release-whole" />
                 <Label htmlFor="release-whole" className="grid gap-0.5">
@@ -92,8 +118,26 @@ export function ReleaseDialogView({
                   </span>
                 </Label>
               </div>
+              <div className="flex items-start gap-2">
+                <RadioGroupItem value="chosen" id="release-chosen" />
+                <Label htmlFor="release-chosen" className="grid gap-0.5">
+                  <span>Only chosen students</span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    Tick the graded students who see their grade now.
+                  </span>
+                </Label>
+              </div>
             </RadioGroup>
           </div>
+
+          {mode === "chosen" && (
+            <ReleaseChecklist
+              students={students}
+              chosenIds={chosenIds}
+              onToggle={onChosenChange}
+              onSelectAllGraded={onSelectAllGraded}
+            />
+          )}
 
           {offerCorrectAnswers && (
             <div className="flex items-start gap-2">
@@ -129,8 +173,11 @@ export function ReleaseDialogView({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Releasing…" : "Release"}
+            <Button
+              type="submit"
+              disabled={pending || (mode === "chosen" && chosenIds.size === 0)}
+            >
+              {pending ? "Releasing…" : releaseLabel}
             </Button>
           </DialogFooter>
         </form>

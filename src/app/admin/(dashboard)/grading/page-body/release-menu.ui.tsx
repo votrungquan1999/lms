@@ -9,15 +9,6 @@ import {
   DropdownMenuTrigger,
 } from "src/components/ui/dropdown-menu";
 
-export type ReleaseChipTone = "secondary" | "warning" | "success" | "info";
-
-export interface ReleaseMenuEntry {
-  label: string;
-  /** What the entry does, under its label. */
-  description: string;
-  onSelect: () => void;
-}
-
 interface ReleaseMenuViewProps {
   stateText: string;
   tone: ReleaseChipTone;
@@ -29,6 +20,28 @@ interface ReleaseMenuViewProps {
   error: string | null;
 }
 
+export enum ReleaseChipTone {
+  Secondary = "secondary",
+  Warning = "warning",
+  Success = "success",
+  Info = "info",
+}
+
+export interface ReleaseMenuEntry {
+  label: string;
+  /** What the entry does, under its label. */
+  description: string;
+  onSelect: () => void;
+}
+
+/** The badge look each chip tone takes. */
+const BADGE_VARIANTS = {
+  [ReleaseChipTone.Secondary]: "secondary",
+  [ReleaseChipTone.Warning]: "warning",
+  [ReleaseChipTone.Success]: "success",
+  [ReleaseChipTone.Info]: "info",
+} as const;
+
 /** "Release" with the test's release state as a chip; a menu of release actions when any are left. */
 export function ReleaseMenuView({
   stateText,
@@ -38,7 +51,7 @@ export function ReleaseMenuView({
   error,
 }: ReleaseMenuViewProps) {
   const chip = (
-    <Badge variant={tone} data-testid="release-state">
+    <Badge variant={BADGE_VARIANTS[tone]} data-testid="release-state">
       {stateText}
     </Badge>
   );

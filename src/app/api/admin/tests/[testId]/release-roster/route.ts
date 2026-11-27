@@ -1,17 +1,25 @@
 import { headers } from "next/headers";
 import type { ReleaseStudentCounts } from "src/app/admin/(dashboard)/grading/page-body/release-dialog.ui";
+import {
+  type ReleaseStudent,
+  ReleaseStudentStatus,
+  releaseStatusOfPair,
+} from "src/app/admin/(dashboard)/grading/page-body/release-students";
 import { getAuthService } from "src/lib/auth-singleton";
 import { getSchoolGradingCounts } from "src/lib/school-grading-counts";
-import { getQuestionService, getTestService } from "src/lib/services-singleton";
-import { TestStatus } from "src/lib/test-status-service";
+import {
+  getQuestionService,
+  getStudentService,
+  getTestService,
+} from "src/lib/services-singleton";
 
 /**
  * GET handler for the release dialog's facts about one test. Admin-only and
  * read-only: it counts from the school's grading counts, which never write a
  * hand-in for an expired attempt. The proxy does not cover `/api/admin/*`, so
  * the session check here is the only gate.
- * @returns The dialog's counts and offers as JSON, 401 without a school admin
- * session, or 404 for a test that is missing or another school's.
+ * @returns The dialog's students, counts and offers as JSON, 401 without a
+ * school admin session, or 404 for a test that is missing or another school's.
  */
 export async function GET(
   _request: Request,
@@ -37,25 +45,38 @@ export async function GET(
     (await getQuestionService(schoolId)).listQuestions(testId),
   ]);
 
+  const pairs = school.pairs.filter((pair) => pair.testId === testId);
+  const names = await (await getStudentService(schoolId)).findByIds(
+    pairs.map((pair) => pair.studentId),
+  );
+  const students: ReleaseStudent[] = names
+    .map((student) => ({
+      id: student.id,
+      name: student.name,
+      username: student.username,
+      status: releaseStatusOfPair(
+        pairs.find((pair) => pair.studentId === student.id),
+      ),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+
+  const inStatus = (...wanted: ReleaseStudentStatus[]) =>
+    students.filter((s) => wanted.includes(s.status)).length;
   const counts: ReleaseStudentCounts = {
-    graded: 0,
-    waiting: 0,
-    stillWriting: 0,
-    redoRequested: 0,
-    notStarted: 0,
+    graded: inStatus(
+      ReleaseStudentStatus.Graded,
+      ReleaseStudentStatus.Released,
+    ),
+    waiting: inStatus(ReleaseStudentStatus.Waiting),
+    stillWriting: inStatus(ReleaseStudentStatus.StillWriting),
+    redoRequested: inStatus(ReleaseStudentStatus.RedoRequested),
+    notStarted: inStatus(ReleaseStudentStatus.NotStarted),
   };
-  for (const pair of school.pairs) {
-    if (pair.testId !== testId) continue;
-    if (pair.redoRequested) counts.redoRequested++;
-    else if (pair.status === TestStatus.Graded) counts.graded++;
-    else if (pair.status === TestStatus.Submitted) counts.waiting++;
-    else if (pair.status === TestStatus.InProgress) counts.stillWriting++;
-    else counts.notStarted++;
-  }
 
   return Response.json(
     {
       counts,
+      students,
       offerCorrectAnswers:
         !test.showCorrectAnswerAfterSubmit && !test.correctAnswersReleasedAt,
       choiceQuestionCount: questions.filter(

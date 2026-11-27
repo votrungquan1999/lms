@@ -11,6 +11,7 @@ import {
 } from "src/components/ui/dialog";
 import { z } from "zod";
 import { ReleaseDialog } from "./release-dialog";
+import { ReleaseStudentStatus } from "./release-students";
 
 const rosterSchema = z.object({
   counts: z.object({
@@ -20,6 +21,14 @@ const rosterSchema = z.object({
     redoRequested: z.number(),
     notStarted: z.number(),
   }),
+  students: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      username: z.string(),
+      status: z.nativeEnum(ReleaseStudentStatus),
+    }),
+  ),
   offerCorrectAnswers: z.boolean(),
   choiceQuestionCount: z.number(),
 });
@@ -78,6 +87,7 @@ export function ReleaseFromList({
           courseId={courseId}
           testTitle={testTitle}
           counts={roster.counts}
+          students={roster.students}
           offerCorrectAnswers={roster.offerCorrectAnswers}
           choiceQuestionCount={roster.choiceQuestionCount}
           open={open}
