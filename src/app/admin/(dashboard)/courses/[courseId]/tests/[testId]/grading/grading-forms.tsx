@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useId, useState } from "react";
-import { formatReleaseLine } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/test-settings-panel";
 import type { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { useGradeLocked } from "src/app/admin/(dashboard)/grading/page-body/still-writing-confirm";
 import { useReportUnsavedGrade } from "src/app/admin/(dashboard)/grading/page-body/unsaved-grade.state";
@@ -10,9 +9,7 @@ import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
 import type { GradingMode } from "src/lib/grading-mode";
 import {
-  type ReleaseGradesState,
   type RequestRedoState,
-  releaseGradesAction,
   requestRedoAction,
   saveAndNextAction,
   setTestFeedbackAction,
@@ -361,56 +358,6 @@ export function RequestRedoButton({
         {isPending ? "Requesting…" : "Request Redo"}
       </Button>
       {state?.message && !state.success && (
-        <p className="text-sm text-destructive">{state.message}</p>
-      )}
-    </form>
-  );
-}
-
-interface ReleaseGradesButtonProps {
-  testId: string;
-  courseId: string;
-  /** Persisted release date, if already released. Optional so existing
-   * standalone renders (no release yet) default to the button. */
-  releasedAt?: Date | null;
-  /** Button text; the grading pages keep the default. */
-  label?: string;
-  /** Button style; the grading pages keep the quiet outline. */
-  variant?: "outline" | "default";
-}
-
-export function ReleaseGradesButton({
-  testId,
-  courseId,
-  releasedAt: persistedReleasedAt = null,
-  label = "Release Grades",
-  variant = "outline",
-}: ReleaseGradesButtonProps) {
-  const [state, formAction, isPending] = useActionState<
-    ReleaseGradesState | null,
-    FormData
-  >(releaseGradesAction, null);
-
-  const postActionReleasedAt =
-    state?.success && state.releasedAt ? new Date(state.releasedAt) : null;
-  const resolvedReleasedAt = postActionReleasedAt ?? persistedReleasedAt;
-
-  if (resolvedReleasedAt) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        {formatReleaseLine("Grades", resolvedReleasedAt)}
-      </p>
-    );
-  }
-
-  return (
-    <form action={formAction} className="flex items-center gap-3">
-      <input type="hidden" name="testId" value={testId} />
-      <input type="hidden" name="courseId" value={courseId} />
-      <Button type="submit" variant={variant} size="sm" disabled={isPending}>
-        {isPending ? "Releasing…" : label}
-      </Button>
-      {state?.message && (
         <p className="text-sm text-destructive">{state.message}</p>
       )}
     </form>

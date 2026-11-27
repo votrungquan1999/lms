@@ -328,6 +328,11 @@ test.describe("Course page", () => {
     const release = rowR.getByRole("button", { name: "Release" });
     await hydrated(release);
     await release.click();
+    const dialog = page.getByRole("dialog", {
+      name: "Release grades · Release Quiz",
+    });
+    await expect(dialog).toContainText("1 graded · 0 waiting");
+    await dialog.getByRole("button", { name: "Release", exact: true }).click();
 
     // Then R leaves the card and W stays
     await expect(

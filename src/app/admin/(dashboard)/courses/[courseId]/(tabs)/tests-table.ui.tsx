@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ReleaseFromList } from "src/app/admin/(dashboard)/grading/page-body/release-from-list";
 import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
-import { ReleaseGradesButton } from "../tests/[testId]/grading/grading-forms";
 import {
   PillTone,
   RowAction,
@@ -54,11 +54,10 @@ function RowActionControl({ row }: { row: TestRowData }) {
   const testHref = `/admin/courses/${row.courseId}/tests/${row.testId}`;
   if (row.action === RowAction.Release) {
     return (
-      <ReleaseGradesButton
+      <ReleaseFromList
         testId={row.testId}
         courseId={row.courseId}
-        label="Release"
-        variant="default"
+        testTitle={row.title}
       />
     );
   }

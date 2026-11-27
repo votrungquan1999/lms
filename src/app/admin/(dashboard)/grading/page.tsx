@@ -7,10 +7,10 @@ import { questionTypeSummary } from "src/lib/question-type-words";
 import { relativeDay } from "src/lib/relative-time";
 import { getSchoolGradingCounts } from "src/lib/school-grading-counts";
 import { getPageGuard } from "src/lib/services-singleton";
-import { ReleaseGradesButton } from "../courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { GradedGroupProvider } from "./graded-group.state";
 import { courseHref, coursesHref, courseTestHref } from "./href";
 import { gradingHref } from "./page-body/href";
+import { ReleaseFromList } from "./page-body/release-from-list";
 import {
   GradedGroupPanel,
   GradedGroupToggle,
@@ -220,11 +220,10 @@ export default async function ToGradePage() {
                         </ToGradeRowMeta>
                       </ToGradeRowDetails>
                       <ToGradeRowActions>
-                        <ReleaseGradesButton
+                        <ReleaseFromList
                           testId={test.testId}
                           courseId={test.courseId}
-                          label="Release"
-                          variant="default"
+                          testTitle={test.title}
                         />
                       </ToGradeRowActions>
                     </ToGradeRow>

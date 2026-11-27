@@ -282,8 +282,14 @@ test.describe("To grade: tests with work waiting", () => {
         .getByTestId(`hub-test-card-${ids.w}`),
     ).toHaveCount(0);
 
-    // When R is released
+    // When R is released from the dialog the button opens
     await rowR.getByRole("button", { name: "Release" }).click();
+    const dialog = page.getByRole("dialog", {
+      name: "Release grades · Review R",
+    });
+    await expect(dialog).toContainText("3 graded · 0 waiting");
+    await expect(page.getByTestId(`hub-test-card-${ids.r}`)).toHaveCount(1);
+    await dialog.getByRole("button", { name: "Release", exact: true }).click();
 
     // Then R leaves the group, the count drops and the summary follows
     await expect(page.getByTestId(`hub-test-card-${ids.r}`)).toHaveCount(0);
