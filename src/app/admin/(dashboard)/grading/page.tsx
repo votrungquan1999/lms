@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
+import { GradingMode } from "src/lib/grading-mode";
 import { pluralize } from "src/lib/pluralize";
 import { questionTypeSummary } from "src/lib/question-type-words";
 import { relativeDay } from "src/lib/relative-time";
@@ -9,7 +10,6 @@ import { getPageGuard } from "src/lib/services-singleton";
 import { ReleaseGradesButton } from "../courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { GradedGroupProvider } from "./graded-group.state";
 import { courseHref, coursesHref, courseTestHref } from "./href";
-import { GradingMode } from "./page-body/grading-page-body.type";
 import { gradingHref } from "./page-body/href";
 import {
   GradedGroupPanel,

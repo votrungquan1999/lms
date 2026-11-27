@@ -168,10 +168,10 @@ test.describe("Answer Reveal — plain mode", () => {
     await gradeForm.getByLabel("Score (0–100):").fill("85");
     // "Correct Solution" is deliberately left blank — plain mode must fall
     // back to the question's own authored Model Answer.
-    await gradeForm.getByRole("button", { name: "Save Grade" }).click();
-    await expect(gradeForm.getByText("Grade saved")).toBeVisible({
-      timeout: 10000,
-    });
+    await gradeForm.getByRole("button", { name: /^Save & next/ }).click();
+    await expect(
+      page.getByRole("link", { name: /^Q\d+ graded$/ }).first(),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test("student sees the correct answer written out plainly, not a diff", async ({
@@ -348,10 +348,10 @@ test.describe("Answer Reveal — diff mode", () => {
     await gradeForm
       .getByPlaceholder("Enter the correct solution")
       .fill(GRADED_SOLUTION);
-    await gradeForm.getByRole("button", { name: "Save Grade" }).click();
-    await expect(gradeForm.getByText("Grade saved")).toBeVisible({
-      timeout: 10000,
-    });
+    await gradeForm.getByRole("button", { name: /^Save & next/ }).click();
+    await expect(
+      page.getByRole("link", { name: /^Q\d+ graded$/ }).first(),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test("student sees the side-by-side diff, not the correct answer written out", async ({

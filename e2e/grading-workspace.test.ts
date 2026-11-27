@@ -54,7 +54,7 @@ test.describe("Grading workspace", () => {
         `${basePath}?studentId=${studentId}&questionId=${questionId}`,
       );
       const panel = page.getByTestId("grade-card");
-      const save = panel.getByRole("button", { name: "Save Grade" });
+      const save = panel.getByRole("button", { name: /^Save & next/ });
       await hydrated(save);
       const answerScroll = page.getByTestId("grading-answer-scroll");
       const pageScrolls = () =>
@@ -144,7 +144,7 @@ test.describe("Leaving a grade that was typed but not saved", () => {
       `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionId}`,
     );
     const panel = page.getByTestId("grade-card");
-    await hydrated(panel.getByRole("button", { name: "Save Grade" }));
+    await hydrated(panel.getByRole("button", { name: /^Save & next/ }));
     const score = panel.getByLabel("Score (0–100):");
     await score.fill("70");
 
@@ -183,11 +183,19 @@ test.describe("Leaving a grade that was typed but not saved", () => {
       `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionId}`,
     );
     const panel = page.getByTestId("grade-card");
-    const save = panel.getByRole("button", { name: "Save Grade" });
+    const save = panel.getByRole("button", { name: /^Save & next/ });
     await hydrated(save);
     await panel.getByLabel("Score (0–100):").fill("70");
     await save.click();
-    await expect(panel.getByText("Grade saved")).toBeVisible();
+    // The other student waits, so Save & next leaves this one; the saved grade is in the database.
+    await expect
+      .poll(() =>
+        withDb((db) =>
+          db.collection("grade").countDocuments({ testId, questionId }),
+        ),
+      )
+      .toBe(1);
+    await expect(page).not.toHaveURL(new RegExp(`studentId=${studentId}`));
 
     await page.getByRole("link", { name: "[discard] Test" }).click();
 
@@ -207,7 +215,7 @@ test.describe("Leaving a grade that was typed but not saved", () => {
     await hydrated(
       page
         .getByTestId("grade-card")
-        .getByRole("button", { name: "Save Grade" }),
+        .getByRole("button", { name: /^Save & next/ }),
     );
     await page.getByText("Overall feedback for Ann Discard").click();
     await page.getByLabel("Overall Test Feedback:").fill("draft for Ann");
@@ -315,7 +323,7 @@ test.describe("Question number row", () => {
       `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionIds[0]}`,
     );
     const panel = page.getByTestId("grade-card");
-    await hydrated(panel.getByRole("button", { name: "Save Grade" }));
+    await hydrated(panel.getByRole("button", { name: /^Save & next/ }));
     await panel.getByLabel("Score (0–100):").fill("70");
     await panel.getByLabel("Feedback:", { exact: true }).fill("draft one");
 
@@ -389,7 +397,7 @@ test.describe("Needs grading only", () => {
       );
       const row = page.getByTestId("question-row-boxes");
       const toggle = page.getByRole("link", { name: "Needs grading only" });
-      await hydrated(page.getByRole("button", { name: "Save Grade" }));
+      await hydrated(page.getByRole("button", { name: /^Save & next/ }));
 
       // Given: every box shows
       await expect(row.getByRole("link")).toHaveCount(3);

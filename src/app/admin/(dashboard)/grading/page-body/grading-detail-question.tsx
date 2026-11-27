@@ -7,6 +7,7 @@ import { McAnswerChips } from "src/components/mc-answer-chips";
 import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
 import { QuestionMedia } from "src/components/question-media.ui";
 import { attachAnswerImageUrls } from "src/lib/answer-image-urls";
+import { GradingMode } from "src/lib/grading-mode";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import { isMcQuestion } from "src/lib/question-service";
 import {
@@ -18,6 +19,7 @@ import {
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted } from "src/lib/test-status-service";
+import { gradingRouteKind } from "./href";
 
 interface RosterStudent {
   id: string;
@@ -32,12 +34,10 @@ interface GradingDetailQuestionProps {
   schoolId: string;
   /** Question selected via URL (or first-in-order fallback). */
   questionId: string;
-  /** Students in roster sort order — used as the candidate list. */
+  /** Students in roster sort order. */
   students: RosterStudent[];
   /** Base path the page is rendered at (no query string). */
   basePath: string;
-  /** Current `?sort=` value, preserved in the Save & Next redirect target. */
-  sort?: string;
 }
 
 /**
@@ -53,7 +53,6 @@ export async function GradingDetailQuestion({
   questionId,
   students,
   basePath,
-  sort,
 }: GradingDetailQuestionProps) {
   const questionService = await getQuestionService(schoolId);
   const questions = await questionService.listQuestions(test.id);
@@ -109,14 +108,6 @@ export async function GradingDetailQuestion({
       };
     }),
   );
-
-  // Must mirror the CompactGradeForm gate below (`answer === undefined ?
-  // null : ...`) exactly, or Save & Next could target a student with
-  // nothing to land on.
-  const answeredStudentIds = rows
-    .filter((row) => row.answer !== undefined)
-    .map((row) => row.student.id)
-    .join(",");
 
   return (
     <div className="space-y-4">
@@ -196,11 +187,10 @@ export async function GradingDetailQuestion({
                   existingSolution={grade?.solution ?? null}
                   studentStatus={status}
                   saveAndNext={{
-                    candidateIds: answeredStudentIds,
-                    currentStudentId: student.id,
-                    returnPath: basePath,
-                    mode: "question" as const,
-                    sort,
+                    routeKind: gradingRouteKind(basePath),
+                    mode: GradingMode.Question,
+                    needsOnly: false,
+                    label: "Save & next",
                   }}
                 />
               )}

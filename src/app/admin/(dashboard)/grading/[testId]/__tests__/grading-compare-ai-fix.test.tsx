@@ -28,13 +28,12 @@ vi.mock("src/lib/auth-singleton", () => ({ getAuthService: vi.fn() }));
 vi.mock(
   "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions",
   () => ({
-    gradeQuestionAction: vi.fn(),
     setTestFeedbackAction: vi.fn(),
     releaseGradesAction: vi.fn(),
     releaseCorrectAnswersAction: vi.fn(),
     requestRedoAction: vi.fn(),
     releaseGradeForStudentAction: vi.fn(),
-    saveAndJumpToNextAction: vi.fn(),
+    saveAndNextAction: vi.fn(),
   }),
 );
 

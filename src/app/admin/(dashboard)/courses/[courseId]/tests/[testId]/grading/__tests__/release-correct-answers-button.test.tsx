@@ -11,12 +11,11 @@ const { releaseCorrectAnswersAction } = vi.hoisted(() => ({
 }));
 
 vi.mock("../actions", () => ({
-  gradeQuestionAction: vi.fn(),
   setTestFeedbackAction: vi.fn(),
   releaseGradesAction: vi.fn(),
   requestRedoAction: vi.fn(),
   releaseGradeForStudentAction: vi.fn(),
-  saveAndJumpToNextAction: vi.fn(),
+  saveAndNextAction: vi.fn(),
   releaseCorrectAnswersAction,
 }));
 

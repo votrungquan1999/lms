@@ -1,3 +1,4 @@
+import { GradingMode } from "src/lib/grading-mode";
 import { readGradingScreen } from "src/lib/grading-screen-read";
 import { needsGrade } from "src/lib/needs-grade";
 import type { Test } from "src/lib/test-service";
@@ -5,7 +6,6 @@ import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { GradingDetailQuestion } from "./grading-detail-question";
 import { GradingDetailStudent } from "./grading-detail-student";
 import {
-  GradingMode,
   GradingSort,
   type RosterStudentCellModel,
 } from "./grading-page-body.type";
@@ -125,7 +125,6 @@ export async function GradingPageShell({
               username: s.username,
             })),
           basePath,
-          sort: selection.sort,
         })
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -153,6 +152,7 @@ export async function GradingPageShell({
             basePath,
             sort: selection.sort,
             needsOnly: selection.needsOnly,
+            screen,
           })
         }
       </>

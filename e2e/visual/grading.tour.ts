@@ -194,7 +194,7 @@ test("grading: confirm dialog when grading an in-progress student", async ({
   await focusStudent(page, "Bob InProgress");
   // Opens the guard dialog only — "Submit Anyway" is never clicked, so no
   // grade is written to the shared seeded data.
-  await page.getByRole("button", { name: "Save Grade" }).click();
+  await page.getByRole("button", { name: /^Save & next/ }).click();
   await expect(
     page.getByRole("alertdialog").getByText("Submit grade anyway?"),
   ).toBeVisible();

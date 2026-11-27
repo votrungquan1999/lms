@@ -189,19 +189,19 @@ test.describe("Image-answer + annotation flow", () => {
       timeout: 10000,
     });
 
-    // Grade + release so the student can see it. Named "Save Grade" exactly —
+    // Grade + release so the student can see it. Named "Save & next" —
     // "Save annotations" (above) and "Save Feedback" (below) also match
-    // /Save/, so `.first()` on that regex actually re-clicked "Save
-    // annotations" and never submitted a score at all. Wait for the save to
+    // /Save/, so `.first()` on that regex would re-click "Save
+    // annotations" and never submit a score at all. Wait for the save to
     // actually persist — without this the test ends and Playwright tears
     // down the page while the grade-save request is still in flight, so it
     // never lands (same class of bug as the materials upload: a page
     // closing mid-request aborts it server-side).
     await page.getByLabel("Score").first().fill("80");
-    await page.getByRole("button", { name: "Save Grade" }).click();
-    await expect(page.getByText("Grade saved")).toBeVisible({
-      timeout: 10000,
-    });
+    await page.getByRole("button", { name: /^Save & next/ }).click();
+    await expect(
+      page.getByRole("link", { name: /^Q\d+ graded$/ }).first(),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test("student sees the grader's annotation once revealed", async ({

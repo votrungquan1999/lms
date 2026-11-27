@@ -3,8 +3,8 @@
 import { GuardedLink } from "src/app/admin/(dashboard)/guarded-link";
 import { Progress } from "src/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "src/components/ui/tabs";
+import { GradingMode } from "src/lib/grading-mode";
 import { cn } from "src/lib/utils";
-import { GradingMode } from "./grading-page-body.type";
 import { gradingHref } from "./href";
 
 interface TwoPaneShellProps {

@@ -3,11 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
+import {
+  gradingBasePath,
+  gradingHref,
+} from "src/app/admin/(dashboard)/grading/page-body/href";
 import {
   AiGradeOutcome,
   recordAiAcceptance,
 } from "src/lib/ai/ai-acceptance-telemetry";
 import { getAuthService } from "src/lib/auth-singleton";
+import { GradingMode } from "src/lib/grading-mode";
+import { readGradingScreen } from "src/lib/grading-screen-read";
+import { findNextAnswerToGrade } from "src/lib/next-answer-to-grade";
 import { withSpan } from "src/lib/observability/with-span";
 import {
   getAiGradeService,
@@ -21,16 +29,6 @@ import {
 } from "src/lib/services-singleton";
 import { z } from "zod";
 import { assertGradingTarget, resolveOwnedTest } from "../test-parent-check";
-
-const gradeQuestionSchema = z.object({
-  testId: z.string().min(1),
-  courseId: z.string().min(1),
-  questionId: z.string().min(1),
-  studentId: z.string().min(1),
-  score: z.coerce.number().int().min(0).max(100),
-  feedback: z.string(),
-  solution: z.string().optional(),
-});
 
 const testFeedbackSchema = z.object({
   testId: z.string().min(1),
@@ -57,11 +55,6 @@ const saveAnnotationsSchema = z.object({
   ),
 });
 
-export interface GradeQuestionState {
-  success: boolean;
-  message: string;
-}
-
 export interface SaveAnnotationsState {
   success: boolean;
   message: string;
@@ -70,98 +63,6 @@ export interface SaveAnnotationsState {
 export interface TestFeedbackState {
   success: boolean;
   message: string;
-}
-
-/**
- * Server action: grades a student's answer for a question. When the AI had
- * suggested a grade for it, records how far the teacher's grade is from it.
- */
-export async function gradeQuestionAction(
-  _prevState: GradeQuestionState | null,
-  formData: FormData,
-): Promise<GradeQuestionState> {
-  const requestHeaders = await headers();
-  const authService = await getAuthService();
-
-  let adminUserId: string;
-  let schoolId: string;
-  try {
-    const session = await authService.requireAdminSession(requestHeaders);
-    adminUserId = session.userId;
-    schoolId = session.school.id;
-  } catch {
-    return { success: false, message: "Unauthorized: admin access required" };
-  }
-
-  const parsed = gradeQuestionSchema.safeParse({
-    testId: formData.get("testId"),
-    courseId: formData.get("courseId"),
-    questionId: formData.get("questionId"),
-    studentId: formData.get("studentId"),
-    score: formData.get("score"),
-    feedback: formData.get("feedback"),
-    solution: formData.get("solution") ?? undefined,
-  });
-
-  if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0].message };
-  }
-
-  try {
-    return await withSpan(
-      "action.gradeQuestionAction",
-      {
-        "lms.action.name": "gradeQuestionAction",
-        "lms.test.id": parsed.data.testId,
-        "lms.course.id": parsed.data.courseId,
-        "lms.student.id": parsed.data.studentId,
-      },
-      async (span) => {
-        await assertGradingTarget(schoolId, parsed.data);
-
-        // Read before saving, so a failed lookup never reports a saved grade as failed.
-        const aiGradeService = await getAiGradeService(schoolId);
-        const suggestion = await aiGradeService.getLatestSuggestion(
-          parsed.data.testId,
-          parsed.data.questionId,
-          parsed.data.studentId,
-        );
-
-        const gradeService = await getGradeService(schoolId);
-        await gradeService.gradeQuestion({
-          testId: parsed.data.testId,
-          questionId: parsed.data.questionId,
-          studentId: parsed.data.studentId,
-          score: parsed.data.score,
-          feedback: parsed.data.feedback,
-          solution: parsed.data.solution,
-          gradedBy: adminUserId,
-        });
-
-        if (suggestion) {
-          recordAiAcceptance(span, AiGradeOutcome.ManuallyGraded, suggestion, {
-            score: parsed.data.score,
-            feedback: parsed.data.feedback,
-            solution: parsed.data.solution,
-          });
-        }
-
-        revalidatePath(
-          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-        );
-        revalidatePath("/admin/grading");
-        revalidatePath(`/admin/grading/${parsed.data.testId}`);
-
-        return { success: true, message: "Grade saved" };
-      },
-    );
-  } catch (error) {
-    console.error(error instanceof Error ? error.stack : JSON.stringify(error));
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : "Failed to save grade",
-    };
-  }
 }
 
 /**
@@ -619,154 +520,119 @@ export async function releaseGradeForStudentAction(
   }
 }
 
-const saveAndJumpToNextSchema = z.object({
+const saveAndNextSchema = z.object({
+  routeKind: z.nativeEnum(GradingRouteKind),
+  mode: z.nativeEnum(GradingMode),
   testId: z.string().min(1),
   courseId: z.string().min(1),
   questionId: z.string().min(1),
   studentId: z.string().min(1),
-  currentStudentId: z.string().min(1),
-  candidateIds: z.string().min(1),
-  // Must stay inside /admin/ — an open redirect off-site or to // is refused.
-  returnPath: z
-    .string()
-    .min(1)
-    .refine((path) => path.startsWith("/admin/"), "Invalid return path"),
-  mode: z.enum(["student", "question"]),
   score: z.coerce.number().int().min(0).max(100),
   feedback: z.string(),
   solution: z.string().optional(),
-  sort: z.string().optional(),
+  needsOnly: z.literal("1").optional(),
 });
 
 /**
- * Returns the items after `currentId` in list order, or the full list if
- * `currentId` isn't found (defensive fallback — shouldn't happen since the
- * caller's own id is always a member of its own candidate list).
+ * Server action: grades one answer, then redirects to the next answer that
+ * needs a grade. When the AI had suggested a grade for the answer, records
+ * how far the teacher's grade is from it. `redirect()` throws, so it stays
+ * outside any try/catch.
  */
-function candidatesAfter(candidates: string[], currentId: string): string[] {
-  const currentIndex = candidates.indexOf(currentId);
-  return currentIndex >= 0 ? candidates.slice(currentIndex + 1) : candidates;
-}
-
-/**
- * Server action: grades a question for the current student and then redirects
- * to the next item to grade.
- *
- * - Student-mode: stays on the SAME student and jumps to the next question in
- *   `candidateIds` (an ordered list of that student's form-bearing question
- *   ids) positioned after the current `questionId`. Purely positional — no
- *   DB lookups. If there is no next question, redirects back without a
- *   `#question-<id>` fragment (stop; no next-student jump).
- * - Question-mode: jumps to the next student in `candidateIds` whose grade
- *   for the active question is still missing after this save. Unchanged.
- *
- * IMPORTANT: `redirect()` throws `NEXT_REDIRECT` and is called OUTSIDE the
- * try/catch wrapping the persist so the redirect propagates correctly.
- */
-export async function saveAndJumpToNextAction(formData: FormData) {
+export async function saveAndNextAction(formData: FormData) {
   const requestHeaders = await headers();
   const authService = await getAuthService();
   const session = await authService.requireAdminSession(requestHeaders);
-  const adminUserId = session.userId;
-  const schoolId = session.school.id;
 
-  const parsed = saveAndJumpToNextSchema.safeParse({
+  const parsed = saveAndNextSchema.safeParse({
+    routeKind: formData.get("routeKind"),
+    mode: formData.get("mode"),
     testId: formData.get("testId"),
     courseId: formData.get("courseId"),
     questionId: formData.get("questionId"),
     studentId: formData.get("studentId"),
-    currentStudentId: formData.get("currentStudentId"),
-    candidateIds: formData.get("candidateIds"),
-    returnPath: formData.get("returnPath"),
-    mode: formData.get("mode"),
     score: formData.get("score"),
     feedback: formData.get("feedback"),
     solution: formData.get("solution") ?? undefined,
-    sort: formData.get("sort") || undefined,
+    needsOnly: formData.get("needsOnly") ?? undefined,
   });
-
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Invalid form data");
   }
+  const input = parsed.data;
 
-  // Before both the grade write below and the next-candidate read loop.
-  await assertGradingTarget(schoolId, parsed.data);
+  await assertGradingTarget(session.school.id, input);
 
-  const gradeService = await getGradeService(schoolId);
-  // Wrap ONLY the persist block — the next-student lookup loop and the trailing
-  // redirect() stay outside the span (redirect throws NEXT_REDIRECT, which must
-  // not be recorded as a span error).
   await withSpan(
-    "action.saveAndJumpToNextAction",
+    "action.saveAndNextAction",
     {
-      "lms.action.name": "saveAndJumpToNextAction",
-      "lms.test.id": parsed.data.testId,
-      "lms.course.id": parsed.data.courseId,
-      "lms.student.id": parsed.data.studentId,
+      "lms.action.name": "saveAndNextAction",
+      "lms.test.id": input.testId,
+      "lms.course.id": input.courseId,
+      "lms.student.id": input.studentId,
     },
-    async () => {
+    async (span) => {
+      // Read before saving, so a failed lookup never leaves a saved grade behind an error.
+      const aiGradeService = await getAiGradeService(session.school.id);
+      const suggestion = await aiGradeService.getLatestSuggestion(
+        input.testId,
+        input.questionId,
+        input.studentId,
+      );
+
+      const gradeService = await getGradeService(session.school.id);
       await gradeService.gradeQuestion({
-        testId: parsed.data.testId,
-        questionId: parsed.data.questionId,
-        studentId: parsed.data.studentId,
-        score: parsed.data.score,
-        feedback: parsed.data.feedback,
-        solution: parsed.data.solution,
-        gradedBy: adminUserId,
+        testId: input.testId,
+        questionId: input.questionId,
+        studentId: input.studentId,
+        score: input.score,
+        feedback: input.feedback,
+        solution: input.solution,
+        gradedBy: session.userId,
       });
 
+      if (suggestion) {
+        recordAiAcceptance(span, AiGradeOutcome.ManuallyGraded, suggestion, {
+          score: input.score,
+          feedback: input.feedback,
+          solution: input.solution,
+        });
+      }
+
       revalidatePath(
-        `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+        `/admin/courses/${input.courseId}/tests/${input.testId}/grading`,
       );
       revalidatePath("/admin/grading");
-      revalidatePath(`/admin/grading/${parsed.data.testId}`);
+      revalidatePath(`/admin/grading/${input.testId}`);
     },
   );
 
-  const candidates = parsed.data.candidateIds
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  // Read after the write, so the answer just graded no longer counts as waiting.
+  const test = await resolveOwnedTest(
+    await getTestService(session.school.id),
+    input.testId,
+    input.courseId,
+  );
+  const screen = await readGradingScreen(session.school.id, test);
+  const next = findNextAnswerToGrade({
+    mode: input.mode,
+    students: screen.students,
+    current: { studentId: input.studentId, questionId: input.questionId },
+    questions: screen.questions,
+    pairs: screen.pairs,
+    answers: screen.answers,
+    grades: screen.grades,
+  });
 
-  let redirectTarget: string;
-  if (parsed.data.mode === "student") {
-    // Positional only: candidates are this student's ordered form-bearing
-    // question ids, so "next" is just the id right after the current one.
-    const nextQuestionId = candidatesAfter(
-      candidates,
-      parsed.data.questionId,
-    )[0];
-
-    const params = new URLSearchParams();
-    params.set("studentId", parsed.data.studentId);
-    if (nextQuestionId) params.set("questionId", nextQuestionId);
-    if (parsed.data.sort) params.set("sort", parsed.data.sort);
-    redirectTarget = `${parsed.data.returnPath}?${params.toString()}`;
-  } else {
-    const after = candidatesAfter(candidates, parsed.data.currentStudentId);
-
-    let nextStudentId: string | undefined;
-    for (const id of after) {
-      const grade = await gradeService.getGrade(
-        parsed.data.testId,
-        parsed.data.questionId,
-        id,
-      );
-      if (!grade) {
-        nextStudentId = id;
-        break;
-      }
-    }
-
-    const params = new URLSearchParams();
-    params.set("mode", "question");
-    params.set("questionId", parsed.data.questionId);
-    params.set("studentId", nextStudentId ?? parsed.data.currentStudentId);
-    if (parsed.data.sort) params.set("sort", parsed.data.sort);
-    redirectTarget = `${parsed.data.returnPath}?${params.toString()}`;
-  }
-
-  redirect(redirectTarget);
+  redirect(
+    gradingHref({
+      basePath: gradingBasePath(input),
+      mode: input.mode,
+      studentId: next?.studentId ?? input.studentId,
+      questionId: next?.questionId ?? input.questionId,
+      needsOnly: input.needsOnly === "1",
+    }),
+  );
 }
 
 const releaseCorrectAnswersSchema = z.object({

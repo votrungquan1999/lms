@@ -1,10 +1,8 @@
 import { notFound } from "next/navigation";
-import {
-  GradingMode,
-  GradingSort,
-} from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
+import { GradingSort } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { GradingPageShell } from "src/app/admin/(dashboard)/grading/page-body/grading-page-shell";
 import { GradingReleaseActions } from "src/app/admin/(dashboard)/grading/page-body/grading-release-actions";
+import { GradingMode } from "src/lib/grading-mode";
 import { getPageGuard, getTestService } from "src/lib/services-singleton";
 
 export const metadata = {

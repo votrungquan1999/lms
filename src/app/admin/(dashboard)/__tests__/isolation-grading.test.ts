@@ -27,12 +27,11 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 
 import {
-  gradeQuestionAction,
   releaseCorrectAnswersAction,
   releaseGradeForStudentAction,
   releaseGradesAction,
   requestRedoAction,
-  saveAndJumpToNextAction,
+  saveAndNextAction,
   saveAnnotationsAction,
   setTestFeedbackAction,
 } from "../courses/[courseId]/tests/[testId]/grading/actions";
@@ -187,54 +186,7 @@ afterEach(async () => {
  * So that another school's grading data can never be touched through mine
  */
 describe("Feature: a school admin can never grade another school's test", () => {
-  it("gradeQuestionAction refuses a foreign test and writes no grade", async () => {
-    await signInAsOtherSchoolAdmin();
-    const foreign = await createForeignFixture();
-    const formData = new FormData();
-    formData.set("testId", foreign.testId);
-    formData.set("courseId", foreign.courseId);
-    formData.set("questionId", foreign.questionId);
-    formData.set("studentId", foreign.studentId);
-    formData.set("score", "80");
-    formData.set("feedback", "ok");
-
-    const result = await gradeQuestionAction(null, formData);
-
-    expect(result.success).toBe(false);
-    expect(
-      await getTestServices().gradeService.getGrade(
-        foreign.testId,
-        foreign.questionId,
-        foreign.studentId,
-      ),
-    ).toBeNull();
-  });
-
-  it("gradeQuestionAction refuses a same-school student not enrolled in the test's course", async () => {
-    signInAsDefaultAdmin();
-    const own = await seedFixture(getTestServices(), "admin-1");
-    const outsiderId = await createOutsider();
-    const formData = new FormData();
-    formData.set("testId", own.testId);
-    formData.set("courseId", own.courseId);
-    formData.set("questionId", own.questionId);
-    formData.set("studentId", outsiderId);
-    formData.set("score", "80");
-    formData.set("feedback", "ok");
-
-    const result = await gradeQuestionAction(null, formData);
-
-    expect(result).toEqual({ success: false, message: "Student not found" });
-    expect(
-      await getTestServices().gradeService.getGrade(
-        own.testId,
-        own.questionId,
-        outsiderId,
-      ),
-    ).toBeNull();
-  });
-
-  it("gradeQuestionAction refuses another school's student even when legacy data enrols them in the admin's own course", async () => {
+  it("saveAndNextAction refuses another school's student even when legacy data enrols them in the admin's own course", async () => {
     signInAsDefaultAdmin();
     const own = await seedFixture(getTestServices(), "admin-1");
     const otherSchool = await addTestSchool("School B");
@@ -252,12 +204,14 @@ describe("Feature: a school admin can never grade another school's test", () => 
     formData.set("courseId", own.courseId);
     formData.set("questionId", own.questionId);
     formData.set("studentId", foreignStudent.id);
+    formData.set("routeKind", "hub");
+    formData.set("mode", "student");
     formData.set("score", "80");
     formData.set("feedback", "ok");
 
-    const result = await gradeQuestionAction(null, formData);
-
-    expect(result).toEqual({ success: false, message: "Student not found" });
+    await expect(saveAndNextAction(formData)).rejects.toThrow(
+      "Student not found",
+    );
     expect(
       await getTestServices().gradeService.getGrade(
         own.testId,
@@ -267,7 +221,7 @@ describe("Feature: a school admin can never grade another school's test", () => 
     ).toBeNull();
   });
 
-  it("gradeQuestionAction refuses a question id from another test", async () => {
+  it("saveAndNextAction refuses a question id from another test", async () => {
     signInAsDefaultAdmin();
     const own = await seedFixture(getTestServices(), "admin-1");
     const otherQuestion = await getTestServices().questionService.addQuestion(
@@ -283,12 +237,14 @@ describe("Feature: a school admin can never grade another school's test", () => 
     formData.set("courseId", own.courseId);
     formData.set("questionId", otherQuestion.id);
     formData.set("studentId", own.studentId);
+    formData.set("routeKind", "hub");
+    formData.set("mode", "student");
     formData.set("score", "80");
     formData.set("feedback", "ok");
 
-    const result = await gradeQuestionAction(null, formData);
-
-    expect(result).toEqual({ success: false, message: "Question not found" });
+    await expect(saveAndNextAction(formData)).rejects.toThrow(
+      "Question not found",
+    );
     expect(
       await getTestServices().gradeService.getGrade(
         otherTest.id,
@@ -296,31 +252,6 @@ describe("Feature: a school admin can never grade another school's test", () => 
         own.studentId,
       ),
     ).toBeNull();
-  });
-
-  it("gradeQuestionAction still grades the admin's own enrolled student", async () => {
-    signInAsDefaultAdmin();
-    const own = await seedFixture(getTestServices(), "admin-1");
-    const formData = new FormData();
-    formData.set("testId", own.testId);
-    formData.set("courseId", own.courseId);
-    formData.set("questionId", own.questionId);
-    formData.set("studentId", own.studentId);
-    formData.set("score", "80");
-    formData.set("feedback", "ok");
-
-    const result = await gradeQuestionAction(null, formData);
-
-    expect(result.success).toBe(true);
-    expect(
-      (
-        await getTestServices().gradeService.getGrade(
-          own.testId,
-          own.questionId,
-          own.studentId,
-        )
-      )?.score,
-    ).toBe(80);
   });
 
   it("saveAnnotationsAction refuses a foreign test and saves no annotation", async () => {
@@ -443,7 +374,7 @@ describe("Feature: a school admin can never grade another school's test", () => 
     ).toBeNull();
   });
 
-  it("saveAndJumpToNextAction refuses a foreign test and writes no grade", async () => {
+  it("saveAndNextAction refuses a foreign test and writes no grade", async () => {
     await signInAsOtherSchoolAdmin();
     const foreign = await createForeignFixture();
     const formData = new FormData();
@@ -451,16 +382,12 @@ describe("Feature: a school admin can never grade another school's test", () => 
     formData.set("courseId", foreign.courseId);
     formData.set("questionId", foreign.questionId);
     formData.set("studentId", foreign.studentId);
-    formData.set("currentStudentId", foreign.studentId);
-    formData.set("candidateIds", foreign.studentId);
-    formData.set("returnPath", "/admin/grading/x");
+    formData.set("routeKind", "hub");
     formData.set("mode", "student");
     formData.set("score", "80");
     formData.set("feedback", "hacked");
 
-    await expect(saveAndJumpToNextAction(formData)).rejects.toThrow(
-      "Test not found",
-    );
+    await expect(saveAndNextAction(formData)).rejects.toThrow("Test not found");
     expect(
       await getTestServices().gradeService.getGrade(
         foreign.testId,
@@ -471,8 +398,8 @@ describe("Feature: a school admin can never grade another school's test", () => 
   });
 
   it.each(["//evil.example", "https://evil.example"])(
-    "saveAndJumpToNextAction refuses the returnPath %s",
-    async (returnPath) => {
+    "saveAndNextAction takes no link from the browser: the route kind %s is refused",
+    async (routeKind) => {
       signInAsDefaultAdmin();
       const own = await seedFixture(getTestServices(), "admin-1");
       const formData = new FormData();
@@ -480,16 +407,12 @@ describe("Feature: a school admin can never grade another school's test", () => 
       formData.set("courseId", own.courseId);
       formData.set("questionId", own.questionId);
       formData.set("studentId", own.studentId);
-      formData.set("currentStudentId", own.studentId);
-      formData.set("candidateIds", own.studentId);
-      formData.set("returnPath", returnPath);
+      formData.set("routeKind", routeKind);
       formData.set("mode", "student");
       formData.set("score", "80");
       formData.set("feedback", "x");
 
-      await expect(saveAndJumpToNextAction(formData)).rejects.toThrow(
-        "Invalid return path",
-      );
+      await expect(saveAndNextAction(formData)).rejects.toThrow();
       expect(
         await getTestServices().gradeService.getGrade(
           own.testId,
@@ -676,20 +599,18 @@ describe("Feature: grading work only lands on a student enrolled in the test's c
       },
     ],
     [
-      "saveAndJumpToNextAction",
+      "saveAndNextAction",
       async (own, studentId) => {
         const formData = new FormData();
         formData.set("testId", own.testId);
         formData.set("courseId", own.courseId);
         formData.set("questionId", own.questionId);
         formData.set("studentId", studentId);
-        formData.set("currentStudentId", studentId);
-        formData.set("candidateIds", studentId);
-        formData.set("returnPath", "/admin/grading/x");
+        formData.set("routeKind", "hub");
         formData.set("mode", "student");
         formData.set("score", "80");
         formData.set("feedback", "misplaced");
-        await expect(saveAndJumpToNextAction(formData)).rejects.toThrow(
+        await expect(saveAndNextAction(formData)).rejects.toThrow(
           "Student not found",
         );
         expect(

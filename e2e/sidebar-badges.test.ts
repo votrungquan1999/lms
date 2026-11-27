@@ -91,12 +91,18 @@ test.describe("Sidebar badges", () => {
     );
     const gradeCard = page.getByTestId("grade-card");
     await gradeCard.getByLabel("Score (0–100):").fill("80");
-    const save = gradeCard.getByRole("button", { name: "Save Grade" });
+    const save = gradeCard.getByRole("button", { name: /^Save & next/ });
     await hydrated(save);
     await save.click();
-    await expect(gradeCard.getByText("Grade saved")).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect
+      .poll(() =>
+        withDb((db) =>
+          db
+            .collection("grade")
+            .countDocuments({ testId, studentId: students[0] }),
+        ),
+      )
+      .toBe(1);
 
     // Then the badge drops to 1 without a reload
     await expect(toGradeLink).toContainText("1");
@@ -133,12 +139,16 @@ test.describe("Sidebar badges", () => {
       );
       const card = page.getByTestId("grade-card");
       await card.getByLabel("Score (0–100):").fill("70");
-      const saveButton = card.getByRole("button", { name: "Save Grade" });
+      const saveButton = card.getByRole("button", { name: /^Save & next/ });
       await hydrated(saveButton);
       await saveButton.click();
-      await expect(card.getByText("Grade saved")).toBeVisible({
-        timeout: 10_000,
-      });
+      await expect
+        .poll(() =>
+          withDb((db) =>
+            db.collection("grade").countDocuments({ testId, studentId }),
+          ),
+        )
+        .toBe(1);
     }
 
     // Then nothing waits and the badge is gone

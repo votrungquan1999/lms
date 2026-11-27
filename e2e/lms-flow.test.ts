@@ -553,12 +553,12 @@ test.describe("LMS E2E Flow", () => {
     await q1Form
       .getByPlaceholder("Enter the correct solution")
       .fill("function hello() { return 'hello world'; }");
-    await q1Form.getByRole("button", { name: "Save Grade" }).click();
+    await q1Form.getByRole("button", { name: /^Save & next/ }).click();
 
     // Then a success message appears
-    await expect(q1Form.getByText("Grade saved")).toBeVisible({
-      timeout: 10000,
-    });
+    await expect(
+      page.getByRole("link", { name: /^Q\d+ graded$/ }).first(),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   // ─── Step 17: Atomic reveal — score visible after admin grades Q1 ─────────

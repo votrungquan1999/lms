@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
 import type { Db } from "mongodb";
+import { GradingMode } from "src/lib/grading-mode";
 import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
@@ -10,7 +11,7 @@ import {
 } from "src/tests/render-server-page";
 import { seedExpiredNeverHandedIn } from "src/tests/seed-expired-attempt";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GradingMode, GradingSort } from "../grading-page-body.type";
+import { GradingSort } from "../grading-page-body.type";
 import { GradingPageShell } from "../grading-page-shell";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());

@@ -1,7 +1,8 @@
 import type { StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
+import { GradingMode } from "src/lib/grading-mode";
 import type { Question } from "src/lib/question-service";
-import { GradingMode, type GradingSort } from "./grading-page-body.type";
+import type { GradingSort } from "./grading-page-body.type";
 import { gradingHref } from "./href";
 import { QuestionRowUi } from "./question-row.ui";
 import {

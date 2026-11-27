@@ -32,13 +32,12 @@ vi.mock("src/lib/auth-singleton", () => ({
 }));
 
 vi.mock("../actions", () => ({
-  gradeQuestionAction: vi.fn(),
   setTestFeedbackAction: vi.fn(),
   releaseGradesAction: vi.fn(),
   releaseCorrectAnswersAction: vi.fn(),
   requestRedoAction: vi.fn(),
   releaseGradeForStudentAction: vi.fn(),
-  saveAndJumpToNextAction: vi.fn(),
+  saveAndNextAction: vi.fn(),
 }));
 
 describe("Feature: GradingPage roster ordering", () => {

@@ -22,13 +22,12 @@ vi.mock("src/lib/auth-singleton", () => ({ getAuthService: vi.fn() }));
 vi.mock(
   "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions",
   () => ({
-    gradeQuestionAction: vi.fn(),
     setTestFeedbackAction: vi.fn(),
     releaseGradesAction: vi.fn(),
     releaseCorrectAnswersAction: vi.fn(),
     requestRedoAction: vi.fn(),
     releaseGradeForStudentAction: vi.fn(),
-    saveAndJumpToNextAction: vi.fn(),
+    saveAndNextAction: vi.fn(),
   }),
 );
 
@@ -881,7 +880,7 @@ describe("Feature: GradingVariantPage", () => {
     ).toBeNull();
   });
 
-  it("when I'm grading a student, I see a 'Save & Next' button alongside the Save Grade button on each question's form", async () => {
+  it("when I'm grading a student, Save & next is the only button that saves the grade", async () => {
     const services = getTestServices();
 
     const course = await services.courseService.createCourse({
@@ -927,11 +926,9 @@ describe("Feature: GradingVariantPage", () => {
     render(ui);
 
     const detail = screen.getByTestId(`student-card-${student.id}`);
-    // Both buttons are visible — "Save Grade" and "Save & Next" — so I can
-    // choose whether to keep reviewing the current student or move on.
     expect(
-      within(detail).getByRole("button", { name: /save grade/i }),
-    ).toBeInTheDocument();
+      within(detail).queryByRole("button", { name: /save grade/i }),
+    ).toBeNull();
     expect(
       within(detail).getByRole("button", { name: /save & next/i }),
     ).toBeInTheDocument();

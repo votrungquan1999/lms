@@ -1,6 +1,7 @@
 import { AiGradingFailedNote } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grading-failed-note.ui";
 import { AiGradingInProgressNote } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grading-in-progress-note.ui";
 import { AiSuggestionPanel } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-suggestion-panel";
+import type { SaveAndNextNavigation } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import {
   OverallFeedbackForm,
   RequestRedoButton,
@@ -22,8 +23,18 @@ import {
   CollectOutcomeKind,
 } from "src/lib/ai-grade-types";
 import { attachAnswerImageUrls } from "src/lib/answer-image-urls";
+import { GradingMode } from "src/lib/grading-mode";
+import {
+  type GradingScreenRead,
+  readGradingScreen,
+} from "src/lib/grading-screen-read";
+import {
+  countOtherStudentsToGrade,
+  findNextAnswerToGrade,
+  type NextAnswerInput,
+  questionsToGrade,
+} from "src/lib/next-answer-to-grade";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
-import { isMcQuestion } from "src/lib/question-service";
 import {
   getAiGradeJobService,
   getAiGradeService,
@@ -40,6 +51,7 @@ import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { StudentStatusBadge } from "../student-status-badge";
 import type { GradingSort } from "./grading-page-body.type";
+import { gradingRouteKind } from "./href";
 import { QuestionRow } from "./question-row";
 
 interface GradingDetailStudentProps {
@@ -56,6 +68,8 @@ interface GradingDetailStudentProps {
   sort?: GradingSort;
   /** Show only the answers that need a grade in the question row. */
   needsOnly?: boolean;
+  /** The screen's read of the test; read here when the caller has none. */
+  screen?: GradingScreenRead;
 }
 
 /**
@@ -73,6 +87,7 @@ export async function GradingDetailStudent({
   basePath,
   sort,
   needsOnly = false,
+  screen: givenScreen,
 }: GradingDetailStudentProps) {
   const testId = test.id;
 
@@ -150,6 +165,8 @@ export async function GradingDetailStudent({
     student.id,
   );
 
+  const screen = givenScreen ?? (await readGradingScreen(schoolId, test));
+
   const aiGradeService = await getAiGradeService(schoolId);
   // Before the first suggestions read, so a finished job shows up in this render.
   const collected = await aiGradeService.collectRunnerResult(
@@ -198,20 +215,39 @@ export async function GradingDetailStudent({
   const hasAnswers = latestAnswers.length > 0;
   const hasActiveRedoRequest = activeRedoRequest !== null;
 
-  // Ordered ids of the questions whose grade form offers Save & Next: written
-  // answers with text (choice answers are read-only; blank and photo answers
-  // get no Save & Next). Must match the grade form's gate and `saveAndNext`
-  // below, or Save & Next could land on a question with no form.
-  const formBearingQuestionIds = questions
-    .filter((question) => {
-      if (isMcQuestion(question)) {
-        return false;
-      }
-      const rawAnswer = rawAnswerMap.get(question.id);
-      return rawAnswer?.type === "free_text" && !!rawAnswer.text;
-    })
-    .map((question) => question.id)
-    .join(",");
+  // The label comes from the same search the Save & next action runs.
+  const nextInput: NextAnswerInput = {
+    mode: "student",
+    students: screen.students,
+    current: { studentId: student.id, questionId: selectedQuestion?.id ?? "" },
+    questions: screen.questions,
+    pairs: screen.pairs,
+    answers: screen.answers,
+    grades: screen.grades,
+  };
+  const next = selectedQuestion ? findNextAnswerToGrade(nextInput) : null;
+  const nextQuestion = screen.questions.find((q) => q.id === next?.questionId);
+  const otherStudentsWaiting = countOtherStudentsToGrade(nextInput, student.id);
+  const answersLeftHere = questionsToGrade(nextInput, student.id).length;
+  const saveAndNext: SaveAndNextNavigation = {
+    routeKind: gradingRouteKind(basePath),
+    mode: GradingMode.Student,
+    needsOnly,
+    ...(next && nextQuestion && next.studentId === student.id
+      ? {
+          label: `Save & next: Q${nextQuestion.order} ›`,
+          leftLine: `${answersLeftHere} written ${answersLeftHere === 1 ? "answer" : "answers"} left for ${student.name}`,
+        }
+      : next
+        ? {
+            label: "Save & next student",
+            leftLine: `${student.name}'s last answer to grade · ${otherStudentsWaiting} more ${otherStudentsWaiting === 1 ? "student" : "students"} waiting`,
+          }
+        : {
+            label: "Save & next",
+            leftLine: "Nothing else in this test needs a grade",
+          }),
+  };
 
   return (
     <div
@@ -336,17 +372,7 @@ export async function GradingDetailStudent({
                   {aiGradingFailed && <AiGradingFailedNote />}
                 </>
               }
-              saveAndNext={
-                selectedAnswer?.type === "free_text"
-                  ? {
-                      candidateIds: formBearingQuestionIds,
-                      currentStudentId: student.id,
-                      returnPath: basePath,
-                      mode: "student" as const,
-                      sort,
-                    }
-                  : undefined
-              }
+              saveAndNext={saveAndNext}
             >
               {selectedQuestion.type === "free_text" &&
                 selectedSuggestions.length > 0 && (

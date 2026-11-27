@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { GradingMode } from "src/lib/grading-mode";
 import type { Question } from "src/lib/question-service";
-import { GradingMode } from "./grading-page-body.type";
 import { gradingHref } from "./href";
 
 interface GradingRosterQuestionsProps {

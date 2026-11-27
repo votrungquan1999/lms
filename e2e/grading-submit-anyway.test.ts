@@ -39,13 +39,13 @@ test.describe("Grading a student who is still writing", () => {
 
     const gradeCard = page.getByTestId("grade-card");
     await gradeCard.getByLabel("Score (0–100):").fill("73");
-    const save = gradeCard.getByRole("button", { name: "Save Grade" });
+    const save = gradeCard.getByRole("button", { name: /^Save & next/ });
     await hydrated(save);
     await save.click();
     await page.getByRole("button", { name: "Submit Anyway" }).click();
-    await expect(gradeCard.getByText("Grade saved")).toBeVisible({
-      timeout: 10000,
-    });
+    await expect(
+      page.getByRole("link", { name: /^Q\d+ graded$/ }).first(),
+    ).toBeVisible({ timeout: 10000 });
 
     await page.reload();
     await expect(

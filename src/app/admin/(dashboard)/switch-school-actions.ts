@@ -13,7 +13,7 @@ import { getSchoolService } from "src/lib/services-singleton";
  * Server action: switches the signed-in admin's active school. Always
  * re-verifies membership server-side — the submitted school id is never
  * trusted on its own, since a stale tab or a tampered form could name any
- * school. `redirect()` stays outside any try/catch (as in `saveAndJumpToNextAction`
+ * school. `redirect()` stays outside any try/catch (as in `saveAndNextAction`
  * in grading/actions.ts): it throws `NEXT_REDIRECT`, and the current page's ids belong
  * to the OLD school, so staying on it after the switch would show the
  * wrong data.

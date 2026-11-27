@@ -22,7 +22,7 @@ interface GradePanelProps {
   /** The saved grade, or undefined when there is none. */
   grade: Grade | undefined;
   status: TestStatus;
-  saveAndNext?: SaveAndNextNavigation;
+  saveAndNext: SaveAndNextNavigation;
   /** What the AI grading job is doing, shown under the panel's title. */
   aiJobNotes?: React.ReactNode;
   /** The More menu, shown beside the panel's title. */

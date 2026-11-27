@@ -6,9 +6,12 @@
 
 import type { TestStatus } from "src/lib/test-status-service";
 
-export enum GradingMode {
-  Student = "student",
-  Question = "question",
+/** Which of the two grading routes a link stays on. */
+export enum GradingRouteKind {
+  /** `/admin/grading/<testId>` */
+  Hub = "hub",
+  /** `/admin/courses/<courseId>/tests/<testId>/grading` */
+  Course = "course",
 }
 
 export enum GradingSort {

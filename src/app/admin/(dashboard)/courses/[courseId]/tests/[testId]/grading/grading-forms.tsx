@@ -2,6 +2,7 @@
 
 import { useActionState, useId, useState } from "react";
 import { formatReleaseLine } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/test-settings-panel";
+import type { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { useReportUnsavedGrade } from "src/app/admin/(dashboard)/grading/page-body/unsaved-grade.state";
 import {
   AlertDialog,
@@ -17,44 +18,33 @@ import {
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
+import type { GradingMode } from "src/lib/grading-mode";
 import { TestStatus } from "src/lib/test-status-service";
 import {
-  type GradeQuestionState,
-  gradeQuestionAction,
   type ReleaseCorrectAnswersState,
   type ReleaseGradesState,
   type RequestRedoState,
   releaseCorrectAnswersAction,
   releaseGradesAction,
   requestRedoAction,
-  saveAndJumpToNextAction,
+  saveAndNextAction,
   setTestFeedbackAction,
   type TestFeedbackState,
 } from "./actions";
 
 // ── Shared base props ─────────────────────────────────────────────────────────
 
-/**
- * Optional "Save & Next" navigation payload. When set, the grade form
- * renders a second submit button that persists the grade and then jumps
- * to the next ungraded item via the `saveAndJumpToNextAction` server
- * action. See `saveAndJumpToNextAction` for the semantics.
- */
+/** What the pinned Save & next button posts and says. */
 export interface SaveAndNextNavigation {
-  /**
-   * Comma-separated ids in navigation order. Meaning depends on `mode`:
-   * student ids in roster sort order for `"question"`; this student's
-   * ordered form-bearing question ids for `"student"`.
-   */
-  candidateIds: string;
-  /** The student id currently focused (the one being graded right now). */
-  currentStudentId: string;
-  /** Base path the action redirects back to (no query string). */
-  returnPath: string;
-  /** `"student"` or `"question"` — picks the "next ungraded" rule. */
-  mode: "student" | "question";
-  /** Current sort criterion, preserved in the redirect target. */
-  sort?: string;
+  /** The grading route the next link stays on. */
+  routeKind: GradingRouteKind;
+  mode: GradingMode;
+  /** Keep "Needs grading only" on after the move. */
+  needsOnly: boolean;
+  /** The button's text: where it goes. */
+  label: string;
+  /** Shown above the button: how much is left. */
+  leftLine?: string;
 }
 
 interface BaseGradeFormProps {
@@ -68,8 +58,7 @@ interface BaseGradeFormProps {
   existingFeedback: string | null;
   existingSolution: string | null;
   studentStatus?: TestStatus;
-  /** When present, renders a "Save & Next" button alongside the save. */
-  saveAndNext?: SaveAndNextNavigation;
+  saveAndNext: SaveAndNextNavigation;
   /** Offers 0 / 50 / 100 buttons that fill the score field. */
   showQuickScores?: boolean;
   /**
@@ -198,21 +187,18 @@ function GradeFormInner({
   formKey,
   children,
 }: BaseGradeFormProps) {
-  const [state, formAction, isPending] = useActionState<
-    GradeQuestionState | null,
-    FormData
-  >(gradeQuestionAction, null);
-
-  const submitLabel = isPending
-    ? "Saving..."
-    : existingScore !== null
-      ? "Update Grade"
-      : "Save Grade";
-
   const requiresConfirm = studentStatus === TestStatus.InProgress;
 
   // The confirm dialog is portalled out of the form, so its button targets it by id.
   const formId = useId();
+  // The save and its redirect run as one pending action, so the button locks until the next answer opens.
+  const [, saveAction, isSaving] = useActionState(
+    async (_previous: null, formData: FormData) => {
+      await saveAndNextAction(formData);
+      return null;
+    },
+    null,
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -220,35 +206,17 @@ function GradeFormInner({
         <form
           key={formKey}
           id={formId}
-          action={formAction}
+          action={saveAction}
           className="space-y-3"
         >
           <input type="hidden" name="testId" value={testId} />
           <input type="hidden" name="courseId" value={courseId} />
           <input type="hidden" name="questionId" value={questionId} />
           <input type="hidden" name="studentId" value={studentId} />
-          {saveAndNext && (
-            <>
-              <input
-                type="hidden"
-                name="candidateIds"
-                value={saveAndNext.candidateIds}
-              />
-              <input
-                type="hidden"
-                name="currentStudentId"
-                value={saveAndNext.currentStudentId}
-              />
-              <input
-                type="hidden"
-                name="returnPath"
-                value={saveAndNext.returnPath}
-              />
-              <input type="hidden" name="mode" value={saveAndNext.mode} />
-              {saveAndNext.sort && (
-                <input type="hidden" name="sort" value={saveAndNext.sort} />
-              )}
-            </>
+          <input type="hidden" name="routeKind" value={saveAndNext.routeKind} />
+          <input type="hidden" name="mode" value={saveAndNext.mode} />
+          {saveAndNext.needsOnly && (
+            <input type="hidden" name="needsOnly" value="1" />
           )}
 
           <GradeInputs
@@ -262,56 +230,51 @@ function GradeFormInner({
         {children}
       </div>
 
-      {/* Outside the form's scroll area so the buttons stay in view; `form` ties them to it. */}
+      {/* Outside the form's scroll area so the button stays in view; `form` ties it to it. */}
       <div className="shrink-0 space-y-2">
-        <div className="flex items-center gap-3">
-          {requiresConfirm ? (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button type="button" size="sm" disabled={isPending}>
-                  {submitLabel}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Submit grade anyway?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This student hasn&apos;t submitted their test yet. Are you
-                    sure you want to grade their in-progress work?
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction type="submit" form={formId}>
-                    Submit Anyway
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : (
-            <Button type="submit" form={formId} size="sm" disabled={isPending}>
-              {submitLabel}
-            </Button>
-          )}
-          {saveAndNext && (
-            <Button
-              type="submit"
-              form={formId}
-              size="sm"
-              variant="secondary"
-              disabled={isPending}
-              formAction={saveAndJumpToNextAction}
-            >
-              Save & Next
-            </Button>
-          )}
-        </div>
-        {state?.message && (
-          <p
-            className={`text-sm ${state.success ? "text-green-600" : "text-destructive"}`}
-          >
-            {state.message}
+        {saveAndNext.leftLine && (
+          <p className="text-xs text-muted-foreground">
+            {saveAndNext.leftLine}
           </p>
+        )}
+        {requiresConfirm ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                className="w-full"
+                disabled={isSaving}
+              >
+                {saveAndNext.label}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Submit grade anyway?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This student hasn&apos;t submitted their test yet. Are you
+                  sure you want to grade their in-progress work?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction type="submit" form={formId}>
+                  Submit Anyway
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button
+            type="submit"
+            form={formId}
+            size="sm"
+            className="w-full"
+            disabled={isSaving}
+          >
+            {saveAndNext.label}
+          </Button>
         )}
       </div>
     </div>

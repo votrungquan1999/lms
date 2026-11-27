@@ -53,10 +53,10 @@ test.describe("Grade panel", () => {
     await expect(panel.getByLabel("Score (0–100):")).toHaveValue("50");
     await panel.getByLabel("Feedback:", { exact: true }).fill("Good start");
     await panel.getByLabel(/Correct Solution/).fill("the fixed answer");
-    await panel.getByRole("button", { name: "Save Grade" }).click();
-    await expect(panel.getByText("Grade saved")).toBeVisible({
-      timeout: 10000,
-    });
+    await panel.getByRole("button", { name: /^Save & next/ }).click();
+    await expect(
+      page.getByRole("link", { name: /^Q\d+ graded$/ }).first(),
+    ).toBeVisible({ timeout: 10000 });
 
     const grade = await withDb((db) =>
       db.collection("grade").findOne({ testId, questionId, studentId }),
