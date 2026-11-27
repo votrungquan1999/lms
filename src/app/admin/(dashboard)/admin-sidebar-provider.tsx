@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { type CSSProperties, type ReactNode, useState } from "react";
 import { SidebarProvider } from "src/components/ui/sidebar";
 import { ScreenSize, useScreenSize } from "src/hooks/use-screen-size";
@@ -10,8 +11,13 @@ const railStyle = { "--sidebar-width-icon": "3.5rem" } as CSSProperties;
 const noSlide =
   "[&_[data-slot=sidebar-container]]:transition-none [&_[data-slot=sidebar-gap]]:transition-none";
 
+// The grading screens give their width to the answer, so they open on the rail
+const GRADING_PATH =
+  /^\/admin\/(grading\/[^/]+|courses\/[^/]+\/tests\/[^/]+\/grading)\/?$/;
+
 /**
- * Opens the sidebar on a desktop and folds it to the icon rail on a tablet.
+ * Opens the sidebar on a desktop and folds it to the icon rail on a tablet
+ * or on a grading screen.
  * A teacher's own fold or expand holds only for the screen size it was made
  * in, so resizing across a breakpoint returns to that size's default.
  * Only that fold or expand slides; the size default applies at once, so a
@@ -20,9 +26,12 @@ const noSlide =
  */
 export function AdminSidebarProvider({ children }: { children: ReactNode }) {
   const size = useScreenSize();
+  const foldedByDefault = GRADING_PATH.test(usePathname());
   const [choice, setChoice] = useState<{ size: ScreenSize; open: boolean }>();
   const ownChoice = choice?.size === size;
-  const open = ownChoice ? choice.open : size === ScreenSize.Desktop;
+  const open = ownChoice
+    ? choice.open
+    : size === ScreenSize.Desktop && !foldedByDefault;
 
   return (
     <SidebarProvider

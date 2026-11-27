@@ -338,6 +338,46 @@ describe("AnswerService - Integration Tests", () => {
     },
   );
 
+  dbIt(
+    "should return the latest answer per student and question across the whole test",
+    async ({ db }) => {
+      await insertRawTest(db, "test-1");
+      await insertRawTest(db, "test-2");
+      await seedQuestion(db, "test-1", "q-1");
+      await seedQuestion(db, "test-2", "q-9");
+      const answerService = new AnswerService(
+        db,
+        new QuestionService(db, buildTestService(db)),
+        buildTestService(db),
+        new TestStartService(db),
+      );
+      const answer = (
+        testId: string,
+        questionId: string,
+        studentId: string,
+        text: string,
+      ) =>
+        answerService.submitAnswer({
+          testId,
+          questionId,
+          studentId,
+          answer: { type: "free_text", text },
+        });
+
+      await answer("test-1", "q-1", "student-1", "First");
+      await answer("test-1", "q-1", "student-1", "Second");
+      await answer("test-1", "q-1", "student-2", "Other student");
+      await answer("test-2", "q-9", "student-1", "Another test");
+
+      const latest = await answerService.getLatestAnswersForTest("test-1");
+
+      expect(latest.map((a) => [a.studentId, a.answer]).sort()).toEqual([
+        ["student-1", { type: "free_text", text: "Second" }],
+        ["student-2", { type: "free_text", text: "Other student" }],
+      ]);
+    },
+  );
+
   dbIt("should return empty array when no answers exist", async ({ db }) => {
     await insertRawTest(db, "test-1");
     await insertRawTest(db, "test-mc");

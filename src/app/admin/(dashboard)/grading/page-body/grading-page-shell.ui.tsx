@@ -7,30 +7,20 @@ import { GradingMode } from "./grading-page-body.type";
 import { gradingHref } from "./href";
 
 interface TwoPaneShellProps {
+  topBar: React.ReactNode;
   roster: React.ReactNode;
   main: React.ReactNode;
-  pivot: React.ReactNode;
-  progress: React.ReactNode;
 }
 
 /**
- * Two-pane grid: pivot toggle at the top, then a fixed-width roster sidebar
- * on the left and a flexible main pane on the right. Layout-only display
- * component (server-components-rules.md forbids layout inside server
- * components).
+ * Top bar over a two-pane grid: a fixed-width roster sidebar on the left and
+ * a flexible main pane on the right. Layout-only display component
+ * (server-components-rules.md forbids layout inside server components).
  */
-export function TwoPaneShell({
-  roster,
-  main,
-  pivot,
-  progress,
-}: TwoPaneShellProps) {
+export function TwoPaneShell({ topBar, roster, main }: TwoPaneShellProps) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        {pivot}
-        {progress}
-      </div>
+      {topBar}
       <div className="grid grid-cols-[18rem_minmax(0,1fr)] items-start gap-6">
         <aside
           className="rounded-md border border-border bg-card p-2"

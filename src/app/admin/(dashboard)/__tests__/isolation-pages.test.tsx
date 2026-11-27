@@ -15,10 +15,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CourseDetailBreadcrumb from "../@breadcrumb/courses/[courseId]/page";
 import ResultsReportBreadcrumb from "../@breadcrumb/courses/[courseId]/results-report/page";
-import GradingBreadcrumb from "../@breadcrumb/courses/[courseId]/tests/[testId]/grading/page";
 import ImportAiBreadcrumb from "../@breadcrumb/courses/[courseId]/tests/[testId]/import-ai/page";
 import TestDetailBreadcrumb from "../@breadcrumb/courses/[courseId]/tests/[testId]/page";
-import GradingTestBreadcrumb from "../@breadcrumb/grading/[testId]/page";
 import PoolDetailBreadcrumb from "../@breadcrumb/pools/[poolId]/page";
 import CourseTabsLayout from "../courses/[courseId]/(tabs)/layout";
 import CourseMaterialsPage from "../courses/[courseId]/(tabs)/materials/page";
@@ -339,19 +337,6 @@ describe("Feature: a school admin's breadcrumbs never name another school's reco
       },
     ],
     [
-      "@breadcrumb/courses/[courseId]/tests/[testId]/grading/page.tsx",
-      async () => {
-        const { courseId, testId } = await createForeignTest();
-        render(
-          await GradingBreadcrumb({
-            params: Promise.resolve({ courseId, testId }),
-          }),
-        );
-        expect(screen.getByText("Course")).toBeInTheDocument();
-        expect(screen.getByText("Test")).toBeInTheDocument();
-      },
-    ],
-    [
       "@breadcrumb/courses/[courseId]/tests/[testId]/import-ai/page.tsx",
       async () => {
         const { courseId, testId } = await createForeignTest();
@@ -361,16 +346,6 @@ describe("Feature: a school admin's breadcrumbs never name another school's reco
           }),
         );
         expect(screen.getByText("Course")).toBeInTheDocument();
-        expect(screen.getByText("Test")).toBeInTheDocument();
-      },
-    ],
-    [
-      "@breadcrumb/grading/[testId]/page.tsx",
-      async () => {
-        const { testId } = await createForeignTest();
-        render(
-          await GradingTestBreadcrumb({ params: Promise.resolve({ testId }) }),
-        );
         expect(screen.getByText("Test")).toBeInTheDocument();
       },
     ],

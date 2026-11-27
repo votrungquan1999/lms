@@ -208,6 +208,28 @@ export class AnswerService {
   }
 
   /**
+   * Returns the most recent answer per (student, question) for a whole test.
+   * @param testId - A test the caller already verified belongs to its school.
+   */
+  async getLatestAnswersForTest(testId: string): Promise<Answer[]> {
+    const docs = await this.answers
+      .aggregate<AnswerDocument>([
+        { $match: { testId } },
+        { $sort: { submittedAt: -1 as const } },
+        {
+          $group: {
+            _id: { s: "$studentId", q: "$questionId" },
+            doc: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$doc" } },
+      ])
+      .toArray();
+
+    return docs.map(this.toAnswer);
+  }
+
+  /**
    * Returns the number of accepted submissions per question in a test,
    * for a specific student. Spans all answer types (mc/free_text/image).
    */

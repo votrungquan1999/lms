@@ -191,6 +191,20 @@ test.describe("Teacher shell: where the teacher is", () => {
     // Then To grade is the only current entry
     await expect(current).toHaveCount(1);
     await expect(current).toContainText("To grade");
+
+    // When they open grading from the course's Tests tab
+    await page.goto(`/admin/courses/${courseId}/tests/${testId}/grading`);
+
+    // Then To grade is the only current entry there too
+    await expect(current).toHaveCount(1);
+    await expect(current).toContainText("To grade");
+
+    // When they go back to the test page
+    await page.goto(`/admin/courses/${courseId}/tests/${testId}`);
+
+    // Then Courses is the current entry again
+    await expect(current).toHaveCount(1);
+    await expect(current).toHaveText("Courses");
   });
 
   test("a nested page shows its breadcrumb inside the page above the title, and a top-level page shows none", async ({

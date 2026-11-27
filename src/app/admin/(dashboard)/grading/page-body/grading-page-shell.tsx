@@ -1,11 +1,4 @@
-import {
-  getAnswerService,
-  getEnrollmentService,
-  getGradeService,
-  getQuestionService,
-  getStudentService,
-  getTestStatusService,
-} from "src/lib/services-singleton";
+import { readGradingScreen } from "src/lib/grading-screen-read";
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { GradingDetailQuestion } from "./grading-detail-question";
@@ -22,6 +15,8 @@ import {
 } from "./grading-page-shell.ui";
 import { GradingRoster } from "./grading-roster";
 import { GradingRosterQuestions } from "./grading-roster-questions";
+import { GradingTopBar, StudentPosition } from "./grading-top-bar.ui";
+import { gradingHref } from "./href";
 
 interface GradingSelection {
   mode: GradingMode;
@@ -39,12 +34,14 @@ interface GradingPageShellProps {
   basePath: string;
   /** URL-driven selection. Unknown ids soft-fall-back to the first student/question. */
   selection: GradingSelection;
+  /** Controls shown at the right end of the top bar. */
+  barActions?: React.ReactNode;
 }
 
 /**
- * Two-pane grading shell with a pivot toggle. Student-mode renders the
- * student roster on the left and the focused student's full detail on the
- * right. Question-mode swaps the roster to a list of questions and the
+ * Grading shell: a top bar over a roster and the focused detail. Student-mode
+ * renders the student roster on the left and the focused student's full detail
+ * on the right. Question-mode swaps the roster to a list of questions and the
  * right pane to one row per enrolled student for the focused question.
  */
 export async function GradingPageShell({
@@ -53,57 +50,26 @@ export async function GradingPageShell({
   schoolId,
   basePath,
   selection,
+  barActions,
 }: GradingPageShellProps) {
-  const enrollmentService = await getEnrollmentService(schoolId);
-  const studentIds = await enrollmentService.listEnrollmentsByCourse(courseId);
+  const screen = await readGradingScreen(schoolId, test);
+  const { questions, students: orderedStudents } = screen;
 
-  const studentService = await getStudentService(schoolId);
-  const students = await studentService.findByIds(studentIds);
-
-  const studentById = new Map(students.map((s) => [s.id, s]));
-  const orderedStudents = studentIds
-    .map((id) => studentById.get(id))
-    .filter((s): s is NonNullable<typeof s> => s !== undefined);
-
-  const questionService = await getQuestionService(schoolId);
-  const questions = await questionService.listQuestions(test.id);
-  const liveQuestionIds = new Set(questions.map((q) => q.id));
-
-  const answerService = await getAnswerService(schoolId);
-  const gradeService = await getGradeService(schoolId);
-  const testStatusService = await getTestStatusService(schoolId);
-
-  const cellsInEnrollmentOrder: RosterStudentCellModel[] = await Promise.all(
-    orderedStudents.map(async (s) => {
-      // Status first: it hands in an expired attempt, whose grades the count below must see.
-      const status = await testStatusService.getStatus(
-        test.id,
-        s.id,
-        questions.length,
-      );
-
-      // A question can be deleted after a student answers it — that answer
-      // must not keep counting toward the roster's counts once it's gone.
-      const latestAnswers = (
-        await answerService.getLatestAnswers(test.id, s.id)
-      ).filter((a) => liveQuestionIds.has(a.questionId));
-      const grades = (await gradeService.getGrades(test.id, s.id)).filter((g) =>
-        liveQuestionIds.has(g.questionId),
-      );
-
+  const cellsInEnrollmentOrder: RosterStudentCellModel[] = orderedStudents.map(
+    (s) => {
+      const status = screen.pairs.get(s.id)?.status ?? TestStatus.NotStarted;
+      const answeredCount = screen.answers.get(s.id)?.size ?? 0;
       return {
         id: s.id,
         name: s.name,
         username: s.username,
         status,
-        gradedCount: grades.length,
-        answeredCount: latestAnswers.length,
+        gradedCount: screen.grades.get(s.id)?.size ?? 0,
+        answeredCount,
         // A question is only "blank" once the student can no longer answer it.
-        blankCount: hasSubmitted(status)
-          ? questions.length - latestAnswers.length
-          : 0,
+        blankCount: hasSubmitted(status) ? questions.length - answeredCount : 0,
       };
-    }),
+    },
   );
 
   // Apply the selected sort. Tiebreaker is enrollment index (newest-first),
@@ -164,50 +130,73 @@ export async function GradingPageShell({
       </p>
     );
 
-  // Progress fraction: student-mode = fully-graded students / enrolled;
-  // question-mode = students with a grade for the active question / enrolled.
-  const denominator = orderedStudents.length;
-  let numerator = 0;
+  // Progress: By student counts fully graded students over the students who
+  // handed in; By question counts the focused question's graded students over
+  // the enrolled ones.
+  let progress = {
+    numerator: screen.counts?.fullyGraded ?? 0,
+    denominator: screen.counts?.submitted ?? 0,
+    label: "fully graded",
+  };
   if (selection.mode === GradingMode.Question && focusedQuestion) {
-    const statusById = new Map(
-      cellsInEnrollmentOrder.map((c) => [c.id, c.status]),
-    );
-    const resolved = await Promise.all(
-      orderedStudents.map(async (s) => {
-        const grade = await gradeService.getGrade(
-          test.id,
-          focusedQuestion.id,
-          s.id,
-        );
-        if (grade !== null) return true;
-        // No grade row: only a submitted student's blank counts as
-        // resolved — an in-progress student may still go back and answer.
-        const status = statusById.get(s.id);
-        if (!status || !hasSubmitted(status)) return false;
-        const answers = await answerService.getLatestAnswers(test.id, s.id);
-        return !answers.some((a) => a.questionId === focusedQuestion.id);
-      }),
-    );
-    numerator = resolved.filter(Boolean).length;
-  } else {
-    // "Fully graded" now means exactly Graded status — an all-blank
-    // submission is vacuously fully graded, so this can no longer require
-    // answeredCount > 0.
-    numerator = cells.filter((c) => c.status === TestStatus.Graded).length;
+    const resolved = cellsInEnrollmentOrder.filter((c) => {
+      if (screen.grades.get(c.id)?.has(focusedQuestion.id)) return true;
+      // No grade row: only a submitted student's blank counts as
+      // resolved — an in-progress student may still go back and answer.
+      return (
+        hasSubmitted(c.status) &&
+        !screen.answers.get(c.id)?.has(focusedQuestion.id)
+      );
+    });
+    progress = {
+      numerator: resolved.length,
+      denominator: orderedStudents.length,
+      label: "students graded",
+    };
   }
-  const progressLabel =
-    selection.mode === GradingMode.Question
-      ? "students graded"
-      : "students fully graded";
+
+  // ‹ › step through the students who handed in, in roster order.
+  const submittedIds = cells
+    .filter((c) => hasSubmitted(c.status))
+    .map((c) => c.id);
+  const focusedIndex = focused ? submittedIds.indexOf(focused.id) : -1;
+  const studentHref = (id: string | undefined) =>
+    id === undefined
+      ? null
+      : gradingHref({
+          basePath,
+          mode: GradingMode.Student,
+          studentId: id,
+          sort: selection.sort,
+        });
+  // A student outside the list opens the first one with › and the last with ‹.
+  const previousId =
+    focusedIndex === -1
+      ? submittedIds[submittedIds.length - 1]
+      : submittedIds[focusedIndex - 1];
+  const nextId =
+    focusedIndex === -1 ? submittedIds[0] : submittedIds[focusedIndex + 1];
 
   return (
     <TwoPaneShell
-      pivot={<PivotToggle mode={selection.mode} basePath={basePath} />}
-      progress={
-        <GradingProgress
-          numerator={numerator}
-          denominator={denominator}
-          label={progressLabel}
+      topBar={
+        <GradingTopBar
+          backHref={`/admin/courses/${courseId}/tests/${test.id}`}
+          testTitle={test.title}
+          pivot={<PivotToggle mode={selection.mode} basePath={basePath} />}
+          position={
+            selection.mode === GradingMode.Student && focused ? (
+              <StudentPosition
+                name={focused.name}
+                index={focusedIndex === -1 ? null : focusedIndex + 1}
+                submittedCount={submittedIds.length}
+                previousHref={studentHref(previousId)}
+                nextHref={studentHref(nextId)}
+              />
+            ) : null
+          }
+          progress={<GradingProgress {...progress} />}
+          actions={barActions}
         />
       }
       roster={

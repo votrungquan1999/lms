@@ -24,7 +24,6 @@ import { ComposeFromPoolsForm } from "../courses/[courseId]/tests/[testId]/compo
 import TestGradingPage from "../courses/[courseId]/tests/[testId]/grading/page";
 import TestDetailPage from "../courses/[courseId]/tests/[testId]/page";
 import CoursesPage from "../courses/page";
-import GradingVariantPage from "../grading/[testId]/page";
 import GradingHubPage from "../grading/page";
 import JoinRequestsPage from "../join-requests/page";
 import PoolsPage from "../pools/page";
@@ -328,36 +327,6 @@ describe("Feature: a school admin's lists show only their current school's stude
     );
 
     expect(screen.getAllByText("0 of 1").length).toBeGreaterThan(0);
-  });
-
-  it("the grading page's enrolled header counts only the current school's students", async () => {
-    const test = await getTestServices(schoolId).testService.createTest(
-      ownCourseId,
-      { title: "Own Test", description: "", createdBy: "school-b-admin" },
-    );
-
-    render(
-      await TestGradingPage({
-        params: Promise.resolve({ courseId: ownCourseId, testId: test.id }),
-      }),
-    );
-
-    expect(screen.getByText(/^1 student enrolled/)).toBeInTheDocument();
-  });
-
-  it("the grading-variant page's student count header counts only the current school's students", async () => {
-    const test = await getTestServices(schoolId).testService.createTest(
-      ownCourseId,
-      { title: "Own Test", description: "", createdBy: "school-b-admin" },
-    );
-
-    render(
-      await GradingVariantPage({
-        params: Promise.resolve({ testId: test.id }),
-      }),
-    );
-
-    expect(screen.getByText(/^Own Course · 1 student ·/)).toBeInTheDocument();
   });
 
   it("the grading roster lists only the current school's enrolled students", async () => {

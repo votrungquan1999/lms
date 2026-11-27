@@ -4,17 +4,8 @@ import {
   GradingSort,
 } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { GradingPageShell } from "src/app/admin/(dashboard)/grading/page-body/grading-page-shell";
-import { pluralize } from "src/lib/pluralize";
-import {
-  getEnrollmentService,
-  getPageGuard,
-  getQuestionService,
-  getTestService,
-} from "src/lib/services-singleton";
-import {
-  ReleaseCorrectAnswersButton,
-  ReleaseGradesButton,
-} from "./grading-forms";
+import { GradingReleaseActions } from "src/app/admin/(dashboard)/grading/page-body/grading-release-actions";
+import { getPageGuard, getTestService } from "src/lib/services-singleton";
 
 export const metadata = {
   title: "Grade Test — LMS Admin",
@@ -54,44 +45,9 @@ export default async function GradingPage({
     notFound();
   }
 
-  const enrollmentService = await getEnrollmentService(session.school.id);
-  const enrolledCount = (
-    await enrollmentService.listEnrollmentsByCourse(courseId)
-  ).length;
-
-  const questionService = await getQuestionService(session.school.id);
-  const questions = await questionService.listQuestions(testId);
-
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
-      <header className="w-full">
-        <h1 className="wrap-anywhere text-3xl font-bold tracking-tight">
-          Grade: {test.title}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {enrolledCount} {pluralize(enrolledCount, "student")} enrolled ·{" "}
-          {questions.length} {pluralize(questions.length, "question")}
-        </p>
-        {!test.showGradeAfterSubmit && (
-          <div className="mt-4">
-            <ReleaseGradesButton
-              testId={testId}
-              courseId={courseId}
-              releasedAt={test.gradesReleasedAt}
-            />
-          </div>
-        )}
-        {!test.showCorrectAnswerAfterSubmit && (
-          <div className="mt-4">
-            <ReleaseCorrectAnswersButton
-              testId={testId}
-              courseId={courseId}
-              releasedAt={test.correctAnswersReleasedAt}
-            />
-          </div>
-        )}
-      </header>
-
+    <div className="flex flex-1 flex-col gap-4 p-6">
+      <h1 className="sr-only">Grade: {test.title}</h1>
       {
         await GradingPageShell({
           test,
@@ -99,6 +55,7 @@ export default async function GradingPage({
           schoolId: session.school.id,
           basePath: `/admin/courses/${courseId}/tests/${testId}/grading`,
           selection: { mode, studentId, questionId, sort },
+          barActions: <GradingReleaseActions test={test} courseId={courseId} />,
         })
       }
     </div>

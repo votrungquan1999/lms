@@ -40,6 +40,8 @@ export interface Grade {
   feedback: string;
   solution: string | null;
   gradedAt: Date;
+  /** When the grade was last changed; null until the first change. */
+  updatedAt?: Date | null;
 }
 
 /**
@@ -310,6 +312,15 @@ export class GradeService {
   }
 
   /**
+   * Gets every student's grades on a test.
+   * @param testId - A test the caller already verified belongs to its school.
+   */
+  async getGradesForTest(testId: string): Promise<Grade[]> {
+    const docs = await this.grades.find({ testId }).toArray();
+    return docs.map((doc) => this.toGrade(doc));
+  }
+
+  /**
    * Gets a specific grade for a question on a test by a student.
    * Returns null if not found.
    */
@@ -332,6 +343,7 @@ export class GradeService {
       feedback: doc.feedback,
       solution: doc.solution,
       gradedAt: doc.gradedAt,
+      updatedAt: doc.updatedAt,
     };
   }
 

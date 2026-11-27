@@ -390,6 +390,10 @@ describe("GradingCountService", () => {
       }
       // And the timed attempts were read, not written
       expect(counts.pairs.filter((p) => p.assumedHandIn)).toHaveLength(4);
+      // And only the student with an open redo is flagged
+      expect(counts.pairs.filter((p) => p.redoRequested)).toEqual([
+        expect.objectContaining({ studentId: s.s3 }),
+      ]);
     },
   );
 

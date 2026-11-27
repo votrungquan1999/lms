@@ -70,8 +70,15 @@ function railCount(count: number) {
   return count > 99 ? "99+" : String(count);
 }
 
+/** The grading screen opened from a course's Tests tab; it belongs to To grade, not Courses. */
+const COURSE_GRADING_PATH =
+  /^\/admin\/courses\/[^/]+\/tests\/[^/]+\/grading(\/|$)/;
+
 /** Matches the entry's own page and everything nested under it. */
 function isCurrent(pathname: string, href: string) {
+  const onCourseGrading = COURSE_GRADING_PATH.test(pathname);
+  if (href === "/admin/grading" && onCourseGrading) return true;
+  if (href === "/admin/courses" && onCourseGrading) return false;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

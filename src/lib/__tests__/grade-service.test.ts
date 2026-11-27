@@ -997,3 +997,63 @@ describe("GradeService - Re-grade Override", () => {
     },
   );
 });
+
+describe("GradeService - Test-wide grades", () => {
+  dbIt(
+    "returns every student's grades on the test with the time of a re-grade, and none of another test's",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      const { testService, questionService, gradeService } =
+        buildCoreServices(db);
+      const grade = async (testId: string, questionId: string, who: string) =>
+        gradeService.gradeQuestion({
+          testId,
+          questionId,
+          studentId: who,
+          score: 70,
+          feedback: "",
+          gradedBy: "teacher",
+        });
+
+      // Given two tests, a grade by each of two students on the first, and one re-grade
+      const test = await testService.createTest("course-1", {
+        title: "Test",
+        description: "",
+        createdBy: "admin",
+      });
+      const other = await testService.createTest("course-1", {
+        title: "Other",
+        description: "",
+        createdBy: "admin",
+      });
+      const q = await questionService.addQuestion(test.id, {
+        title: "Q",
+        content: "Q",
+        createdBy: "admin",
+        type: "free_text",
+      });
+      const otherQ = await questionService.addQuestion(other.id, {
+        title: "Q",
+        content: "Q",
+        createdBy: "admin",
+        type: "free_text",
+      });
+      await grade(test.id, q.id, "student-1");
+      await grade(test.id, q.id, "student-2");
+      await grade(other.id, otherQ.id, "student-1");
+      await grade(test.id, q.id, "student-2");
+
+      // When the test's grades are read
+      const grades = await gradeService.getGradesForTest(test.id);
+
+      // Then both students' grades come back, and only the re-graded one has an update time
+      expect(grades.map((g) => g.studentId).sort()).toEqual([
+        "student-1",
+        "student-2",
+      ]);
+      const byStudent = new Map(grades.map((g) => [g.studentId, g]));
+      expect(byStudent.get("student-1")?.updatedAt).toBeNull();
+      expect(byStudent.get("student-2")?.updatedAt).toBeInstanceOf(Date);
+    },
+  );
+});

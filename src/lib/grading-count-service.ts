@@ -24,6 +24,8 @@ export interface PairGradingResult {
   gradedHidden: boolean;
   /** The hand-in was inferred from an expired timed attempt that is not written yet. */
   assumedHandIn: boolean;
+  /** The student has an open redo request on this test. */
+  redoRequested: boolean;
 }
 
 /** Grading counts for one test of the school. */
@@ -416,6 +418,7 @@ export class GradingCountService {
           submittedAt,
           gradedHidden,
           assumedHandIn: Boolean(inferred),
+          redoRequested: redoPairs.has(key),
         });
 
         counts.statusCounts[status]++;
