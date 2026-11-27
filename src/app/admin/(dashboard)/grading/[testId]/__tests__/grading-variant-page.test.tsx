@@ -970,6 +970,95 @@ describe("Feature: GradingVariantPage", () => {
       within(mainPane).getByText(/No students enrolled/i),
     ).toBeInTheDocument();
   });
+  it("when students are enrolled but nobody has handed in, I see 'Nobody has submitted yet.' and the roster still lists them", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Quiet Class",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Midterm",
+      description: "",
+      createdBy: "admin",
+    });
+    await services.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
+    });
+    const student = await services.studentService.createStudentDocument({
+      authUserId: "auth-writing",
+      username: "writing",
+      name: "Still Writing",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      course.id,
+      student.id,
+      "admin",
+    );
+
+    // When: the page renders while the only student has not handed in
+    const ui = await GradingVariantPage({
+      params: Promise.resolve({ testId: test.id }),
+    });
+    render(ui);
+
+    // Then: the main pane says so, and the student is still in the roster
+    const mainPane = screen.getByTestId("grading-main-pane");
+    expect(
+      within(mainPane).getByText("Nobody has submitted yet."),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId(`roster-cell-${student.id}`)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["By student", undefined],
+    ["By question", "question"],
+  ])(
+    "when the test has no questions, %s says 'This test has no questions yet.'",
+    async (_label, mode) => {
+      const services = getTestServices();
+      const course = await services.courseService.createCourse({
+        title: "No Questions Class",
+        description: "",
+        createdBy: "admin",
+      });
+      const test = await services.testService.createTest(course.id, {
+        title: "Empty Test",
+        description: "",
+        createdBy: "admin",
+      });
+      const student = await services.studentService.createStudentDocument({
+        authUserId: "auth-nq",
+        username: "nq",
+        name: "No Questions Stu",
+        createdBy: "admin",
+      });
+      await services.enrollmentService.enrollStudent(
+        course.id,
+        student.id,
+        "admin",
+      );
+
+      // When: the page renders a test that has no questions
+      const ui = await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+        searchParams: Promise.resolve(mode ? { mode } : {}),
+      });
+      render(ui);
+
+      // Then: the main pane says so
+      expect(
+        within(screen.getByTestId("grading-main-pane")).getByText(
+          "This test has no questions yet.",
+        ),
+      ).toBeInTheDocument();
+    },
+  );
+
   it("offers the correct-answer release here too, and only while it is needed", async () => {
     const services = getTestServices();
     const course = await services.courseService.createCourse({

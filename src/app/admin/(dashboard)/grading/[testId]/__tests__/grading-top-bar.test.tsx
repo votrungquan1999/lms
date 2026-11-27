@@ -148,6 +148,10 @@ describe("Feature: the grading top bar", () => {
       expect(
         within(bar).getByTestId("grading-progress-fraction"),
       ).toHaveTextContent("1 of 2 fully graded");
+      // Two students handed in, so the empty-state message stays away
+      expect(
+        screen.queryByText("Nobody has submitted yet."),
+      ).not.toBeInTheDocument();
     },
   );
 });

@@ -401,6 +401,12 @@ describe("Feature: a grading link naming a student who isn't on the roster falls
       description: "",
       createdBy: "school-b-admin",
     });
+    await own.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Q1",
+      content: "Q1",
+      createdBy: "school-b-admin",
+    });
     const ownStudent = await own.studentService.createStudentDocument({
       authUserId: "auth-own-roster",
       username: "own.roster",
@@ -451,6 +457,12 @@ describe("Feature: a grading link naming a student who isn't on the roster falls
     const test = await own.testService.createTest(course.id, {
       title: "Test",
       description: "",
+      createdBy: "school-b-admin",
+    });
+    await own.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Q1",
+      content: "Q1",
       createdBy: "school-b-admin",
     });
     const rosterStudent = await own.studentService.createStudentDocument({

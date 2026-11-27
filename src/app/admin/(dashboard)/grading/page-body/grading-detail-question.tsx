@@ -62,7 +62,7 @@ export async function GradingDetailQuestion({
   if (!focused) {
     return (
       <p className="text-sm text-muted-foreground">
-        No questions on this test yet.
+        This test has no questions yet.
       </p>
     );
   }

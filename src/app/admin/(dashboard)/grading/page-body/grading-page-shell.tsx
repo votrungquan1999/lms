@@ -112,18 +112,31 @@ export async function GradingPageShell({
         })
       ) : (
         <p className="text-sm text-muted-foreground">
-          No questions on this test yet.
+          This test has no questions yet.
         </p>
       )
+    ) : focused && questions.length === 0 ? (
+      <p className="text-sm text-muted-foreground">
+        This test has no questions yet.
+      </p>
     ) : focused ? (
-      await GradingDetailStudent({
-        test,
-        courseId,
-        schoolId,
-        student: focused,
-        basePath,
-        sort: selection.sort,
-      })
+      <>
+        {(screen.counts?.submitted ?? 0) === 0 && (
+          <p className="mb-4 text-sm text-muted-foreground">
+            Nobody has submitted yet.
+          </p>
+        )}
+        {
+          await GradingDetailStudent({
+            test,
+            courseId,
+            schoolId,
+            student: focused,
+            basePath,
+            sort: selection.sort,
+          })
+        }
+      </>
     ) : (
       <p className="text-sm text-muted-foreground">
         No students enrolled in this course yet.
