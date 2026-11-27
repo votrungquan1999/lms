@@ -2,7 +2,7 @@
  * Feature: Image-answer questions + grader annotation (E2E)
  *
  * A student uploads a photo of handwritten work as their answer; a grader views
- * the photo, draws an annotation over it and saves with Save & next; once the grade is revealed
+ * the photo, draws a stroke and types a text mark over it, and saves with Save & next; once the grade is revealed
  * the student sees the grader's annotation on their photo.
  *
  * Self-contained — creates its own student, course, test, and image-answer
@@ -184,6 +184,13 @@ test.describe("Image-answer + annotation flow", () => {
     await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.6);
     await page.mouse.up();
 
+    // Type a text mark on the photo with the Text tool
+    await page.getByRole("button", { name: "Text", exact: true }).click();
+    await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.7);
+    const textMark = page.getByRole("textbox", { name: "Text mark" });
+    await textMark.fill("check this step");
+    await textMark.press("Enter");
+
     // Marks save together with the grade: Save & next is the only save.
     await page.getByLabel("Score").first().fill("80");
     await page.getByRole("button", { name: /^Save & next/ }).click();
@@ -214,6 +221,7 @@ test.describe("Image-answer + annotation flow", () => {
     await expect(page.locator("svg polyline").first()).toBeVisible({
       timeout: 10000,
     });
+    await expect(page.getByText("check this step")).toBeVisible();
 
     await context.close();
   });
