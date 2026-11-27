@@ -169,3 +169,86 @@ describe("Feature: the grade panel", () => {
     );
   });
 });
+
+describe("Feature: overall feedback in the grade panel", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  it("folds the student's overall feedback under a row that names her, and opens it onto the saved text", async () => {
+    const { services, test, student, q1 } = await seedTwoAnswers();
+    await services.testFeedbackService.setTestFeedback({
+      testId: test.id,
+      studentId: student.id,
+      feedback: "Well done overall",
+      gradedBy: "admin",
+    });
+
+    // When: the teacher opens one of her answers
+    render(await pageFor(test.id, student.id, q1.id));
+
+    // Then: the row is folded and names the student
+    const row = screen
+      .getByText("Overall feedback for Olive")
+      .closest("details");
+    expect(row).not.toBeNull();
+    expect(row).not.toHaveAttribute("open");
+
+    // When: the teacher opens the row
+    await userEvent.click(screen.getByText("Overall feedback for Olive"));
+
+    // Then: the form holds the saved feedback
+    expect(
+      within(row as HTMLElement).getByRole("textbox", { name: /overall/i }),
+    ).toHaveValue("Well done overall");
+  });
+
+  it("carries none of one student's typed overall feedback to the next student", async () => {
+    const { services, test, student, q1 } = await seedTwoAnswers();
+    const pia = await services.studentService.createStudentDocument({
+      authUserId: "auth-pia",
+      username: "pia",
+      name: "Pia",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      test.courseId,
+      pia.id,
+      "admin",
+    );
+    await services.answerService.submitAnswer({
+      testId: test.id,
+      questionId: q1.id,
+      studentId: pia.id,
+      answer: { type: "free_text", text: "pia answer" },
+    });
+    await services.testSubmissionService.submitTest(test.id, pia.id);
+    await services.testFeedbackService.setTestFeedback({
+      testId: test.id,
+      studentId: pia.id,
+      feedback: "Pia saved feedback",
+      gradedBy: "admin",
+    });
+
+    // Given: the teacher has typed overall feedback for Olive without saving
+    const view = render(await pageFor(test.id, student.id, q1.id));
+    await userEvent.click(screen.getByText("Overall feedback for Olive"));
+    await userEvent.type(
+      screen.getByRole("textbox", { name: /overall/i }),
+      "draft for Olive",
+    );
+
+    // When: the teacher moves to Pia on the same screen
+    view.rerender(await pageFor(test.id, pia.id, q1.id));
+
+    // Then: Pia's row shows her saved feedback, not Olive's draft
+    await userEvent.click(screen.getByText("Overall feedback for Pia"));
+    expect(screen.getByRole("textbox", { name: /overall/i })).toHaveValue(
+      "Pia saved feedback",
+    );
+  });
+});

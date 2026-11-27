@@ -298,6 +298,7 @@ interface OverallFeedbackFormProps {
   testId: string;
   courseId: string;
   studentId: string;
+  studentName: string;
   existingFeedback: string | null;
 }
 
@@ -305,6 +306,7 @@ export function OverallFeedbackForm({
   testId,
   courseId,
   studentId,
+  studentName,
   existingFeedback,
 }: OverallFeedbackFormProps) {
   const [state, formAction, isPending] = useActionState<
@@ -313,40 +315,45 @@ export function OverallFeedbackForm({
   >(setTestFeedbackAction, null);
 
   return (
-    <form action={formAction} className="space-y-3 rounded-lg border p-4">
-      <input type="hidden" name="testId" value={testId} />
-      <input type="hidden" name="courseId" value={courseId} />
-      <input type="hidden" name="studentId" value={studentId} />
+    <details className="rounded-lg border p-3">
+      <summary className="cursor-pointer text-sm font-medium wrap-anywhere">
+        Overall feedback for {studentName}
+      </summary>
+      <form action={formAction} className="mt-3 space-y-3">
+        <input type="hidden" name="testId" value={testId} />
+        <input type="hidden" name="courseId" value={courseId} />
+        <input type="hidden" name="studentId" value={studentId} />
 
-      <label htmlFor={`overall-${studentId}`} className="text-sm font-medium">
-        Overall Test Feedback:
-      </label>
-      <Textarea
-        id={`overall-${studentId}`}
-        name="feedback"
-        placeholder="Overall feedback for this student's test..."
-        defaultValue={existingFeedback ?? ""}
-        rows={3}
-        className="resize-y"
-      />
+        <label htmlFor={`overall-${studentId}`} className="text-sm font-medium">
+          Overall Test Feedback:
+        </label>
+        <Textarea
+          id={`overall-${studentId}`}
+          name="feedback"
+          placeholder="Overall feedback for this student's test..."
+          defaultValue={existingFeedback ?? ""}
+          rows={3}
+          className="resize-y"
+        />
 
-      <div className="flex items-center gap-3">
-        <Button type="submit" size="sm" disabled={isPending}>
-          {isPending
-            ? "Saving..."
-            : existingFeedback
-              ? "Update Feedback"
-              : "Save Feedback"}
-        </Button>
-        {state?.message && (
-          <p
-            className={`text-sm ${state.success ? "text-green-600" : "text-destructive"}`}
-          >
-            {state.message}
-          </p>
-        )}
-      </div>
-    </form>
+        <div className="flex items-center gap-3">
+          <Button type="submit" size="sm" disabled={isPending}>
+            {isPending
+              ? "Saving..."
+              : existingFeedback
+                ? "Update Feedback"
+                : "Save Feedback"}
+          </Button>
+          {state?.message && (
+            <p
+              className={`text-sm ${state.success ? "text-green-600" : "text-destructive"}`}
+            >
+              {state.message}
+            </p>
+          )}
+        </div>
+      </form>
+    </details>
   );
 }
 

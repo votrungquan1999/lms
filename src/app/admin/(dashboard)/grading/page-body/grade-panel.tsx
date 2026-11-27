@@ -24,6 +24,8 @@ interface GradePanelProps {
   saveAndNext?: SaveAndNextNavigation;
   /** Shown under the form (the AI suggestion card). */
   children?: React.ReactNode;
+  /** The student's overall-feedback row, shown last. */
+  overallFeedback?: React.ReactNode;
 }
 
 /**
@@ -41,6 +43,7 @@ export function GradePanel({
   status,
   saveAndNext,
   children,
+  overallFeedback,
 }: GradePanelProps) {
   const isSubmitted = hasSubmitted(status);
   const score = grade?.score ?? null;
@@ -94,6 +97,7 @@ export function GradePanel({
       studentUsername={student.username}
     >
       {renderBody()}
+      {overallFeedback}
     </GradePanelShell>
   );
 }

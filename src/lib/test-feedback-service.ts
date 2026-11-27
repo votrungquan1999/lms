@@ -45,12 +45,19 @@ export class TestFeedbackService {
   }
 
   /**
-   * Sets (or updates) overall test feedback for a student.
+   * Sets (or updates) overall test feedback for a student; empty feedback removes it.
    * @param input - The test, the student, the feedback and who wrote it.
    * @throws "Test not found" when the test isn't this school's.
    */
   async setTestFeedback(input: SetTestFeedbackInput): Promise<void> {
     await this.testService.requireTest(input.testId);
+    if (input.feedback === "") {
+      await this.testFeedback.deleteOne({
+        testId: input.testId,
+        studentId: input.studentId,
+      });
+      return;
+    }
     const now = new Date();
     await this.testFeedback.updateOne(
       { testId: input.testId, studentId: input.studentId },

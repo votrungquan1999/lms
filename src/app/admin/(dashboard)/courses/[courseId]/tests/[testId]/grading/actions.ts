@@ -36,7 +36,7 @@ const testFeedbackSchema = z.object({
   testId: z.string().min(1),
   courseId: z.string().min(1),
   studentId: z.string().min(1),
-  feedback: z.string().min(1, "Feedback is required"),
+  feedback: z.string(),
 });
 
 const annotationPointSchema = z.object({ x: z.number(), y: z.number() });

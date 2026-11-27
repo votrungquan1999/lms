@@ -307,6 +307,19 @@ export async function GradingDetailStudent({
               hasPhotos={photos.length > 0}
               grade={selectedGrade}
               status={status}
+              overallFeedback={
+                hasAnswers && (
+                  // Keyed by student so a typed draft never saves onto the next student.
+                  <OverallFeedbackForm
+                    key={student.id}
+                    testId={testId}
+                    courseId={courseId}
+                    studentId={student.id}
+                    studentName={student.name}
+                    existingFeedback={testFeedback}
+                  />
+                )
+              }
               saveAndNext={
                 selectedAnswer?.type === "free_text"
                   ? {
@@ -335,15 +348,6 @@ export async function GradingDetailStudent({
                   />
                 )}
             </GradePanel>
-          )}
-
-          {hasAnswers && (
-            <OverallFeedbackForm
-              testId={testId}
-              courseId={courseId}
-              studentId={student.id}
-              existingFeedback={testFeedback}
-            />
           )}
         </CardContent>
       </Card>
