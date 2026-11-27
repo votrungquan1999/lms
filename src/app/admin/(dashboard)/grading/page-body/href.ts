@@ -8,6 +8,8 @@ interface GradingHrefInput {
   questionId?: string;
   /** Keep only the answers that need a grade in the question row. */
   needsOnly?: boolean;
+  /** Show the finish panel in place of the grade panel. */
+  done?: boolean;
 }
 
 /**
@@ -23,6 +25,7 @@ export function gradingHref(input: GradingHrefInput): string {
   if (input.studentId) params.set("studentId", input.studentId);
   if (input.questionId) params.set("questionId", input.questionId);
   if (input.needsOnly) params.set("needsOnly", "1");
+  if (input.done) params.set("done", "1");
 
   const qs = params.toString();
   return qs.length > 0 ? `${input.basePath}?${qs}` : input.basePath;

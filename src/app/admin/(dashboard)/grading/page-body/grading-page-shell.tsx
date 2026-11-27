@@ -2,8 +2,10 @@ import { GradingMode } from "src/lib/grading-mode";
 import { readGradingScreen } from "src/lib/grading-screen-read";
 import { needsGrade } from "src/lib/needs-grade";
 import type { Question } from "src/lib/question-service";
+import { relativeTimeAgo } from "src/lib/relative-time";
 import { gradeReleaseState } from "src/lib/release-state";
 import type { Test } from "src/lib/test-service";
+import { FinishPanel } from "./finish-panel";
 import { GradingDetailQuestion } from "./grading-detail-question";
 import { GradingDetailStudent } from "./grading-detail-student";
 import {
@@ -34,6 +36,8 @@ interface GradingSelection {
   studentId?: string;
   questionId?: string;
   needsOnly?: boolean;
+  /** The save that left nothing to grade asked for the finish panel. */
+  done?: boolean;
 }
 
 interface GradingPageShellProps {
@@ -117,6 +121,49 @@ export async function GradingPageShell({
     ? studentByIdLookup.get(studentBoxes.currentId)
     : undefined;
 
+  const releaseStudents: ReleaseStudent[] = pickerRows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    username: row.username,
+    status: releaseStatusOfPair(screen.pairs.get(row.id)),
+  }));
+
+  // The finish panel shows only while nothing waits, so a link kept from an earlier save falls back to the grade panel.
+  const shownStudent =
+    selection.mode === GradingMode.Question ? currentStudent : focused;
+  const shownGrade =
+    shownStudent && focusedQuestion
+      ? screen.grades.get(shownStudent.id)?.get(focusedQuestion.id)
+      : undefined;
+  const savedAgo =
+    shownGrade &&
+    relativeTimeAgo(shownGrade.updatedAt ?? shownGrade.gradedAt, new Date());
+  const finish =
+    selection.done &&
+    !test.isPractice &&
+    shownStudent &&
+    focusedQuestion &&
+    pickerRows.some((r) => r.group === StudentPickerGroup.Graded) &&
+    !pickerRows.some((r) => r.group === StudentPickerGroup.NeedsGrading)
+      ? {
+          gradeLine: shownGrade
+            ? `Your grade: ${shownGrade.score} · saved ${savedAgo}`
+            : undefined,
+          panel: (
+            <FinishPanel
+              testTitle={test.title}
+              backHref={`/admin/courses/${courseId}/tests/${test.id}`}
+              students={releaseStudents}
+              savedLine={
+                shownGrade
+                  ? `${shownStudent.name}'s Q${focusedQuestion.order} saved ${savedAgo}`
+                  : ""
+              }
+            />
+          ),
+        }
+      : undefined;
+
   const main =
     selection.mode === GradingMode.Question ? (
       focusedQuestion ? (
@@ -144,6 +191,7 @@ export async function GradingPageShell({
               basePath,
               needsOnly: selection.needsOnly,
               screen,
+              finish,
             })
           ) : (
             <p className="mt-4 text-sm text-muted-foreground">
@@ -179,6 +227,7 @@ export async function GradingPageShell({
             basePath,
             needsOnly: selection.needsOnly,
             screen,
+            finish,
           })
         }
       </>
@@ -248,13 +297,6 @@ export async function GradingPageShell({
     redoRequested: inGroup(StudentPickerGroup.RedoRequested),
     notStarted: inGroup(StudentPickerGroup.NotStarted),
   };
-
-  const releaseStudents: ReleaseStudent[] = pickerRows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    username: row.username,
-    status: releaseStatusOfPair(screen.pairs.get(row.id)),
-  }));
 
   return (
     <StillWritingProvider>

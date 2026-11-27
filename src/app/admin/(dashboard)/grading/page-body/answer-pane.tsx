@@ -28,6 +28,8 @@ interface AnswerPaneProps {
   correctAnswersVisible: boolean;
   /** The latest AI suggestion's fixed answer; absent when there is none. */
   aiFix?: string;
+  /** The saved grade, shown under the answer once grading is done. */
+  gradeLine?: string;
 }
 
 /**
@@ -46,6 +48,7 @@ export function AnswerPane({
   annotations,
   correctAnswersVisible,
   aiFix,
+  gradeLine,
 }: AnswerPaneProps) {
   const modelAnswer =
     question.type === "free_text" ? question.referenceAnswer?.trim() : "";
@@ -98,6 +101,11 @@ export function AnswerPane({
   return (
     <StudentQuestionCard question={question}>
       {renderAnswer()}
+      {gradeLine && (
+        <p className="text-sm font-medium" data-testid="your-grade">
+          {gradeLine}
+        </p>
+      )}
       {modelAnswer && (
         <ModelAnswerFold
           text={modelAnswer}

@@ -1,0 +1,81 @@
+import { FinishPanelView } from "./finish-panel.ui";
+import { type ReleaseStudent, ReleaseStudentStatus } from "./release-students";
+
+/** Names listed in full before the rest read "and n more". */
+const NAMES_SHOWN = 3;
+
+/**
+ * Joins names for a sentence: "A", "A and B", "A, B and C", "A, B, C and 2 more".
+ * @param names - The names to join; at least one.
+ */
+export function joinNames(names: string[]): string {
+  if (names.length <= NAMES_SHOWN) {
+    return names.length <= 1
+      ? (names[0] ?? "")
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  }
+  return `${names.slice(0, NAMES_SHOWN).join(", ")} and ${names.length - NAMES_SHOWN} more`;
+}
+
+function who(names: string[], singular: string, plural: string): string {
+  return `${joinNames(names)} ${names.length === 1 ? singular : plural}`;
+}
+
+interface FinishPanelProps {
+  testTitle: string;
+  /** The test page the panel links back to. */
+  backHref: string;
+  /** Every student of the course. */
+  students: ReleaseStudent[];
+  /** The answer just graded, as "<name>'s Q<n> saved <when>". */
+  savedLine: string;
+}
+
+/** What the teacher gets after the last answer is graded: who is graded, who can see it, and who is not in yet. */
+export function FinishPanel({
+  testTitle,
+  backHref,
+  students,
+  savedLine,
+}: FinishPanelProps) {
+  const named = (status: ReleaseStudentStatus) =>
+    students.filter((s) => s.status === status);
+  const hidden = named(ReleaseStudentStatus.Graded);
+  const graded = students.filter(
+    (s) =>
+      s.status === ReleaseStudentStatus.Graded ||
+      s.status === ReleaseStudentStatus.Released,
+  );
+  const stillWriting = named(ReleaseStudentStatus.StillWriting).map(
+    (s) => s.name,
+  );
+  const notStarted = named(ReleaseStudentStatus.NotStarted).map((s) => s.name);
+
+  const releaseLine =
+    hidden.length > 0
+      ? `Grades not released yet · ${joinNames(hidden.map((s) => s.name))} can't see ${hidden.length === 1 ? "her grade" : "their grades"} until you release ${hidden.length === 1 ? "it" : "them"}.`
+      : "Grades released · every graded student can see her grade.";
+
+  const notInLines = [
+    stillWriting.length > 0 &&
+      `${who(stillWriting, "is", "are")} still writing.`,
+    notStarted.length > 0 && `${who(notStarted, "hasn't", "haven't")} started.`,
+  ].filter((line): line is string => line !== false);
+
+  return (
+    <FinishPanelView
+      testTitle={testTitle}
+      savedLine={savedLine}
+      gradedCount={graded.length}
+      gradedStudents={graded.slice(0, NAMES_SHOWN).map((s) => ({
+        name: s.name,
+        username: s.username,
+        released: s.status === ReleaseStudentStatus.Released,
+      }))}
+      moreGraded={Math.max(0, graded.length - NAMES_SHOWN)}
+      releaseLine={releaseLine}
+      notInLine={notInLines.join(" ")}
+      backHref={backHref}
+    />
+  );
+}

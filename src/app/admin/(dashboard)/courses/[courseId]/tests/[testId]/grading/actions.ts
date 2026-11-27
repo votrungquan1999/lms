@@ -808,6 +808,7 @@ export async function saveAndNextAction(formData: FormData) {
       studentId: next?.studentId ?? input.studentId,
       questionId: next?.questionId ?? input.questionId,
       needsOnly: input.needsOnly === "1",
+      done: next === null,
     }),
   );
 }

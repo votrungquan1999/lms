@@ -26,6 +26,7 @@ import {
 import type { Test } from "src/lib/test-service";
 import { TestStatus } from "src/lib/test-status-service";
 import { aiJobState } from "./ai-job-state";
+import type { FinishView } from "./finish-panel.ui";
 import { gradingRouteKind } from "./href";
 
 interface GradingDetailQuestionProps {
@@ -43,6 +44,8 @@ interface GradingDetailQuestionProps {
   needsOnly?: boolean;
   /** The screen's read of the test. */
   screen: GradingScreenRead;
+  /** The finish panel that stands in for the grade panel, and the line under the answer. */
+  finish?: FinishView;
 }
 
 /**
@@ -58,6 +61,7 @@ export async function GradingDetailQuestion({
   basePath,
   needsOnly = false,
   screen,
+  finish,
 }: GradingDetailQuestionProps) {
   const testId = test.id;
   // Mint presigned GET URLs for the question's media so the grader sees exactly what the student saw.
@@ -161,84 +165,89 @@ export async function GradingDetailQuestion({
             test.correctAnswersReleasedAt !== null
           }
           aiFix={suggestions[0]?.solution}
+          gradeLine={finish?.gradeLine}
         />
       </div>
 
-      <GradePanel
-        testId={testId}
-        testTitle={test.title}
-        courseId={courseId}
-        student={student}
-        question={question}
-        answer={answer?.answer}
-        hasPhotos={photos.length > 0}
-        grade={grade}
-        status={status}
-        saveAndNext={saveAndNext}
-        overallFeedback={
-          (screen.answers.get(student.id)?.size ?? 0) > 0 && (
-            // Keyed by student so a typed draft never saves onto the next student.
-            <OverallFeedbackForm
-              key={student.id}
-              testId={testId}
-              courseId={courseId}
-              studentId={student.id}
-              studentName={student.name}
-              existingFeedback={testFeedback}
-            />
-          )
-        }
-        moreMenu={
-          !test.isPractice && status === TestStatus.Submitted ? (
-            // Remounts with the job, so a "started" message does not outlive its job.
-            <MoreMenu
+      {finish ? (
+        finish.panel
+      ) : (
+        <GradePanel
+          testId={testId}
+          testTitle={test.title}
+          courseId={courseId}
+          student={student}
+          question={question}
+          answer={answer?.answer}
+          hasPhotos={photos.length > 0}
+          grade={grade}
+          status={status}
+          saveAndNext={saveAndNext}
+          overallFeedback={
+            (screen.answers.get(student.id)?.size ?? 0) > 0 && (
+              // Keyed by student so a typed draft never saves onto the next student.
+              <OverallFeedbackForm
+                key={student.id}
+                testId={testId}
+                courseId={courseId}
+                studentId={student.id}
+                studentName={student.name}
+                existingFeedback={testFeedback}
+              />
+            )
+          }
+          moreMenu={
+            !test.isPractice && status === TestStatus.Submitted ? (
+              // Remounts with the job, so a "started" message does not outlive its job.
+              <MoreMenu
+                key={aiJob.key}
+                testId={testId}
+                courseId={courseId}
+                studentId={student.id}
+                offerAutoGrade={suggestionsByQuestion.size === 0}
+                offerRegenerateAll={suggestionsByQuestion.size > 0}
+                aiGradingStartedAt={aiJob.startedAt}
+              />
+            ) : undefined
+          }
+          aiJobNotes={
+            <>
+              {aiJob.startedAt !== null && (
+                <>
+                  <AiGradingInProgressNote startedAt={aiJob.startedAt} />
+                  <PendingAiGradingRefresher />
+                </>
+              )}
+              {aiJob.failed && <AiGradingFailedNote />}
+            </>
+          }
+        >
+          {question.type === "free_text" && suggestions.length > 0 && (
+            <AiSuggestionPanel
               key={aiJob.key}
               testId={testId}
               courseId={courseId}
               studentId={student.id}
-              offerAutoGrade={suggestionsByQuestion.size === 0}
-              offerRegenerateAll={suggestionsByQuestion.size > 0}
-              aiGradingStartedAt={aiJob.startedAt}
-            />
-          ) : undefined
-        }
-        aiJobNotes={
-          <>
-            {aiJob.startedAt !== null && (
-              <>
-                <AiGradingInProgressNote startedAt={aiJob.startedAt} />
-                <PendingAiGradingRefresher />
-              </>
-            )}
-            {aiJob.failed && <AiGradingFailedNote />}
-          </>
-        }
-      >
-        {question.type === "free_text" && suggestions.length > 0 && (
-          <AiSuggestionPanel
-            key={aiJob.key}
-            testId={testId}
-            courseId={courseId}
-            studentId={student.id}
-            questionId={question.id}
-            suggestions={suggestions}
-            latestAnswerId={answer?.id ?? null}
-            savedGrade={
-              grade && {
-                score: grade.score,
-                feedback: grade.feedback,
-                solution: grade.solution ?? null,
+              questionId={question.id}
+              suggestions={suggestions}
+              latestAnswerId={answer?.id ?? null}
+              savedGrade={
+                grade && {
+                  score: grade.score,
+                  feedback: grade.feedback,
+                  solution: grade.solution ?? null,
+                }
               }
-            }
-            studentAnswer={
-              answer?.answer.type === "free_text"
-                ? answer.answer.text
-                : undefined
-            }
-            regenerateDisabled={aiJob.startedAt !== null}
-          />
-        )}
-      </GradePanel>
+              studentAnswer={
+                answer?.answer.type === "free_text"
+                  ? answer.answer.text
+                  : undefined
+              }
+              regenerateDisabled={aiJob.startedAt !== null}
+            />
+          )}
+        </GradePanel>
+      )}
     </div>
   );
 }

@@ -29,6 +29,7 @@ export default async function GradingPage({
       ? GradingMode.Question
       : GradingMode.Student;
   const needsOnly = sp.needsOnly === "1";
+  const done = sp.done === "1";
 
   const testService = await getTestService(session.school.id);
   const test = await testService.getTest(testId);
@@ -46,7 +47,7 @@ export default async function GradingPage({
           courseId,
           schoolId: session.school.id,
           basePath: `/admin/courses/${courseId}/tests/${testId}/grading`,
-          selection: { mode, studentId, questionId, needsOnly },
+          selection: { mode, studentId, questionId, needsOnly, done },
         })
       }
     </div>

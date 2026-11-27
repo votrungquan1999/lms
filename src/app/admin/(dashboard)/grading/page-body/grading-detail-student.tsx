@@ -46,6 +46,7 @@ import {
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { aiJobState } from "./ai-job-state";
+import type { FinishView } from "./finish-panel.ui";
 import { gradingRouteKind } from "./href";
 import { QuestionRow } from "./question-row";
 
@@ -63,6 +64,8 @@ interface GradingDetailStudentProps {
   needsOnly?: boolean;
   /** The screen's read of the test; read here when the caller has none. */
   screen?: GradingScreenRead;
+  /** The finish panel that stands in for the grade panel, and the line under the answer. */
+  finish?: FinishView;
 }
 
 /**
@@ -80,6 +83,7 @@ export async function GradingDetailStudent({
   basePath,
   needsOnly = false,
   screen: givenScreen,
+  finish,
 }: GradingDetailStudentProps) {
   const testId = test.id;
 
@@ -293,11 +297,14 @@ export async function GradingDetailStudent({
                   test.correctAnswersReleasedAt !== null
                 }
                 aiFix={selectedSuggestions[0]?.solution}
+                gradeLine={finish?.gradeLine}
               />
             </div>
           )}
 
-          {selectedQuestion && (
+          {selectedQuestion && finish?.panel}
+
+          {selectedQuestion && !finish && (
             <GradePanel
               testId={testId}
               testTitle={test.title}
