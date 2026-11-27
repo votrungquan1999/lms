@@ -71,7 +71,7 @@ interface GradingProgressProps {
 
 /**
  * Top-of-page progress bar. Renders an "X of Y" fraction next to a bar.
- * Numerator + denominator are mode-dependent and computed by the shell.
+ * The shell passes the same counts in both modes.
  */
 export function GradingProgress({
   numerator,

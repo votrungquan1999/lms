@@ -195,7 +195,7 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     expect(fraction.textContent).toBe("1 of 1 fully graded");
   });
 
-  it("counts a submitted student's blank answer toward the By-question 'students graded' fraction", async () => {
+  it("counts a submitted student's blank answer toward the By-question 'fully graded' fraction", async () => {
     // Given a 1-question test with three enrolled students: one submits
     // having left the question blank (counts as 0, nothing left to grade);
     // one submits an answer the teacher has not scored yet; the other
@@ -268,10 +268,10 @@ describe("Feature: Admin grading hub treats a submitted test with one blank ques
     });
     render(ui);
 
-    // Then: only the submitted blank counts as resolved for this question;
-    // the unscored answer and the untouched student do not — 1 of 3.
+    // Then: the whole-test count has the submitted blank fully graded, the
+    // unscored answer not, and the untouched student, who has not handed in, out of the total — 1 of 2.
     const fraction = screen.getByTestId("grading-progress-fraction");
-    expect(fraction.textContent).toBe("1 of 3 students graded");
+    expect(fraction.textContent).toBe("1 of 2 fully graded");
   });
 
   it("does not call an unanswered question blank while the student can still answer it", async () => {

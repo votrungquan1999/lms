@@ -1,0 +1,81 @@
+import { expect, test } from "@playwright/test";
+import {
+  enroll,
+  insertAnswer,
+  insertCourse,
+  insertQuestion,
+  insertStudent,
+  insertSubmission,
+  insertTest,
+  withDb,
+} from "./seed";
+
+const routes = [
+  {
+    name: "the grading page",
+    path: (ids: { courseId: string; testId: string }) =>
+      `/admin/grading/${ids.testId}`,
+  },
+  {
+    name: "the course Tests tab grading",
+    path: (ids: { courseId: string; testId: string }) =>
+      `/admin/courses/${ids.courseId}/tests/${ids.testId}/grading`,
+  },
+];
+
+test.describe("Grading by question", () => {
+  for (const route of routes) {
+    test(`on ${route.name} the question picker and ‹ › move between questions, keeping Needs grading only`, async ({
+      page,
+    }) => {
+      const ids = await withDb(async (db) => {
+        const courseId = await insertCourse(db);
+        const testId = await insertTest(db, courseId);
+        const questionIds: string[] = [];
+        for (const order of [1, 2, 3]) {
+          questionIds.push(
+            await insertQuestion(db, testId, {
+              title: `[by-question] Question ${order}`,
+              order,
+            }),
+          );
+        }
+        const studentId = await insertStudent(db);
+        await enroll(db, { courseId, studentId });
+        await insertAnswer(db, {
+          testId,
+          questionId: questionIds[0] as string,
+          studentId,
+          answer: { type: "free_text", text: "an answer" },
+        });
+        await insertSubmission(db, { testId, studentId });
+        return { courseId, testId, questionIds };
+      });
+
+      await page.goto(
+        `${route.path(ids)}?mode=question&questionId=${ids.questionIds[0]}&needsOnly=1`,
+      );
+      await expect(
+        page.getByRole("button", { name: "Question picker" }),
+      ).toContainText("Q1 [by-question] Question 1");
+
+      // The picker opens another question and keeps the filter.
+      await page.getByRole("button", { name: "Question picker" }).click();
+      await page
+        .getByRole("menuitem", { name: "Q2 [by-question] Question 2" })
+        .click();
+      await expect(page).toHaveURL(
+        new RegExp(`questionId=${ids.questionIds[1]}.*needsOnly=1`),
+      );
+
+      // › steps to the next question.
+      await page.getByRole("link", { name: "Next question" }).click();
+      await expect(page).toHaveURL(
+        new RegExp(`questionId=${ids.questionIds[2]}`),
+      );
+      await expect(
+        page.getByRole("button", { name: "Question picker" }),
+      ).toContainText("Q3 [by-question] Question 3");
+    });
+  }
+});

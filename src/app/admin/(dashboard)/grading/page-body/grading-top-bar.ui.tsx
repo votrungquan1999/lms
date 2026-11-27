@@ -116,3 +116,33 @@ function StepControl({
     </GuardedLink>
   );
 }
+
+interface QuestionPositionProps {
+  /** The question picker, naming the question on screen. */
+  picker: ReactNode;
+  /** Null at the first / last question. */
+  previousHref: string | null;
+  nextHref: string | null;
+}
+
+/** The question picker with ‹ › to step through the questions. */
+export function QuestionPosition({
+  picker,
+  previousHref,
+  nextHref,
+}: QuestionPositionProps) {
+  return (
+    <span
+      className="flex min-w-0 items-center gap-2 text-sm"
+      data-testid="grading-question-position"
+    >
+      {picker}
+      <StepControl href={previousHref} label="Previous question">
+        ‹
+      </StepControl>
+      <StepControl href={nextHref} label="Next question">
+        ›
+      </StepControl>
+    </span>
+  );
+}

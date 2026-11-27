@@ -272,9 +272,8 @@ describe("Feature: GradingVariantPage", () => {
     expect(byQuestion.getAttribute("data-state")).toBe("active");
   });
 
-  it("in question-mode, the roster lists questions (one cell per question) instead of students, ordered by question.order", async () => {
+  it("in question-mode, the top bar's question picker names the open question and lists every question in order, each link keeping Needs grading only", async () => {
     const services = getTestServices();
-
     const course = await services.courseService.createCourse({
       title: "Algebra 101",
       description: "",
@@ -285,56 +284,130 @@ describe("Feature: GradingVariantPage", () => {
       description: "",
       createdBy: "admin",
     });
-    // Add three questions in known order; listQuestions returns by order asc.
-    await services.questionService.addQuestion(test.id, {
-      type: "free_text",
-      title: "First question",
-      content: "Q1",
-      createdBy: "admin",
-    });
-    await services.questionService.addQuestion(test.id, {
-      type: "free_text",
-      title: "Second question",
-      content: "Q2",
-      createdBy: "admin",
-    });
-    await services.questionService.addQuestion(test.id, {
-      type: "free_text",
-      title: "Third question",
-      content: "Q3",
-      createdBy: "admin",
-    });
+    for (const title of ["First question", "Second question", "Third question"])
+      await services.questionService.addQuestion(test.id, {
+        type: "free_text",
+        title,
+        content: title,
+        createdBy: "admin",
+      });
     const questions = await services.questionService.listQuestions(test.id);
+    const second = questions[1];
 
-    const student = await services.studentService.createStudentDocument({
-      authUserId: "auth-1",
-      username: "u1",
-      name: "Stu",
+    // When: the page renders in question-mode on the second question with the filter on
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+        searchParams: Promise.resolve({
+          mode: "question",
+          questionId: second?.id,
+          needsOnly: "1",
+        }),
+      }),
+    );
+
+    // Then: the picker names the open question and the question roster is gone
+    const picker = screen.getByRole("button", { name: /question picker/i });
+    expect(picker).toHaveTextContent("Q2 Second question");
+    expect(screen.queryByTestId("grading-roster")).not.toBeInTheDocument();
+
+    // And: it lists every question in order, each linking to it with the filter kept
+    await userEvent.click(picker);
+    const items = within(await screen.findByRole("menu")).getAllByRole(
+      "menuitem",
+    );
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Q1 First question",
+      "Q2 Second question",
+      "Q3 Third question",
+    ]);
+    questions.forEach((question, index) => {
+      expect(items[index]).toHaveAttribute(
+        "href",
+        expect.stringContaining(`questionId=${question.id}`),
+      );
+      expect(items[index]).toHaveAttribute(
+        "href",
+        expect.stringContaining("needsOnly=1"),
+      );
+    });
+    expect(items[1]).toHaveAttribute("aria-current", "true");
+  });
+
+  it("in question-mode, ‹ › step to the previous and next question, keeping Needs grading only, and are dimmed at either end", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Algebra 101",
+      description: "",
       createdBy: "admin",
     });
-    await services.enrollmentService.enrollStudent(
-      course.id,
-      student.id,
-      "admin",
-    );
-
-    // When: the page renders in question-mode.
-    const ui = await GradingVariantPage({
-      params: Promise.resolve({ testId: test.id }),
-      searchParams: Promise.resolve({ mode: "question" }),
+    const test = await services.testService.createTest(course.id, {
+      title: "Midterm",
+      description: "",
+      createdBy: "admin",
     });
-    render(ui);
+    for (const title of ["First", "Second", "Third"])
+      await services.questionService.addQuestion(test.id, {
+        type: "free_text",
+        title,
+        content: title,
+        createdBy: "admin",
+      });
+    const [first, second, third] = await services.questionService.listQuestions(
+      test.id,
+    );
 
-    // Then: the roster contains one cell per question (no student cells).
-    const roster = screen.getByTestId("grading-roster");
-    const questionCells = within(roster).getAllByTestId(
-      /^roster-question-cell-/,
+    // When: the page opens on the middle question with the filter on
+    const { unmount } = render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+        searchParams: Promise.resolve({
+          mode: "question",
+          questionId: second?.id,
+          needsOnly: "1",
+        }),
+      }),
     );
-    expect(questionCells.map((c) => c.getAttribute("data-testid"))).toEqual(
-      questions.map((q) => `roster-question-cell-${q.id}`),
+
+    // Then: ‹ and › go to the neighbours with the filter kept
+    const previous = screen.getByRole("link", { name: "Previous question" });
+    expect(previous).toHaveAttribute(
+      "href",
+      expect.stringContaining(`questionId=${first?.id}`),
     );
-    // And: no student cells appear in the roster while in question-mode.
-    expect(within(roster).queryAllByTestId(/^roster-cell-/)).toHaveLength(0);
+    expect(previous).toHaveAttribute(
+      "href",
+      expect.stringContaining("needsOnly=1"),
+    );
+    const next = screen.getByRole("link", { name: "Next question" });
+    expect(next).toHaveAttribute(
+      "href",
+      expect.stringContaining(`questionId=${third?.id}`),
+    );
+    expect(next).toHaveAttribute(
+      "href",
+      expect.stringContaining("needsOnly=1"),
+    );
+    unmount();
+
+    // When: the page opens on the first question
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+        searchParams: Promise.resolve({
+          mode: "question",
+          questionId: first?.id,
+        }),
+      }),
+    );
+
+    // Then: there is nothing before it
+    expect(
+      screen.queryByRole("link", { name: "Previous question" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Next question" }),
+    ).toBeInTheDocument();
   });
 
   it("in question-mode, the main pane shows the focused question's title and one row per student with their answer text", async () => {
@@ -473,7 +546,7 @@ describe("Feature: GradingVariantPage", () => {
     expect(fraction.textContent).toMatch(/2\s*of\s*3/);
   });
 
-  it("when I'm grading question-by-question, the progress bar tells me how many students I've graded on this question", async () => {
+  it("when I'm grading question-by-question, the progress bar counts students fully graded across the whole test, not just this question", async () => {
     const services = getTestServices();
 
     const course = await services.courseService.createCourse({
@@ -486,15 +559,16 @@ describe("Feature: GradingVariantPage", () => {
       description: "",
       createdBy: "admin",
     });
-    await services.questionService.addQuestion(test.id, {
-      type: "free_text",
-      title: "Q1",
-      content: "Q1",
-      createdBy: "admin",
-    });
-    const [q1] = await services.questionService.listQuestions(test.id);
+    for (const title of ["Q1", "Q2"])
+      await services.questionService.addQuestion(test.id, {
+        type: "free_text",
+        title,
+        content: title,
+        createdBy: "admin",
+      });
+    const [q1, q2] = await services.questionService.listQuestions(test.id);
 
-    // Given: 3 students enrolled, 2 graded on q1.
+    // Given: 3 students handed in both answers; x is graded on both questions, y only on Q1, z on neither.
     const ids = [];
     for (const u of ["x", "y", "z"]) {
       const s = await services.studentService.createStudentDocument({
@@ -504,35 +578,43 @@ describe("Feature: GradingVariantPage", () => {
         createdBy: "admin",
       });
       await services.enrollmentService.enrollStudent(course.id, s.id, "admin");
-      await services.answerService.submitAnswer({
-        testId: test.id,
-        questionId: q1.id,
-        studentId: s.id,
-        answer: { type: "free_text", text: u },
-      });
+      for (const question of [q1, q2])
+        await services.answerService.submitAnswer({
+          testId: test.id,
+          questionId: (question as { id: string }).id,
+          studentId: s.id,
+          answer: { type: "free_text", text: u },
+        });
+      await services.testSubmissionService.submitTest(test.id, s.id);
       ids.push(s.id);
     }
-    for (const id of [ids[0], ids[1]]) {
-      await services.gradeService.gradeQuestion({
+    const grade = (studentId: string, questionId: string) =>
+      services.gradeService.gradeQuestion({
         testId: test.id,
-        questionId: q1.id,
-        studentId: id as string,
+        questionId,
+        studentId,
         score: 80,
         feedback: "ok",
         gradedBy: "admin",
       });
-    }
+    await grade(ids[0] as string, (q1 as { id: string }).id);
+    await grade(ids[0] as string, (q2 as { id: string }).id);
+    await grade(ids[1] as string, (q1 as { id: string }).id);
 
-    // When: rendered in question-mode with q1 focused.
+    // When: rendered in question-mode with Q1 focused.
     const ui = await GradingVariantPage({
       params: Promise.resolve({ testId: test.id }),
-      searchParams: Promise.resolve({ mode: "question", questionId: q1.id }),
+      searchParams: Promise.resolve({
+        mode: "question",
+        questionId: (q1 as { id: string }).id,
+      }),
     });
     render(ui);
 
-    // Then: progress fraction shows 2 of 3.
-    const fraction = screen.getByTestId("grading-progress-fraction");
-    expect(fraction.textContent).toMatch(/2\s*of\s*3/);
+    // Then: only x is fully graded, out of the 3 who handed in.
+    expect(screen.getByTestId("grading-progress-fraction")).toHaveTextContent(
+      "1 of 3 fully graded",
+    );
   });
 
   it("when I've already asked a student to redo, opening their card shows me a 'Redo requested' marker instead of the Request-Redo button", async () => {

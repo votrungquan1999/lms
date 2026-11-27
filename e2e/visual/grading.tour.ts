@@ -269,7 +269,7 @@ test("grading: by-question pivot with every student", async ({ page }) => {
     sources: [
       "src/app/admin/(dashboard)/grading/[testId]/page.tsx",
       "src/app/admin/(dashboard)/grading/page-body/grading-page-shell.tsx",
-      "src/app/admin/(dashboard)/grading/page-body/grading-roster-questions.tsx",
+      "src/app/admin/(dashboard)/grading/page-body/question-picker.ui.tsx",
       "src/app/admin/(dashboard)/grading/page-body/grading-detail-question.tsx",
       "src/app/admin/(dashboard)/grading/page-body/grading-detail-question.ui.tsx",
       "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms.tsx",

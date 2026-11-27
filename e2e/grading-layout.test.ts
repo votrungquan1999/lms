@@ -155,33 +155,6 @@ test.describe("Grading layout — long names, titles and links stay readable", (
     }
   });
 
-  test("the By-question roster pane keeps its own height instead of stretching to match a tall main pane", async ({
-    page,
-  }) => {
-    const { testId, questionId } = await withDb(async (db) => {
-      const courseId = await insertCourse(db);
-      const testId = await insertTest(db, courseId);
-      const questionId = await insertQuestion(db, testId);
-      for (let i = 0; i < 8; i++) {
-        const studentId = await insertStudent(db, {
-          name: `[layout] Roster Student ${i}`,
-        });
-        await enroll(db, { courseId, studentId });
-      }
-      return { testId, questionId };
-    });
-
-    await page.goto(
-      `/admin/grading/${testId}?mode=question&questionId=${questionId}`,
-    );
-    const [rosterBox, mainBox] = await Promise.all([
-      page.getByTestId("grading-roster").boundingBox(),
-      page.getByTestId("grading-main-pane").boundingBox(),
-    ]);
-    if (!rosterBox || !mainBox) throw new Error("Roster/main pane not found");
-    expect(rosterBox.height).toBeLessThan(mainBox.height);
-  });
-
   test("a long student name never breaks the grading card header or the student picker — the name wraps in both pivots", async ({
     page,
   }) => {

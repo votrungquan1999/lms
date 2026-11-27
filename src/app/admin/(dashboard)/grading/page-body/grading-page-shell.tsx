@@ -1,8 +1,8 @@
 import { GradingMode } from "src/lib/grading-mode";
 import { readGradingScreen } from "src/lib/grading-screen-read";
 import { needsGrade } from "src/lib/needs-grade";
+import type { Question } from "src/lib/question-service";
 import type { Test } from "src/lib/test-service";
-import { hasSubmitted } from "src/lib/test-status-service";
 import { GradingDetailQuestion } from "./grading-detail-question";
 import { GradingDetailStudent } from "./grading-detail-student";
 import {
@@ -10,9 +10,13 @@ import {
   PivotToggle,
   TwoPaneShell,
 } from "./grading-page-shell.ui";
-import { GradingRosterQuestions } from "./grading-roster-questions";
-import { GradingTopBar, StudentPosition } from "./grading-top-bar.ui";
+import {
+  GradingTopBar,
+  QuestionPosition,
+  StudentPosition,
+} from "./grading-top-bar.ui";
 import { gradingHref } from "./href";
+import { QuestionPicker } from "./question-picker";
 import { StillWritingProvider } from "./still-writing-confirm";
 import { StudentPicker } from "./student-picker";
 import {
@@ -43,8 +47,8 @@ interface GradingPageShellProps {
 /**
  * Grading shell: a top bar over the focused detail. By student puts the
  * student picker and ‹ › in the top bar and the student's full detail below.
- * By question adds a question list on the left and one row per enrolled
- * student for the focused question on the right.
+ * By question puts the question picker and ‹ › in the top bar and one row
+ * per enrolled student for the focused question below.
  */
 export async function GradingPageShell({
   test,
@@ -149,32 +153,12 @@ export async function GradingPageShell({
       </p>
     );
 
-  // Progress: By student counts fully graded students over the students who
-  // handed in; By question counts the focused question's graded students over
-  // the enrolled ones.
-  let progress = {
+  // Both modes count students fully graded over the students who handed in.
+  const progress = {
     numerator: screen.counts?.fullyGraded ?? 0,
     denominator: screen.counts?.submitted ?? 0,
     label: "fully graded",
   };
-  if (selection.mode === GradingMode.Question && focusedQuestion) {
-    const resolved = orderedStudents.filter((student) => {
-      if (screen.grades.get(student.id)?.has(focusedQuestion.id)) return true;
-      // No grade row: only a submitted student's blank counts as
-      // resolved — an in-progress student may still go back and answer.
-      const status = screen.pairs.get(student.id)?.status;
-      return (
-        status !== undefined &&
-        hasSubmitted(status) &&
-        !screen.answers.get(student.id)?.has(focusedQuestion.id)
-      );
-    });
-    progress = {
-      numerator: resolved.length,
-      denominator: orderedStudents.length,
-      label: "students graded",
-    };
-  }
 
   // ‹ › step through the students who handed in, in picker order.
   const submittedIds = pickerRows
@@ -201,6 +185,22 @@ export async function GradingPageShell({
       : submittedIds[focusedIndex - 1];
   const nextId =
     focusedIndex === -1 ? submittedIds[0] : submittedIds[focusedIndex + 1];
+
+  // ‹ › step through the questions in order.
+  const questionIndex = questions.findIndex(
+    (q) => q.id === focusedQuestion?.id,
+  );
+  const previousQuestion = questions[questionIndex - 1];
+  const nextQuestion = questions[questionIndex + 1];
+  const questionHref = (question: Question | undefined) =>
+    question === undefined
+      ? null
+      : gradingHref({
+          basePath,
+          mode: GradingMode.Question,
+          questionId: question.id,
+          needsOnly: selection.needsOnly,
+        });
 
   return (
     <StillWritingProvider>
@@ -237,21 +237,26 @@ export async function GradingPageShell({
                   previousHref={studentHref(previousId)}
                   nextHref={studentHref(nextId)}
                 />
-              ) : null
+              ) : (
+                <QuestionPosition
+                  previousHref={questionHref(previousQuestion)}
+                  nextHref={questionHref(nextQuestion)}
+                  picker={
+                    <QuestionPicker
+                      questions={questions}
+                      current={focusedQuestion}
+                      basePath={basePath}
+                      needsOnly={selection.needsOnly}
+                    />
+                  }
+                />
+              )
             }
             progress={<GradingProgress {...progress} />}
             actions={barActions}
           />
         }
-        roster={
-          selection.mode === GradingMode.Question ? (
-            <GradingRosterQuestions
-              questions={questions}
-              basePath={basePath}
-              activeQuestionId={focusedQuestion?.id ?? null}
-            />
-          ) : null
-        }
+        roster={null}
         main={main}
         fillScreen={selection.mode === GradingMode.Student}
       />
