@@ -330,6 +330,70 @@ describe("Feature: a school admin can never grade another school's test", () => 
     expect(test?.correctAnswersReleasedAt).toBeNull();
   });
 
+  it("releaseTestAction in chosen mode refuses a foreign test and releases no student", async () => {
+    const foreign = await createForeignFixture();
+    await getTestServices().testSubmissionService.submitTest(
+      foreign.testId,
+      foreign.studentId,
+    );
+    await signInAsOtherSchoolAdmin();
+    const formData = new FormData();
+    formData.set("testId", foreign.testId);
+    formData.set("courseId", foreign.courseId);
+    formData.set("mode", "chosen");
+    formData.append("studentId", foreign.studentId);
+
+    const result = await releaseTestAction(null, formData);
+
+    expect(result.success).toBe(false);
+    expect(
+      (
+        await getTestServices().testSubmissionService.getActiveSubmission(
+          foreign.testId,
+          foreign.studentId,
+        )
+      )?.releasedAt,
+    ).toBeNull();
+  });
+
+  it("releaseTestAction in chosen mode refuses a student outside the course and releases nobody", async () => {
+    signInAsDefaultAdmin();
+    const own = await seedFixture(getTestServices(), "admin-1");
+    await submitAnswer(own);
+    await getTestServices().testSubmissionService.submitTest(
+      own.testId,
+      own.studentId,
+    );
+    await getTestServices().gradeService.gradeQuestion({
+      testId: own.testId,
+      questionId: own.questionId,
+      studentId: own.studentId,
+      score: 90,
+      feedback: "",
+      gradedBy: "admin-1",
+    });
+    const outsiderId = await createOutsider();
+    const formData = new FormData();
+    formData.set("testId", own.testId);
+    formData.set("courseId", own.courseId);
+    formData.set("mode", "chosen");
+    formData.append("studentId", own.studentId);
+    formData.append("studentId", outsiderId);
+
+    const result = await releaseTestAction(null, formData);
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Student not found");
+    expect(
+      (
+        await getTestServices().testSubmissionService.getActiveSubmission(
+          own.testId,
+          own.studentId,
+        )
+      )?.releasedAt,
+    ).toBeNull();
+  });
+
   it("releaseCorrectAnswersAction refuses a foreign test and leaves it un-released", async () => {
     await signInAsOtherSchoolAdmin();
     const foreign = await createForeignFixture();

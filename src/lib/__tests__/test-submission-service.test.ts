@@ -461,6 +461,52 @@ describe("TestSubmissionService.getActiveSubmission", () => {
   );
 });
 
+describe("TestSubmissionService.releaseGradesToStudents", () => {
+  dbIt("releases every named student's submission together", async ({ db }) => {
+    await insertRawTest(db, "test-bulk");
+    const { testSubmissionService } = buildCoreServices(db);
+    await testSubmissionService.submitTest("test-bulk", "student-1");
+    await testSubmissionService.submitTest("test-bulk", "student-2");
+    await testSubmissionService.submitTest("test-bulk", "student-3");
+
+    await testSubmissionService.releaseGradesToStudents(
+      "test-bulk",
+      ["student-1", "student-2"],
+      "admin-1",
+    );
+
+    const released = async (studentId: string) =>
+      (await testSubmissionService.getActiveSubmission("test-bulk", studentId))
+        ?.releasedBy ?? null;
+    expect(await released("student-1")).toBe("admin-1");
+    expect(await released("student-2")).toBe("admin-1");
+    expect(await released("student-3")).toBeNull();
+  });
+
+  dbIt(
+    "writes nothing when one named student has no active submission",
+    async ({ db }) => {
+      await insertRawTest(db, "test-bulk-2");
+      const { testSubmissionService } = buildCoreServices(db);
+      await testSubmissionService.submitTest("test-bulk-2", "student-1");
+
+      await expect(
+        testSubmissionService.releaseGradesToStudents(
+          "test-bulk-2",
+          ["student-1", "ghost"],
+          "admin-1",
+        ),
+      ).rejects.toThrow("No active submission to release");
+
+      const active = await testSubmissionService.getActiveSubmission(
+        "test-bulk-2",
+        "student-1",
+      );
+      expect(active?.releasedAt).toBeNull();
+    },
+  );
+});
+
 describe("TestSubmissionService.releaseGradeToStudent", () => {
   dbIt(
     "stamps releasedAt and releasedBy on the active submission",

@@ -293,6 +293,37 @@ export class TestSubmissionService {
   }
 
   /**
+   * Stamps `releasedAt` / `releasedBy` on several students' active submissions
+   * in one write, so the release is all or nothing.
+   * @throws "Test not found" when the test isn't this school's.
+   * @throws "No active submission to release" when any student has no active submission; nothing is written then.
+   */
+  async releaseGradesToStudents(
+    testId: string,
+    studentIds: string[],
+    userId: string,
+  ): Promise<void> {
+    await this.testService.requireTest(testId);
+    const unique = [...new Set(studentIds)];
+    // Counted first: an updateMany that matches only some rows cannot be rolled back.
+    const active = await this.testSubmissions.countDocuments({
+      testId,
+      studentId: { $in: unique },
+      deletedAt: null,
+    });
+    if (active !== unique.length) {
+      throw new Error("No active submission to release");
+    }
+    const result = await this.testSubmissions.updateMany(
+      { testId, studentId: { $in: unique }, deletedAt: null },
+      { $set: { releasedAt: new Date(), releasedBy: userId } },
+    );
+    if (result.matchedCount !== unique.length) {
+      throw new Error("No active submission to release");
+    }
+  }
+
+  /**
    * Soft-deletes the active submission (used in the redo flow). The row stays
    * in the collection with `deletedAt` set so audit data on it is preserved;
    * subsequent reads via `isTestSubmitted` / `submitTest` ignore it.

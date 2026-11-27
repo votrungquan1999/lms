@@ -21,10 +21,13 @@ import {
   getAiGradeService,
   getAnnotationService,
   getGradeService,
+  getQuestionService,
   getRedoRequestService,
+  getStudentService,
   getTestFeedbackService,
   getTestService,
   getTestStartService,
+  getTestStatusService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
 import { TestStatus } from "src/lib/test-status-service";
@@ -313,12 +316,70 @@ export async function releaseGradesAction(
   }
 }
 
+/**
+ * Lets a chosen-students release go ahead only when every student is enrolled
+ * in the test's course, Graded now, and has no open redo.
+ * @throws "Student not found" for a student outside the course.
+ * @throws A message naming the students who are not graded or have an open redo.
+ */
+async function refuseUnlessReleasable(
+  schoolId: string,
+  testId: string,
+  courseId: string,
+  studentIds: string[],
+): Promise<void> {
+  const statusService = await getTestStatusService(schoolId);
+  const redoService = await getRedoRequestService(schoolId);
+  const questions = await (await getQuestionService(schoolId)).listQuestions(
+    testId,
+  );
+  const notGraded: string[] = [];
+  const openRedo: string[] = [];
+  for (const studentId of studentIds) {
+    await assertGradingTarget(schoolId, { testId, courseId, studentId });
+    // The status read hands in an expired timed attempt, so it has a submission to stamp.
+    const status = await statusService.getStatus(
+      testId,
+      studentId,
+      questions.length,
+    );
+    if (await redoService.getActiveRedoRequest(testId, studentId)) {
+      openRedo.push(studentId);
+    } else if (status !== TestStatus.Graded) {
+      notGraded.push(studentId);
+    }
+  }
+  if (notGraded.length === 0 && openRedo.length === 0) return;
+
+  const students = await (await getStudentService(schoolId)).findByIds([
+    ...notGraded,
+    ...openRedo,
+  ]);
+  const names = (ids: string[]) =>
+    ids.map((id) => students.find((s) => s.id === id)?.name ?? id).join(", ");
+  const reasons = [
+    ...(notGraded.length > 0 ? [`Not graded: ${names(notGraded)}`] : []),
+    ...(openRedo.length > 0 ? [`Open redo: ${names(openRedo)}`] : []),
+  ];
+  throw new Error(`Nothing was released. ${reasons.join("; ")}`);
+}
+
 const releaseTestSchema = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("whole"),
     testId: z.string().min(1),
     courseId: z.string().min(1),
     alsoCorrectAnswers: z.boolean(),
+  }),
+  z.object({
+    mode: z.literal("chosen"),
+    testId: z.string().min(1),
+    courseId: z.string().min(1),
+    alsoCorrectAnswers: z.boolean(),
+    studentIds: z
+      .array(z.string().min(1))
+      .min(1, "Choose at least one student")
+      .transform((ids) => [...new Set(ids)]),
   }),
 ]);
 
@@ -328,8 +389,8 @@ export interface ReleaseTestState {
 }
 
 /**
- * Server action: releases a test's grades to every student, and its correct
- * answers too when asked, in one write.
+ * Server action: releases a test's grades to every student (one write) or to
+ * the chosen students (all or none), and its correct answers too when asked.
  */
 export async function releaseTestAction(
   _prevState: ReleaseTestState | null,
@@ -356,6 +417,7 @@ export async function releaseTestAction(
     testId: formData.get("testId"),
     courseId: formData.get("courseId"),
     alsoCorrectAnswers: formData.get("alsoCorrectAnswers") === "true",
+    studentIds: formData.getAll("studentId"),
   });
 
   if (!parsed.success) {
@@ -374,11 +436,26 @@ export async function releaseTestAction(
       async () => {
         const testService = await getTestService(schoolId);
         await resolveOwnedTest(testService, testId, courseId);
-        await testService.releaseGradesAndAnswers(
-          testId,
-          adminUserId,
-          alsoCorrectAnswers,
-        );
+        if (parsed.data.mode === "chosen") {
+          const { studentIds } = parsed.data;
+          await refuseUnlessReleasable(schoolId, testId, courseId, studentIds);
+          const submissions = await getTestSubmissionService(schoolId);
+          await submissions.releaseGradesToStudents(
+            testId,
+            studentIds,
+            adminUserId,
+          );
+          // Correct answers open for the whole test, not only the chosen students.
+          if (alsoCorrectAnswers) {
+            await testService.releaseCorrectAnswers(testId, adminUserId);
+          }
+        } else {
+          await testService.releaseGradesAndAnswers(
+            testId,
+            adminUserId,
+            alsoCorrectAnswers,
+          );
+        }
 
         revalidatePath(`/admin/courses/${courseId}/tests/${testId}/grading`);
         revalidatePath(`/admin/courses/${courseId}/tests/${testId}`);
