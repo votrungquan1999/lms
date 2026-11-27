@@ -25,6 +25,8 @@ import { z } from "zod";
 // One wording for every refusal, so a caller can't tell a foreign or missing
 // test from a course they aren't in.
 const NOT_ENROLLED_MESSAGE = "You are not enrolled in this course";
+const HANDED_IN_MESSAGE =
+  "This test is handed in. Ask your teacher for a redo to change answers.";
 
 /**
  * A student may start, answer or submit a test only when it is their own
@@ -147,6 +149,15 @@ export async function submitAnswerAction(
 
   if (!(await canWorkOnTest(schoolId, studentId, testId, courseId))) {
     return { success: false, message: NOT_ENROLLED_MESSAGE };
+  }
+
+  // A handed-in test stays read-only until the teacher opens a redo.
+  const submissionService = await getTestSubmissionService(schoolId);
+  if (
+    (await submissionService.isTestSubmitted(testId, studentId)) &&
+    !(await submissionService.hasOpenRedo(testId, studentId))
+  ) {
+    return { success: false, message: HANDED_IN_MESSAGE };
   }
 
   try {

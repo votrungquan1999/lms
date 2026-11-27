@@ -372,3 +372,117 @@ describe("Feature: a student can only act on tests of the course they're enrolle
     expect(submitted).toBe(true);
   });
 });
+
+/**
+ * Feature: a student cannot change her answers after hand-in unless her
+ * teacher has requested a redo
+ */
+describe("Feature: answers are locked after hand-in", () => {
+  async function seedHandedInStudent() {
+    const { course, test } = await seedOwnCourseAndTest("student-1");
+    const question = await getTestServices().questionService.addQuestion(
+      test.id,
+      { title: "Q", content: "Q", createdBy: "admin", type: "free_text" },
+    );
+    requireStudentSession.mockResolvedValue({
+      studentId: "student-1",
+      schoolId: TEST_SCHOOL_ID,
+    });
+    const answerFor = (text: string) =>
+      submitAnswerAction(
+        null,
+        submitAnswerFormData({
+          testId: test.id,
+          courseId: course.id,
+          questionId: question.id,
+          answer: text,
+        }),
+      );
+    return { course, test, answerFor };
+  }
+
+  async function latestTexts(testId: string) {
+    const answers = await getTestServices().answerService.getLatestAnswers(
+      testId,
+      "student-1",
+    );
+    return answers.map((a) => a.answer);
+  }
+
+  it("refuses an answer posted after hand-in and keeps the handed-in answer", async () => {
+    const { test, answerFor } = await seedHandedInStudent();
+    await answerFor("first");
+    await getTestServices().testSubmissionService.submitTest(
+      test.id,
+      "student-1",
+    );
+
+    const result = await answerFor("changed");
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        "This test is handed in. Ask your teacher for a redo to change answers.",
+    });
+    expect(await latestTexts(test.id)).toEqual([
+      { type: "free_text", text: "first" },
+    ]);
+  });
+  it("accepts a changed answer while a redo is open and refuses again after the redo hand-in", async () => {
+    const { course, test, answerFor } = await seedHandedInStudent();
+    const { testSubmissionService, redoRequestService } = getTestServices();
+    await answerFor("first");
+    await testSubmissionService.submitTest(test.id, "student-1");
+    await redoRequestService.requestRedo(test.id, "student-1", "admin");
+
+    const duringRedo = await answerFor("second");
+    await submitTestAction(null, testFormData(test.id, course.id));
+    const afterRedo = await answerFor("third");
+
+    expect(duringRedo.success).toBe(true);
+    expect(afterRedo.success).toBe(false);
+    expect(await latestTexts(test.id)).toEqual([
+      { type: "free_text", text: "second" },
+    ]);
+  });
+
+  it("lets a practice answer be revised before the test is finalized and refuses it after", async () => {
+    const { test, answerFor } = await seedHandedInStudent();
+    const { testService, testSubmissionService } = getTestServices();
+    await testService.updateTestSettings(test.id, {
+      showGradeAfterSubmit: test.showGradeAfterSubmit,
+      showCorrectAnswerAfterSubmit: test.showCorrectAnswerAfterSubmit,
+      timeLimitMinutes: null,
+      isPractice: true,
+      answerRevealMode: test.answerRevealMode,
+      updatedBy: "admin",
+    });
+
+    await answerFor("first");
+    const revised = await answerFor("revised");
+    await testSubmissionService.submitTest(test.id, "student-1");
+    const afterFinalize = await answerFor("after finalize");
+
+    expect(revised.success).toBe(true);
+    expect(afterFinalize).toEqual({
+      success: false,
+      message:
+        "This test is handed in. Ask your teacher for a redo to change answers.",
+    });
+    expect(await latestTexts(test.id)).toEqual([
+      { type: "free_text", text: "revised" },
+    ]);
+  });
+
+  it("accepts answers before hand-in", async () => {
+    const { test, answerFor } = await seedHandedInStudent();
+
+    const first = await answerFor("first");
+    const second = await answerFor("second");
+
+    expect([first.success, second.success]).toEqual([true, true]);
+    expect(await latestTexts(test.id)).toEqual([
+      { type: "free_text", text: "second" },
+    ]);
+  });
+});
