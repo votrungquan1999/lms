@@ -1180,4 +1180,69 @@ describe("Feature: GradingVariantPage", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/grades released/i)).not.toBeInTheDocument();
   });
+
+  it("keeps Needs grading only on in the links to the next student, to By student and By question and to each roster student", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Algebra 101",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Midterm",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
+    });
+    const students = [];
+    for (const name of ["Alice", "Bob"]) {
+      const student = await services.studentService.createStudentDocument({
+        authUserId: `auth-${name}`,
+        username: name.toLowerCase(),
+        name,
+        createdBy: "admin",
+      });
+      await services.enrollmentService.enrollStudent(
+        course.id,
+        student.id,
+        "admin",
+      );
+      await services.answerService.submitAnswer({
+        testId: test.id,
+        questionId: question.id,
+        studentId: student.id,
+        answer: { type: "free_text", text: `${name}'s answer` },
+      });
+      await services.testSubmissionService.submitTest(test.id, student.id);
+      students.push(student);
+    }
+
+    // When: the page opens with the filter on
+    const ui = await GradingVariantPage({
+      params: Promise.resolve({ testId: test.id }),
+      searchParams: Promise.resolve({ needsOnly: "1" }),
+    });
+    render(ui);
+
+    // Then: every way to another student or mode carries it
+    expect(
+      screen.getByRole("link", { name: "Next submitted student" }),
+    ).toHaveAttribute("href", expect.stringContaining("needsOnly=1"));
+    for (const mode of ["By student", "By question"]) {
+      expect(screen.getByRole("tab", { name: mode })).toHaveAttribute(
+        "href",
+        expect.stringContaining("needsOnly=1"),
+      );
+    }
+    for (const student of students) {
+      expect(
+        screen.getByTestId(`roster-cell-${student.id}`).closest("a"),
+      ).toHaveAttribute("href", expect.stringContaining("needsOnly=1"));
+    }
+  });
 });

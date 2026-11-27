@@ -11,6 +11,7 @@ interface GradingRosterProps {
   basePath: string;
   activeStudentId: string | null;
   sort: GradingSort;
+  needsOnly?: boolean;
 }
 
 /**
@@ -24,6 +25,7 @@ export function GradingRoster({
   basePath,
   activeStudentId,
   sort,
+  needsOnly,
 }: GradingRosterProps) {
   return (
     <div className="space-y-2">
@@ -34,7 +36,12 @@ export function GradingRoster({
           return (
             <li key={cell.id}>
               <Link
-                href={gradingHref({ basePath, studentId: cell.id, sort })}
+                href={gradingHref({
+                  basePath,
+                  studentId: cell.id,
+                  sort,
+                  needsOnly,
+                })}
                 scroll={false}
                 aria-current={isActive ? "page" : undefined}
                 className="block rounded-sm hover:bg-muted aria-[current=page]:bg-muted"

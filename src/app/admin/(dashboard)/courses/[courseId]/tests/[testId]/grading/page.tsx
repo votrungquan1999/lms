@@ -39,6 +39,8 @@ export default async function GradingPage({
         ? GradingSort.Status
         : GradingSort.Enrollment;
 
+  const needsOnly = sp.needsOnly === "1";
+
   const testService = await getTestService(session.school.id);
   const test = await testService.getTest(testId);
   if (!test || test.courseId !== courseId) {
@@ -61,7 +63,7 @@ export default async function GradingPage({
           courseId,
           schoolId: session.school.id,
           basePath: `/admin/courses/${courseId}/tests/${testId}/grading`,
-          selection: { mode, studentId, questionId, sort },
+          selection: { mode, studentId, questionId, sort, needsOnly },
           barActions: <GradingReleaseActions test={test} courseId={courseId} />,
         })
       }

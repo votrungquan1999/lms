@@ -94,6 +94,7 @@ interface PivotToggleProps {
   /** The student and question on screen, kept when the mode changes. */
   studentId?: string;
   questionId?: string;
+  needsOnly?: boolean;
 }
 
 /**
@@ -106,6 +107,7 @@ export function PivotToggle({
   basePath,
   studentId,
   questionId,
+  needsOnly,
 }: PivotToggleProps) {
   return (
     <Tabs value={mode}>
@@ -117,6 +119,7 @@ export function PivotToggle({
               mode: GradingMode.Student,
               studentId,
               questionId,
+              needsOnly,
             })}
             scroll={false}
           >
@@ -130,6 +133,7 @@ export function PivotToggle({
               mode: GradingMode.Question,
               studentId,
               questionId,
+              needsOnly,
             })}
             scroll={false}
           >

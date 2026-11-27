@@ -24,6 +24,7 @@ interface GradingSelection {
   studentId?: string;
   questionId?: string;
   sort: GradingSort;
+  needsOnly?: boolean;
 }
 
 interface GradingPageShellProps {
@@ -151,6 +152,7 @@ export async function GradingPageShell({
             questionId: focusedQuestion?.id,
             basePath,
             sort: selection.sort,
+            needsOnly: selection.needsOnly,
           })
         }
       </>
@@ -198,6 +200,7 @@ export async function GradingPageShell({
           mode: GradingMode.Student,
           studentId: id,
           sort: selection.sort,
+          needsOnly: selection.needsOnly,
         });
   // A student outside the list opens the first one with › and the last with ‹.
   const previousId =
@@ -219,6 +222,7 @@ export async function GradingPageShell({
               basePath={basePath}
               studentId={focused?.id}
               questionId={focusedQuestion?.id}
+              needsOnly={selection.needsOnly}
             />
           }
           position={
@@ -249,6 +253,7 @@ export async function GradingPageShell({
             basePath={basePath}
             activeStudentId={focused?.id ?? null}
             sort={selection.sort}
+            needsOnly={selection.needsOnly}
           />
         )
       }

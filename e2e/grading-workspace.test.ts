@@ -6,6 +6,7 @@ import {
   expectWrapped,
   insertAnswer,
   insertCourse,
+  insertGrade,
   insertQuestion,
   insertStudent,
   insertSubmission,
@@ -340,5 +341,114 @@ test.describe("Question number row", () => {
     await expect(
       panel.getByRole("heading", { name: "Grade · Q1 · Draft Student" }),
     ).toBeVisible();
+  });
+});
+
+test.describe("Needs grading only", () => {
+  for (const route of ["To grade", "the test page"] as const) {
+    test(`hides the boxes that need nothing and stays on while the teacher moves between answers, opened from ${route}`, async ({
+      page,
+    }) => {
+      const { courseId, testId, studentId, questionIds } = await withDb(
+        async (db) => {
+          const courseId = await insertCourse(db);
+          const testId = await insertTest(db, courseId);
+          const studentId = await insertStudent(db, { name: "Needs Student" });
+          await enroll(db, { courseId, studentId });
+          const questionIds: string[] = [];
+          for (const order of [1, 2, 3]) {
+            const questionId = await insertQuestion(db, testId, {
+              title: `[needs] Question ${order}`,
+              order,
+            });
+            await insertAnswer(db, {
+              testId,
+              questionId,
+              studentId,
+              answer: { type: "free_text", text: `answer ${order}` },
+            });
+            questionIds.push(questionId);
+          }
+          // Q1 is graded; Q2 and Q3 wait for a grade.
+          await insertGrade(db, {
+            testId,
+            questionId: questionIds[0],
+            studentId,
+            score: 80,
+          });
+          await insertSubmission(db, { testId, studentId });
+          return { courseId, testId, studentId, questionIds };
+        },
+      );
+      const basePath =
+        route === "To grade"
+          ? `/admin/grading/${testId}`
+          : `/admin/courses/${courseId}/tests/${testId}/grading`;
+      await page.goto(
+        `${basePath}?studentId=${studentId}&questionId=${questionIds[1]}`,
+      );
+      const row = page.getByTestId("question-row-boxes");
+      const toggle = page.getByRole("link", { name: "Needs grading only" });
+      await hydrated(page.getByRole("button", { name: "Save Grade" }));
+
+      // Given: every box shows
+      await expect(row.getByRole("link")).toHaveCount(3);
+      await expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+      // When: the teacher turns Needs grading only on
+      await toggle.click();
+
+      // Then: the graded box is gone and the two waiting boxes stay
+      await expect(toggle).toHaveAttribute("aria-pressed", "true");
+      await expect(row.getByRole("link", { name: "Q1 graded" })).toHaveCount(0);
+      await expect(row.getByRole("link")).toHaveCount(2);
+
+      // When: the teacher opens the other waiting answer
+      await row.getByRole("link", { name: "Q3 needs grading" }).click();
+
+      // Then: the filter is still on
+      await expect(page).toHaveURL(new RegExp(`questionId=${questionIds[2]}`));
+      await expect(toggle).toHaveAttribute("aria-pressed", "true");
+      await expect(row.getByRole("link")).toHaveCount(2);
+
+      // When: the teacher turns it off
+      await toggle.click();
+
+      // Then: every box shows again
+      await expect(toggle).toHaveAttribute("aria-pressed", "false");
+      await expect(row.getByRole("link")).toHaveCount(3);
+    });
+  }
+
+  test("keeps the current box when it needs nothing and says so when nothing needs grading", async ({
+    page,
+  }) => {
+    const { testId, studentId, questionId } = await withDb(async (db) => {
+      const courseId = await insertCourse(db);
+      const testId = await insertTest(db, courseId);
+      const studentId = await insertStudent(db, { name: "Done Student" });
+      await enroll(db, { courseId, studentId });
+      const questionId = await insertQuestion(db, testId, {
+        title: "[needs] Only question",
+      });
+      await insertAnswer(db, {
+        testId,
+        questionId,
+        studentId,
+        answer: { type: "free_text", text: "answer" },
+      });
+      await insertGrade(db, { testId, questionId, studentId, score: 100 });
+      await insertSubmission(db, { testId, studentId });
+      return { testId, studentId, questionId };
+    });
+    await page.goto(
+      `/admin/grading/${testId}?studentId=${studentId}&questionId=${questionId}&needsOnly=1`,
+    );
+
+    // Then: the open box stays and the row says nothing else needs grading
+    await expect(
+      page.getByTestId("question-row-boxes").getByRole("link"),
+    ).toHaveCount(1);
+    await expect(page.getByText("Nothing needs grading")).toBeVisible();
   });
 });

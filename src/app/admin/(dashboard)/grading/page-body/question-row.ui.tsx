@@ -39,10 +39,20 @@ const BOX_WORDS: Record<QuestionBoxState, string> = {
 interface QuestionRowProps {
   boxes: QuestionBoxModel[];
   counts: Record<QuestionBoxState, number>;
+  needsOnly: boolean;
+  /** The row's own address with the filter flipped. */
+  toggleHref: string;
+  nothingNeedsGrading: boolean;
 }
 
 /** One numbered box per question, wrapping onto more lines on a long test, with a legend of the state counts. */
-export function QuestionRowUi({ boxes, counts }: QuestionRowProps) {
+export function QuestionRowUi({
+  boxes,
+  counts,
+  needsOnly,
+  toggleHref,
+  nothingNeedsGrading,
+}: QuestionRowProps) {
   return (
     <div className="space-y-1.5" data-testid="question-row">
       {/* A numeric line-height keeps the wrapped lines of boxes apart. */}
@@ -72,6 +82,22 @@ export function QuestionRowUi({ boxes, counts }: QuestionRowProps) {
             )}
           </GuardedLink>
         ))}
+      </div>
+      <div className="flex items-center gap-3 text-xs">
+        <GuardedLink
+          href={toggleHref}
+          scroll={false}
+          aria-pressed={needsOnly}
+          className={cn(
+            "rounded border px-2 py-0.5",
+            needsOnly && "border-teal-600 bg-teal-50 text-teal-800",
+          )}
+        >
+          Needs grading only
+        </GuardedLink>
+        {needsOnly && nothingNeedsGrading && (
+          <span className="text-muted-foreground">Nothing needs grading</span>
+        )}
       </div>
       <p
         className="text-xs text-muted-foreground"

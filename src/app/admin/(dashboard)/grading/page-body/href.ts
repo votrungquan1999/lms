@@ -6,6 +6,8 @@ interface GradingHrefInput {
   studentId?: string;
   questionId?: string;
   sort?: GradingSort;
+  /** Keep only the answers that need a grade in the question row. */
+  needsOnly?: boolean;
 }
 
 /**
@@ -23,6 +25,7 @@ export function gradingHref(input: GradingHrefInput): string {
   if (input.sort && input.sort !== GradingSort.Enrollment) {
     params.set("sort", input.sort);
   }
+  if (input.needsOnly) params.set("needsOnly", "1");
 
   const qs = params.toString();
   return qs.length > 0 ? `${input.basePath}?${qs}` : input.basePath;

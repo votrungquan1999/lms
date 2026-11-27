@@ -54,6 +54,8 @@ interface GradingDetailStudentProps {
   basePath: string;
   /** Current `?sort=` value, preserved in the Save & Next redirect target. */
   sort?: GradingSort;
+  /** Show only the answers that need a grade in the question row. */
+  needsOnly?: boolean;
 }
 
 /**
@@ -70,6 +72,7 @@ export async function GradingDetailStudent({
   questionId,
   basePath,
   sort,
+  needsOnly = false,
 }: GradingDetailStudentProps) {
   const testId = test.id;
 
@@ -273,6 +276,7 @@ export async function GradingDetailStudent({
               isPractice={test.isPractice}
               basePath={basePath}
               sort={sort}
+              needsOnly={needsOnly}
             />
           </div>
         )}

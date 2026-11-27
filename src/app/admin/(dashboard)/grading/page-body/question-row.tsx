@@ -4,7 +4,11 @@ import type { Question } from "src/lib/question-service";
 import { GradingMode, type GradingSort } from "./grading-page-body.type";
 import { gradingHref } from "./href";
 import { QuestionRowUi } from "./question-row.ui";
-import { countBoxStates, questionBoxState } from "./question-row-state";
+import {
+  countBoxStates,
+  QuestionBoxState,
+  questionBoxState,
+} from "./question-row-state";
 
 interface QuestionRowProps {
   /** The test's live questions in order. */
@@ -18,6 +22,7 @@ interface QuestionRowProps {
   isPractice: boolean;
   basePath: string;
   sort?: GradingSort;
+  needsOnly: boolean;
 }
 
 /** The question number row for one student: every live question's state, with a link to open it. */
@@ -31,6 +36,7 @@ export function QuestionRow({
   isPractice,
   basePath,
   sort,
+  needsOnly,
 }: QuestionRowProps) {
   const boxes = questions.map((question) => ({
     questionId: question.id,
@@ -48,13 +54,33 @@ export function QuestionRow({
       studentId,
       questionId: question.id,
       sort,
+      needsOnly,
     }),
     current: question.id === currentQuestionId,
   }));
   return (
     <QuestionRowUi
-      boxes={boxes}
+      boxes={
+        needsOnly
+          ? boxes.filter(
+              (box) => box.current || box.state === QuestionBoxState.NeedsGrade,
+            )
+          : boxes
+      }
+      // Counts stay over every question so the legend does not shift with the filter.
       counts={countBoxStates(boxes.map((box) => box.state))}
+      needsOnly={needsOnly}
+      toggleHref={gradingHref({
+        basePath,
+        mode: GradingMode.Student,
+        studentId,
+        questionId: currentQuestionId,
+        sort,
+        needsOnly: !needsOnly,
+      })}
+      nothingNeedsGrading={
+        !boxes.some((box) => box.state === QuestionBoxState.NeedsGrade)
+      }
     />
   );
 }
