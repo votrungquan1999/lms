@@ -18,10 +18,10 @@ export function GradePanelShell({
 }: GradePanelShellProps) {
   return (
     <section
-      className="space-y-3 rounded-lg border p-4"
+      className="flex min-h-0 flex-col gap-3 rounded-lg border p-4"
       data-testid="grade-card"
     >
-      <header>
+      <header className="shrink-0">
         <h3 className="text-sm font-semibold wrap-anywhere">
           Grade · Q{questionOrder} · {studentName}
         </h3>

@@ -76,6 +76,8 @@ interface BaseGradeFormProps {
    * value, so they show the saved grade instead of a stale draft.
    */
   formKey?: string;
+  /** Scrolls with the fields, under them; the save buttons stay pinned below. */
+  children?: React.ReactNode;
 }
 
 // ── Shared primitive: score / feedback / solution inputs ──────────────────────
@@ -183,6 +185,7 @@ function GradeFormInner({
   saveAndNext,
   showQuickScores = false,
   formKey,
+  children,
 }: BaseGradeFormProps) {
   const [state, formAction, isPending] = useActionState<
     GradeQuestionState | null,
@@ -201,44 +204,55 @@ function GradeFormInner({
   const formId = useId();
 
   return (
-    <div className="space-y-3">
-      <form key={formKey} id={formId} action={formAction} className="space-y-3">
-        <input type="hidden" name="testId" value={testId} />
-        <input type="hidden" name="courseId" value={courseId} />
-        <input type="hidden" name="questionId" value={questionId} />
-        <input type="hidden" name="studentId" value={studentId} />
-        {saveAndNext && (
-          <>
-            <input
-              type="hidden"
-              name="candidateIds"
-              value={saveAndNext.candidateIds}
-            />
-            <input
-              type="hidden"
-              name="currentStudentId"
-              value={saveAndNext.currentStudentId}
-            />
-            <input
-              type="hidden"
-              name="returnPath"
-              value={saveAndNext.returnPath}
-            />
-            <input type="hidden" name="mode" value={saveAndNext.mode} />
-            {saveAndNext.sort && (
-              <input type="hidden" name="sort" value={saveAndNext.sort} />
-            )}
-          </>
-        )}
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+        <form
+          key={formKey}
+          id={formId}
+          action={formAction}
+          className="space-y-3"
+        >
+          <input type="hidden" name="testId" value={testId} />
+          <input type="hidden" name="courseId" value={courseId} />
+          <input type="hidden" name="questionId" value={questionId} />
+          <input type="hidden" name="studentId" value={studentId} />
+          {saveAndNext && (
+            <>
+              <input
+                type="hidden"
+                name="candidateIds"
+                value={saveAndNext.candidateIds}
+              />
+              <input
+                type="hidden"
+                name="currentStudentId"
+                value={saveAndNext.currentStudentId}
+              />
+              <input
+                type="hidden"
+                name="returnPath"
+                value={saveAndNext.returnPath}
+              />
+              <input type="hidden" name="mode" value={saveAndNext.mode} />
+              {saveAndNext.sort && (
+                <input type="hidden" name="sort" value={saveAndNext.sort} />
+              )}
+            </>
+          )}
 
-        <GradeInputs
-          questionId={questionId}
-          existingScore={existingScore}
-          existingFeedback={existingFeedback}
-          existingSolution={existingSolution}
-          showQuickScores={showQuickScores}
-        />
+          <GradeInputs
+            questionId={questionId}
+            existingScore={existingScore}
+            existingFeedback={existingFeedback}
+            existingSolution={existingSolution}
+            showQuickScores={showQuickScores}
+          />
+        </form>
+        {children}
+      </div>
 
+      {/* Outside the form's scroll area so the buttons stay in view; `form` ties them to it. */}
+      <div className="shrink-0 space-y-2">
         <div className="flex items-center gap-3">
           {requiresConfirm ? (
             <AlertDialog>
@@ -264,13 +278,14 @@ function GradeFormInner({
               </AlertDialogContent>
             </AlertDialog>
           ) : (
-            <Button type="submit" size="sm" disabled={isPending}>
+            <Button type="submit" form={formId} size="sm" disabled={isPending}>
               {submitLabel}
             </Button>
           )}
           {saveAndNext && (
             <Button
               type="submit"
+              form={formId}
               size="sm"
               variant="secondary"
               disabled={isPending}
@@ -280,14 +295,14 @@ function GradeFormInner({
             </Button>
           )}
         </div>
-      </form>
-      {state?.message && (
-        <p
-          className={`text-sm ${state.success ? "text-green-600" : "text-destructive"}`}
-        >
-          {state.message}
-        </p>
-      )}
+        {state?.message && (
+          <p
+            className={`text-sm ${state.success ? "text-green-600" : "text-destructive"}`}
+          >
+            {state.message}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

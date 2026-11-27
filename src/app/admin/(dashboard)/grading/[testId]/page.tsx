@@ -56,7 +56,14 @@ export default async function GradingVariantPage({
   const courseId = test.courseId;
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div
+      className={
+        mode === GradingMode.Student
+          ? // Fills the screen below the phone menu bar so only the panes inside scroll.
+            "flex h-[calc(100svh-3.5rem)] min-h-0 flex-col gap-4 p-6 md:h-svh"
+          : "flex flex-1 flex-col gap-4 p-6"
+      }
+    >
       <h1 className="sr-only">Grade: {test.title}</h1>
       {
         await GradingPageShell({

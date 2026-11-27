@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Progress } from "src/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "src/components/ui/tabs";
+import { cn } from "src/lib/utils";
 import { GradingMode } from "./grading-page-body.type";
 import { gradingHref } from "./href";
 
@@ -10,6 +11,8 @@ interface TwoPaneShellProps {
   topBar: React.ReactNode;
   roster: React.ReactNode;
   main: React.ReactNode;
+  /** The panes fill the screen and scroll inside it, instead of the page growing. */
+  fillScreen: boolean;
 }
 
 /**
@@ -17,18 +20,40 @@ interface TwoPaneShellProps {
  * a flexible main pane on the right. Layout-only display component
  * (server-components-rules.md forbids layout inside server components).
  */
-export function TwoPaneShell({ topBar, roster, main }: TwoPaneShellProps) {
+export function TwoPaneShell({
+  topBar,
+  roster,
+  main,
+  fillScreen,
+}: TwoPaneShellProps) {
   return (
-    <div className="space-y-4">
+    <div
+      className={
+        fillScreen ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"
+      }
+    >
       {topBar}
-      <div className="grid grid-cols-[18rem_minmax(0,1fr)] items-start gap-6">
+      <div
+        className={cn(
+          "grid grid-cols-[18rem_minmax(0,1fr)] gap-6",
+          fillScreen ? "min-h-0 flex-1" : "items-start",
+        )}
+      >
         <aside
-          className="rounded-md border border-border bg-card p-2"
+          className={cn(
+            "rounded-md border border-border bg-card p-2",
+            fillScreen && "min-h-0 overflow-y-auto",
+          )}
           data-testid="grading-roster"
         >
           {roster}
         </aside>
-        <section data-testid="grading-main-pane">{main}</section>
+        <section
+          className={fillScreen ? "min-h-0" : undefined}
+          data-testid="grading-main-pane"
+        >
+          {main}
+        </section>
       </div>
     </div>
   );

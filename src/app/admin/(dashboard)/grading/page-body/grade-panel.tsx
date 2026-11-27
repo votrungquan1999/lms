@@ -54,15 +54,23 @@ export function GradePanel({
   function renderBody() {
     if (isMcQuestion(question)) {
       return (
-        <McReadOnlyScore
-          selectedIds={answer?.type === "mc" ? answer.selectedIds : []}
-          score={score}
-          isSubmitted={isSubmitted}
-        />
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+          <McReadOnlyScore
+            selectedIds={answer?.type === "mc" ? answer.selectedIds : []}
+            score={score}
+            isSubmitted={isSubmitted}
+          />
+          {overallFeedback}
+        </div>
       );
     }
     if (!gradable) {
-      return <BlankAnswerNote isSubmitted={isSubmitted} score={score} />;
+      return (
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+          <BlankAnswerNote isSubmitted={isSubmitted} score={score} />
+          {overallFeedback}
+        </div>
+      );
     }
     const savedAt = grade?.updatedAt ?? grade?.gradedAt;
     return (
@@ -83,8 +91,10 @@ export function GradePanel({
           studentStatus={status}
           saveAndNext={saveAndNext}
           showQuickScores
-        />
-        {children}
+        >
+          {children}
+          {overallFeedback}
+        </CompactGradeForm>
       </>
     );
   }
@@ -97,7 +107,6 @@ export function GradePanel({
       studentUsername={student.username}
     >
       {renderBody()}
-      {overallFeedback}
     </GradePanelShell>
   );
 }

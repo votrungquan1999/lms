@@ -253,6 +253,7 @@ export async function GradingPageShell({
         )
       }
       main={main}
+      fillScreen={selection.mode === GradingMode.Student}
     />
   );
 }

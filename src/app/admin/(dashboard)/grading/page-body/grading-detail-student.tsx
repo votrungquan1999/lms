@@ -226,8 +226,9 @@ export async function GradingDetailStudent({
     <div
       data-testid={`student-card-${student.id}`}
       data-student-name={student.name}
+      className="h-full min-h-0"
     >
-      <Card>
+      <Card className="h-full min-h-0">
         <CardHeader>
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <CardTitle className="text-xl min-w-0 wrap-anywhere">
@@ -278,23 +279,28 @@ export async function GradingDetailStudent({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_24rem] grid-rows-[minmax(0,1fr)] gap-4">
           {selectedQuestion && (
-            <AnswerPane
-              testId={testId}
-              courseId={courseId}
-              studentId={student.id}
-              studentName={student.name}
-              question={selectedQuestion}
-              answer={selectedAnswer}
-              photos={photos}
-              annotations={annotations}
-              correctAnswersVisible={
-                test.showCorrectAnswerAfterSubmit ||
-                test.correctAnswersReleasedAt !== null
-              }
-              aiFix={selectedSuggestions[0]?.solution}
-            />
+            <div
+              data-testid="grading-answer-scroll"
+              className="min-h-0 space-y-4 overflow-y-auto"
+            >
+              <AnswerPane
+                testId={testId}
+                courseId={courseId}
+                studentId={student.id}
+                studentName={student.name}
+                question={selectedQuestion}
+                answer={selectedAnswer}
+                photos={photos}
+                annotations={annotations}
+                correctAnswersVisible={
+                  test.showCorrectAnswerAfterSubmit ||
+                  test.correctAnswersReleasedAt !== null
+                }
+                aiFix={selectedSuggestions[0]?.solution}
+              />
+            </div>
           )}
 
           {selectedQuestion && (
