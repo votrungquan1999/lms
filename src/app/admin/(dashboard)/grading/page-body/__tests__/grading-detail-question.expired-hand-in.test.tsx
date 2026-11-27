@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import type { Db } from "mongodb";
-import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
+import { TEST_SCHOOL } from "src/tests/create-test-db";
+import { questionDetailProps } from "src/tests/question-detail-props";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -46,16 +47,18 @@ describe("Feature: the question grading view hands in an attempt whose time ran 
     );
 
     // When the teacher opens the question's grading view
-    const ui = await GradingDetailQuestion({
-      test,
-      courseId: course.id,
-      schoolId: TEST_SCHOOL_ID,
-      questionId: question.id,
-      students: [
-        { id: student.id, name: student.name, username: student.username },
-      ],
-      basePath: `/admin/grading/${test.id}`,
-    });
+    const ui = await GradingDetailQuestion(
+      await questionDetailProps({
+        test,
+        courseId: course.id,
+        questionId: question.id,
+        student: {
+          id: student.id,
+          name: student.name,
+          username: student.username,
+        },
+      }),
+    );
     render(ui);
 
     // Then this very render shows the score written by the hand-in

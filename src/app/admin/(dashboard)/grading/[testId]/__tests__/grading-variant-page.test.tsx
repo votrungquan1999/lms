@@ -410,7 +410,7 @@ describe("Feature: GradingVariantPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("in question-mode, the main pane shows the focused question's title and one row per student with their answer text", async () => {
+  it("in question-mode, the main pane shows the focused question and the chosen student's answer, with a box for each student in the row", async () => {
     const services = getTestServices();
 
     const course = await services.courseService.createCourse({
@@ -463,24 +463,33 @@ describe("Feature: GradingVariantPage", () => {
     // When: rendered in question-mode with the question selected.
     const ui = await GradingVariantPage({
       params: Promise.resolve({ testId: test.id }),
-      searchParams: Promise.resolve({ mode: "question", questionId: q.id }),
+      searchParams: Promise.resolve({
+        mode: "question",
+        questionId: q.id,
+        studentId: ben.id,
+      }),
     });
     render(ui);
 
-    // Then: main pane shows the question title and both students' answers,
-    // each row scoped to its `student-card-${id}` selector.
+    // Then: the main pane shows the question and Ben's answer only, and the
+    // row has a box for each student.
     const mainPane = screen.getByTestId("grading-main-pane");
-    expect(within(mainPane).getByText(/Explain Big-O/)).toBeInTheDocument();
-
-    const adaRow = within(mainPane).getByTestId(`student-card-${ada.id}`);
     expect(
-      within(adaRow).getByText(/Ada says linear time\./),
-    ).toBeInTheDocument();
-
-    const benRow = within(mainPane).getByTestId(`student-card-${ben.id}`);
+      within(mainPane).getAllByText(/Explain Big-O/).length,
+    ).toBeGreaterThan(0);
     expect(
-      within(benRow).getByText(/Ben says proportional\./),
+      within(mainPane).getByText(/Ben says proportional\./),
     ).toBeInTheDocument();
+    expect(
+      within(mainPane).queryByText(/Ada says linear time\./),
+    ).not.toBeInTheDocument();
+    const row = within(mainPane).getByTestId("question-row");
+    expect(
+      within(row).getByRole("button", { name: "Ada still writing" }),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByRole("button", { name: "Ben still writing" }),
+    ).toHaveAttribute("aria-current", "true");
   });
 
   it("should show 'X of Y' fully-graded students in the progress fraction in student-mode", async () => {

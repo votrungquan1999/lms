@@ -60,7 +60,7 @@ Routes: `src/app/admin/(dashboard)/courses/page.tsx`,
 - [T1] grading/student-graded: frank focused — every question scored, feedback filled in
 - [T1] grading/student-redo-requested: ivy focused — the Request Redo control replaced by "Redo requested ↩"
 - [T1] grading/student-ai-suggestion: noah focused — AI suggestion panel with score, model, suggested solution, Apply and Regenerate
-- [T1] grading/by-question-all-students: ?mode=question — question roster on the left, one grading row per enrolled student on the right (many items)
+- [T1] grading/by-question-all-students: ?mode=question — question picker in the top bar, one box per student in the row and the chosen student's answer with the grade panel
 - [T1] grading/course-scoped-unreleased: /admin/courses/.../tests/seed-test-hidden/grading — Release Grades + Release Correct Answers both unreleased, 16 not-started students
 - [T1] grading/empty-roster-unbroken-title: a fresh "[grading]" course and test — 0 students ("No students enrolled in this course yet."), title pasted as one unbroken email-like string, long course name
 - [T3] grading/grades-released: the same page after Release Grades — the control is simply gone, with no confirmation anywhere

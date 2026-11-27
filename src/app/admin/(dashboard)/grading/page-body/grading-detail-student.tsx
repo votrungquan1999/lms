@@ -17,11 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "src/components/ui/card";
-import { AiGradeJobStatus } from "src/lib/ai-grade-job-service";
-import {
-  type AiGradeSuggestion,
-  CollectOutcomeKind,
-} from "src/lib/ai-grade-types";
+import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
 import { attachAnswerImageUrls } from "src/lib/answer-image-urls";
 import { GradingMode } from "src/lib/grading-mode";
 import {
@@ -49,6 +45,7 @@ import {
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
+import { aiJobState } from "./ai-job-state";
 import { gradingRouteKind } from "./href";
 import { QuestionRow } from "./question-row";
 
@@ -176,32 +173,15 @@ export async function GradingDetailStudent({
   const latestAiJob = await (
     await getAiGradeJobService(schoolId)
   ).getLatestForStudent(testId, student.id);
-  // The notes and the refresher follow the job, not the submission status: a
-  // fully hand-graded submission still has a job whose result will arrive.
-  // Practice tests never get an AI job.
-  // A render that lost the claim saw the job end before the winner's rows were
-  // readable, so it counts as in progress for one more refresh.
-  const aiGradingStartedAt =
-    !test.isPractice &&
-    latestAiJob !== null &&
-    (latestAiJob.status === AiGradeJobStatus.Pending ||
-      collected.kind === CollectOutcomeKind.ClaimedElsewhere)
-      ? latestAiJob.createdAt
-      : null;
-
-  // A later round (e.g. Gemini, which leaves no job row) supersedes the failed job.
-  const hasSuggestionNewerThanJob =
-    latestAiJob !== null &&
-    [...aiSuggestionsByQuestion.values()]
-      .flat()
-      .some((suggestion) => suggestion.generatedAt > latestAiJob.createdAt);
-  const aiGradingFailed =
-    !test.isPractice &&
-    latestAiJob?.status === AiGradeJobStatus.Failed &&
-    !hasSuggestionNewerThanJob;
-  // Remounts the AI triggers when the job changes, so a "started" message from
-  // a click on the previous job does not linger.
-  const aiJobStateKey = `${latestAiJob?.id ?? "none"}:${latestAiJob?.status ?? "none"}`;
+  const aiJob = aiJobState({
+    isPractice: test.isPractice,
+    latestJob: latestAiJob,
+    collected,
+    suggestionsByQuestion: aiSuggestionsByQuestion,
+  });
+  const aiGradingStartedAt = aiJob.startedAt;
+  const aiGradingFailed = aiJob.failed;
+  const aiJobStateKey = aiJob.key;
 
   const selectedSuggestions: AiGradeSuggestion[] = selectedQuestion
     ? (aiSuggestionsByQuestion.get(selectedQuestion.id) ?? [])

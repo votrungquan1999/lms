@@ -167,6 +167,14 @@ test.describe("Grading layout — long names, titles and links stay readable", (
       const questionId = await insertQuestion(db, testId);
       const studentId = await insertStudent(db, { name: longName });
       await enroll(db, { courseId, studentId });
+      // A hand-in, so the By-question pivot has a box and an answer for her.
+      await insertAnswer(db, {
+        testId,
+        questionId,
+        studentId,
+        answer: { type: "free_text", text: "an answer" },
+      });
+      await insertSubmission(db, { testId, studentId });
       return { testId, questionId, studentId };
     });
 
@@ -189,14 +197,15 @@ test.describe("Grading layout — long names, titles and links stay readable", (
     await expectNoPageOverflow(page);
     await page.keyboard.press("Escape");
 
-    // By-question pivot: the per-student row header.
+    // By-question pivot: the grade panel's header.
     await page.goto(
-      `/admin/grading/${testId}?mode=question&questionId=${questionId}`,
+      `/admin/grading/${testId}?mode=question&questionId=${questionId}&studentId=${studentId}`,
     );
-    const row = page.getByTestId(`student-card-${studentId}`);
-    const rowName = row.getByText(longName, { exact: false });
-    await expect(rowName).toBeVisible();
-    await expectWrapped(rowName);
+    const questionPanelName = page
+      .getByTestId("grade-card")
+      .getByRole("heading", { name: /Grade · Q1/ });
+    await expect(questionPanelName).toBeVisible();
+    await expectWrapped(questionPanelName);
     await expectNoPageOverflow(page);
   });
 });

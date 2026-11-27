@@ -12,50 +12,34 @@ interface TwoPaneShellProps {
   /** The left pane; none leaves the main pane the full width. */
   roster: React.ReactNode;
   main: React.ReactNode;
-  /** The panes fill the screen and scroll inside it, instead of the page growing. */
-  fillScreen: boolean;
 }
 
 /**
  * Top bar over a two-pane grid: a fixed-width roster sidebar on the left and
- * a flexible main pane on the right. Layout-only display component
+ * a flexible main pane on the right. The panes fill the screen and scroll
+ * inside it, instead of the page growing. Layout-only display component
  * (server-components-rules.md forbids layout inside server components).
  */
-export function TwoPaneShell({
-  topBar,
-  roster,
-  main,
-  fillScreen,
-}: TwoPaneShellProps) {
+export function TwoPaneShell({ topBar, roster, main }: TwoPaneShellProps) {
   return (
-    <div
-      className={
-        fillScreen ? "flex min-h-0 flex-1 flex-col gap-4" : "space-y-4"
-      }
-    >
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {topBar}
       <div
         className={cn(
           "grid gap-6",
           roster ? "grid-cols-[18rem_minmax(0,1fr)]" : "grid-cols-1",
-          fillScreen ? "min-h-0 flex-1" : "items-start",
+          "min-h-0 flex-1",
         )}
       >
         {roster && (
           <aside
-            className={cn(
-              "rounded-md border border-border bg-card p-2",
-              fillScreen && "min-h-0 overflow-y-auto",
-            )}
+            className="min-h-0 overflow-y-auto rounded-md border border-border bg-card p-2"
             data-testid="grading-roster"
           >
             {roster}
           </aside>
         )}
-        <section
-          className={fillScreen ? "min-h-0" : undefined}
-          data-testid="grading-main-pane"
-        >
+        <section className="min-h-0" data-testid="grading-main-pane">
           {main}
         </section>
       </div>

@@ -2,8 +2,8 @@
 import { render, screen } from "@testing-library/react";
 import type { Db } from "mongodb";
 import type { Test } from "src/lib/test-service";
-import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import { insertRawTest } from "src/tests/insert-raw-test";
+import { questionDetailProps } from "src/tests/question-detail-props";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -42,14 +42,14 @@ describe("Feature: grader sees a blank free-text question in the per-question vi
     await testSubmissionService.submitTest("test-1", "student-1");
 
     // When the grader opens that question's grading pane.
-    const ui = await GradingDetailQuestion({
-      test,
-      courseId: "course-1",
-      schoolId: TEST_SCHOOL_ID,
-      questionId: question.id,
-      students: [{ id: "student-1", name: "Stu", username: "stu" }],
-      basePath: "/admin/grading/test-1",
-    });
+    const ui = await GradingDetailQuestion(
+      await questionDetailProps({
+        test,
+        courseId: "course-1",
+        questionId: question.id,
+        student: { id: "student-1", name: "Stu", username: "stu" },
+      }),
+    );
     render(ui);
 
     // Then the blank reads "counts as 0" and no editable form is offered —
@@ -85,14 +85,14 @@ describe("Feature: grader sees a blank free-text question in the per-question vi
     });
 
     // When the grader opens that question's grading pane.
-    const ui = await GradingDetailQuestion({
-      test,
-      courseId: "course-1",
-      schoolId: TEST_SCHOOL_ID,
-      questionId: question.id,
-      students: [{ id: "student-1", name: "Stu", username: "stu" }],
-      basePath: "/admin/grading/test-1",
-    });
+    const ui = await GradingDetailQuestion(
+      await questionDetailProps({
+        test,
+        courseId: "course-1",
+        questionId: question.id,
+        student: { id: "student-1", name: "Stu", username: "stu" },
+      }),
+    );
     render(ui);
 
     // Then the stored score wins over the generic "counts as 0" line.

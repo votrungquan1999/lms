@@ -14,10 +14,15 @@ export interface AnswerRef {
 export interface NextAnswerInput {
   /** By student walks one student's answers first; By question walks one question's. */
   mode: "student" | "question";
-  /** The course's students, in box order. */
+  /** The course's enrolled students; their order does not matter. */
   students: { id: string }[];
   /** The answer the teacher just graded. */
   current: AnswerRef;
+  /**
+   * By question: the student on screen was waiting (Needs grading) before this
+   * save, so the walk starts after her box. Defaults to what `pairs` says.
+   */
+  currentWasWaiting?: boolean;
   /** The test's live questions, in order. */
   questions: Question[];
   /** Each enrolled student's pair result, by student id. */
@@ -62,10 +67,11 @@ function answerNeedsGrade(
 }
 
 /**
- * Finds the answer Save & next opens: the same student's later answers that
- * need a grade, then her earlier ones, then the first such answer of the
- * oldest waiting student. Still-writing and redo-locked students are never
- * picked as the next student.
+ * Finds the answer Save & next opens. By student: the same student's later
+ * answers that need a grade, then her earlier ones, then the first such answer
+ * of the oldest waiting student. By question: the next box on this question,
+ * then the first waiting box of the next question. Still-writing and
+ * redo-locked students are never picked as the next student.
  * @param input - The screen's questions, answers and grades, and the answer just graded.
  * @returns The next answer, or null when nothing is left.
  */
@@ -77,49 +83,62 @@ export function findNextAnswerToGrade(
     : findNextByStudent(input);
 }
 
-/** Students whose answers may be picked as next: handed in, no open redo. */
-function waitingStudentIds(input: NextAnswerInput): string[] {
-  return input.students
-    .map((student) => input.pairs.get(student.id))
+/** Handed-in students with no open redo, in the picker's Needs grading order: oldest hand-in first. */
+function waitingPairs(input: NextAnswerInput): PairGradingResult[] {
+  const enrolled = new Set(input.students.map((student) => student.id));
+  return [...input.pairs.values()]
     .filter(
-      (pair): pair is PairGradingResult =>
-        pair !== undefined &&
+      (pair) =>
+        enrolled.has(pair.studentId) &&
         pair.status === TestStatus.Submitted &&
         !pair.redoRequested,
     )
-    .map((pair) => pair.studentId);
+    .sort(byHandIn);
 }
 
-/** The next student's answer to this question, then the first waiting answer of the next question, wrapping. */
+/** Oldest hand-in first, then by id, as the student picker lists Needs grading. */
+function byHandIn(a: PairGradingResult, b: PairGradingResult): number {
+  return (
+    (a.submittedAt?.getTime() ?? 0) - (b.submittedAt?.getTime() ?? 0) ||
+    a.studentId.localeCompare(b.studentId)
+  );
+}
+
+/** The next box on this question in box order, wrapping, then the first waiting box of the next question. */
 function findNextByQuestion(input: NextAnswerInput): AnswerRef | null {
   const { current, questions } = input;
-  const waiting = waitingStudentIds(input);
+  const waiting = waitingPairs(input);
   const questionAt = questions.findIndex((q) => q.id === current.questionId);
-  const studentAt = input.students.findIndex((s) => s.id === current.studentId);
-  const order = [
-    ...input.students.slice(studentAt + 1),
-    ...input.students.slice(0, studentAt + 1),
-  ]
-    .map((s) => s.id)
-    .filter((id) => waiting.includes(id));
+  const currentPair = input.pairs.get(current.studentId);
+  const wasWaiting =
+    input.currentWasWaiting ??
+    waiting.some((pair) => pair.studentId === current.studentId);
 
-  // The current question starts after the current student; the others start at the first box.
-  const sameQuestion = order.find((id) =>
-    answerNeedsGrade(input, id, questions[questionAt]),
+  // A waiting student's box sits among the waiting boxes; any other box comes after them all.
+  const isAfterCurrent = (pair: PairGradingResult) =>
+    wasWaiting && currentPair !== undefined && byHandIn(pair, currentPair) > 0;
+  const others = waiting.filter((pair) => pair.studentId !== current.studentId);
+  const sameQuestion = [
+    ...others.filter(isAfterCurrent),
+    ...others.filter((pair) => !isAfterCurrent(pair)),
+  ].find((pair) =>
+    answerNeedsGrade(input, pair.studentId, questions[questionAt]),
   );
   if (sameQuestion) {
-    return { studentId: sameQuestion, questionId: current.questionId };
+    return {
+      studentId: sameQuestion.studentId,
+      questionId: current.questionId,
+    };
   }
-  const others = [
+  const laterQuestions = [
     ...questions.slice(questionAt + 1),
     ...questions.slice(0, questionAt),
   ];
-  for (const question of others) {
-    const studentId = input.students
-      .map((s) => s.id)
-      .filter((id) => waiting.includes(id))
-      .find((id) => answerNeedsGrade(input, id, question));
-    if (studentId) return { studentId, questionId: question.id };
+  for (const question of laterQuestions) {
+    const first = waiting.find((pair) =>
+      answerNeedsGrade(input, pair.studentId, question),
+    );
+    if (first) return { studentId: first.studentId, questionId: question.id };
   }
   return null;
 }
@@ -129,18 +148,7 @@ function otherWaitingPairs(
   input: NextAnswerInput,
   studentId: string,
 ): PairGradingResult[] {
-  return [...input.pairs.values()]
-    .filter(
-      (pair) =>
-        pair.studentId !== studentId &&
-        pair.status === TestStatus.Submitted &&
-        !pair.redoRequested,
-    )
-    .sort(
-      (a, b) =>
-        (a.submittedAt?.getTime() ?? 0) - (b.submittedAt?.getTime() ?? 0) ||
-        a.studentId.localeCompare(b.studentId),
-    );
+  return waitingPairs(input).filter((pair) => pair.studentId !== studentId);
 }
 
 /**
@@ -154,6 +162,23 @@ export function questionsToGrade(
   studentId: string,
 ): Question[] {
   return input.questions.filter((q) => answerNeedsGrade(input, studentId, q));
+}
+
+/**
+ * How many waiting students still have an answer to this question to grade.
+ * @param input - The screen's questions, answers, grades and pairs.
+ * @param questionId - The question on screen.
+ * @returns The count, including the student on screen while her answer waits.
+ */
+export function countStudentsToGradeOnQuestion(
+  input: NextAnswerInput,
+  questionId: string,
+): number {
+  const question = input.questions.find((q) => q.id === questionId);
+  if (!question) return 0;
+  return waitingPairs(input).filter((pair) =>
+    answerNeedsGrade(input, pair.studentId, question),
+  ).length;
 }
 
 /**

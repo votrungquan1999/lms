@@ -298,9 +298,27 @@ describe("Feature: Save & next moves to the next answer that needs a grade", () 
       saveForm(seed, cy.id, q1.id, byQuestion),
     );
 
-    // Then the first waiting answer of Q2 in the screen's student order (newest enrolment first) opens: Cy's
-    expect(nextQuestion.searchParams.get("studentId")).toBe(cy.id);
+    // Then Q2's first waiting box opens: Ann's, the oldest hand-in
+    expect(nextQuestion.searchParams.get("studentId")).toBe(ann.id);
     expect(nextQuestion.searchParams.get("questionId")).toBe(q2.id);
+  });
+
+  it("by question: takes the student boxes' order, oldest hand-in first, even when the answer saved was that student's last", async () => {
+    // Given Ann, Bob and Cy handed in in that order, so their boxes read Ann, Bob, Cy; Bob's Q2 is graded
+    const seed = await seedTest(["written", "written"]);
+    await seedHandedInStudent(seed, "Ann");
+    const bob = await seedHandedInStudent(seed, "Bob", { graded: [1] });
+    const cy = await seedHandedInStudent(seed, "Cy");
+    const [q1] = seed.questions;
+
+    // When the teacher saves Bob's Q1, his last answer to grade
+    const url = await redirectedTo(
+      saveForm(seed, bob.id, q1.id, { mode: "question" }),
+    );
+
+    // Then the box after Bob's opens: Cy's Q1
+    expect(url.searchParams.get("studentId")).toBe(cy.id);
+    expect(url.searchParams.get("questionId")).toBe(q1.id);
   });
 });
 

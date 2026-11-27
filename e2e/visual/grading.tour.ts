@@ -21,7 +21,6 @@ const SHELL = [
   "src/app/admin/(dashboard)/grading/page-body/grading-page-shell.ui.tsx",
   "src/app/admin/(dashboard)/grading/page-body/student-picker.tsx",
   "src/app/admin/(dashboard)/grading/page-body/student-picker.ui.tsx",
-  "src/app/admin/(dashboard)/grading/student-status-badge.tsx",
 ];
 
 const STUDENT_DETAIL = [
@@ -271,7 +270,6 @@ test("grading: by-question pivot with every student", async ({ page }) => {
       "src/app/admin/(dashboard)/grading/page-body/grading-page-shell.tsx",
       "src/app/admin/(dashboard)/grading/page-body/question-picker.ui.tsx",
       "src/app/admin/(dashboard)/grading/page-body/grading-detail-question.tsx",
-      "src/app/admin/(dashboard)/grading/page-body/grading-detail-question.ui.tsx",
       "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms.tsx",
     ],
   });

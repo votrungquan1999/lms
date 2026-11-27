@@ -2,8 +2,8 @@
 import { render, screen } from "@testing-library/react";
 import { MediaContentType } from "src/lib/question-service";
 import type { Test } from "src/lib/test-service";
-import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import { insertRawTest } from "src/tests/insert-raw-test";
+import { questionDetailProps } from "src/tests/question-detail-props";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -56,14 +56,14 @@ describe("Feature: media renders in the admin grading view", () => {
     );
 
     // When the grader opens that question's grading pane
-    const ui = await GradingDetailQuestion({
-      test,
-      courseId: "course-1",
-      schoolId: TEST_SCHOOL_ID,
-      questionId: created.id,
-      students: [],
-      basePath: "/admin/grading/test-1",
-    });
+    const ui = await GradingDetailQuestion(
+      await questionDetailProps({
+        test,
+        courseId: "course-1",
+        questionId: created.id,
+        student: { id: "student-1", name: "Stu", username: "stu" },
+      }),
+    );
     const { container } = render(ui);
 
     // Then the image and video render in the teacher's order, via presigned URLs
@@ -101,14 +101,14 @@ describe("Feature: picture links read as Picture k in the admin grading view", (
 
     // When the grader opens that question's grading pane
     render(
-      await GradingDetailQuestion({
-        test,
-        courseId: "course-1",
-        schoolId: TEST_SCHOOL_ID,
-        questionId: created.id,
-        students: [],
-        basePath: "/admin/grading/test-1",
-      }),
+      await GradingDetailQuestion(
+        await questionDetailProps({
+          test,
+          courseId: "course-1",
+          questionId: created.id,
+          student: { id: "student-1", name: "Stu", username: "stu" },
+        }),
+      ),
     );
 
     // Then the grader reads the label the student saw

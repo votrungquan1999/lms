@@ -27,6 +27,7 @@ import {
   getTestStartService,
   getTestSubmissionService,
 } from "src/lib/services-singleton";
+import { TestStatus } from "src/lib/test-status-service";
 import { z } from "zod";
 import { assertGradingTarget, resolveOwnedTest } from "../test-parent-check";
 
@@ -563,7 +564,7 @@ export async function saveAndNextAction(formData: FormData) {
 
   await assertGradingTarget(session.school.id, input);
 
-  await withSpan(
+  const previousGrade = await withSpan(
     "action.saveAndNextAction",
     {
       "lms.action.name": "saveAndNextAction",
@@ -581,6 +582,11 @@ export async function saveAndNextAction(formData: FormData) {
       );
 
       const gradeService = await getGradeService(session.school.id);
+      const previous = await gradeService.getGrade(
+        input.testId,
+        input.questionId,
+        input.studentId,
+      );
       await gradeService.gradeQuestion({
         testId: input.testId,
         questionId: input.questionId,
@@ -604,6 +610,7 @@ export async function saveAndNextAction(formData: FormData) {
       );
       revalidatePath("/admin/grading");
       revalidatePath(`/admin/grading/${input.testId}`);
+      return previous;
     },
   );
 
@@ -614,10 +621,17 @@ export async function saveAndNextAction(formData: FormData) {
     input.courseId,
   );
   const screen = await readGradingScreen(session.school.id, test);
+  const pair = screen.pairs.get(input.studentId);
   const next = findNextAnswerToGrade({
     mode: input.mode,
     students: screen.students,
     current: { studentId: input.studentId, questionId: input.questionId },
+    // The walk starts after her box as the teacher saw it: she was waiting if she still is, or if this save graded her last ungraded answer.
+    currentWasWaiting:
+      pair !== undefined &&
+      !pair.redoRequested &&
+      (pair.status === TestStatus.Submitted ||
+        (pair.status === TestStatus.Graded && previousGrade === null)),
     questions: screen.questions,
     pairs: screen.pairs,
     answers: screen.answers,

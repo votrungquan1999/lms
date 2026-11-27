@@ -40,7 +40,7 @@ interface GradingPageShellProps {
   schoolId: string;
   /** Base URL (no query string) every grading link on the page is built on; also tells Save & next which route it is on. */
   basePath: string;
-  /** URL-driven selection. An unknown student opens the oldest waiting one, else the first graded; an unknown question opens the first one (By student: her first answer to grade). */
+  /** URL-driven selection. An unknown student opens the oldest waiting one, else the first graded (By question: the first who needs a grade on the question); an unknown question opens the first one (By student: her first answer to grade). */
   selection: GradingSelection;
   /** Controls shown at the right end of the top bar. */
   barActions?: React.ReactNode;
@@ -49,8 +49,9 @@ interface GradingPageShellProps {
 /**
  * Grading shell: a top bar over the focused detail. By student puts the
  * student picker and ‹ › in the top bar and the student's full detail below.
- * By question puts the question picker and ‹ › in the top bar and one row
- * per enrolled student for the focused question below.
+ * By question puts the question picker and ‹ › in the top bar, and below it
+ * the row of student boxes for the focused question over the chosen
+ * student's answer.
  */
 export async function GradingPageShell({
   test,
@@ -112,10 +113,14 @@ export async function GradingPageShell({
     requestedStudentId: selection.studentId,
   });
 
+  const currentStudent = studentBoxes.currentId
+    ? studentByIdLookup.get(studentBoxes.currentId)
+    : undefined;
+
   const main =
     selection.mode === GradingMode.Question ? (
       focusedQuestion ? (
-        <>
+        <div className="flex h-full min-h-0 flex-col gap-4">
           <StudentRow
             boxes={studentBoxes.boxes}
             currentStudentId={studentBoxes.currentId}
@@ -129,21 +134,25 @@ export async function GradingPageShell({
             basePath={basePath}
             needsOnly={selection.needsOnly ?? false}
           />
-          {
+          {currentStudent ? (
             await GradingDetailQuestion({
               test,
               courseId,
               schoolId,
-              questionId: focusedQuestion.id,
-              students: orderedStudents.map((s) => ({
-                id: s.id,
-                name: s.name,
-                username: s.username,
-              })),
+              question: focusedQuestion,
+              student: currentStudent,
               basePath,
+              needsOnly: selection.needsOnly,
+              screen,
             })
-          }
-        </>
+          ) : (
+            <p className="mt-4 text-sm text-muted-foreground">
+              {orderedStudents.length > 0
+                ? "Nobody has submitted yet."
+                : "No students enrolled in this course yet."}
+            </p>
+          )}
+        </div>
       ) : (
         <p className="text-sm text-muted-foreground">
           This test has no questions yet.
@@ -241,7 +250,11 @@ export async function GradingPageShell({
               <PivotToggle
                 mode={selection.mode}
                 basePath={basePath}
-                studentId={focused?.id}
+                studentId={
+                  selection.mode === GradingMode.Question
+                    ? currentStudent?.id
+                    : focused?.id
+                }
                 questionId={focusedQuestion?.id}
                 needsOnly={selection.needsOnly}
               />
@@ -286,7 +299,6 @@ export async function GradingPageShell({
         }
         roster={null}
         main={main}
-        fillScreen={selection.mode === GradingMode.Student}
       />
     </StillWritingProvider>
   );

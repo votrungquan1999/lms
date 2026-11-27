@@ -139,9 +139,10 @@ describe("Feature: GradingPage student picker", () => {
     const byQuestion = screen.getByRole("tab", { name: /By question/i });
     expect(byQuestion.getAttribute("data-state")).toBe("active");
 
-    // Then: the main pane shows the question title (proving the URL ->
+    // Then: the top bar's question picker names the question (proving the URL ->
     // shell selection wiring works on the course-scoped route too).
-    const mainPane = screen.getByTestId("grading-main-pane");
-    expect(within(mainPane).getByText(/Explain Big-O/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /question picker/i }),
+    ).toHaveTextContent("Q1 Explain Big-O");
   });
 });

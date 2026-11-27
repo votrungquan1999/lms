@@ -159,8 +159,8 @@ function GradeInputs({
 }
 
 // ── CompactGradeForm: grade inputs only (no outer card) ─────────────────────
-// The grade panel and the question-mode rows render it with no card and no
-// question heading — those belong to the panel / row.
+// The grade panel renders it with no card and no question heading — those
+// belong to the panel.
 export { GradeFormInner as CompactGradeForm };
 
 function GradeFormInner({

@@ -1,201 +1,244 @@
-import { CompactGradeForm } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
-import { AnnotationTool } from "src/app/admin/(dashboard)/grading/page-body/annotation-tool";
-import { CollapsibleQuestionDescription } from "src/app/admin/(dashboard)/grading/page-body/grading-detail-question.ui";
-import { StudentStatusBadge } from "src/app/admin/(dashboard)/grading/student-status-badge";
-import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
-import { McAnswerChips } from "src/components/mc-answer-chips";
-import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
-import { QuestionMedia } from "src/components/question-media.ui";
+import { AiGradingFailedNote } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grading-failed-note.ui";
+import { AiGradingInProgressNote } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grading-in-progress-note.ui";
+import { AiSuggestionPanel } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-suggestion-panel";
+import type { SaveAndNextNavigation } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
+import { OverallFeedbackForm } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
+import { PendingAiGradingRefresher } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/pending-ai-grading-refresher.ui";
+import { AnswerPane } from "src/app/admin/(dashboard)/grading/page-body/answer-pane";
+import { GradePanel } from "src/app/admin/(dashboard)/grading/page-body/grade-panel";
+import { MoreMenu } from "src/app/admin/(dashboard)/grading/page-body/more-menu";
 import { attachAnswerImageUrls } from "src/lib/answer-image-urls";
 import { GradingMode } from "src/lib/grading-mode";
-import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
-import { isMcQuestion } from "src/lib/question-service";
+import type { GradingScreenRead } from "src/lib/grading-screen-read";
 import {
+  countStudentsToGradeOnQuestion,
+  findNextAnswerToGrade,
+  type NextAnswerInput,
+} from "src/lib/next-answer-to-grade";
+import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
+import type { Question } from "src/lib/question-service";
+import {
+  getAiGradeJobService,
+  getAiGradeService,
   getAnnotationService,
-  getAnswerService,
-  getGradeService,
-  getQuestionService,
-  getTestStatusService,
+  getTestFeedbackService,
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
-import { hasSubmitted } from "src/lib/test-status-service";
+import { TestStatus } from "src/lib/test-status-service";
+import { aiJobState } from "./ai-job-state";
 import { gradingRouteKind } from "./href";
-
-interface RosterStudent {
-  id: string;
-  name: string;
-  username: string;
-}
 
 interface GradingDetailQuestionProps {
   test: Test;
   courseId: string;
   /** The page's school — never resolved here. */
   schoolId: string;
-  /** Question selected via URL (or first-in-order fallback). */
-  questionId: string;
-  /** The course's students, newest enrolment first. */
-  students: RosterStudent[];
+  /** The question on screen. */
+  question: Question;
+  /** The student whose answer is on screen. */
+  student: { id: string; name: string; username: string };
   /** Base path the page is rendered at (no query string). */
   basePath: string;
+  /** Keep "Needs grading only" on after Save & next. */
+  needsOnly?: boolean;
+  /** The screen's read of the test. */
+  screen: GradingScreenRead;
 }
 
 /**
- * Question-mode main pane. Renders the focused question's title + content
- * at the top, then one row per enrolled student with their answer and a
- * compact grading form. Questions keep their `question.order`.
+ * By question's main pane: one student's answer to the question on screen
+ * with the same grade panel, AI suggestions and More menu as By student.
  */
 export async function GradingDetailQuestion({
   test,
   courseId,
   schoolId,
-  questionId,
-  students,
+  question: focused,
+  student,
   basePath,
+  needsOnly = false,
+  screen,
 }: GradingDetailQuestionProps) {
-  const questionService = await getQuestionService(schoolId);
-  const questions = await questionService.listQuestions(test.id);
-  const focused = questions.find((q) => q.id === questionId) ?? questions[0];
-
-  if (!focused) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        This test has no questions yet.
-      </p>
-    );
-  }
-
-  // Mint presigned GET URLs for the focused question's media so the grader
-  // sees exactly what the student saw.
+  const testId = test.id;
+  // Mint presigned GET URLs for the question's media so the grader sees exactly what the student saw.
   const [question] = await attachQuestionMediaUrls([focused]);
-  // MC questions are auto-graded — read-only display, no editable form.
-  const isMc = isMcQuestion(question);
 
-  const answerService = await getAnswerService(schoolId);
-  const gradeService = await getGradeService(schoolId);
-  const annotationService = await getAnnotationService(schoolId);
-  const testStatusService = await getTestStatusService(schoolId);
+  const status = screen.pairs.get(student.id)?.status ?? TestStatus.NotStarted;
+  const answer = screen.answers.get(student.id)?.get(question.id);
+  const grade = screen.grades.get(student.id)?.get(question.id);
+  const photos =
+    answer?.answer.type === "image"
+      ? await attachAnswerImageUrls(answer.answer.mediaKeys)
+      : [];
+  const annotations =
+    answer?.answer.type === "image"
+      ? await (await getAnnotationService(schoolId)).getAnnotations(
+          testId,
+          question.id,
+          student.id,
+        )
+      : [];
+  const testFeedback = await (
+    await getTestFeedbackService(schoolId)
+  ).getTestFeedback(testId, student.id);
 
-  const rows = await Promise.all(
-    students.map(async (s) => {
-      // Status first: it hands in an expired attempt, so the grade below sees it.
-      const status = await testStatusService.getStatus(
-        test.id,
-        s.id,
-        questions.length,
-      );
-      const latestAnswers = await answerService.getLatestAnswers(test.id, s.id);
-      const answer = latestAnswers.find((a) => a.questionId === question.id);
-      const grade = await gradeService.getGrade(test.id, question.id, s.id);
-      // Mint presigned URLs for image-answer photos + load their annotations
-      // (stored separately from the grade) so the grader sees both.
-      const answerImages =
-        answer?.answer.type === "image"
-          ? await attachAnswerImageUrls(answer.answer.mediaKeys)
-          : [];
-      const annotations =
-        answer?.answer.type === "image"
-          ? await annotationService.getAnnotations(test.id, question.id, s.id)
-          : [];
-      return {
-        student: s,
-        answer: answer?.answer,
-        grade,
-        status,
-        answerImages,
-        annotations,
-      };
-    }),
+  const aiGradeService = await getAiGradeService(schoolId);
+  // Before the first suggestions read, so a finished job shows up in this render.
+  const collected = await aiGradeService.collectRunnerResult(
+    testId,
+    student.id,
   );
+  const suggestionsByQuestion = await aiGradeService.getSuggestionsForStudent(
+    testId,
+    student.id,
+  );
+  const aiJob = aiJobState({
+    isPractice: test.isPractice,
+    latestJob: await (await getAiGradeJobService(schoolId)).getLatestForStudent(
+      testId,
+      student.id,
+    ),
+    collected,
+    suggestionsByQuestion,
+  });
+  const suggestions = suggestionsByQuestion.get(question.id) ?? [];
+
+  // The label comes from the same search the Save & next action runs.
+  const nextInput: NextAnswerInput = {
+    mode: "question",
+    students: screen.students,
+    current: { studentId: student.id, questionId: question.id },
+    questions: screen.questions,
+    pairs: screen.pairs,
+    answers: screen.answers,
+    grades: screen.grades,
+  };
+  const next = findNextAnswerToGrade(nextInput);
+  const nextStudent = screen.students.find((s) => s.id === next?.studentId);
+  const nextQuestion = screen.questions.find((q) => q.id === next?.questionId);
+  const answersLeft = countStudentsToGradeOnQuestion(nextInput, question.id);
+  const saveAndNext: SaveAndNextNavigation = {
+    routeKind: gradingRouteKind(basePath),
+    mode: GradingMode.Question,
+    needsOnly,
+    ...(next && nextStudent && next.questionId === question.id
+      ? {
+          label: `Save & next: ${nextStudent.name}`,
+          leftLine: `${answersLeft} ${answersLeft === 1 ? "answer" : "answers"} left on Q${question.order}`,
+        }
+      : next && nextQuestion
+        ? {
+            label: `Save & next: Q${nextQuestion.order}`,
+            leftLine: `Last Q${question.order} answer to grade`,
+          }
+        : {
+            label: "Save & next",
+            leftLine: "Nothing else in this test needs a grade",
+          }),
+  };
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-1">
-        <h2 className="text-xl font-semibold">
-          Q{question.order}. {question.title}
-        </h2>
-        {question.content && (
-          <CollapsibleQuestionDescription description={question.content} />
-        )}
-        <QuestionMedia media={question.media} />
-      </header>
+    <div
+      data-testid={`student-card-${student.id}`}
+      data-student-name={student.name}
+      className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_24rem] grid-rows-[minmax(0,1fr)] gap-4"
+    >
+      <div
+        data-testid="grading-answer-scroll"
+        className="min-h-0 min-w-0 space-y-4 overflow-y-auto"
+      >
+        <AnswerPane
+          testId={testId}
+          courseId={courseId}
+          studentId={student.id}
+          studentName={student.name}
+          question={question}
+          answer={answer?.answer}
+          photos={photos}
+          annotations={annotations}
+          correctAnswersVisible={
+            test.showCorrectAnswerAfterSubmit ||
+            test.correctAnswersReleasedAt !== null
+          }
+          aiFix={suggestions[0]?.solution}
+        />
+      </div>
 
-      <ul className="space-y-3">
-        {rows.map(
-          ({ student, answer, grade, status, answerImages, annotations }) => (
-            <li
+      <GradePanel
+        testId={testId}
+        testTitle={test.title}
+        courseId={courseId}
+        student={student}
+        question={question}
+        answer={answer?.answer}
+        hasPhotos={photos.length > 0}
+        grade={grade}
+        status={status}
+        saveAndNext={saveAndNext}
+        overallFeedback={
+          (screen.answers.get(student.id)?.size ?? 0) > 0 && (
+            // Keyed by student so a typed draft never saves onto the next student.
+            <OverallFeedbackForm
               key={student.id}
-              data-testid={`student-card-${student.id}`}
-              className="rounded-md border border-border bg-card p-3 space-y-2"
-            >
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className="text-sm font-medium min-w-0 wrap-anywhere">
-                  {student.name}{" "}
-                  <span className="text-xs font-normal text-muted-foreground">
-                    @{student.username}
-                  </span>
-                </p>
-                <StudentStatusBadge status={status} />
-              </div>
-
-              {answer === undefined ? (
-                // McReadOnlyScore (below) already shows the MC blank wording —
-                // showing the generic line too would just duplicate it.
-                !isMc && (
-                  <BlankAnswerNote
-                    isSubmitted={hasSubmitted(status)}
-                    score={grade?.score ?? null}
-                  />
-                )
-              ) : answer.type === "mc" ? (
-                <McAnswerChips
-                  options={isMcQuestion(question) ? question.options : []}
-                  selectedIds={answer.selectedIds}
-                  colorPicks={true}
-                  showMissedCorrect={false}
-                />
-              ) : answer.type === "free_text" ? (
-                <pre className="whitespace-pre-wrap text-sm">{answer.text}</pre>
-              ) : (
-                <AnnotationTool
-                  testId={test.id}
-                  courseId={courseId}
-                  questionId={question.id}
-                  studentId={student.id}
-                  photos={answerImages}
-                  initialAnnotations={annotations}
-                />
-              )}
-
-              {isMc ? (
-                <McReadOnlyScore
-                  selectedIds={answer?.type === "mc" ? answer.selectedIds : []}
-                  score={grade?.score ?? null}
-                  isSubmitted={hasSubmitted(status)}
-                />
-              ) : answer === undefined ? null : (
-                <CompactGradeForm
-                  testId={test.id}
-                  courseId={courseId}
-                  questionId={question.id}
-                  studentId={student.id}
-                  questionTitle={question.title}
-                  questionOrder={question.order}
-                  existingScore={grade?.score ?? null}
-                  existingFeedback={grade?.feedback ?? null}
-                  existingSolution={grade?.solution ?? null}
-                  saveAndNext={{
-                    routeKind: gradingRouteKind(basePath),
-                    mode: GradingMode.Question,
-                    needsOnly: false,
-                    label: "Save & next",
-                  }}
-                />
-              )}
-            </li>
-          ),
+              testId={testId}
+              courseId={courseId}
+              studentId={student.id}
+              studentName={student.name}
+              existingFeedback={testFeedback}
+            />
+          )
+        }
+        moreMenu={
+          !test.isPractice && status === TestStatus.Submitted ? (
+            // Remounts with the job, so a "started" message does not outlive its job.
+            <MoreMenu
+              key={aiJob.key}
+              testId={testId}
+              courseId={courseId}
+              studentId={student.id}
+              offerAutoGrade={suggestionsByQuestion.size === 0}
+              offerRegenerateAll={suggestionsByQuestion.size > 0}
+              aiGradingStartedAt={aiJob.startedAt}
+            />
+          ) : undefined
+        }
+        aiJobNotes={
+          <>
+            {aiJob.startedAt !== null && (
+              <>
+                <AiGradingInProgressNote startedAt={aiJob.startedAt} />
+                <PendingAiGradingRefresher />
+              </>
+            )}
+            {aiJob.failed && <AiGradingFailedNote />}
+          </>
+        }
+      >
+        {question.type === "free_text" && suggestions.length > 0 && (
+          <AiSuggestionPanel
+            key={aiJob.key}
+            testId={testId}
+            courseId={courseId}
+            studentId={student.id}
+            questionId={question.id}
+            suggestions={suggestions}
+            latestAnswerId={answer?.id ?? null}
+            savedGrade={
+              grade && {
+                score: grade.score,
+                feedback: grade.feedback,
+                solution: grade.solution ?? null,
+              }
+            }
+            studentAnswer={
+              answer?.answer.type === "free_text"
+                ? answer.answer.text
+                : undefined
+            }
+            regenerateDisabled={aiJob.startedAt !== null}
+          />
         )}
-      </ul>
+      </GradePanel>
     </div>
   );
 }
