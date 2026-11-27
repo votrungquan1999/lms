@@ -1,4 +1,5 @@
 import type { SetupServer } from "msw/node";
+import { buildGradingPrompt } from "src/lib/ai/grading-prompt";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { startE2eAiMock } from "../e2e-ai-mock";
 
@@ -39,5 +40,40 @@ describe("e2e AI mock", () => {
 
     // Then it passes through
     expect(await response.text()).toBe("reached the network");
+  });
+
+  it("answers a grading prompt with one grade per question, echoing the teacher's regenerate note", async () => {
+    // Given the mock and a regenerate prompt for two questions
+    server = startE2eAiMock();
+    const prompt = buildGradingPrompt(
+      ["q-1", "q-2"].map((questionId) => ({
+        questionId,
+        questionContent: "Explain loops.",
+        studentAnswer: "a loop repeats",
+        answerId: `a-${questionId}`,
+      })),
+      { reason: "use a for loop", priorGrades: [] },
+    );
+
+    // When the grading call is sent
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      },
+    );
+
+    // Then each question gets a grade carrying the note
+    const reply = (await response.json()) as {
+      candidates: { content: { parts: { text: string }[] } }[];
+    };
+    const { grades } = JSON.parse(reply.candidates[0].content.parts[0].text);
+    expect(grades.map((g: { questionId: string }) => g.questionId)).toEqual([
+      "q-1",
+      "q-2",
+    ]);
+    expect(grades[0].feedback).toContain("use a for loop");
   });
 });

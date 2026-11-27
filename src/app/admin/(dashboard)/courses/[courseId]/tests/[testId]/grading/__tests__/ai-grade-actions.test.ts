@@ -403,6 +403,60 @@ const appliedSuggestion = {
   solution: "AI solution",
 };
 
+describe("Feature: regenerateQuestionAction refuses a reason outside 3 to 500 characters and an answer with nothing to regenerate", () => {
+  beforeEach(() => {
+    startRound.mockReset();
+  });
+
+  const formWith = (reason: string) => {
+    const fd = new FormData();
+    fd.set("testId", "test-1");
+    fd.set("courseId", "course-1");
+    fd.set("studentId", "stu-1");
+    fd.set("questionId", "q-1");
+    fd.set("reason", reason);
+    return fd;
+  };
+
+  it.each([
+    { label: "2 characters", reason: "ab" },
+    { label: "2 characters once trimmed", reason: "  ab  " },
+    { label: "501 characters", reason: "x".repeat(501) },
+  ])("starts no round for a reason of $label", async ({ reason }) => {
+    const state = await regenerateQuestionAction(null, formWith(reason));
+
+    expect(state.success).toBe(false);
+    expect(startRound).not.toHaveBeenCalled();
+  });
+
+  it("starts the round for a reason of exactly 3 characters", async () => {
+    startRound.mockResolvedValueOnce({
+      kind: StartRoundOutcomeKind.Completed,
+      suggestions: [{ id: "sugg-new" }],
+    });
+
+    const state = await regenerateQuestionAction(null, formWith("abc"));
+
+    expect(state.success).toBe(true);
+  });
+
+  it("reports a failure, not a success, when the answer has nothing to regenerate", async () => {
+    startRound.mockResolvedValueOnce({
+      kind: StartRoundOutcomeKind.NothingToGrade,
+    });
+
+    const state = await regenerateQuestionAction(
+      null,
+      formWith("Reconsider the cutoff"),
+    );
+
+    expect(state).toEqual({
+      success: false,
+      message: "This answer has no written text to regenerate.",
+    });
+  });
+});
+
 describe("Feature: applyAiSuggestionAction (Step 6 action-layer)", () => {
   beforeEach(() => {
     applySuggestion.mockReset();

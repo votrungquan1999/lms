@@ -22,6 +22,8 @@ interface RegenerateQuestionDialogProps {
   courseId: string;
   studentId: string;
   questionId: string;
+  /** The suggestion this regenerate replaces; shown so the teacher knows what is being redone. */
+  currentSuggestion?: { score: number; feedback: string };
   /** True while a grading job is pending: the trigger and the submit button stay disabled. */
   disabled?: boolean;
 }
@@ -39,13 +41,23 @@ export function RegenerateQuestionDialog({
   courseId,
   studentId,
   questionId,
+  currentSuggestion,
   disabled = false,
 }: RegenerateQuestionDialogProps) {
   const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
   const [state, formAction, isPending] = useActionState<
     RegenerateQuestionState | null,
     FormData
-  >(regenerateQuestionAction, null);
+  >(async (previous, formData) => {
+    const result = await regenerateQuestionAction(previous, formData);
+    // The new suggestion shows on the card, so a finished regenerate closes the dialog.
+    if (result.success) {
+      setOpen(false);
+      setReason("");
+    }
+    return result;
+  }, null);
 
   const reasonId = `regenerate-question-reason-${questionId}`;
 
@@ -71,6 +83,13 @@ export function RegenerateQuestionDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {currentSuggestion && (
+          <p className="text-sm">
+            Current suggestion {currentSuggestion.score} —{" "}
+            {currentSuggestion.feedback}
+          </p>
+        )}
+
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="testId" value={testId} />
           <input type="hidden" name="courseId" value={courseId} />
@@ -78,15 +97,25 @@ export function RegenerateQuestionDialog({
           <input type="hidden" name="questionId" value={questionId} />
 
           <div className="space-y-2">
-            <Label htmlFor={reasonId}>Reason</Label>
+            <Label htmlFor={reasonId}>Reason (required)</Label>
             <Textarea
               id={reasonId}
               name="reason"
               required
               minLength={3}
               maxLength={500}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
               placeholder="e.g. The AI under-credited the base-case explanation."
             />
+            <p className="flex justify-between text-xs text-muted-foreground">
+              <span>3–500 characters. Shown on the new suggestion.</span>
+              <span>{reason.length} / 500</span>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              The current suggestion moves to View history. The grade doesn't
+              change until you press Use this on the new suggestion.
+            </p>
           </div>
 
           <Button

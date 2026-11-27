@@ -180,7 +180,23 @@ describe("Feature: the AI suggestion card in the grade panel", () => {
     expect(card).toHaveTextContent(
       "Suggested fix: 1 line changed · shown on the left",
     );
-    expect(card).toHaveTextContent("Regen reason: be stricter");
+    expect(card).toHaveTextContent("Reason: be stricter");
+  });
+
+  it("does not say the fix is shown on the left when the suggestion has no fix or an empty one", async () => {
+    await renderWithSuggestions(db, (ids) => [
+      suggestion({
+        id: "s-empty",
+        ...ids,
+        gradedAgainstAnswerId: ids.answerId,
+        solution: "",
+      }),
+    ]);
+
+    const card = within(screen.getByTestId("grade-card")).getByTestId(
+      "ai-suggestion-panel",
+    );
+    expect(card).not.toHaveTextContent("Suggested fix");
   });
 
   it("shows each older suggestion's own fix, folded, next to its own Use button", async () => {

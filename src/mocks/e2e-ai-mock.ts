@@ -1,5 +1,6 @@
 import { HttpResponse, http } from "msw";
 import { type SetupServer, setupServer } from "msw/node";
+import { z } from "zod";
 
 /**
  * Text this mock returns as a question title. Distinct from anything a real
@@ -31,6 +32,72 @@ const LONG_TEXT_MARKER = "Unbroken text case";
 /** One long run with no spaces (like an email or URL) to test card wrapping. */
 export const MOCK_UNBROKEN_TEXT = `${"a".repeat(240)}@example.com`;
 
+/** The opening words of every grading prompt, which no import prompt shares. */
+const GRADING_PROMPT_MARKER = "You are an assistant grader";
+
+/** The score the mock gives every answer, so a spec can tell a mock grade from a seeded one. */
+export const MOCK_GRADE_SCORE = 60;
+
+/** Prefix of every mock grade's feedback; the teacher's regenerate note, when there is one, follows it. */
+export const MOCK_GRADE_FEEDBACK = "MSW mock: AI grade";
+
+/** The line a grading prompt puts right before the teacher's regenerate note. */
+const REGENERATE_NOTE_INTRO = "gave this note about how the class is taught:";
+
+const geminiRequestSchema = z.object({
+  contents: z.array(
+    z.object({ parts: z.array(z.object({ text: z.string().optional() })) }),
+  ),
+});
+
+/**
+ * Builds the grading reply for a grading prompt: one grade per question id in it.
+ * @param promptText - The grading prompt, as built by `buildGradingPrompt`.
+ * @returns The JSON text of a batch matching the grading schema.
+ */
+function gradingText(promptText: string): string {
+  const note =
+    promptText.split(`${REGENERATE_NOTE_INTRO}\n`)[1]?.split("\n")[0] ?? "";
+  const questionIds = [
+    ...promptText.matchAll(/--- questionId: (\S+) ---/g),
+  ].map((match) => match[1]);
+  return JSON.stringify({
+    grades: questionIds.map((questionId) => ({
+      questionId,
+      score: MOCK_GRADE_SCORE,
+      feedback: note ? `${MOCK_GRADE_FEEDBACK}: ${note}` : MOCK_GRADE_FEEDBACK,
+      solution: `${MOCK_GRADE_FEEDBACK} fix for ${questionId}`,
+    })),
+  });
+}
+
+/**
+ * The reply text for one intercepted call: a grade batch for a grading
+ * prompt, the canned question batch for anything else.
+ * @param request - The intercepted request.
+ */
+async function replyText(request: Request): Promise<string> {
+  const body = await request.text();
+  const parsed = geminiRequestSchema.safeParse(safeJson(body));
+  const promptText = parsed.success
+    ? parsed.data.contents
+        .flatMap((c) => c.parts.map((p) => p.text ?? ""))
+        .join("\n")
+    : "";
+  return promptText.includes(GRADING_PROMPT_MARKER)
+    ? gradingText(promptText)
+    : cannedBatchText(body);
+}
+
+/** Parses JSON, giving null when the text is not valid JSON. */
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 
 // Matches `.../v1beta/models/<any-model-id>:generateContent` — a colon, not
@@ -41,12 +108,11 @@ const GEMINI_GENERATE_CONTENT_URL =
 
 /**
  * Builds the canned question batch both providers' replies carry.
- * @param request - The intercepted request; its body says whether the
+ * @param body - The intercepted request's body; it says whether the
  *   extracted PDF text arrived.
  * @returns The JSON text of a batch matching `questionImportBatchSchema`.
  */
-async function cannedBatchText(request: Request): Promise<string> {
-  const body = await request.text();
+function cannedBatchText(body: string): string {
   if (body.includes(PICTURES_DOCX_MARKER)) {
     // Keeps picture 1's marker in the text and never mentions picture 2.
     return JSON.stringify({
@@ -101,7 +167,7 @@ export function startE2eAiMock(): SetupServer {
         candidates: [
           {
             content: {
-              parts: [{ text: await cannedBatchText(request) }],
+              parts: [{ text: await replyText(request) }],
             },
             finishReason: "STOP",
           },
@@ -120,7 +186,7 @@ export function startE2eAiMock(): SetupServer {
           type: "message",
           role: "assistant",
           model: "claude-e2e-mock",
-          content: [{ type: "text", text: await cannedBatchText(request) }],
+          content: [{ type: "text", text: await replyText(request) }],
           stop_reason: "end_turn",
           usage: { input_tokens: 1, output_tokens: 1 },
         },

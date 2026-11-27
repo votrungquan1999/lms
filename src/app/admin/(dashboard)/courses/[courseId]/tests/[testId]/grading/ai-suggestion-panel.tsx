@@ -65,6 +65,8 @@ interface SuggestionRowProps {
   isStale: boolean;
   /** The row is the latest suggestion, whose fix is shown on the left. */
   isLatest: boolean;
+  /** The row is a regenerated suggestion the teacher has not used yet. */
+  isPreview?: boolean;
   /** Every suggestion on this question, to tell whether the saved grade is the teacher's own. */
   allSuggestions: AiGradeSuggestion[];
   studentAnswer?: string;
@@ -102,6 +104,11 @@ export function AiSuggestionPanel({
   const latest = suggestions[0];
   if (!latest) return null;
   const older = suggestions.slice(1);
+  const previous = older[0];
+
+  // A regenerated suggestion stays a preview until the teacher uses it.
+  const isPreview =
+    latest.regenerateReason !== null && latest.appliedAt === null;
 
   /**
    * Read-time staleness: a row is stale iff its `gradedAgainstAnswerId`
@@ -118,13 +125,14 @@ export function AiSuggestionPanel({
     >
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-muted-foreground">
-          AI suggestion
+          {isPreview ? "New AI suggestion" : "AI suggestion"}
         </p>
         <RegenerateQuestionDialog
           testId={testId}
           courseId={courseId}
           studentId={studentId}
           questionId={questionId}
+          currentSuggestion={latest}
           disabled={regenerateDisabled}
         />
       </div>
@@ -135,22 +143,31 @@ export function AiSuggestionPanel({
         studentId={studentId}
         isStale={isRowStale(latest)}
         isLatest
+        isPreview={isPreview}
         allSuggestions={suggestions}
         studentAnswer={studentAnswer}
         savedGrade={savedGrade}
       />
 
-      {older.length > 0 && (
+      {previous && (
         <div className="space-y-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            data-testid="ai-suggestion-history-toggle"
-            onClick={() => setHistoryOpen((v) => !v)}
-          >
-            {historyOpen ? "Hide history" : `View history (${older.length})`}
-          </Button>
+          <div className="flex flex-wrap items-center gap-1">
+            {isPreview && (
+              <span className="text-xs text-muted-foreground">
+                Previous suggestion: {previous.score} —{" "}
+                {feedbackStart(previous.feedback)} ·
+              </span>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-testid="ai-suggestion-history-toggle"
+              onClick={() => setHistoryOpen((v) => !v)}
+            >
+              {historyOpen ? "Hide history" : `View history (${older.length})`}
+            </Button>
+          </div>
 
           {historyOpen && (
             <ul className="space-y-2" data-testid="ai-suggestion-history">
@@ -177,6 +194,15 @@ export function AiSuggestionPanel({
   );
 }
 
+const FEEDBACK_START_LENGTH = 40;
+
+/** The first words of a feedback text, for a one-line summary. */
+function feedbackStart(feedback: string): string {
+  return feedback.length > FEEDBACK_START_LENGTH
+    ? `${feedback.slice(0, FEEDBACK_START_LENGTH).trimEnd()}…`
+    : feedback;
+}
+
 /**
  * Single suggestion row — renders the score, feedback, model, regenerate
  * reason (if any), the "Used" marker, and a Use submit button posting to
@@ -189,6 +215,7 @@ function SuggestionRow({
   studentId,
   isStale,
   isLatest,
+  isPreview = false,
   allSuggestions,
   studentAnswer,
   savedGrade,
@@ -244,7 +271,7 @@ function SuggestionRow({
         {suggestion.feedback}
       </pre>
 
-      {isLatest && fix !== null && (
+      {isLatest && fix && studentAnswer && (
         <p className="text-xs text-muted-foreground">
           Suggested fix: {fixLines} {pluralize(fixLines, "line")} changed ·
           shown on the left
@@ -272,7 +299,7 @@ function SuggestionRow({
 
       {suggestion.regenerateReason !== null && (
         <p className="text-xs text-muted-foreground">
-          Regen reason: {suggestion.regenerateReason}
+          {isPreview ? "Reason" : "Regen reason"}: {suggestion.regenerateReason}
         </p>
       )}
 
@@ -290,16 +317,13 @@ function SuggestionRow({
           data-testid="ai-suggestion-apply-button"
           onClick={needsConfirm ? () => setConfirmOpen(true) : undefined}
         >
-          {isPending ? "Using…" : "Use · saves score, feedback & solution"}
+          {isPending
+            ? "Using…"
+            : `${isPreview ? "Use this" : "Use"} · saves score, feedback & solution`}
         </Button>
-        {state?.message && (
-          <p
-            className={`text-xs mt-1 ${
-              state.success ? "text-green-600" : "text-destructive"
-            }`}
-          >
-            {state.message}
-          </p>
+        {/* A successful use shows the "Used" badge, so only a refusal needs a line. */}
+        {state?.message && !state.success && (
+          <p className="text-xs mt-1 text-destructive">{state.message}</p>
         )}
       </form>
 

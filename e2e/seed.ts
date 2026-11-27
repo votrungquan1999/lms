@@ -306,6 +306,7 @@ export async function clearSchoolData(db: Db, schoolId: string): Promise<void> {
       "test_start",
       "redo_request",
       "ai_grade",
+      "ai_grade_job",
     ].map((name) => db.collection(name).deleteMany(byTest)),
   );
   await db

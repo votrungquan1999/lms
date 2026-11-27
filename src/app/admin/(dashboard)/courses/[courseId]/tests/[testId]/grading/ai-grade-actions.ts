@@ -181,7 +181,11 @@ const regenerateSchema = z.object({
   testId: z.string().min(1),
   courseId: z.string().min(1),
   studentId: z.string().min(1),
-  reason: z.string().trim().min(1, "Reason is required").max(500),
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Reason must be at least 3 characters")
+    .max(500, "Reason must be at most 500 characters"),
   // A ticked checkbox submits "on"; an unticked one is absent from the form.
   includeGraded: z
     .literal("on")
@@ -196,8 +200,8 @@ export interface RegenerateSubmissionState {
 
 /**
  * Server action: regenerates AI suggestions for a single student's
- * submission. Requires a non-empty trimmed reason (Zod-enforced, capped at
- * 500 chars). Delegates to `AiGradeService.startRound`: with a runner the round
+ * submission. Requires a trimmed reason of 3 to 500 characters (Zod-enforced).
+ * Delegates to `AiGradeService.startRound`: with a runner the round
  * becomes a pending job, otherwise new `ai_grade` rows are appended on the spot
  * without mutating prior history. Teacher-graded
  * questions are included only when the `includeGraded` checkbox is ticked.
@@ -296,7 +300,11 @@ const regenerateQuestionSchema = z.object({
   courseId: z.string().min(1),
   studentId: z.string().min(1),
   questionId: z.string().min(1),
-  reason: z.string().trim().min(1, "Reason is required").max(500),
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Reason must be at least 3 characters")
+    .max(500, "Reason must be at most 500 characters"),
 });
 
 export interface RegenerateQuestionState {
@@ -306,8 +314,8 @@ export interface RegenerateQuestionState {
 
 /**
  * Server action: regenerates the AI suggestion for a SINGLE question of one
- * student's submission. Requires a non-empty trimmed reason (Zod-enforced,
- * capped at 500 chars). Delegates to `AiGradeService.startRound` scoped to that
+ * student's submission. Requires a trimmed reason of 3 to 500 characters
+ * (Zod-enforced). Delegates to `AiGradeService.startRound` scoped to that
  * question: a runner job, or one new `ai_grade` row on the spot. Revalidates
  * admin paths only — suggestions stay admin-side until Apply promotes them.
  *
@@ -371,6 +379,12 @@ export async function regenerateQuestionAction(
           return {
             success: false,
             message: AI_GRADING_ALREADY_PENDING_MESSAGE,
+          };
+        }
+        if (outcome.kind === StartRoundOutcomeKind.NothingToGrade) {
+          return {
+            success: false,
+            message: "This answer has no written text to regenerate.",
           };
         }
 
