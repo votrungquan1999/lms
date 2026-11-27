@@ -18,7 +18,7 @@ import {
   QuestionPosition,
   StudentPosition,
 } from "./grading-top-bar.ui";
-import { gradingHref } from "./href";
+import { gradingHref, gradingRouteKind } from "./href";
 import { QuestionPicker } from "./question-picker";
 import { StudentRow } from "./question-row";
 import { buildStudentBoxes } from "./question-row-state";
@@ -167,6 +167,8 @@ export async function GradingPageShell({
             : undefined,
           panel: (
             <FinishPanel
+              schoolId={schoolId}
+              routeKind={gradingRouteKind(basePath)}
               testTitle={test.title}
               backHref={`/admin/courses/${courseId}/tests/${test.id}`}
               students={releaseStudents}

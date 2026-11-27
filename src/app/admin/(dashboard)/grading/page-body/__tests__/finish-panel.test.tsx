@@ -13,6 +13,7 @@ import {
 } from "src/tests/render-server-page";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FinishPanel } from "../finish-panel";
+import { GradingRouteKind } from "../grading-page-body.type";
 import { GradingPageShell } from "../grading-page-shell";
 import { ReleaseStudentStatus } from "../release-students";
 
@@ -190,13 +191,15 @@ describe("Feature: the finish panel names three graded students, then the rest a
 
     // When the finish panel renders
     render(
-      FinishPanel({
+      await FinishPanel({
         testTitle: "Quiz",
         backHref: "/admin/courses/c/tests/t",
         students,
         savedLine: "Eve's Q1 saved just now",
         testId: "t",
         courseId: "c",
+        schoolId: TEST_SCHOOL_ID,
+        routeKind: GradingRouteKind.Hub,
         offerCorrectAnswers: false,
         counts: {
           graded: 5,

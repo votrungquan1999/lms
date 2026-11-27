@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { hydrated } from "./hydrated";
 import {
+  clearSchoolData,
   enroll,
   insertAnswer,
   insertCourse,
@@ -222,6 +223,102 @@ test.describe("Finish panel", () => {
         db.collection("test").findOne({ id: ids.testId }),
       );
       expect(released?.correctAnswersReleasedAt).toBeTruthy();
+    });
+  }
+
+  for (const route of routes) {
+    test(`on ${route.name} "Next in To grade" opens the grading screen of the oldest other test with waiting work`, async ({
+      page,
+    }) => {
+      const ids = await seedFinishedTest();
+      const other = await withDb(async (db) => {
+        for (const studentId of [ids.ann, ids.bob]) {
+          await insertGrade(db, {
+            testId: ids.testId,
+            questionId: ids.q1,
+            studentId,
+          });
+        }
+        const courseId = await insertCourse(db);
+        const testId = await insertTest(db, courseId, {
+          title: "[finish] Waiting test",
+        });
+        const questionId = await insertQuestion(db, testId);
+        const studentId = await insertStudent(db, { name: "Fay Waiting" });
+        await enroll(db, { courseId, studentId });
+        await insertAnswer(db, {
+          testId,
+          questionId,
+          studentId,
+          answer: { type: "free_text", text: "waiting answer" },
+        });
+        await insertSubmission(db, {
+          testId,
+          studentId,
+          // Shrinks as the clock grows, so this test's hand-in is the oldest in the school even after earlier runs.
+          submittedAt: new Date(2_000_000_000_000 - Date.now()),
+        });
+        return { courseId, testId };
+      });
+
+      await page.goto(
+        `${route.path(ids)}?studentId=${ids.ann}&questionId=${ids.q1}&done=1`,
+      );
+      const next = page
+        .getByTestId("finish-panel")
+        .getByRole("link", { name: "Next in To grade" });
+      await expect(next).toHaveAttribute("href", route.path(other));
+      await next.click();
+      await expect(page).toHaveURL(new RegExp(`${route.path(other)}$`));
+      await expect(page.getByTestId("grade-card")).toContainText("Fay Waiting");
+    });
+  }
+
+  for (const route of routes) {
+    test(`on ${route.name} "Next in To grade" goes to the To grade list and names a graded test not released when nothing else waits`, async ({
+      page,
+    }) => {
+      await withDb(async (db) => {
+        const school = await db.collection("school").findOne({ slug: "e2e" });
+        await clearSchoolData(db, school?.id);
+      });
+      const ids = await seedFinishedTest();
+      await withDb(async (db) => {
+        for (const studentId of [ids.ann, ids.bob]) {
+          await insertGrade(db, {
+            testId: ids.testId,
+            questionId: ids.q1,
+            studentId,
+          });
+        }
+        const courseId = await insertCourse(db);
+        const testId = await insertTest(db, courseId, {
+          title: "[finish] Held test",
+          showGradeAfterSubmit: false,
+        });
+        const questionId = await insertQuestion(db, testId);
+        const studentId = await insertStudent(db, { name: "Gus Held" });
+        await enroll(db, { courseId, studentId });
+        await insertAnswer(db, {
+          testId,
+          questionId,
+          studentId,
+          answer: { type: "free_text", text: "held answer" },
+        });
+        await insertSubmission(db, { testId, studentId });
+        await insertGrade(db, { testId, questionId, studentId });
+      });
+
+      await page.goto(
+        `${route.path(ids)}?studentId=${ids.ann}&questionId=${ids.q1}&done=1`,
+      );
+      const finish = page.getByTestId("finish-panel");
+      await expect(
+        finish.getByRole("link", { name: "Next in To grade" }),
+      ).toHaveAttribute("href", "/admin/grading");
+      await expect(finish).toContainText(
+        "Nothing else waiting · Review [finish] Held test not released",
+      );
     });
   }
 });

@@ -1,7 +1,34 @@
+import {
+  groupReadyToReleaseByCourse,
+  groupWaitingByCourse,
+} from "src/app/admin/(dashboard)/grading/to-grade-groups";
+import { getSchoolGradingCounts } from "src/lib/school-grading-counts";
 import { FinishPanelView } from "./finish-panel.ui";
 import { FinishRelease } from "./finish-release";
+import type { GradingRouteKind } from "./grading-page-body.type";
+import { gradingBasePath } from "./href";
 import type { ReleaseStudentCounts } from "./release-dialog.ui";
 import { type ReleaseStudent, ReleaseStudentStatus } from "./release-students";
+
+interface FinishPanelProps {
+  testTitle: string;
+  /** The test page the panel links back to. */
+  backHref: string;
+  /** Every student of the course. */
+  students: ReleaseStudent[];
+  /** The answer just graded, as "<name>'s Q<n> saved <when>". */
+  savedLine: string;
+  testId: string;
+  courseId: string;
+  /** The page's school. */
+  schoolId: string;
+  /** The grading route the teacher is on; "Next in To grade" stays on it. */
+  routeKind: GradingRouteKind;
+  /** Students cannot see the correct answers yet. */
+  offerCorrectAnswers: boolean;
+  counts: ReleaseStudentCounts;
+  choiceQuestionCount: number;
+}
 
 /** Names listed in full before the rest read "and n more". */
 const NAMES_SHOWN = 3;
@@ -19,38 +46,33 @@ export function joinNames(names: string[]): string {
   return `${names.slice(0, NAMES_SHOWN).join(", ")} and ${names.length - NAMES_SHOWN} more`;
 }
 
+/** Names the students and agrees the verb with how many there are. */
 function who(names: string[], singular: string, plural: string): string {
   return `${joinNames(names)} ${names.length === 1 ? singular : plural}`;
 }
 
-interface FinishPanelProps {
-  testTitle: string;
-  /** The test page the panel links back to. */
-  backHref: string;
-  /** Every student of the course. */
-  students: ReleaseStudent[];
-  /** The answer just graded, as "<name>'s Q<n> saved <when>". */
-  savedLine: string;
-  testId: string;
-  courseId: string;
-  /** Students cannot see the correct answers yet. */
-  offerCorrectAnswers: boolean;
-  counts: ReleaseStudentCounts;
-  choiceQuestionCount: number;
-}
-
 /** What the teacher gets after the last answer is graded: who is graded, who can see it, and who is not in yet. */
-export function FinishPanel({
+export async function FinishPanel({
   testTitle,
   backHref,
   students,
   savedLine,
   testId,
   courseId,
+  schoolId,
+  routeKind,
   offerCorrectAnswers,
   counts,
   choiceQuestionCount,
 }: FinishPanelProps) {
+  const schoolCounts = await getSchoolGradingCounts(schoolId);
+  const nextTest = groupWaitingByCourse(schoolCounts)
+    .flatMap((group) => group.tests)
+    .find((t) => t.testId !== testId);
+  const readyToRelease = groupReadyToReleaseByCourse(schoolCounts)
+    .flatMap((group) => group.tests)
+    .filter((t) => t.testId !== testId);
+
   const named = (status: ReleaseStudentStatus) =>
     students.filter((s) => s.status === status);
   const hidden = named(ReleaseStudentStatus.Graded);
@@ -89,6 +111,22 @@ export function FinishPanel({
       releaseLine={releaseLine}
       notInLine={notInLines.join(" ")}
       backHref={backHref}
+      nextHref={
+        nextTest
+          ? gradingBasePath({
+              routeKind,
+              courseId: nextTest.courseId,
+              testId: nextTest.testId,
+            })
+          : "/admin/grading"
+      }
+      nextNote={
+        nextTest
+          ? null
+          : readyToRelease.length === 0
+            ? "Nothing else waiting"
+            : `Nothing else waiting · Review ${readyToRelease.length === 1 ? readyToRelease[0].title : `${readyToRelease.length} tests`} not released`
+      }
       release={
         <FinishRelease
           testId={testId}

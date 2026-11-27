@@ -23,6 +23,10 @@ interface FinishPanelViewProps {
   /** Who is still writing or has not started; empty when everyone has handed in. */
   notInLine: string;
   backHref: string;
+  /** Where "Next in To grade" goes. */
+  nextHref: string;
+  /** Said under it when no other test has work waiting; absent when one does. */
+  nextNote: string | null;
   /** The pinned release control under the content. */
   release: React.ReactNode;
 }
@@ -37,6 +41,8 @@ export function FinishPanelView({
   releaseLine,
   notInLine,
   backHref,
+  nextHref,
+  nextNote,
   release,
 }: FinishPanelViewProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -90,6 +96,17 @@ export function FinishPanelView({
             {notInLine} New submissions show up in To grade.
           </p>
         )}
+        <div>
+          <GuardedLink
+            href={nextHref}
+            className="inline-block text-sm underline underline-offset-2"
+          >
+            Next in To grade
+          </GuardedLink>
+          {nextNote && (
+            <p className="text-xs text-muted-foreground">{nextNote}</p>
+          )}
+        </div>
         <GuardedLink
           href={backHref}
           className="inline-block text-sm underline underline-offset-2"
