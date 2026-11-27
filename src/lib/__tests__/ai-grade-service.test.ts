@@ -2345,3 +2345,46 @@ describe("AiGradeService.generateForStudent - picture links", () => {
     },
   );
 });
+
+describe("AiGradeService.getLatestSuggestion - same-instant suggestions", () => {
+  dbIt(
+    "given two suggestions made at the same instant, when reading the latest, then the one with the higher id comes back, as the AI card's list puts first",
+    async ({ db }) => {
+      const sameInstant = new Date("2026-01-01T00:00:00Z");
+      const row = (id: string): AiGradeSuggestionDocument => ({
+        id,
+        testId: "test-1",
+        questionId: "q-1",
+        studentId: "student-1",
+        score: 50,
+        feedback: id,
+        gradedAgainstAnswerId: "answer-1",
+        model: "gemini-3.5-flash",
+        gradedBy: "ai:gemini-3.5-flash",
+        generatedByAdminId: "admin-1",
+        generatedAt: sameInstant,
+        regenerateReason: null,
+        appliedAt: null,
+        appliedBy: null,
+      });
+      // Inserted lower id first, so insertion order alone would pick "s-a".
+      await db
+        .collection<AiGradeSuggestionDocument>("ai_grade")
+        .insertMany([row("s-a"), row("s-b")]);
+      const { aiGradeService } = buildCoreServices(db);
+
+      const latest = await aiGradeService.getLatestSuggestion(
+        "test-1",
+        "q-1",
+        "student-1",
+      );
+      const [first] =
+        (
+          await aiGradeService.getSuggestionsForStudent("test-1", "student-1")
+        ).get("q-1") ?? [];
+
+      expect(latest?.id).toBe("s-b");
+      expect(first?.id).toBe("s-b");
+    },
+  );
+});

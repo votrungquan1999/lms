@@ -4,6 +4,8 @@ import { useActionState, useState } from "react";
 import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
 import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
+import { lineDiffCount } from "src/lib/line-diff-count";
+import { pluralize } from "src/lib/pluralize";
 import {
   type ApplyAiSuggestionState,
   applyAiSuggestionAction,
@@ -28,6 +30,8 @@ interface AiSuggestionPanelProps {
    * flagged stale.
    */
   latestAnswerId?: string | null;
+  /** The student's current answer text, which the latest suggestion's fix is compared with. */
+  studentAnswer?: string;
   /**
    * When true the history (`suggestions.slice(1)`) is expanded on first
    * render. Useful for tests; defaults to false in production usage.
@@ -43,6 +47,9 @@ interface SuggestionRowProps {
   courseId: string;
   studentId: string;
   isStale: boolean;
+  /** The row is the latest suggestion, whose fix is shown on the left. */
+  isLatest: boolean;
+  studentAnswer?: string;
 }
 
 /**
@@ -64,6 +71,7 @@ export function AiSuggestionPanel({
   questionId,
   suggestions,
   latestAnswerId = null,
+  studentAnswer,
   defaultHistoryOpen = false,
   regenerateDisabled = false,
 }: AiSuggestionPanelProps) {
@@ -106,6 +114,8 @@ export function AiSuggestionPanel({
         courseId={courseId}
         studentId={studentId}
         isStale={isRowStale(latest)}
+        isLatest
+        studentAnswer={studentAnswer}
       />
 
       {older.length > 0 && (
@@ -130,6 +140,8 @@ export function AiSuggestionPanel({
                     courseId={courseId}
                     studentId={studentId}
                     isStale={isRowStale(row)}
+                    isLatest={false}
+                    studentAnswer={studentAnswer}
                   />
                 </li>
               ))}
@@ -152,13 +164,21 @@ function SuggestionRow({
   courseId,
   studentId,
   isStale,
+  isLatest,
+  studentAnswer,
 }: SuggestionRowProps) {
   const [state, formAction, isPending] = useActionState<
     ApplyAiSuggestionState | null,
     FormData
   >(applyAiSuggestionAction, null);
 
+  // An older suggestion's fix is not on the left, so its row can unfold it before the teacher uses it.
+  const [fixOpen, setFixOpen] = useState(false);
+
   const applied = suggestion.appliedAt !== null;
+  const fix =
+    typeof suggestion.solution === "string" ? suggestion.solution : null;
+  const fixLines = fix === null ? 0 : lineDiffCount(studentAnswer ?? "", fix);
 
   return (
     <div
@@ -169,7 +189,7 @@ function SuggestionRow({
       data-stale={isStale ? "true" : "false"}
     >
       <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium">Score: {suggestion.score}</span>
+        <span className="font-medium">{suggestion.score} / 100</span>
         {applied && (
           <Badge variant="default" data-testid="ai-suggestion-applied-badge">
             Applied
@@ -191,6 +211,32 @@ function SuggestionRow({
       <pre className="whitespace-pre-wrap text-sm text-foreground">
         {suggestion.feedback}
       </pre>
+
+      {isLatest && fix !== null && (
+        <p className="text-xs text-muted-foreground">
+          Suggested fix: {fixLines} {pluralize(fixLines, "line")} changed ·
+          shown on the left
+        </p>
+      )}
+
+      {!isLatest && fix !== null && (
+        <div className="space-y-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-expanded={fixOpen}
+            onClick={() => setFixOpen((open) => !open)}
+          >
+            {fixOpen ? "Hide suggested fix" : "Show suggested fix"}
+          </Button>
+          {fixOpen && (
+            <pre className="whitespace-pre-wrap rounded bg-muted p-2 text-sm">
+              {fix}
+            </pre>
+          )}
+        </div>
+      )}
 
       {suggestion.regenerateReason !== null && (
         <p className="text-xs text-muted-foreground">

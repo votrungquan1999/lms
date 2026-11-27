@@ -249,11 +249,6 @@ export async function GradingDetailStudent({
                   aiGradingStartedAt={aiGradingStartedAt}
                 />
               )}
-              {aiGradingStartedAt !== null && (
-                <AiGradingInProgressNote startedAt={aiGradingStartedAt} />
-              )}
-              {aiGradingFailed && <AiGradingFailedNote />}
-              {aiGradingStartedAt !== null && <PendingAiGradingRefresher />}
               <ReleaseGradeForStudentControl
                 test={test}
                 courseId={courseId}
@@ -327,6 +322,17 @@ export async function GradingDetailStudent({
                   />
                 )
               }
+              aiJobNotes={
+                <>
+                  {aiGradingStartedAt !== null && (
+                    <>
+                      <AiGradingInProgressNote startedAt={aiGradingStartedAt} />
+                      <PendingAiGradingRefresher />
+                    </>
+                  )}
+                  {aiGradingFailed && <AiGradingFailedNote />}
+                </>
+              }
               saveAndNext={
                 selectedAnswer?.type === "free_text"
                   ? {
@@ -350,6 +356,11 @@ export async function GradingDetailStudent({
                     suggestions={selectedSuggestions}
                     latestAnswerId={
                       latestAnswerIdByQuestion.get(selectedQuestion.id) ?? null
+                    }
+                    studentAnswer={
+                      selectedAnswer?.type === "free_text"
+                        ? selectedAnswer.text
+                        : undefined
                     }
                     regenerateDisabled={aiGradingStartedAt !== null}
                   />

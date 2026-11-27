@@ -786,7 +786,7 @@ export class AiGradeService {
   /**
    * Returns ALL suggestions for a `(testId, studentId)` pair as a map keyed
    * by `questionId`. Each entry holds the full history for that question
-   * sorted newest-first (`generatedAt` desc). Used by the grading page to
+   * sorted newest-first (`generatedAt` desc, then `id` desc so ties keep one order). Used by the grading page to
    * render the AI suggestion panel per free-text question.
    */
   async getSuggestionsForStudent(
@@ -795,7 +795,7 @@ export class AiGradeService {
   ): Promise<Map<string, AiGradeSuggestion[]>> {
     const docs = await this.suggestions
       .find({ testId, studentId })
-      .sort({ generatedAt: -1 })
+      .sort({ generatedAt: -1, id: -1 })
       .toArray();
 
     const grouped = new Map<string, AiGradeSuggestion[]>();
@@ -810,7 +810,7 @@ export class AiGradeService {
   /**
    * Returns the most-recent suggestion document for the given
    * `(testId, questionId, studentId)` triple, or `null` if none exists.
-   * Sorted by `generatedAt` desc and limited to 1 so it costs one index hit.
+   * Sorted by `generatedAt` desc, then `id` desc so ties pick the same row each time.
    */
   async getLatestSuggestion(
     testId: string,
@@ -819,7 +819,7 @@ export class AiGradeService {
   ): Promise<AiGradeSuggestionDocument | null> {
     return this.suggestions
       .find({ testId, questionId, studentId })
-      .sort({ generatedAt: -1 })
+      .sort({ generatedAt: -1, id: -1 })
       .limit(1)
       .next();
   }

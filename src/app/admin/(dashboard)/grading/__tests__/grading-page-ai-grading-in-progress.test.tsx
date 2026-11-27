@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AiClient, AiGradeBatchInput } from "src/lib/ai/ai-client";
 import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
@@ -188,7 +188,12 @@ describe("Feature: a teacher sees AI grading in progress and cannot start anothe
       seed.testId,
       seed.studentId,
     );
-    expect(screen.getByTestId("ai-grading-in-progress")).toHaveTextContent(
+    // inside the grade panel, beside the suggestion card, not in the student header
+    expect(
+      within(screen.getByTestId("grade-card")).getByTestId(
+        "ai-grading-in-progress",
+      ),
+    ).toHaveTextContent(
       `AI grading in progress since ${job?.createdAt.toLocaleString()}`,
     );
 

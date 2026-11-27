@@ -5,6 +5,7 @@ interface GradePanelShellProps {
   questionTitle: string;
   studentName: string;
   studentUsername: string;
+  aiJobNotes?: ReactNode;
   children: ReactNode;
 }
 
@@ -14,6 +15,7 @@ export function GradePanelShell({
   questionTitle,
   studentName,
   studentUsername,
+  aiJobNotes,
   children,
 }: GradePanelShellProps) {
   return (
@@ -29,6 +31,7 @@ export function GradePanelShell({
           {questionTitle} · @{studentUsername}
         </p>
       </header>
+      {aiJobNotes}
       {children}
     </section>
   );
