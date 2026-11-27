@@ -60,10 +60,11 @@ async function seedTest() {
       | "started-blank"
       | "redo"
       | "not-started",
+    username = name.toLowerCase(),
   ) {
     const student = await services.studentService.createStudentDocument({
       authUserId: `auth-${name}`,
-      username: name.toLowerCase(),
+      username,
       name,
       createdBy: "admin",
     });
@@ -240,5 +241,92 @@ describe("Feature: a still-writing student with nothing saved", () => {
     expect(row).toHaveTextContent("nothing saved yet");
     expect(row).toHaveAttribute("aria-disabled", "true");
     expect(row).not.toHaveAttribute("href");
+  });
+});
+
+describe("Feature: searching the student picker", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  async function openPicker(testId: string) {
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId }),
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /student picker/i }),
+    );
+    return screen.findByRole("menu");
+  }
+
+  it("finds a student by name ignoring case and accents, and says so when nobody matches", async () => {
+    // Given three students, one named Tâm
+    const { test, addStudent } = await seedTest();
+    await addStudent("Tâm Nguyen", "waiting", "nguyen01");
+    await addStudent("Zed", "waiting");
+    await addStudent("Ann", "graded");
+    const menu = await openPicker(test.id);
+
+    // When the teacher types "TAM" in the search field
+    await userEvent.type(within(menu).getByRole("searchbox"), "TAM");
+
+    // Then only Tâm is listed, under her group
+    const names = within(menu)
+      .getAllByRole("menuitem")
+      .map((item) => item.textContent);
+    expect(names).toHaveLength(1);
+    expect(names[0]).toContain("Tâm Nguyen");
+    expect(within(menu).queryByText(/Graded/)).toBeNull();
+
+    // When the teacher types something nobody matches
+    await userEvent.clear(within(menu).getByRole("searchbox"));
+    await userEvent.type(within(menu).getByRole("searchbox"), "qqq");
+
+    // Then the picker says no student matches
+    expect(within(menu).queryAllByRole("menuitem")).toHaveLength(0);
+    expect(within(menu).getByText("No student matches")).toBeInTheDocument();
+  });
+
+  it("finds a name starting with a capital Đ when the teacher types a plain d", async () => {
+    // Given Đạt and Bob wait
+    const { test, addStudent } = await seedTest();
+    await addStudent("Đạt Tran", "waiting", "tran01");
+    await addStudent("Bob", "waiting");
+    const menu = await openPicker(test.id);
+
+    // When the teacher types "dat"
+    await userEvent.type(within(menu).getByRole("searchbox"), "dat");
+
+    // Then only Đạt is listed
+    const names = within(menu)
+      .getAllByRole("menuitem")
+      .map((item) => item.textContent);
+    expect(names).toHaveLength(1);
+    expect(names[0]).toContain("Đạt Tran");
+  });
+
+  it("tells two students with the same name apart by @username and finds one by it", async () => {
+    // Given two students both named Sam, with different usernames
+    const { test, addStudent } = await seedTest();
+    await addStudent("Sam", "waiting", "sam.a");
+    const second = await addStudent("Sam", "waiting", "sam.b");
+    const menu = await openPicker(test.id);
+
+    // When the teacher searches for @sam.b
+    await userEvent.type(within(menu).getByRole("searchbox"), "@SAM.b");
+
+    // Then only the second Sam is listed
+    const items = within(menu).getAllByRole("menuitem");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveAttribute(
+      "href",
+      expect.stringContaining(`studentId=${second.id}`),
+    );
   });
 });

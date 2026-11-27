@@ -102,3 +102,30 @@ export function buildStudentPickerRows(
     )
     .map(({ row }) => row);
 }
+
+/** Lowercase, accents and Vietnamese đ folded away, so "tam" finds "Tâm". */
+function foldForSearch(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/đ/g, "d");
+}
+
+/**
+ * Whether a typed search matches a student's name or @username.
+ * @param row - The picker row.
+ * @param query - What the teacher typed; a leading @ is ignored.
+ * @returns True when the query is empty or found in the name or username.
+ */
+export function matchesPickerSearch(
+  row: Pick<StudentPickerRow, "name" | "username">,
+  query: string,
+): boolean {
+  const needle = foldForSearch(query.trim().replace(/^@/, ""));
+  return (
+    needle === "" ||
+    foldForSearch(row.name).includes(needle) ||
+    foldForSearch(row.username).includes(needle)
+  );
+}

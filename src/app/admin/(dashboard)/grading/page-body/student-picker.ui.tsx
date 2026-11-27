@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { useState } from "react";
 import { GuardedLink } from "src/app/admin/(dashboard)/guarded-link";
 import { Button } from "src/components/ui/button";
 import {
@@ -11,7 +12,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "src/components/ui/dropdown-menu";
+import { Input } from "src/components/ui/input";
 import {
+  matchesPickerSearch,
   STUDENT_PICKER_GROUPS,
   StudentPickerGroup,
   type StudentPickerRow,
@@ -41,8 +44,11 @@ export function StudentPickerUi({
   currentId,
   hrefFor,
 }: StudentPickerUiProps) {
+  const [query, setQuery] = useState("");
+  const matching = rows.filter((row) => matchesPickerSearch(row, query));
+
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={() => setQuery("")}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -61,8 +67,24 @@ export function StudentPickerUi({
         align="start"
         className="max-h-96 w-72 overflow-y-auto"
       >
+        <div className="p-1">
+          <Input
+            type="search"
+            aria-label="Search students"
+            placeholder="Search name or @username"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            // Keys typed here must not drive the menu's own type-ahead and arrow keys.
+            onKeyDown={(event) => event.stopPropagation()}
+          />
+        </div>
+        {matching.length === 0 && (
+          <p className="px-2 py-1.5 text-sm text-muted-foreground">
+            No student matches
+          </p>
+        )}
         {STUDENT_PICKER_GROUPS.map((group) => {
-          const members = rows.filter((row) => row.group === group);
+          const members = matching.filter((row) => row.group === group);
           if (members.length === 0) return null;
           return (
             <DropdownMenuGroup key={group}>
