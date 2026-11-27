@@ -180,6 +180,7 @@ export async function GradingDetailQuestion({
           question={question}
           answer={answer?.answer}
           hasPhotos={photos.length > 0}
+          answerSavedAt={answer?.submittedAt}
           grade={grade}
           status={status}
           saveAndNext={saveAndNext}

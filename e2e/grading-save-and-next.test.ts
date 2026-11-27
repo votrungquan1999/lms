@@ -58,7 +58,7 @@ test.describe("Save & next", () => {
       });
 
       await page.goto(
-        `${route.path(ids)}?studentId=${ids.ann}&questionId=${ids.q1}`,
+        `${route.path(ids)}?studentId=${ids.ann}&questionId=${ids.q1}&needsOnly=1`,
       );
       const panel = page.getByTestId("grade-card");
       const save = panel.getByRole("button", { name: /^Save & next/ });
@@ -70,6 +70,10 @@ test.describe("Save & next", () => {
       await save.click();
       await expect(page).toHaveURL(new RegExp(`questionId=${ids.q2}`));
       await expect(panel.getByRole("heading")).toContainText("Q2 · Ann Next");
+      // It stays on the route it started on, with Needs grading only still on
+      const afterSave = new URL(page.url());
+      expect(afterSave.pathname).toBe(route.path(ids));
+      expect(afterSave.searchParams.get("needsOnly")).toBe("1");
 
       // Her last answer: crosses to Bob's first answer
       const last = panel.getByRole("button", { name: "Save & next student" });
@@ -80,6 +84,9 @@ test.describe("Save & next", () => {
         new RegExp(`studentId=${ids.bob}.*questionId=${ids.q1}`),
       );
       await expect(panel.getByRole("heading")).toContainText("Q1 · Bob Next");
+      const afterCrossing = new URL(page.url());
+      expect(afterCrossing.pathname).toBe(route.path(ids));
+      expect(afterCrossing.searchParams.get("needsOnly")).toBe("1");
 
       // Both grades were saved by the two clicks
       const grades = await withDb((db) =>

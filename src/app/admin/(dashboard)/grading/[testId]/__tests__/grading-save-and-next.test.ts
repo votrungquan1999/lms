@@ -12,6 +12,8 @@ import {
   AI_MODEL_NAME,
   type AiGradeSuggestionDocument,
 } from "src/lib/ai-grade-types";
+import { GradingCountService } from "src/lib/grading-count-service";
+import { TestStatus } from "src/lib/test-status-service";
 import { TEST_SCHOOL } from "src/tests/create-test-db";
 import {
   getTestServices,
@@ -197,6 +199,25 @@ describe("Feature: Save & next moves to the next answer that needs a grade", () 
     expect(url.searchParams.get("questionId")).toBe(q4.id);
   });
 
+  it("from the course route, stays on the course route and keeps Needs grading only on", async () => {
+    // Given Ann has two written answers to grade, opened from the course's Tests tab with Needs grading only on
+    const seed = await seedTest(["written", "written"]);
+    const ann = await seedHandedInStudent(seed, "Ann");
+    const [q1, q2] = seed.questions;
+
+    // When the teacher saves Q1 with Save & next
+    const url = await redirectedTo(
+      saveForm(seed, ann.id, q1.id, { routeKind: "course", needsOnly: "1" }),
+    );
+
+    // Then Q2 opens on the course's grading page with the filter still on
+    expect(url.pathname).toBe(
+      `/admin/courses/${seed.course.id}/tests/${seed.test.id}/grading`,
+    );
+    expect(url.searchParams.get("needsOnly")).toBe("1");
+    expect(url.searchParams.get("questionId")).toBe(q2.id);
+  });
+
   it("keeps the saved solution when none is posted, and clears it when an empty one is", async () => {
     // Given Ann's written answer has a saved solution
     const seed = await seedTest(["written"]);
@@ -282,6 +303,38 @@ describe("Feature: Save & next moves to the next answer that needs a grade", () 
     expect(url.searchParams.get("questionId")).toBe(q3.id);
   });
 
+  it("leaves her newer answer needing a grade when she changed it after the teacher's screen loaded", async () => {
+    // Given Ann is still writing and the teacher's screen shows her first Q1 answer
+    const seed = await seedTest(["written"]);
+    const ann = await seedHandedInStudent(seed, "Ann", { stillWriting: true });
+    const [q1] = seed.questions;
+    const [shown] = await seed.services.answerService.getLatestAnswers(
+      seed.test.id,
+      ann.id,
+    );
+    // And she replaces it before the teacher saves
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await seed.services.answerService.submitAnswer({
+      testId: seed.test.id,
+      questionId: q1.id,
+      studentId: ann.id,
+      answer: { type: "free_text", text: "a better answer" },
+    });
+
+    // When the teacher saves the grade for the answer on her screen, and Ann hands in
+    await redirectedTo(
+      saveForm(seed, ann.id, q1.id, {
+        gradedAnswerAt: shown.submittedAt.toISOString(),
+      }),
+    );
+    await seed.services.testSubmissionService.submitTest(seed.test.id, ann.id);
+
+    // Then Ann still needs grading, for the answer she changed
+    expect(
+      await seed.services.testStatusService.getStatus(seed.test.id, ann.id, 1),
+    ).toBe(TestStatus.Submitted);
+  });
+
   it("stays on the saved answer when nothing in the test is left to grade", async () => {
     // Given Ann's Q1 is the only answer in the test without a grade
     const seed = await seedTest(["written", "written"]);
@@ -341,6 +394,35 @@ describe("Feature: Save & next moves to the next answer that needs a grade", () 
     // Then the box after Bob's opens: Cy's Q1
     expect(url.searchParams.get("studentId")).toBe(cy.id);
     expect(url.searchParams.get("questionId")).toBe(q1.id);
+  });
+});
+
+describe("Feature: Save & next reads only the graded test's counts", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
+
+  it("counts the test being graded alone, never the whole school", async () => {
+    // Given Ann waits on a test
+    const seed = await seedTest(["written"]);
+    const ann = await seedHandedInStudent(seed, "Ann");
+    const [q1] = seed.questions;
+    const countSpy = vi.spyOn(GradingCountService.prototype, "getCounts");
+
+    // When the teacher saves her answer with Save & next
+    await redirectedTo(saveForm(seed, ann.id, q1.id));
+
+    // Then every count it ran covered just that test and its course
+    expect(countSpy).toHaveBeenCalled();
+    for (const [, only] of countSpy.mock.calls) {
+      expect(only).toEqual({ testId: seed.test.id, courseId: seed.course.id });
+    }
   });
 });
 

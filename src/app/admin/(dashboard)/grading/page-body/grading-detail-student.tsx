@@ -325,6 +325,7 @@ export async function GradingDetailStudent({
               question={selectedQuestion}
               answer={selectedAnswer}
               hasPhotos={photos.length > 0}
+              answerSavedAt={answerSavedAt.get(selectedQuestion.id)}
               grade={selectedGrade}
               status={status}
               overallFeedback={

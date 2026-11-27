@@ -3,6 +3,7 @@ import type {
   AiGradeSuggestion,
   AiGradeSuggestionDocument,
 } from "src/lib/ai-grade-types";
+import type { AnswerService } from "src/lib/answer-service";
 import type { GradeDocument, GradeService } from "src/lib/grade-service";
 import { isTeacherOwnGrade } from "src/lib/teacher-own-grade";
 
@@ -18,18 +19,19 @@ import { isTeacherOwnGrade } from "src/lib/teacher-own-grade";
  * current applier when the row already exists from a prior apply. The
  * GradeService's upsert preserves the original `gradedBy` on update —
  * acceptable for manual re-grading, but Apply's contract attributes the
- * grade to the latest applier (see Step 7 in implementation-plan.md).
+ * grade to the latest applier.
  */
 export interface ApplySuggestionDeps {
   suggestions: Collection<AiGradeSuggestionDocument>;
   grades: Collection<GradeDocument>;
   gradeService: GradeService;
+  /** Finds the answer the suggestion graded, whose save time the grade records. */
+  answerService: AnswerService;
 }
 
 /**
  * Optional overrides on apply. Resolved with `??` (NOT `||`) so `0` and `""`
- * are honored — they are valid intentional overrides per the brainstorm-3
- * design notes.
+ * are honored — they are valid intentional overrides.
  */
 export interface ApplySuggestionOverrides {
   scoreOverride?: number;
@@ -63,7 +65,7 @@ export const APPLY_OVER_HUMAN_GRADE_MESSAGE =
 /**
  * Promotes an AI suggestion to the official `grade` row.
  *
- * Order (documented design trade-off — see implementation-plan.md §Atomic Apply):
+ * Steps, in order:
  *   1. Load target suggestion by id; throw "Suggestion not found" if missing
  *      OR if its own testId/studentId don't match the caller's verified pair
  *      — a mismatch gets the same generic refusal as a miss.
@@ -88,7 +90,7 @@ export async function applySuggestion(
   overrides?: ApplySuggestionOverrides,
   options?: ApplySuggestionOptions,
 ): Promise<AiGradeSuggestion> {
-  const { suggestions, grades, gradeService } = deps;
+  const { suggestions, grades, gradeService, answerService } = deps;
 
   const target = await suggestions.findOne({ id: suggestionId });
   if (
@@ -140,6 +142,10 @@ export async function applySuggestion(
   // A suggestion with no fix clears the saved solution, so the grade equals the suggestion.
   const effectiveSolution =
     overrides?.solutionOverride ?? target.solution ?? "";
+  // The grade describes the answer the AI read, so a later change still needs grading.
+  const gradedAnswer = await answerService.getAnswer(
+    target.gradedAgainstAnswerId,
+  );
 
   await gradeService.gradeQuestion({
     testId: target.testId,
@@ -149,6 +155,7 @@ export async function applySuggestion(
     feedback: effectiveFeedback,
     solution: effectiveSolution,
     gradedBy: byAdminId,
+    gradedAnswerAt: gradedAnswer?.submittedAt,
   });
 
   // Re-stamp `gradedBy` to the current applier. `GradeService.gradeQuestion`

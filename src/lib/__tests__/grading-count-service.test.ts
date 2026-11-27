@@ -867,6 +867,47 @@ describe("GradingCountService", () => {
   );
 
   dbIt(
+    "counts an answer as waiting when its grade, though saved later, describes the answer she had before",
+    async ({ db }) => {
+      // Given: the teacher's screen showed her first answer, she replaced it, then the grade was saved
+      const seed = seeds(db);
+      const course = await seed.course("Course");
+      const student = await seed.student("s1");
+      await seed.enroll(course, student);
+      const test = await seed.test(course);
+      const q1 = await seed.question(test);
+      const shownAt = new Date(Date.now() - 10 * MINUTE);
+      await seed.answer(test, q1, student, undefined, shownAt);
+      await seed.answer(
+        test,
+        q1,
+        student,
+        { type: "free_text", text: "improved" },
+        new Date(Date.now() - 5 * MINUTE),
+      );
+      await seed.grade(test, q1, student, {
+        gradedAt: new Date(Date.now() - 2 * MINUTE),
+        gradedAnswerAt: shownAt,
+      });
+      await seed.handIn(test, student);
+
+      // When: the school is counted
+      const counts = await new GradingCountService(
+        db,
+        TEST_SCHOOL_ID,
+      ).getCounts();
+
+      // Then: she waits with that answer, as the per-student services say
+      const reference = await referenceFor(db, test, student);
+      expect(reference).toMatchObject({ status: "submitted", answersLeft: 1 });
+      expect(counts.pairs[0]).toMatchObject({
+        status: reference.status,
+        answersLeft: reference.answersLeft,
+      });
+    },
+  );
+
+  dbIt(
     "leaves a student with an open redo out of every count until she hands in again, whether her old work was graded or not",
     async ({ db }) => {
       // Given: one graded student, one graded student and one waiting student who each have an open redo
@@ -909,6 +950,46 @@ describe("GradingCountService", () => {
           .map((p) => p.studentId)
           .sort(),
       ).toEqual([ids.redoGraded, ids.redoWaiting].sort());
+    },
+  );
+
+  dbIt(
+    "counting one test gives that test's counts and pairs as the school count does, and leaves the school's other tests and courses out",
+    async ({ db }) => {
+      // Given two courses of the school, each with a test that has a waiting student
+      const seed = seeds(db);
+      const wanted: { course: string; test: string; student: string }[] = [];
+      for (const title of ["Wanted", "Other"]) {
+        const course = await seed.course(title);
+        const test = await seed.test(course, { title });
+        const q1 = await seed.question(test);
+        const student = await seed.student(`${title} student`);
+        await seed.enroll(course, student);
+        await seed.answer(test, q1, student);
+        await seed.handIn(test, student);
+        wanted.push({ course, test, student });
+      }
+      const [pick] = wanted;
+      const service = new GradingCountService(db, TEST_SCHOOL_ID);
+      const whole = await service.getCounts();
+
+      // When only the first test is counted
+      const only = await service.getCounts(new Date(), {
+        testId: pick.test,
+        courseId: pick.course,
+      });
+
+      // Then it lists that test, its course and its pairs exactly as the school count does, and nothing else
+      expect(only.tests).toEqual(
+        whole.tests.filter((t) => t.testId === pick.test),
+      );
+      expect(only.pairs).toEqual(
+        whole.pairs.filter((p) => p.testId === pick.test),
+      );
+      expect(only.courses).toEqual(
+        whole.courses.filter((c) => c.courseId === pick.course),
+      );
+      expect(only.waiting).toBe(1);
     },
   );
 });

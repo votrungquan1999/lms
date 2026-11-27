@@ -36,6 +36,8 @@ interface BaseGradeFormProps {
   courseId: string;
   questionId: string;
   studentId: string;
+  /** When the answer on screen was saved; the grade records it, so a newer answer still needs grading. */
+  gradedAnswerAt?: Date;
   questionTitle: string;
   questionOrder: number;
   existingScore: number | null;
@@ -163,6 +165,7 @@ function GradeFormInner({
   courseId,
   questionId,
   studentId,
+  gradedAnswerAt,
   existingScore,
   existingFeedback,
   existingSolution,
@@ -196,6 +199,13 @@ function GradeFormInner({
           <input type="hidden" name="courseId" value={courseId} />
           <input type="hidden" name="questionId" value={questionId} />
           <input type="hidden" name="studentId" value={studentId} />
+          {gradedAnswerAt && (
+            <input
+              type="hidden"
+              name="gradedAnswerAt"
+              value={gradedAnswerAt.toISOString()}
+            />
+          )}
           <input type="hidden" name="routeKind" value={saveAndNext.routeKind} />
           <input type="hidden" name="mode" value={saveAndNext.mode} />
           {saveAndNext.needsOnly && (

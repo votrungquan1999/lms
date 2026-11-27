@@ -788,6 +788,7 @@ export class AiGradeService {
         suggestions: this.suggestions,
         grades: this.grades,
         gradeService: this.gradeService,
+        answerService: this.answerService,
       },
       suggestionId,
       byAdminId,

@@ -7,6 +7,7 @@ import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
 import type { StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
+import { needsGrade } from "src/lib/needs-grade";
 import { isMcQuestion, type Question } from "src/lib/question-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 
@@ -20,6 +21,8 @@ interface GradePanelProps {
   answer: StudentAnswer | undefined;
   /** The answer has a photo to grade. */
   hasPhotos: boolean;
+  /** When the answer was saved; omitted when not known. */
+  answerSavedAt?: Date;
   /** The saved grade, or undefined when there is none. */
   grade: Grade | undefined;
   status: TestStatus;
@@ -46,6 +49,7 @@ export function GradePanel({
   question,
   answer,
   hasPhotos,
+  answerSavedAt,
   grade,
   status,
   saveAndNext,
@@ -59,6 +63,17 @@ export function GradePanel({
   const gradable =
     !isMcQuestion(question) &&
     (answer?.type === "free_text" ? !!answer.text : hasPhotos);
+
+  // The panel is not shown while a redo is open, so the redo clause never applies here.
+  const answerChanged =
+    gradable &&
+    grade !== undefined &&
+    needsGrade({
+      answered: true,
+      latestAnswerAt: answerSavedAt ?? null,
+      grade,
+      redoOpen: false,
+    });
 
   function renderBody() {
     if (isMcQuestion(question)) {
@@ -92,6 +107,7 @@ export function GradePanel({
           courseId={courseId}
           questionId={question.id}
           studentId={student.id}
+          gradedAnswerAt={answerSavedAt}
           questionTitle={question.title}
           questionOrder={question.order}
           existingScore={score}
@@ -115,6 +131,7 @@ export function GradePanel({
         studentName={student.name}
         studentUsername={student.username}
         aiJobNotes={aiJobNotes}
+        answerChanged={answerChanged}
         headerAction={moreMenu}
       >
         <StillWritingGate

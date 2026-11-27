@@ -6,6 +6,8 @@ interface GradePanelShellProps {
   studentName: string;
   studentUsername: string;
   aiJobNotes?: ReactNode;
+  /** The answer was saved after its grade, so the grade is out of date. */
+  answerChanged?: boolean;
   /** Student-level actions shown beside the title (the More menu). */
   headerAction?: ReactNode;
   children: ReactNode;
@@ -18,6 +20,7 @@ export function GradePanelShell({
   studentName,
   studentUsername,
   aiJobNotes,
+  answerChanged = false,
   headerAction,
   children,
 }: GradePanelShellProps) {
@@ -38,6 +41,11 @@ export function GradePanelShell({
         {headerAction}
       </header>
       {aiJobNotes}
+      {answerChanged && (
+        <p className="shrink-0 text-xs text-muted-foreground">
+          Answer changed after your grade
+        </p>
+      )}
       {children}
     </section>
   );

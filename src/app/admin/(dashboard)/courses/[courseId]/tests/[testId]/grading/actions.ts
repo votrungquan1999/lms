@@ -691,6 +691,8 @@ const saveAndNextSchema = z.object({
   courseId: z.string().min(1),
   questionId: z.string().min(1),
   studentId: z.string().min(1),
+  // When the answer on the teacher's screen was saved, so a later change still needs a grade.
+  gradedAnswerAt: z.coerce.date().optional(),
   score: z.coerce.number().int().min(0).max(100),
   feedback: z.string(),
   solution: z.string().optional(),
@@ -715,6 +717,7 @@ export async function saveAndNextAction(formData: FormData) {
     courseId: formData.get("courseId"),
     questionId: formData.get("questionId"),
     studentId: formData.get("studentId"),
+    gradedAnswerAt: formData.get("gradedAnswerAt") ?? undefined,
     score: formData.get("score"),
     feedback: formData.get("feedback"),
     solution: formData.get("solution") ?? undefined,
@@ -758,6 +761,7 @@ export async function saveAndNextAction(formData: FormData) {
         feedback: input.feedback,
         solution: input.solution,
         gradedBy: session.userId,
+        gradedAnswerAt: input.gradedAnswerAt,
       });
 
       if (suggestion) {
@@ -783,7 +787,9 @@ export async function saveAndNextAction(formData: FormData) {
     input.testId,
     input.courseId,
   );
-  const screen = await readGradingScreen(session.school.id, test);
+  const screen = await readGradingScreen(session.school.id, test, {
+    ownCountsOnly: true,
+  });
   const pair = screen.pairs.get(input.studentId);
   const next = findNextAnswerToGrade({
     mode: input.mode,

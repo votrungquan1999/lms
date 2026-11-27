@@ -184,6 +184,16 @@ export class AnswerService {
   }
 
   /**
+   * Returns one saved answer version.
+   * @param answerId - The answer record's id.
+   * @returns The answer, or null when there is none with that id.
+   */
+  async getAnswer(answerId: string): Promise<Answer | null> {
+    const doc = await this.answers.findOne({ id: answerId });
+    return doc ? this.toAnswer(doc) : null;
+  }
+
+  /**
    * Returns the most recent answer for each question in a test,
    * for a specific student.
    */

@@ -5,6 +5,36 @@ import {
   type StudentPickerRow,
 } from "./student-picker-rows";
 
+/** One student's box in By question. */
+export interface StudentBoxData {
+  row: StudentPickerRow;
+  state: QuestionBoxState;
+}
+
+interface StudentBoxesInput {
+  /** The picker's rows, in picker order. */
+  rows: StudentPickerRow[];
+  question: Pick<Question, "id" | "type">;
+  /** Latest answers: student id, then question id. */
+  answers: Map<string, Map<string, { submittedAt: Date }>>;
+  /** Grades: student id, then question id. */
+  grades: Map<
+    string,
+    Map<
+      string,
+      {
+        score: number;
+        gradedAt: Date;
+        updatedAt?: Date | null;
+        gradedAnswerAt?: Date;
+      }
+    >
+  >;
+  isPractice: boolean;
+  /** The student asked for in the URL, if any. */
+  requestedStudentId?: string;
+}
+
 export enum QuestionBoxState {
   /** Nothing to say yet: not handed in, or a choice answer awaiting hand-in. */
   Plain = "plain",
@@ -33,7 +63,14 @@ interface QuestionBoxInput {
   /** The student has an open redo, so her edits wait for the hand-in. */
   redoOpen?: boolean;
   /** The saved grade, or undefined when there is none. */
-  grade: { score: number; gradedAt: Date; updatedAt?: Date | null } | undefined;
+  grade:
+    | {
+        score: number;
+        gradedAt: Date;
+        updatedAt?: Date | null;
+        gradedAnswerAt?: Date;
+      }
+    | undefined;
   /** The student's test is handed in. */
   handedIn: boolean;
   isPractice: boolean;
@@ -92,28 +129,6 @@ export function countBoxStates(
   ) as Record<QuestionBoxState, number>;
   for (const state of states) counts[state] += 1;
   return counts;
-}
-
-/** One student's box in By question. */
-export interface StudentBoxData {
-  row: StudentPickerRow;
-  state: QuestionBoxState;
-}
-
-interface StudentBoxesInput {
-  /** The picker's rows, in picker order. */
-  rows: StudentPickerRow[];
-  question: Pick<Question, "id" | "type">;
-  /** Latest answers: student id, then question id. */
-  answers: Map<string, Map<string, { submittedAt: Date }>>;
-  /** Grades: student id, then question id. */
-  grades: Map<
-    string,
-    Map<string, { score: number; gradedAt: Date; updatedAt?: Date | null }>
-  >;
-  isPractice: boolean;
-  /** The student asked for in the URL, if any. */
-  requestedStudentId?: string;
 }
 
 /**

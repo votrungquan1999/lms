@@ -762,6 +762,43 @@ describe("GradeService - Atomic Reveal", () => {
 
 describe("GradeService - Auto-Grade Edge Cases", () => {
   dbIt(
+    "records on each choice grade when the answer it marked was saved",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      const { testService, questionService, answerService, gradeService } =
+        buildCoreServices(db);
+      const test = await testService.createTest("course-1", {
+        title: "Marked version",
+        description: "",
+        createdBy: "admin",
+      });
+      const q = (await questionService.addQuestion(test.id, {
+        title: "Pick one",
+        content: "Pick.",
+        createdBy: "admin",
+        type: "single_select",
+        options: [
+          { text: "A", isCorrect: true },
+          { text: "B", isCorrect: false },
+        ],
+      })) as SingleSelectQuestion;
+      const answer = await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q.id,
+        studentId: "student-1",
+        answer: { type: "mc", selectedIds: [q.options[0].id] },
+      });
+      // The grade is written later than the answer, so its own time cannot stand in for the answer's.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+
+      await gradeService.autoGradeTest(test.id, "student-1");
+
+      const grade = await gradeService.getGrade(test.id, q.id, "student-1");
+      expect(grade?.gradedAnswerAt).toEqual(answer.submittedAt);
+    },
+  );
+
+  dbIt(
     "multi_select partial with all correct and no wrong selected scores 100",
     async ({ db }) => {
       await insertRawCourses(db, ["course-1"]);

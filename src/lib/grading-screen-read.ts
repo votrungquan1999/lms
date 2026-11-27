@@ -10,6 +10,7 @@ import {
   getAnswerService,
   getEnrollmentService,
   getGradeService,
+  getGradingCountService,
   getQuestionService,
   getStudentService,
   getTestSubmissionService,
@@ -40,11 +41,13 @@ export interface GradingScreenRead {
  * expired attempt is about to auto-grade as still needing a grade.
  * @param schoolId - The page's school.
  * @param test - A test of that school.
+ * @param options.ownCountsOnly - Count just this test and its course, for a caller that has no use for the school's other tests and runs outside a render.
  * @returns The questions, students, counts and the test-wide answers and grades.
  */
 export async function readGradingScreen(
   schoolId: string,
   test: Test,
+  options: { ownCountsOnly?: boolean } = {},
 ): Promise<GradingScreenRead> {
   const [enrollmentService, studentService, questionService] =
     await Promise.all([
@@ -54,7 +57,14 @@ export async function readGradingScreen(
     ]);
 
   const [schoolCounts, studentIds, questions] = await Promise.all([
-    getSchoolGradingCounts(schoolId),
+    options.ownCountsOnly
+      ? getGradingCountService(schoolId).then((service) =>
+          service.getCounts(new Date(), {
+            testId: test.id,
+            courseId: test.courseId,
+          }),
+        )
+      : getSchoolGradingCounts(schoolId),
     enrollmentService.listEnrollmentsByCourse(test.courseId),
     questionService.listQuestions(test.id),
   ]);

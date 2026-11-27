@@ -26,6 +26,8 @@ export interface GradeDocument {
   gradedBy: string;
   updatedAt: Date | null;
   updatedBy: string | null;
+  /** When the answer this grade describes was saved; absent on older grades. */
+  gradedAnswerAt?: Date;
 }
 
 /**
@@ -42,6 +44,8 @@ export interface Grade {
   gradedAt: Date;
   /** When the grade was last changed; null until the first change. */
   updatedAt?: Date | null;
+  /** When the answer this grade describes was saved; absent on older grades. */
+  gradedAnswerAt?: Date;
 }
 
 /**
@@ -55,6 +59,8 @@ export interface GradeQuestionInput {
   feedback: string;
   solution?: string;
   gradedBy: string;
+  /** When the answer being graded was saved; a newer answer still needs a grade. */
+  gradedAnswerAt?: Date;
 }
 
 /**
@@ -120,6 +126,7 @@ export class GradeService {
         score,
         feedback: "",
         gradedBy: "system",
+        gradedAnswerAt: studentAnswer.submittedAt,
       });
       grades.push(grade);
     }
@@ -212,23 +219,25 @@ export class GradeService {
       // An empty solution clears the saved one; an absent one keeps it.
       const solution =
         input.solution === "" ? null : (input.solution ?? existing.solution);
-      await this.grades.updateOne(filter, {
-        $set: {
-          score: input.score,
-          feedback: input.feedback,
-          solution,
-          updatedAt: now,
-          updatedBy: input.gradedBy,
-        },
-      });
-
-      return this.toGrade({
-        ...existing,
+      const changes = {
         score: input.score,
         feedback: input.feedback,
         solution,
         updatedAt: now,
         updatedBy: input.gradedBy,
+      };
+      // A re-grade without a version drops the old one, so the rule falls back to this save's time.
+      await this.grades.updateOne(
+        filter,
+        input.gradedAnswerAt
+          ? { $set: { ...changes, gradedAnswerAt: input.gradedAnswerAt } }
+          : { $set: changes, $unset: { gradedAnswerAt: "" } },
+      );
+
+      return this.toGrade({
+        ...existing,
+        ...changes,
+        gradedAnswerAt: input.gradedAnswerAt,
       });
     }
 
@@ -244,6 +253,7 @@ export class GradeService {
       gradedBy: input.gradedBy,
       updatedAt: null,
       updatedBy: null,
+      ...(input.gradedAnswerAt && { gradedAnswerAt: input.gradedAnswerAt }),
     };
 
     await this.grades.insertOne(doc);
@@ -347,6 +357,7 @@ export class GradeService {
       solution: doc.solution,
       gradedAt: doc.gradedAt,
       updatedAt: doc.updatedAt,
+      ...(doc.gradedAnswerAt && { gradedAnswerAt: doc.gradedAnswerAt }),
     };
   }
 

@@ -7,6 +7,7 @@ import type {
 import type { AiGradeSuggestionDocument } from "src/lib/ai-grade-types";
 import type { AnswerDocument } from "src/lib/answer-service";
 import type { GradeDocument } from "src/lib/grade-service";
+import { needsGrade } from "src/lib/needs-grade";
 import { MediaContentType } from "src/lib/question-service";
 import { buildCoreServices } from "src/tests/build-core-services";
 import { withTestDb } from "src/tests/create-test-db";
@@ -2655,6 +2656,81 @@ describe("AiGradeService.getLatestSuggestion - same-instant suggestions", () => 
 
       expect(latest?.id).toBe("s-b");
       expect(first?.id).toBe("s-b");
+    },
+  );
+});
+
+describe("AiGradeService.applySuggestion - a suggestion for an answer the student has since changed", () => {
+  dbIt(
+    "leaves her newer answer needing a grade after the teacher uses the suggestion written for her earlier one",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      // Given: the AI suggested a grade for her first answer
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
+          return items.map((item) => ({
+            questionId: item.questionId,
+            score: 70,
+            feedback: "Draft.",
+            solution: "",
+          }));
+        },
+      };
+      const {
+        testService,
+        questionService,
+        answerService,
+        gradeService,
+        aiGradeService,
+      } = buildCoreServices(db, { aiClient: stubAiClient });
+      const test = await testService.createTest("course-1", {
+        title: "Stale use",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const question = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Q1",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      const answer = (text: string) =>
+        answerService.submitAnswer({
+          testId: test.id,
+          questionId: question.id,
+          studentId: "student-1",
+          answer: { type: "free_text", text },
+        });
+      await answer("first try");
+      const [suggestion] = await aiGradeService.generateForStudent(
+        test.id,
+        "student-1",
+        "admin-1",
+      );
+      // And: she then replaced that answer
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const latest = await answer("second try");
+
+      // When: the teacher uses the suggestion
+      await aiGradeService.applySuggestion(suggestion!.id, "admin-1", {
+        testId: test.id,
+        studentId: "student-1",
+      });
+
+      // Then: her second answer still needs a grade
+      const grade = await gradeService.getGrade(
+        test.id,
+        question.id,
+        "student-1",
+      );
+      expect(
+        needsGrade({
+          answered: true,
+          latestAnswerAt: latest.submittedAt,
+          grade,
+          redoOpen: false,
+        }),
+      ).toBe(true);
     },
   );
 });

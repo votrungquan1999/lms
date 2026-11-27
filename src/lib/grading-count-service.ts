@@ -148,8 +148,12 @@ export class GradingCountService {
    * read rounds, plus a third only when an expired timed attempt needs its
    * auto-grade inferred.
    * @param now - The clock used to decide which timed attempts have expired.
+   * @param only - Counts just this test and its course instead of the whole school.
    */
-  async getCounts(now: Date = new Date()): Promise<SchoolGradingCounts> {
+  async getCounts(
+    now: Date = new Date(),
+    only?: { testId: string; courseId: string },
+  ): Promise<SchoolGradingCounts> {
     const { db } = this;
     const schoolId = this.schoolId;
 
@@ -157,7 +161,7 @@ export class GradingCountService {
     const [tests, courses, students] = await Promise.all([
       db
         .collection<TestDocument>("test")
-        .find({ schoolId, deletedAt: null })
+        .find({ schoolId, deletedAt: null, ...(only && { id: only.testId }) })
         .project<TestRow>({
           _id: 0,
           id: 1,
@@ -172,7 +176,7 @@ export class GradingCountService {
         .toArray(),
       db
         .collection<CourseDocument>("course")
-        .find({ schoolId })
+        .find({ schoolId, ...(only && { id: only.courseId }) })
         .project<Pick<CourseDocument, "id" | "title">>({
           _id: 0,
           id: 1,
@@ -258,7 +262,12 @@ export class GradingCountService {
         .project<
           Pick<
             GradeDocument,
-            "testId" | "studentId" | "questionId" | "gradedAt" | "updatedAt"
+            | "testId"
+            | "studentId"
+            | "questionId"
+            | "gradedAt"
+            | "updatedAt"
+            | "gradedAnswerAt"
           >
         >({
           _id: 0,
@@ -267,6 +276,7 @@ export class GradingCountService {
           questionId: 1,
           gradedAt: 1,
           updatedAt: 1,
+          gradedAnswerAt: 1,
         })
         .toArray(),
       db
