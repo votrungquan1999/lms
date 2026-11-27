@@ -1,7 +1,6 @@
 import { AiGradingFailedNote } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grading-failed-note.ui";
 import { AiGradingInProgressNote } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grading-in-progress-note.ui";
 import { AiSuggestionPanel } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-suggestion-panel";
-import { AutoGradeWithAiButton } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/auto-grade-with-ai-button";
 import {
   OverallFeedbackForm,
   RequestRedoButton,
@@ -239,17 +238,6 @@ export async function GradingDetailStudent({
                   hasActiveRedoRequest={hasActiveRedoRequest}
                 />
               )}
-              {!test.isPractice &&
-                status === TestStatus.Submitted &&
-                aiSuggestionsByQuestion.size > 0 && (
-                  <AutoGradeWithAiButton
-                    key={aiJobStateKey}
-                    testId={testId}
-                    courseId={courseId}
-                    studentId={student.id}
-                    aiGradingStartedAt={aiGradingStartedAt}
-                  />
-                )}
               <ReleaseGradeForStudentControl
                 test={test}
                 courseId={courseId}
@@ -324,16 +312,15 @@ export async function GradingDetailStudent({
                 )
               }
               moreMenu={
-                !test.isPractice &&
-                status === TestStatus.Submitted &&
-                aiSuggestionsByQuestion.size === 0 ? (
+                !test.isPractice && status === TestStatus.Submitted ? (
                   // Remounts with the job, so a "started" message does not outlive its job.
                   <MoreMenu
                     key={aiJobStateKey}
                     testId={testId}
                     courseId={courseId}
                     studentId={student.id}
-                    offerAutoGrade
+                    offerAutoGrade={aiSuggestionsByQuestion.size === 0}
+                    offerRegenerateAll={aiSuggestionsByQuestion.size > 0}
                     aiGradingStartedAt={aiGradingStartedAt}
                   />
                 ) : undefined

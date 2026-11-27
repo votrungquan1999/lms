@@ -204,6 +204,33 @@ describe("Feature: a teacher sees AI grading in progress and cannot start anothe
     ).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("offers Regenerate all with AI… in More once suggestions exist, opening a dialog with a reason and the already-graded option", async () => {
+    // Given a student with a finished AI round and no job pending
+    const { renderPage } = await seedSubmission({
+      withSuggestions: true,
+      withPendingJob: false,
+    });
+    await renderPage();
+
+    // When the teacher opens More and picks Regenerate all with AI…
+    await userEvent.click(screen.getByRole("button", { name: /more/i }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Auto-grade with AI" }),
+    ).toBeNull();
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Regenerate all with AI…" }),
+    );
+
+    // Then a dialog asks for a reason and offers the already-graded questions
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/reason/i).tagName).toBe("TEXTAREA");
+    expect(
+      within(dialog).getByRole("checkbox", {
+        name: "Also regenerate questions I've already graded",
+      }),
+    ).not.toBeChecked();
+  });
+
   it("disables Regenerate all and Regenerate this answer while a job is pending over an earlier round", async () => {
     // Given a student with an earlier AI round and a newer job still pending
     const { renderPage } = await seedSubmission({ withSuggestions: true });
@@ -212,9 +239,10 @@ describe("Feature: a teacher sees AI grading in progress and cannot start anothe
     await renderPage();
 
     // Then both regenerate triggers are disabled and the note is shown once
+    await userEvent.click(screen.getByRole("button", { name: /more/i }));
     expect(
-      screen.getByRole("button", { name: /regenerate all/i }),
-    ).toBeDisabled();
+      await screen.findByRole("menuitem", { name: "Regenerate all with AI…" }),
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("ai-regenerate-question-trigger")).toBeDisabled();
     expect(screen.getAllByTestId("ai-grading-in-progress")).toHaveLength(1);
   });

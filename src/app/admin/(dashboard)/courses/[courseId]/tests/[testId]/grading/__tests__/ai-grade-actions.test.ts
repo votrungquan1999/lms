@@ -116,7 +116,7 @@ describe("Feature: regenerateSubmissionAction rejects a missing/whitespace reaso
   });
 
   it("returns success:false with a user-visible error message when reason input is invalid (whitespace-only or missing)", async () => {
-    // Given — whitespace-only reason (trips Zod .trim().min(1))
+    // Given — whitespace-only reason (trims to empty, under the 3-character minimum)
     const fdWhitespace = new FormData();
     fdWhitespace.set("testId", "test-1");
     fdWhitespace.set("courseId", "course-1");
@@ -242,6 +242,52 @@ describe("Feature: regenerateSubmissionAction honours the include-graded checkbo
   });
 });
 
+describe("Feature: regenerateSubmissionAction refuses a reason outside 3 to 500 characters", () => {
+  beforeEach(() => {
+    startRound.mockReset();
+    requireAdminSession.mockReset();
+    requireAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      school: TEST_SCHOOL,
+    });
+  });
+
+  const formWith = (reason: string) => {
+    const fd = new FormData();
+    fd.set("testId", "test-1");
+    fd.set("courseId", "course-1");
+    fd.set("studentId", "stu-1");
+    fd.set("reason", reason);
+    return fd;
+  };
+
+  it.each([
+    { label: "2 characters", reason: "ab" },
+    { label: "2 characters once trimmed", reason: "  ab  " },
+    { label: "501 characters", reason: "x".repeat(501) },
+  ])("starts no round for a reason of $label", async ({ reason }) => {
+    const state = await regenerateSubmissionAction(null, formWith(reason));
+
+    expect(state.success).toBe(false);
+    expect(startRound).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { label: "exactly 3 characters", reason: "abc" },
+    { label: "exactly 500 characters", reason: "x".repeat(500) },
+  ])("starts the round for a reason of $label", async ({ reason }) => {
+    startRound.mockResolvedValueOnce({
+      kind: StartRoundOutcomeKind.Completed,
+      suggestions: [{ id: "sugg-new" }],
+    });
+
+    const state = await regenerateSubmissionAction(null, formWith(reason));
+
+    expect(state.success).toBe(true);
+    expect(startRound).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Feature: autoGradeSubmissionAction surfaces LLM/Zod failure as the pinned error message (Step 9)", () => {
   beforeEach(() => {
     startRound.mockReset();
@@ -338,7 +384,7 @@ describe("Feature: regenerateQuestionAction (Step A2 — single-question regener
   });
 
   it("rejects a missing/whitespace reason with a user-visible error and does NOT start a round", async () => {
-    // Given — whitespace-only reason (trips Zod .trim().min(1)).
+    // Given — whitespace-only reason (trims to empty, under the 3-character minimum).
     const fdWhitespace = new FormData();
     fdWhitespace.set("testId", "test-1");
     fdWhitespace.set("courseId", "course-1");

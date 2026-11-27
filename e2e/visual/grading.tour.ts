@@ -214,7 +214,7 @@ test("grading: submitted student with a blank free-text answer", async ({
   await snap(page, "grading/student-blank-free-text", {
     sources: [
       ...STUDENT_DETAIL,
-      "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/auto-grade-with-ai-button.tsx",
+      "src/app/admin/(dashboard)/grading/page-body/more-menu.tsx",
     ],
   });
 });
@@ -251,7 +251,7 @@ test("grading: student with an existing AI grade suggestion", async ({
     sources: [
       ...STUDENT_DETAIL,
       "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-suggestion-panel.tsx",
-      "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/auto-grade-with-ai-button.tsx",
+      "src/app/admin/(dashboard)/grading/page-body/more-menu.tsx",
     ],
   });
 });

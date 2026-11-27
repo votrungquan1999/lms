@@ -1,10 +1,11 @@
 "use client";
 
-import { startTransition, useActionState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import {
   type AutoGradeSubmissionState,
   autoGradeSubmissionAction,
 } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grade-actions";
+import { RegenerateWithAiDialog } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/regenerate-with-ai-dialog";
 import { Button } from "src/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +20,8 @@ interface MoreMenuProps {
   studentId: string;
   /** The student has no AI suggestions yet, so the first round is offered. */
   offerAutoGrade: boolean;
+  /** The student already has AI suggestions, so a new round over the whole submission is offered. */
+  offerRegenerateAll: boolean;
   /** When the student's pending AI grading job started; null when none is pending. Locks the AI entries. */
   aiGradingStartedAt: Date | null;
 }
@@ -29,8 +32,10 @@ export function MoreMenu({
   courseId,
   studentId,
   offerAutoGrade,
+  offerRegenerateAll,
   aiGradingStartedAt,
 }: MoreMenuProps) {
+  const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [state, formAction] = useActionState<
     AutoGradeSubmissionState | null,
     FormData
@@ -61,8 +66,25 @@ export function MoreMenu({
               Auto-grade with AI
             </DropdownMenuItem>
           )}
+          {offerRegenerateAll && (
+            <DropdownMenuItem
+              disabled={aiGradingStartedAt !== null}
+              onSelect={() => setRegenerateOpen(true)}
+            >
+              Regenerate all with AI…
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* Beside the menu, not inside an item, so it outlives the menu closing. */}
+      <RegenerateWithAiDialog
+        testId={testId}
+        courseId={courseId}
+        studentId={studentId}
+        open={regenerateOpen}
+        onOpenChange={setRegenerateOpen}
+        disabled={aiGradingStartedAt !== null}
+      />
       {state?.message && (
         <p
           className={`text-xs ${

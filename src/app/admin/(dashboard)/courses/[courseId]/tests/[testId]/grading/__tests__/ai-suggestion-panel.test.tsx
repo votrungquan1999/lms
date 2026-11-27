@@ -4,7 +4,6 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
 import { describe, expect, it } from "vitest";
 import { AiSuggestionPanel } from "../ai-suggestion-panel";
-import { AutoGradeWithAiButton } from "../auto-grade-with-ai-button";
 
 /**
  * Feature: AI Suggestion Panel for Admin Grading Page (Step 7)
@@ -141,21 +140,13 @@ describe("Feature: AiSuggestionPanel per-question regenerate control (Step A3)",
     expect(questionIdInput!.value).toBe("q-42");
   });
 
-  it("given the per-question regenerate control and the whole-submission regenerate control rendered together, when both render, then each is present and independent (no regression to the whole-submission control)", () => {
-    // Given: a panel (with its per-question regenerate trigger) and the
-    // whole-submission Regenerate all button rendered side by side, as the
-    // grading page composes them.
+  it("given a panel, when it renders, then its per-question regenerate trigger is inside it", () => {
     const suggestions: AiGradeSuggestion[] = [
       buildSuggestion({ id: "sugg-1", questionId: "q-42" }),
     ];
 
     render(
       <div>
-        <AutoGradeWithAiButton
-          testId="test-1"
-          courseId="course-1"
-          studentId="student-1"
-        />
         <AiSuggestionPanel
           testId="test-1"
           courseId="course-1"
@@ -165,11 +156,6 @@ describe("Feature: AiSuggestionPanel per-question regenerate control (Step A3)",
         />
       </div>,
     );
-
-    // Then: the whole-submission control still renders unchanged.
-    expect(
-      screen.getByRole("button", { name: /regenerate all/i }),
-    ).toBeInTheDocument();
 
     // Then: the per-question regenerate trigger renders inside the panel,
     // distinct from the whole-submission control.
@@ -277,20 +263,13 @@ describe("Feature: AiSuggestionPanel stale-suggestion badge (Step 8)", () => {
 });
 
 describe("Feature: Regenerate labels say what they regenerate", () => {
-  it("labels the whole-submission trigger 'Regenerate all' and the per-question trigger 'Regenerate this answer', with no bare 'Regenerate' left", () => {
-    // Given: both regenerate controls rendered together, as the grading page
-    // composes them once a submission already has AI suggestions.
+  it("labels the per-question trigger 'Regenerate this answer', with no bare 'Regenerate' left", () => {
     const suggestions: AiGradeSuggestion[] = [
       buildSuggestion({ id: "sugg-1", questionId: "q-42" }),
     ];
 
     render(
       <div>
-        <AutoGradeWithAiButton
-          testId="test-1"
-          courseId="course-1"
-          studentId="student-1"
-        />
         <AiSuggestionPanel
           testId="test-1"
           courseId="course-1"
@@ -300,11 +279,6 @@ describe("Feature: Regenerate labels say what they regenerate", () => {
         />
       </div>,
     );
-
-    // Then: the whole-submission trigger names its scope.
-    expect(
-      screen.getByRole("button", { name: "Regenerate all" }),
-    ).toBeInTheDocument();
 
     // Then: the per-question trigger, inside the panel, names its own scope.
     const panel = screen.getByTestId("ai-suggestion-panel");
