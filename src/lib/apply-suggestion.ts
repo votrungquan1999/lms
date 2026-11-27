@@ -4,6 +4,7 @@ import type {
   AiGradeSuggestionDocument,
 } from "src/lib/ai-grade-types";
 import type { GradeDocument, GradeService } from "src/lib/grade-service";
+import { isTeacherOwnGrade } from "src/lib/teacher-own-grade";
 
 /**
  * Input bag for `applySuggestion`. Extracted into its own file so
@@ -36,6 +37,11 @@ export interface ApplySuggestionOverrides {
   solutionOverride?: string;
 }
 
+/** `replace` confirms the teacher chose to overwrite a grade they wrote themselves. */
+export interface ApplySuggestionOptions {
+  replace?: boolean;
+}
+
 /**
  * The test and student the caller already checked: the test is this school's
  * and the student is enrolled in its course. Named fields, so the two ids
@@ -47,10 +53,9 @@ export interface VerifiedSuggestionTarget {
 }
 
 /**
- * Verbatim user-facing message (pinned by implementation-plan.md). Refusal
- * fires when no `ai_grade` row currently carries `appliedAt != null` AND a
- * `grade` row already exists for `(testId, questionId, studentId)` — the grade
- * is teacher-authored and must not be silently overwritten by Apply.
+ * Verbatim user-facing message. Refusal fires when a `grade` row exists for
+ * `(testId, questionId, studentId)`, no suggestion on the question reads
+ * "Used" (see `isTeacherOwnGrade`) and the caller did not confirm a replace.
  */
 export const APPLY_OVER_HUMAN_GRADE_MESSAGE =
   "This question already has a teacher-authored grade. Edit the grade directly to change it.";
@@ -62,11 +67,9 @@ export const APPLY_OVER_HUMAN_GRADE_MESSAGE =
  *   1. Load target suggestion by id; throw "Suggestion not found" if missing
  *      OR if its own testId/studentId don't match the caller's verified pair
  *      — a mismatch gets the same generic refusal as a miss.
- *   2. Apply-over-human-grade check — refuse if a teacher already authored a
- *      grade for this question (no `ai_grade` row currently applied AND a
- *      `grade` row exists).
- *   3. Set `appliedAt` / `appliedBy` on the chosen row FIRST so the brief
- *      in-between window has at-least-one marked row, never zero.
+ *   2. Apply-over-human-grade check — refuse unless `options.replace` is set
+ *      when the question has a grade that is the teacher's own.
+ *   3. Set `appliedAt` / `appliedBy` on the chosen row.
  *   4. Clear the marker on any OTHER prior-applied sibling row for the same
  *      `(testId, questionId, studentId)`.
  *   5. Call `gradeService.gradeQuestion(...)` with overrides resolved via `??`
@@ -83,6 +86,7 @@ export async function applySuggestion(
   byAdminId: string,
   verified: VerifiedSuggestionTarget,
   overrides?: ApplySuggestionOverrides,
+  options?: ApplySuggestionOptions,
 ): Promise<AiGradeSuggestion> {
   const { suggestions, grades, gradeService } = deps;
 
@@ -95,23 +99,20 @@ export async function applySuggestion(
     throw new Error("Suggestion not found");
   }
 
-  const anyCurrentlyApplied = await suggestions.countDocuments(
-    {
-      testId: target.testId,
-      questionId: target.questionId,
-      studentId: target.studentId,
-      appliedAt: { $ne: null },
-    },
-    { limit: 1 },
+  const existingGrade = await gradeService.getGrade(
+    target.testId,
+    target.questionId,
+    target.studentId,
   );
-
-  if (anyCurrentlyApplied === 0) {
-    const existingGrade = await gradeService.getGrade(
-      target.testId,
-      target.questionId,
-      target.studentId,
-    );
-    if (existingGrade) {
+  if (existingGrade && !options?.replace) {
+    const siblings = await suggestions
+      .find({
+        testId: target.testId,
+        questionId: target.questionId,
+        studentId: target.studentId,
+      })
+      .toArray();
+    if (isTeacherOwnGrade(siblings, existingGrade)) {
       throw new Error(APPLY_OVER_HUMAN_GRADE_MESSAGE);
     }
   }
@@ -136,7 +137,9 @@ export async function applySuggestion(
 
   const effectiveScore = overrides?.scoreOverride ?? target.score;
   const effectiveFeedback = overrides?.feedbackOverride ?? target.feedback;
-  const effectiveSolution = overrides?.solutionOverride ?? target.solution;
+  // A suggestion with no fix clears the saved solution, so the grade equals the suggestion.
+  const effectiveSolution =
+    overrides?.solutionOverride ?? target.solution ?? "";
 
   await gradeService.gradeQuestion({
     testId: target.testId,

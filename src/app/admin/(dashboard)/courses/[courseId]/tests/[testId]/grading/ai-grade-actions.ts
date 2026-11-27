@@ -398,6 +398,7 @@ const applyAiSuggestionSchema = z.object({
   scoreOverride: z.coerce.number().int().min(0).max(100).optional(),
   feedbackOverride: z.string().optional(),
   solutionOverride: z.string().optional(),
+  replace: z.boolean(),
 });
 
 export interface ApplyAiSuggestionState {
@@ -412,9 +413,9 @@ export interface ApplyAiSuggestionState {
  * paths because Apply writes to the `grade` collection that the student-facing
  * test page reads (subject to visibility flags).
  *
- * Refuses if a teacher has already manually graded the question — the service
- * throws the pinned message, the outer try/catch surfaces it via the action's
- * state. Never throws to the caller.
+ * Refuses to replace the teacher's own grade unless the form carries
+ * `replace=true` (set after the teacher confirms) — the service throws the
+ * pinned message, the outer try/catch surfaces it via the action's state. Never throws to the caller.
  */
 export async function applyAiSuggestionAction(
   _prevState: ApplyAiSuggestionState | null,
@@ -450,6 +451,7 @@ export async function applyAiSuggestionAction(
       rawFeedbackOverride === null ? undefined : rawFeedbackOverride,
     solutionOverride:
       rawSolutionOverride === null ? undefined : rawSolutionOverride,
+    replace: formData.get("replace") === "true",
   });
 
   if (!parsed.success) {
@@ -478,6 +480,7 @@ export async function applyAiSuggestionAction(
             feedbackOverride: parsed.data.feedbackOverride,
             solutionOverride: parsed.data.solutionOverride,
           },
+          { replace: parsed.data.replace },
         );
         // Mirrors apply-suggestion's `??` resolution of the overrides.
         recordAiAcceptance(span, AiGradeOutcome.Applied, suggestion, {

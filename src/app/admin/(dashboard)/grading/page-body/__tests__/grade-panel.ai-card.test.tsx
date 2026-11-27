@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import {
   AI_GRADER_ID,
   AI_MODEL_NAME,
@@ -405,5 +411,124 @@ describe("Feature: the AI suggestion card in the grade panel", () => {
         "ai-suggestion-applied-badge",
       ),
     ).toHaveTextContent("Used");
+  });
+  it("asks Replace your grade? before using a suggestion over the teacher's own grade, changing nothing on Cancel and saving the suggestion on Replace", async () => {
+    let ids: { testId: string; questionId: string; studentId: string };
+    await renderWithSuggestions(
+      db,
+      (built) => [
+        suggestion({
+          id: "s-1",
+          ...built,
+          gradedAgainstAnswerId: built.answerId,
+          score: 64,
+          feedback: "ok work",
+        }),
+      ],
+      async (built) => {
+        ids = built;
+        await getTestServices().gradeService.gradeQuestion({
+          ...built,
+          score: 90,
+          feedback: "my own words",
+          gradedBy: "admin-1",
+        });
+      },
+    );
+    const savedScore = async () =>
+      (
+        await getTestServices().gradeService.getGrade(
+          ids.testId,
+          ids.questionId,
+          ids.studentId,
+        )
+      )?.score;
+    const use = () =>
+      within(screen.getByTestId("ai-suggestion-row")).getByRole("button", {
+        name: "Use · saves score, feedback & solution",
+      });
+
+    // When: Use is clicked over the teacher's own grade, then cancelled.
+    fireEvent.click(use());
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Replace your grade?")).toBeVisible();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    // Then: the grade is untouched.
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(await savedScore()).toBe(90);
+
+    // When: Use is confirmed with Replace.
+    fireEvent.click(use());
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Replace",
+      }),
+    );
+
+    // Then: the suggestion's score is the saved grade.
+    await waitFor(async () => expect(await savedScore()).toBe(64));
+  });
+
+  it("uses a suggestion at once, with no question, when the saved grade came from another suggestion and was saved again unchanged", async () => {
+    let ids: { testId: string; questionId: string; studentId: string };
+    await renderWithSuggestions(
+      db,
+      (built) => [
+        suggestion({
+          id: "s-2",
+          ...built,
+          gradedAgainstAnswerId: built.answerId,
+          score: 80,
+          feedback: "newer",
+          generatedAt: new Date("2026-01-02T00:00:00Z"),
+        }),
+        suggestion({
+          id: "s-1",
+          ...built,
+          gradedAgainstAnswerId: built.answerId,
+          score: 64,
+          feedback: "ok work",
+        }),
+      ],
+      async (built) => {
+        ids = built;
+        await getTestServices().aiGradeService.applySuggestion(
+          "s-1",
+          "admin-1",
+          { testId: built.testId, studentId: built.studentId },
+        );
+        // A later save with the same content leaves the grade s-1's, though it is newer than the use.
+        await getTestServices().gradeService.gradeQuestion({
+          testId: built.testId,
+          questionId: built.questionId,
+          studentId: built.studentId,
+          score: 64,
+          feedback: "ok work",
+          gradedBy: "admin-1",
+        });
+      },
+    );
+
+    // The newest suggestion (s-2) is the first row.
+    const [newest] = screen.getAllByTestId("ai-suggestion-row");
+    fireEvent.click(
+      within(newest as HTMLElement).getByRole("button", {
+        name: "Use · saves score, feedback & solution",
+      }),
+    );
+
+    await waitFor(async () =>
+      expect(
+        (
+          await getTestServices().gradeService.getGrade(
+            ids.testId,
+            ids.questionId,
+            ids.studentId,
+          )
+        )?.score,
+      ).toBe(80),
+    );
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 });

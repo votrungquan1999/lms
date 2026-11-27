@@ -545,6 +545,196 @@ describe("AiGradeService.applySuggestion - Step 6 (apply-over-human-grade refusa
   );
 });
 
+describe("AiGradeService.applySuggestion - replacing the teacher's own grade", () => {
+  dbIt(
+    "given a suggestion was used, when the teacher hand-edits the grade, then using another suggestion is refused without the replace flag and saved with it, while using one before any hand edit needs no flag",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      const services = buildCoreServices(db, {
+        aiClient: {
+          async gradeFreeTextBatch() {
+            throw new Error("not used in this test");
+          },
+        },
+      });
+      const {
+        testService,
+        questionService,
+        answerService,
+        gradeService,
+        aiGradeService,
+      } = services;
+      const test = await testService.createTest("course-1", {
+        title: "Replace grade",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Explain LSP.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Subtypes are substitutable." },
+      });
+      const seed = (id: string, score: number, at: string) =>
+        db.collection("ai_grade").insertOne({
+          id,
+          testId: test.id,
+          questionId: q1.id,
+          studentId: "student-1",
+          score,
+          feedback: `feedback ${id}`,
+          gradedAgainstAnswerId: "answer-snapshot-1",
+          model: "gemini-3.5-flash",
+          gradedBy: "ai:gemini-3.5-flash",
+          generatedByAdminId: "admin-1",
+          generatedAt: new Date(at),
+          regenerateReason: null,
+          appliedAt: null,
+          appliedBy: null,
+        });
+      await seed("sugg-A", 60, "2026-01-01T00:00:00Z");
+      await seed("sugg-B", 70, "2026-01-02T00:00:00Z");
+      await seed("sugg-C", 80, "2026-01-03T00:00:00Z");
+      const target = { testId: test.id, studentId: "student-1" };
+
+      // Given: A is used, then the teacher saves the same grade again (no hand edit).
+      await aiGradeService.applySuggestion("sugg-A", "admin-1", target);
+      await gradeService.gradeQuestion({
+        ...target,
+        questionId: q1.id,
+        score: 60,
+        feedback: "feedback sugg-A",
+        gradedBy: "admin-1",
+      });
+
+      // When + Then: using B needs no flag, because the grade is still A's.
+      await aiGradeService.applySuggestion("sugg-B", "admin-1", target);
+      expect(
+        (await gradeService.getGrade(test.id, q1.id, "student-1"))?.score,
+      ).toBe(70);
+
+      // Given: the teacher hand-edits B's grade.
+      await gradeService.gradeQuestion({
+        ...target,
+        questionId: q1.id,
+        score: 95,
+        feedback: "my own words",
+        gradedBy: "admin-1",
+      });
+
+      // When + Then: using C without the flag is refused and changes nothing.
+      await expect(
+        aiGradeService.applySuggestion("sugg-C", "admin-1", target),
+      ).rejects.toThrow("already has a teacher-authored grade");
+      expect(
+        (await gradeService.getGrade(test.id, q1.id, "student-1"))?.score,
+      ).toBe(95);
+
+      // When + Then: with the flag C is saved and reads as the applied one.
+      await aiGradeService.applySuggestion(
+        "sugg-C",
+        "admin-1",
+        target,
+        undefined,
+        {
+          replace: true,
+        },
+      );
+      expect(
+        (await gradeService.getGrade(test.id, q1.id, "student-1"))?.score,
+      ).toBe(80);
+      const applied = await db
+        .collection("ai_grade")
+        .find({ questionId: q1.id, appliedAt: { $ne: null } })
+        .toArray();
+      expect(applied.map((r) => r.id)).toEqual(["sugg-C"]);
+    },
+  );
+});
+
+describe("AiGradeService.applySuggestion - a suggestion without a fix", () => {
+  dbIt(
+    "given the teacher's grade has a solution, when a suggestion with no fix replaces it, then the saved solution is cleared",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      const services = buildCoreServices(db, {
+        aiClient: {
+          async gradeFreeTextBatch() {
+            throw new Error("not used in this test");
+          },
+        },
+      });
+      const {
+        testService,
+        questionService,
+        answerService,
+        gradeService,
+        aiGradeService,
+      } = services;
+      const test = await testService.createTest("course-1", {
+        title: "No fix",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const q1 = await questionService.addQuestion(test.id, {
+        title: "Q1",
+        content: "Explain LSP.",
+        createdBy: "admin-1",
+        type: "free_text",
+      });
+      await answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        answer: { type: "free_text", text: "Subtypes are substitutable." },
+      });
+      await db.collection("ai_grade").insertOne({
+        id: "sugg-no-fix",
+        testId: test.id,
+        questionId: q1.id,
+        studentId: "student-1",
+        score: 70,
+        feedback: "feedback without a fix",
+        gradedAgainstAnswerId: "answer-snapshot-1",
+        model: "gemini-3.5-flash",
+        gradedBy: "ai:gemini-3.5-flash",
+        generatedByAdminId: "admin-1",
+        generatedAt: new Date("2026-01-01T00:00:00Z"),
+        regenerateReason: null,
+        appliedAt: null,
+        appliedBy: null,
+      });
+      const target = { testId: test.id, studentId: "student-1" };
+      await gradeService.gradeQuestion({
+        ...target,
+        questionId: q1.id,
+        score: 95,
+        feedback: "my own words",
+        solution: "my own solution",
+        gradedBy: "admin-1",
+      });
+
+      await aiGradeService.applySuggestion(
+        "sugg-no-fix",
+        "admin-1",
+        target,
+        undefined,
+        { replace: true },
+      );
+
+      const grade = await gradeService.getGrade(test.id, q1.id, "student-1");
+      expect(grade?.score).toBe(70);
+      expect(grade?.solution ?? null).toBeNull();
+    },
+  );
+});
+
 describe("AiGradeService.applySuggestion - Step 6", () => {
   dbIt(
     "given one free-text question with a single unapplied AI suggestion and no existing human grade, when applying the suggestion, then writes the suggestion's score and feedback to the grade collection attributed to the applying admin AND marks the suggestion row as applied",

@@ -1,11 +1,25 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useId, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "src/components/ui/alert-dialog";
 import { Badge } from "src/components/ui/badge";
 import { Button } from "src/components/ui/button";
 import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
 import { lineDiffCount } from "src/lib/line-diff-count";
 import { pluralize } from "src/lib/pluralize";
+import {
+  isTeacherOwnGrade,
+  suggestionReadsUsed,
+} from "src/lib/teacher-own-grade";
 import {
   type ApplyAiSuggestionState,
   applyAiSuggestionAction,
@@ -19,8 +33,8 @@ interface AiSuggestionPanelProps {
   /** The question this panel grades — scopes the per-question regenerate. */
   questionId: string;
   /**
-   * Full suggestion history for this question, newest-first
-   * (`generatedAt` desc). When empty the component renders nothing.
+   * Full suggestion history for this question, newest first
+   * (`generatedAt` desc, then `id` desc). When empty the component renders nothing.
    */
   suggestions: AiGradeSuggestion[];
   /**
@@ -51,6 +65,8 @@ interface SuggestionRowProps {
   isStale: boolean;
   /** The row is the latest suggestion, whose fix is shown on the left. */
   isLatest: boolean;
+  /** Every suggestion on this question, to tell whether the saved grade is the teacher's own. */
+  allSuggestions: AiGradeSuggestion[];
   studentAnswer?: string;
   savedGrade?: AiSuggestionPanelProps["savedGrade"];
 }
@@ -119,6 +135,7 @@ export function AiSuggestionPanel({
         studentId={studentId}
         isStale={isRowStale(latest)}
         isLatest
+        allSuggestions={suggestions}
         studentAnswer={studentAnswer}
         savedGrade={savedGrade}
       />
@@ -146,6 +163,7 @@ export function AiSuggestionPanel({
                     studentId={studentId}
                     isStale={isRowStale(row)}
                     isLatest={false}
+                    allSuggestions={suggestions}
                     studentAnswer={studentAnswer}
                     savedGrade={savedGrade}
                   />
@@ -171,6 +189,7 @@ function SuggestionRow({
   studentId,
   isStale,
   isLatest,
+  allSuggestions,
   studentAnswer,
   savedGrade,
 }: SuggestionRowProps) {
@@ -183,13 +202,12 @@ function SuggestionRow({
   const [fixOpen, setFixOpen] = useState(false);
 
   // A hand edit after using the suggestion makes the grade differ from it, so the row stops reading as used.
-  const applied =
-    suggestion.appliedAt !== null &&
-    savedGrade !== undefined &&
-    savedGrade.score === suggestion.score &&
-    savedGrade.feedback === suggestion.feedback &&
-    (typeof suggestion.solution !== "string" ||
-      savedGrade.solution === suggestion.solution);
+  const applied = suggestionReadsUsed(suggestion, savedGrade);
+
+  // Using a suggestion over the teacher's own grade is confirmed first.
+  const needsConfirm = isTeacherOwnGrade(allSuggestions, savedGrade);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const formId = useId();
   const fix =
     typeof suggestion.solution === "string" ? suggestion.solution : null;
   const fixLines = fix === null ? 0 : lineDiffCount(studentAnswer ?? "", fix);
@@ -258,17 +276,19 @@ function SuggestionRow({
         </p>
       )}
 
-      <form action={formAction}>
+      <form id={formId} action={formAction}>
         <input type="hidden" name="testId" value={testId} />
         <input type="hidden" name="courseId" value={courseId} />
         <input type="hidden" name="studentId" value={studentId} />
         <input type="hidden" name="suggestionId" value={suggestion.id} />
+        {needsConfirm && <input type="hidden" name="replace" value="true" />}
         <Button
-          type="submit"
+          type={needsConfirm ? "button" : "submit"}
           size="sm"
           variant="outline"
           disabled={isPending}
           data-testid="ai-suggestion-apply-button"
+          onClick={needsConfirm ? () => setConfirmOpen(true) : undefined}
         >
           {isPending ? "Using…" : "Use · saves score, feedback & solution"}
         </Button>
@@ -282,6 +302,24 @@ function SuggestionRow({
           </p>
         )}
       </form>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace your grade?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This answer already has a grade you wrote. Using this suggestion
+              replaces its score, feedback and solution.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction type="submit" form={formId}>
+              Replace
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

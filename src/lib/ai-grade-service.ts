@@ -50,6 +50,7 @@ import {
 } from "src/lib/ai-grade-types";
 import type { AnswerService } from "src/lib/answer-service";
 import {
+  type ApplySuggestionOptions,
   type ApplySuggestionOverrides,
   applySuggestion as applySuggestionImpl,
   type VerifiedSuggestionTarget,
@@ -767,6 +768,7 @@ export class AiGradeService {
     byAdminId: string,
     verified: VerifiedSuggestionTarget,
     overrides?: ApplySuggestionOverrides,
+    options?: ApplySuggestionOptions,
   ): Promise<AiGradeSuggestion> {
     // Before any write: Apply marks the suggestion before writing the grade.
     await this.testService.requireTest(verified.testId);
@@ -780,6 +782,7 @@ export class AiGradeService {
       byAdminId,
       verified,
       overrides,
+      options,
     );
   }
 
