@@ -1,7 +1,7 @@
 import { GradingMode } from "src/lib/grading-mode";
 import { readGradingScreen } from "src/lib/grading-screen-read";
-import { needsGrade } from "src/lib/needs-grade";
-import type { Question } from "src/lib/question-service";
+import { answerNeedsGrade } from "src/lib/next-answer-to-grade";
+import { isMcQuestionType, type Question } from "src/lib/question-service";
 import { relativeTimeAgo } from "src/lib/relative-time";
 import { gradeReleaseState } from "src/lib/release-state";
 import type { Test } from "src/lib/test-service";
@@ -15,6 +15,7 @@ import {
 } from "./grading-page-shell.ui";
 import {
   GradingTopBar,
+  PracticeChip,
   QuestionPosition,
   StudentPosition,
 } from "./grading-top-bar.ui";
@@ -73,14 +74,16 @@ export async function GradingPageShell({
     pairs: screen.pairs,
     answers: screen.answers,
     questionCount: questions.length,
+    isPractice: test.isPractice,
   });
   const studentByIdLookup = new Map(orderedStudents.map((s) => [s.id, s]));
 
-  // Without a valid ?studentId= the oldest waiting student opens, else the first graded one.
+  // Without a valid ?studentId= the oldest waiting student opens, else the first graded one (practice: the first submitted).
   const requestedId = selection.studentId;
   const defaultRow =
     pickerRows.find((r) => r.group === StudentPickerGroup.NeedsGrading) ??
-    pickerRows.find((r) => r.group === StudentPickerGroup.Graded);
+    pickerRows.find((r) => r.group === StudentPickerGroup.Graded) ??
+    pickerRows.find((r) => r.group === StudentPickerGroup.Submitted);
   const focused =
     (requestedId && studentByIdLookup.get(requestedId)) ||
     (defaultRow && studentByIdLookup.get(defaultRow.id)) ||
@@ -91,18 +94,41 @@ export async function GradingPageShell({
     (requestedQuestionId &&
       questions.find((q) => q.id === requestedQuestionId)) ||
     null;
+  // By question opens the first written or photo question with an answer to grade, else the first written one; choice answers grade themselves, and practice has no grades to go by.
+  const studentAnswerNeedsGrade = (
+    studentId: string,
+    question: Question,
+    redoOpen: boolean,
+  ) => {
+    const answer = screen.answers.get(studentId)?.get(question.id);
+    return answerNeedsGrade({
+      question,
+      answer: answer?.answer,
+      answeredAt: answer?.submittedAt ?? null,
+      grade: screen.grades.get(studentId)?.get(question.id) ?? null,
+      redoOpen,
+    });
+  };
+  const waitingIds = pickerRows
+    .filter((r) => r.group === StudentPickerGroup.NeedsGrading)
+    .map((r) => r.id);
+  const firstQuestionToGrade =
+    selection.mode === GradingMode.Question && !test.isPractice
+      ? (questions.find((q) =>
+          waitingIds.some((id) => studentAnswerNeedsGrade(id, q, false)),
+        ) ?? questions.find((q) => !isMcQuestionType(q.type)))
+      : undefined;
   const focusedQuestion =
     requestedQuestion ||
-    // By student opens the student's first answer that needs a grade.
-    (selection.mode === GradingMode.Student && focused
+    firstQuestionToGrade ||
+    // By student opens the student's first answer that needs a grade; practice has no grades to go by, so Q1.
+    (selection.mode === GradingMode.Student && focused && !test.isPractice
       ? questions.find((q) =>
-          needsGrade({
-            answered: screen.answers.get(focused.id)?.has(q.id) ?? false,
-            latestAnswerAt:
-              screen.answers.get(focused.id)?.get(q.id)?.submittedAt ?? null,
-            grade: screen.grades.get(focused.id)?.get(q.id) ?? null,
-            redoOpen: screen.pairs.get(focused.id)?.redoRequested ?? false,
-          }),
+          studentAnswerNeedsGrade(
+            focused.id,
+            q,
+            screen.pairs.get(focused.id)?.redoRequested ?? false,
+          ),
         )
       : undefined) ||
     questions[0] ||
@@ -203,6 +229,8 @@ export async function GradingPageShell({
             }
             basePath={basePath}
             needsOnly={selection.needsOnly ?? false}
+            isPractice={test.isPractice}
+            isChoice={isMcQuestionType(focusedQuestion.type)}
           />
           {currentStudent ? (
             await GradingDetailQuestion({
@@ -274,7 +302,8 @@ export async function GradingPageShell({
     .filter(
       (r) =>
         r.group === StudentPickerGroup.NeedsGrading ||
-        r.group === StudentPickerGroup.Graded,
+        r.group === StudentPickerGroup.Graded ||
+        r.group === StudentPickerGroup.Submitted,
     )
     .map((r) => r.id);
   const focusedIndex = focused ? submittedIds.indexOf(focused.id) : -1;
@@ -343,6 +372,7 @@ export async function GradingPageShell({
                       testTitle={test.title}
                       basePath={basePath}
                       needsOnly={selection.needsOnly}
+                      isPractice={test.isPractice}
                     />
                   }
                   index={focusedIndex === -1 ? null : focusedIndex + 1}
@@ -365,24 +395,30 @@ export async function GradingPageShell({
                 />
               )
             }
-            progress={<GradingProgress {...progress} />}
+            progress={
+              test.isPractice ? null : <GradingProgress {...progress} />
+            }
             actions={
-              <ReleaseMenu
-                testId={test.id}
-                courseId={courseId}
-                testTitle={test.title}
-                counts={releaseCounts}
-                students={releaseStudents}
-                choiceQuestionCount={choiceQuestionCount}
-                state={gradeReleaseState(test, {
-                  releasedTo: screen.counts?.releasedTo ?? 0,
-                  fullyGraded: screen.counts?.fullyGraded ?? 0,
-                })}
-                offerGrades={
-                  !test.showGradeAfterSubmit && !test.gradesReleasedAt
-                }
-                offerCorrectAnswers={offerCorrectAnswers}
-              />
+              test.isPractice ? (
+                <PracticeChip />
+              ) : (
+                <ReleaseMenu
+                  testId={test.id}
+                  courseId={courseId}
+                  testTitle={test.title}
+                  counts={releaseCounts}
+                  students={releaseStudents}
+                  choiceQuestionCount={choiceQuestionCount}
+                  state={gradeReleaseState(test, {
+                    releasedTo: screen.counts?.releasedTo ?? 0,
+                    fullyGraded: screen.counts?.fullyGraded ?? 0,
+                  })}
+                  offerGrades={
+                    !test.showGradeAfterSubmit && !test.gradesReleasedAt
+                  }
+                  offerCorrectAnswers={offerCorrectAnswers}
+                />
+              )
             }
           />
         }

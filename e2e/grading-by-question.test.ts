@@ -81,6 +81,82 @@ test.describe("Grading by question", () => {
       ).toContainText("Q3 [by-question] Question 3");
     });
 
+    for (const scenario of [
+      { name: "the first question with an answer to grade", waiting: true },
+      { name: "the first written question when none waits", waiting: false },
+    ]) {
+      test(`on ${route.name} a bare By question open skips a leading choice question and lands on ${scenario.name}`, async ({
+        page,
+      }) => {
+        const ids = await withDb(async (db) => {
+          const courseId = await insertCourse(db);
+          const testId = await insertTest(db, courseId);
+          const optionId = crypto.randomUUID();
+          const choice = await insertQuestion(db, testId, {
+            title: "[by-question] Choice first",
+            order: 1,
+            type: "single_select",
+            options: [
+              { id: optionId, text: "Right", isCorrect: true },
+              { id: crypto.randomUUID(), text: "Wrong", isCorrect: false },
+            ],
+          });
+          const gradedWritten = await insertQuestion(db, testId, {
+            title: "[by-question] Written graded",
+            order: 2,
+          });
+          const waitingWritten = await insertQuestion(db, testId, {
+            title: "[by-question] Written waiting",
+            order: 3,
+          });
+          const studentId = await insertStudent(db);
+          await enroll(db, { courseId, studentId });
+          await insertAnswer(db, {
+            testId,
+            questionId: choice,
+            studentId,
+            answer: { type: "mc", selectedIds: [optionId] },
+          });
+          await insertGrade(db, {
+            testId,
+            questionId: choice,
+            studentId,
+            score: 100,
+          });
+          await insertAnswer(db, {
+            testId,
+            questionId: gradedWritten,
+            studentId,
+            answer: { type: "free_text", text: "graded answer" },
+          });
+          await insertGrade(db, {
+            testId,
+            questionId: gradedWritten,
+            studentId,
+          });
+          if (scenario.waiting) {
+            await insertAnswer(db, {
+              testId,
+              questionId: waitingWritten,
+              studentId,
+              answer: { type: "free_text", text: "waiting answer" },
+            });
+          }
+          await insertSubmission(db, { testId, studentId });
+          return { courseId, testId };
+        });
+
+        await page.goto(`${route.path(ids)}?mode=question`);
+        await expect(
+          page.getByRole("button", { name: "Question picker" }),
+        ).toContainText(
+          scenario.waiting
+            ? "Q3 [by-question] Written waiting"
+            : "Q2 [by-question] Written graded",
+        );
+      });
+    }
+
     test(`on ${route.name} switching between By question and By student keeps the student on screen`, async ({
       page,
     }) => {
@@ -180,6 +256,67 @@ test.describe("Grading by question", () => {
       );
     });
 
+    test(`on ${route.name} a still-writing student the teacher already confirmed opens from her box without asking again`, async ({
+      page,
+    }) => {
+      const ids = await withDb(async (db) => {
+        const courseId = await insertCourse(db);
+        const testId = await insertTest(db, courseId);
+        const questionId = await insertQuestion(db, testId, {
+          title: "[by-question] Asked once",
+        });
+        const students: Record<string, string> = {};
+        for (const [key, name, handedIn] of [
+          ["waiting", "Wanda Waiting", true],
+          ["writing", "Wren Writing", false],
+        ] as const) {
+          const studentId = await insertStudent(db, { name });
+          await enroll(db, { courseId, studentId });
+          await insertAnswer(db, {
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "free_text", text: `${key} answer` },
+          });
+          if (handedIn) await insertSubmission(db, { testId, studentId });
+          students[key] = studentId;
+        }
+        return { courseId, testId, questionId, students };
+      });
+
+      // Given the teacher confirmed Grade anyway for Wren once, then moved back to Wanda
+      await page.goto(
+        `${route.path(ids)}?mode=question&questionId=${ids.questionId}`,
+      );
+      const row = page.getByTestId("question-row");
+      const wren = row.getByRole("button", {
+        name: "Wren Writing still writing",
+      });
+      await hydrated(wren);
+      await wren.click();
+      await page.getByRole("button", { name: "Grade anyway" }).click();
+      await expect(page).toHaveURL(
+        new RegExp(`studentId=${ids.students.writing}`),
+      );
+      await row
+        .getByRole("link", { name: "Wanda Waiting needs grading" })
+        .click();
+      await expect(page).toHaveURL(
+        new RegExp(`studentId=${ids.students.waiting}`),
+      );
+
+      // When the teacher opens Wren's box again
+      await row
+        .getByRole("link", { name: "Wren Writing still writing" })
+        .click();
+
+      // Then she opens at once, with no dialog
+      await expect(page).toHaveURL(
+        new RegExp(`studentId=${ids.students.writing}`),
+      );
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    });
+
     test(`on ${route.name} Save & next saves the grade and moves to the next student on the question`, async ({
       page,
     }) => {
@@ -233,6 +370,74 @@ test.describe("Grading by question", () => {
         .toBe(64);
       await expect(page).toHaveURL(new RegExp(`studentId=${second}`));
       await expect(page.getByTestId("grade-card")).toContainText("Q1");
+      expect(new URL(page.url()).pathname).toBe(route.path(ids));
+    });
+
+    test(`on ${route.name} Save & next opens the student its label names after a changed answer is re-graded`, async ({
+      page,
+    }) => {
+      const ids = await withDb(async (db) => {
+        const courseId = await insertCourse(db);
+        const testId = await insertTest(db, courseId);
+        const questionId = await insertQuestion(db, testId, {
+          title: "[by-question] Re-grade question",
+        });
+        const students: Record<string, string> = {};
+        for (const [name, handedInAt] of [
+          ["Ana Regrade", "2026-11-01T08:00:00Z"],
+          ["Ben Regrade", "2026-11-01T09:00:00Z"],
+          ["Cara Regrade", "2026-11-01T10:00:00Z"],
+        ] as const) {
+          const studentId = await insertStudent(db, { name });
+          await enroll(db, { courseId, studentId });
+          const changed = name.startsWith("Ben");
+          await insertAnswer(db, {
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "free_text", text: `${name} first answer` },
+            submittedAt: new Date("2026-11-01T07:00:00Z"),
+          });
+          if (changed) {
+            await insertGrade(db, {
+              testId,
+              questionId,
+              studentId,
+              score: 60,
+              gradedAt: new Date("2026-11-01T08:30:00Z"),
+            });
+            await insertAnswer(db, {
+              testId,
+              questionId,
+              studentId,
+              answer: { type: "free_text", text: `${name} second answer` },
+              submittedAt: new Date("2026-11-01T08:45:00Z"),
+            });
+          }
+          await insertSubmission(db, {
+            testId,
+            studentId,
+            submittedAt: new Date(handedInAt),
+          });
+          students[name.split(" ")[0] as string] = studentId;
+        }
+        return { courseId, testId, questionId, students };
+      });
+
+      await page.goto(
+        `${route.path(ids)}?mode=question&questionId=${ids.questionId}&studentId=${ids.students.Ben}`,
+      );
+      const panel = page.getByTestId("grade-card");
+      const save = panel.getByRole("button", { name: /^Save & next/ });
+      await hydrated(save);
+      await expect(save).toContainText("Save & next: Cara Regrade");
+      await panel.getByLabel("Score (0–100):").fill("75");
+      await save.click();
+
+      // The student named on the button opens, on the same route
+      await expect(page).toHaveURL(
+        new RegExp(`studentId=${ids.students.Cara}`),
+      );
       expect(new URL(page.url()).pathname).toBe(route.path(ids));
     });
 

@@ -144,7 +144,7 @@ describe("Feature: a done link opens the finish panel only while nothing is left
       expect(screen.queryByTestId("finish-panel")).toBeNull();
     });
 
-    it(`${mode} mode: shows the grade panel on a practice test with every hand-in graded`, async () => {
+    it(`${mode} mode: shows neither the finish panel nor a grade panel on a practice test with every hand-in graded`, async () => {
       // Given a practice test where the teacher graded both hand-ins
       const seed = await seedTest(true);
       const ann = await seed.student("Ann", "graded");
@@ -153,7 +153,7 @@ describe("Feature: a done link opens the finish panel only while nothing is left
       // When the teacher opens a done link on Ann
       await renderDoneLink(seed, mode, ann.id);
 
-      // Then both count as graded, and still the grade panel shows
+      // Then both count as graded, and the screen still shows the answer only
       const counts = await new GradingCountService(
         db,
         TEST_SCHOOL_ID,
@@ -163,7 +163,8 @@ describe("Feature: a done link opens the finish panel only while nothing is left
           .filter((p) => p.testId === seed.test.id)
           .map((p) => p.status),
       ).toEqual([TestStatus.Graded, TestStatus.Graded]);
-      expect(screen.getByTestId("grade-card")).toBeInTheDocument();
+      expect(screen.getByText("answer of Ann")).toBeInTheDocument();
+      expect(screen.queryByTestId("grade-card")).toBeNull();
       expect(screen.queryByTestId("finish-panel")).toBeNull();
     });
   }

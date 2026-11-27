@@ -153,4 +153,30 @@ describe("Feature: Compare with AI fix", () => {
       pane.queryByRole("button", { name: "Compare with AI fix" }),
     ).not.toBeInTheDocument();
   });
+
+  it("offers no comparison once the test is a practice test", async () => {
+    // Given: a suggestion with a fix, made before the teacher turned the test into practice
+    const { test, student } = await seedSuggestedAnswer(
+      db,
+      "line one\nline 2\nline three",
+    );
+    await getTestServices().testService.updateTestSettings(test.id, {
+      showGradeAfterSubmit: test.showGradeAfterSubmit,
+      showCorrectAnswerAfterSubmit: test.showCorrectAnswerAfterSubmit,
+      timeLimitMinutes: null,
+      isPractice: true,
+      answerRevealMode: test.answerRevealMode,
+      updatedBy: "admin",
+    });
+
+    // When: the teacher opens the answer
+    await openAnswer(test.id, student.id);
+
+    // Then: the answer shows with no AI fix to compare with
+    const pane = within(screen.getByTestId("grading-main-pane"));
+    expect(pane.getByText(/line one/)).toBeInTheDocument();
+    expect(
+      pane.queryByRole("button", { name: "Compare with AI fix" }),
+    ).not.toBeInTheDocument();
+  });
 });

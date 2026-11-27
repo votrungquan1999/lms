@@ -5,6 +5,7 @@ import {
   PhotoAnswerBlock,
 } from "src/app/admin/(dashboard)/grading/page-body/answer-pane.ui";
 import { CompareWithAiFix } from "src/app/admin/(dashboard)/grading/page-body/compare-with-ai-fix";
+import { AnnotationOverlay } from "src/components/annotation-overlay";
 import { McAnswerChips } from "src/components/mc-answer-chips";
 import { StudentQuestionCard } from "src/components/student-question-card.ui";
 import type { AnnotationEntry } from "src/lib/annotation-service";
@@ -30,6 +31,8 @@ interface AnswerPaneProps {
   aiFix?: string;
   /** The saved grade, shown under the answer once grading is done. */
   gradeLine?: string;
+  /** A practice test is not graded, so photos carry no marks or mark tools and there is no AI fix to compare. */
+  isPractice: boolean;
 }
 
 /**
@@ -49,6 +52,7 @@ export function AnswerPane({
   correctAnswersVisible,
   aiFix,
   gradeLine,
+  isPractice,
 }: AnswerPaneProps) {
   const modelAnswer =
     question.type === "free_text" ? question.referenceAnswer?.trim() : "";
@@ -62,6 +66,21 @@ export function AnswerPane({
           colorPicks={true}
           showMissedCorrect={false}
         />
+      );
+    }
+
+    if (answer?.type === "image" && photos.length > 0 && isPractice) {
+      return (
+        <PhotoAnswerBlock>
+          {photos.map((photo) => (
+            <AnnotationOverlay
+              key={photo.key}
+              src={photo.url}
+              alt="Student submitted work"
+              strokes={[]}
+            />
+          ))}
+        </PhotoAnswerBlock>
       );
     }
 
@@ -84,7 +103,7 @@ export function AnswerPane({
     if (answer?.type === "free_text" && answer.text) {
       return (
         <FreeTextAnswerBlock text={answer.text}>
-          {aiFix && (
+          {aiFix && !isPractice && (
             <CompareWithAiFix
               studentName={studentName}
               studentAnswer={answer.text}

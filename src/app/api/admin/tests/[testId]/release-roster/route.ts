@@ -5,6 +5,7 @@ import {
   ReleaseStudentStatus,
   releaseStatusOfPair,
 } from "src/app/admin/(dashboard)/grading/page-body/release-students";
+import { buildStudentPickerRows } from "src/app/admin/(dashboard)/grading/page-body/student-picker-rows";
 import { getAuthService } from "src/lib/auth-singleton";
 import { getSchoolGradingCounts } from "src/lib/school-grading-counts";
 import {
@@ -49,16 +50,22 @@ export async function GET(
   const names = await (await getStudentService(schoolId)).findByIds(
     pairs.map((pair) => pair.studentId),
   );
-  const students: ReleaseStudent[] = names
-    .map((student) => ({
-      id: student.id,
-      name: student.name,
-      username: student.username,
-      status: releaseStatusOfPair(
-        pairs.find((pair) => pair.studentId === student.id),
-      ),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  // Listed in the grading screen's picker order, so the dialog reads the same from every entry.
+  const pickerRows = buildStudentPickerRows({
+    students: names,
+    pairs: new Map(pairs.map((pair) => [pair.studentId, pair])),
+    answers: new Map(),
+    questionCount: questions.length,
+    isPractice: test.isPractice,
+  });
+  const students: ReleaseStudent[] = pickerRows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    username: row.username,
+    status: releaseStatusOfPair(
+      pairs.find((pair) => pair.studentId === row.id),
+    ),
+  }));
 
   const inStatus = (...wanted: ReleaseStudentStatus[]) =>
     students.filter((s) => wanted.includes(s.status)).length;

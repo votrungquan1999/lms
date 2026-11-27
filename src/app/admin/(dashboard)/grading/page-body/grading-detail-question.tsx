@@ -29,6 +29,7 @@ import {
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
+import { cn } from "src/lib/utils";
 import { aiJobState } from "./ai-job-state";
 import type { FinishView } from "./finish-panel.ui";
 import { gradingRouteKind } from "./href";
@@ -153,7 +154,12 @@ export async function GradingDetailQuestion({
     <div
       data-testid={`student-card-${student.id}`}
       data-student-name={student.name}
-      className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_24rem] grid-rows-[minmax(0,1fr)] gap-4"
+      className={cn(
+        "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4",
+        test.isPractice
+          ? "grid-cols-[minmax(0,1fr)]"
+          : "grid-cols-[minmax(0,1fr)_24rem]",
+      )}
     >
       <div
         data-testid="grading-answer-scroll"
@@ -174,10 +180,11 @@ export async function GradingDetailQuestion({
           }
           aiFix={suggestions[0]?.solution}
           gradeLine={finish?.gradeLine}
+          isPractice={test.isPractice}
         />
       </div>
 
-      {finish ? (
+      {test.isPractice ? null : finish ? (
         finish.panel
       ) : (
         <GradePanel

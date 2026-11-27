@@ -2,23 +2,6 @@ import type { Answer } from "src/lib/answer-service";
 import type { PairGradingResult } from "src/lib/grading-count-service";
 import { TestStatus } from "src/lib/test-status-service";
 
-export enum StudentPickerGroup {
-  NeedsGrading = "needs-grading",
-  Graded = "graded",
-  StillWriting = "still-writing",
-  RedoRequested = "redo-requested",
-  NotStarted = "not-started",
-}
-
-/** Groups in the order the picker lists them. */
-export const STUDENT_PICKER_GROUPS: StudentPickerGroup[] = [
-  StudentPickerGroup.NeedsGrading,
-  StudentPickerGroup.Graded,
-  StudentPickerGroup.StillWriting,
-  StudentPickerGroup.RedoRequested,
-  StudentPickerGroup.NotStarted,
-];
-
 export interface StudentPickerRow {
   id: string;
   name: string;
@@ -40,15 +23,45 @@ interface BuildRowsInput {
   /** Latest answers: student id, then question id. */
   answers: Map<string, Map<string, Answer>>;
   questionCount: number;
+  /** A practice test lists every hand-in as Submitted, whatever grades it holds. */
+  isPractice: boolean;
 }
 
-function groupOf(pair: PairGradingResult | undefined): StudentPickerGroup {
+export enum StudentPickerGroup {
+  NeedsGrading = "needs-grading",
+  Graded = "graded",
+  /** Practice tests only: handed in, with nothing to grade. */
+  Submitted = "submitted",
+  StillWriting = "still-writing",
+  RedoRequested = "redo-requested",
+  NotStarted = "not-started",
+}
+
+/** Groups in the order the picker lists them. */
+export const STUDENT_PICKER_GROUPS: StudentPickerGroup[] = [
+  StudentPickerGroup.NeedsGrading,
+  StudentPickerGroup.Graded,
+  StudentPickerGroup.Submitted,
+  StudentPickerGroup.StillWriting,
+  StudentPickerGroup.RedoRequested,
+  StudentPickerGroup.NotStarted,
+];
+
+/** Which picker group a student belongs in, from her grading pair and whether the test is practice. */
+function groupOf(
+  pair: PairGradingResult | undefined,
+  isPractice: boolean,
+): StudentPickerGroup {
   if (pair?.redoRequested) return StudentPickerGroup.RedoRequested;
   switch (pair?.status) {
     case TestStatus.Submitted:
-      return StudentPickerGroup.NeedsGrading;
+      return isPractice
+        ? StudentPickerGroup.Submitted
+        : StudentPickerGroup.NeedsGrading;
     case TestStatus.Graded:
-      return StudentPickerGroup.Graded;
+      return isPractice
+        ? StudentPickerGroup.Submitted
+        : StudentPickerGroup.Graded;
     case TestStatus.InProgress:
       return StudentPickerGroup.StillWriting;
     default:
@@ -67,7 +80,7 @@ export function buildStudentPickerRows(
 ): StudentPickerRow[] {
   const rows = input.students.map((student) => {
     const pair = input.pairs.get(student.id);
-    const group = groupOf(pair);
+    const group = groupOf(pair, input.isPractice);
     const saved = input.answers.get(student.id)?.size ?? 0;
     return {
       row: {

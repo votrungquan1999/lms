@@ -3,6 +3,7 @@
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import { GuardedLink } from "src/app/admin/(dashboard)/guarded-link";
+import { Badge } from "src/components/ui/badge";
 
 interface GradingTopBarProps {
   /** The test page the back link returns to. */
@@ -144,5 +145,14 @@ export function QuestionPosition({
         ›
       </StepControl>
     </span>
+  );
+}
+
+/** Stands where Release ▾ would be on a practice test, which students see answers for as they go. */
+export function PracticeChip() {
+  return (
+    <Badge variant="secondary" data-testid="practice-chip">
+      Practice · no grades released
+    </Badge>
   );
 }

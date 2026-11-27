@@ -156,6 +156,110 @@ describe("Feature: the By question student row", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("names the correct, partly right and wrong boxes of a choice question in the legend, apart from still-writing blue", async () => {
+    // Given a choice question that three handed-in students answered right, half right and wrong, and a fourth is still writing
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Course",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Quiz",
+      description: "",
+      createdBy: "admin",
+    });
+    const question = await services.questionService.addQuestion(test.id, {
+      type: "single_select",
+      title: "Pick one",
+      content: "",
+      createdBy: "admin",
+      options: [
+        { text: "One", isCorrect: true },
+        { text: "Two", isCorrect: false },
+      ],
+    });
+    const enrolled = async (key: string, name: string) => {
+      const student = await services.studentService.createStudentDocument({
+        authUserId: `auth-${key}`,
+        username: key,
+        name,
+        createdBy: "admin",
+      });
+      await services.enrollmentService.enrollStudent(
+        course.id,
+        student.id,
+        "admin",
+      );
+      return student;
+    };
+    const answered = async (key: string, name: string, score?: number) => {
+      const student = await enrolled(key, name);
+      await services.answerService.submitAnswer({
+        testId: test.id,
+        questionId: question.id,
+        studentId: student.id,
+        answer: { type: "mc", selectedIds: [question.options?.[0]?.id ?? ""] },
+      });
+      if (score === undefined) return student;
+      await services.testSubmissionService.submitTest(test.id, student.id);
+      await services.gradeService.gradeQuestion({
+        testId: test.id,
+        questionId: question.id,
+        studentId: student.id,
+        score,
+        feedback: "",
+        gradedBy: "admin",
+      });
+      return student;
+    };
+    await answered("ann", "Ann Ray", 100);
+    await answered("bo", "Bo Kim", 50);
+    await answered("cal", "Cal Lee", 0);
+    await answered("dee", "Dee Fox");
+
+    // When the teacher opens By question on it
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+        searchParams: Promise.resolve({
+          mode: "question",
+          questionId: question.id,
+        }),
+      }),
+    );
+
+    // Then the legend counts each choice state and says which blue is which
+    expect(screen.getByTestId("question-row-legend")).toHaveTextContent(
+      "Correct 1 · Partly right (light blue) 1 · Wrong 1 · Still writing (dark blue) 1 · Redo requested 0 · Blank 0",
+    );
+  });
+
+  it("with Needs grading only on, keeps the students who need a grade and the one on screen", async () => {
+    // Given a question with a graded, a waiting, a still-writing, a redo and a not-started student
+    const { test, question, ada } = await seedRow();
+
+    // When the teacher opens By question on it with Needs grading only, on Ada who is graded
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+        searchParams: Promise.resolve({
+          mode: "question",
+          questionId: question.id,
+          studentId: ada.id,
+          needsOnly: "1",
+        }),
+      }),
+    );
+
+    // Then only the waiting student and the student on screen keep a box
+    const boxes = screen.getByTestId("question-row-boxes").children;
+    expect([...boxes].map((box) => box.getAttribute("aria-label"))).toEqual([
+      "Ben Ng needs grading",
+      "Ada Lovelace graded",
+    ]);
+  });
+
   it("asks before opening a still-writing student's box, and opens her only after Grade anyway", async () => {
     // Given the By question row with a still-writing student
     const { test, question, cy } = await seedRow();

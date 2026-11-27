@@ -1,7 +1,7 @@
 import type { Answer, StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
 import type { PairGradingResult } from "src/lib/grading-count-service";
-import { needsGrade } from "src/lib/needs-grade";
+import { type NeedsGradeInput, needsGrade } from "src/lib/needs-grade";
 import { isMcQuestionType, type Question } from "src/lib/question-service";
 import { TestStatus } from "src/lib/test-status-service";
 
@@ -45,25 +45,54 @@ export function isGradableAnswer(
 ): boolean {
   if (!answer || isMcQuestionType(question.type)) return false;
   return answer.type === "free_text"
-    ? answer.text.length > 0
+    ? answer.text.trim() !== ""
     : answer.type === "image" && answer.mediaKeys.length > 0;
 }
 
-function answerNeedsGrade(
+/** One student's answer to one question and the grade it has. */
+export interface AnswerNeedsGradeInput {
+  question: Pick<Question, "type">;
+  /** The student's latest answer, or undefined when there is none. */
+  answer: StudentAnswer | undefined;
+  /** When that answer was saved. */
+  answeredAt: Date | null;
+  /** The saved grade, or null when there is none. */
+  grade: NeedsGradeInput["grade"];
+  /** The student has an open redo request. */
+  redoOpen: boolean;
+}
+
+/**
+ * Whether an answer the teacher can grade still waits for a grade. The one
+ * rule every grading screen part and the AI grading round use to decide.
+ * @param input - The question, the answer and its grade.
+ * @returns True when the answer is gradable and has no grade or a stale one.
+ */
+export function answerNeedsGrade(input: AnswerNeedsGradeInput): boolean {
+  return (
+    isGradableAnswer(input.question, input.answer) &&
+    needsGrade({
+      answered: true,
+      latestAnswerAt: input.answeredAt,
+      grade: input.grade,
+      redoOpen: input.redoOpen,
+    })
+  );
+}
+
+function answerOfStudentNeedsGrade(
   input: NextAnswerInput,
   studentId: string,
   question: Question,
 ): boolean {
   const answer = input.answers.get(studentId)?.get(question.id);
-  return (
-    isGradableAnswer(question, answer?.answer) &&
-    needsGrade({
-      answered: true,
-      latestAnswerAt: answer?.submittedAt ?? null,
-      grade: input.grades.get(studentId)?.get(question.id) ?? null,
-      redoOpen: false,
-    })
-  );
+  return answerNeedsGrade({
+    question,
+    answer: answer?.answer,
+    answeredAt: answer?.submittedAt ?? null,
+    grade: input.grades.get(studentId)?.get(question.id) ?? null,
+    redoOpen: false,
+  });
 }
 
 /**
@@ -122,7 +151,7 @@ function findNextByQuestion(input: NextAnswerInput): AnswerRef | null {
     ...others.filter(isAfterCurrent),
     ...others.filter((pair) => !isAfterCurrent(pair)),
   ].find((pair) =>
-    answerNeedsGrade(input, pair.studentId, questions[questionAt]),
+    answerOfStudentNeedsGrade(input, pair.studentId, questions[questionAt]),
   );
   if (sameQuestion) {
     return {
@@ -136,7 +165,7 @@ function findNextByQuestion(input: NextAnswerInput): AnswerRef | null {
   ];
   for (const question of laterQuestions) {
     const first = waiting.find((pair) =>
-      answerNeedsGrade(input, pair.studentId, question),
+      answerOfStudentNeedsGrade(input, pair.studentId, question),
     );
     if (first) return { studentId: first.studentId, questionId: question.id };
   }
@@ -161,7 +190,9 @@ export function questionsToGrade(
   input: NextAnswerInput,
   studentId: string,
 ): Question[] {
-  return input.questions.filter((q) => answerNeedsGrade(input, studentId, q));
+  return input.questions.filter((q) =>
+    answerOfStudentNeedsGrade(input, studentId, q),
+  );
 }
 
 /**
@@ -177,7 +208,7 @@ export function countStudentsToGradeOnQuestion(
   const question = input.questions.find((q) => q.id === questionId);
   if (!question) return 0;
   return waitingPairs(input).filter((pair) =>
-    answerNeedsGrade(input, pair.studentId, question),
+    answerOfStudentNeedsGrade(input, pair.studentId, question),
   ).length;
 }
 
@@ -201,13 +232,13 @@ function findNextByStudent(input: NextAnswerInput): AnswerRef | null {
   const at = questions.findIndex((q) => q.id === current.questionId);
   const inOrder = [...questions.slice(at + 1), ...questions.slice(0, at)];
   const own = inOrder.find((q) =>
-    answerNeedsGrade(input, current.studentId, q),
+    answerOfStudentNeedsGrade(input, current.studentId, q),
   );
   if (own) return { studentId: current.studentId, questionId: own.id };
 
   for (const pair of otherWaitingPairs(input, current.studentId)) {
     const first = questions.find((q) =>
-      answerNeedsGrade(input, pair.studentId, q),
+      answerOfStudentNeedsGrade(input, pair.studentId, q),
     );
     if (first) return { studentId: pair.studentId, questionId: first.id };
   }

@@ -44,6 +44,7 @@ import {
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
+import { cn } from "src/lib/utils";
 import { aiJobState } from "./ai-job-state";
 import type { FinishView } from "./finish-panel.ui";
 import { gradingRouteKind } from "./href";
@@ -191,6 +192,8 @@ export async function GradingDetailStudent({
   const releaseOffer = pair ? studentReleaseOffer(test, pair) : null;
   const hasAnswers = latestAnswers.length > 0;
   const hasActiveRedoRequest = activeRedoRequest !== null;
+  // A practice test is not graded, so the answer fills the pane.
+  const showGradePanel = !test.isPractice && !hasActiveRedoRequest && !finish;
   const redoOffer =
     !test.isPractice && hasSubmitted(status) && !hasActiveRedoRequest;
 
@@ -262,7 +265,14 @@ export async function GradingDetailStudent({
             />
           </div>
         )}
-        <CardContent className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_24rem] grid-rows-[minmax(0,1fr)] gap-4">
+        <CardContent
+          className={cn(
+            "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4",
+            test.isPractice
+              ? "grid-cols-[minmax(0,1fr)]"
+              : "grid-cols-[minmax(0,1fr)_24rem]",
+          )}
+        >
           {selectedQuestion && (
             <div
               data-testid="grading-answer-scroll"
@@ -283,6 +293,7 @@ export async function GradingDetailStudent({
                 }
                 aiFix={selectedSuggestions[0]?.solution}
                 gradeLine={finish?.gradeLine}
+                isPractice={test.isPractice}
               />
             </div>
           )}
@@ -296,7 +307,7 @@ export async function GradingDetailStudent({
 
           {selectedQuestion && !hasActiveRedoRequest && finish?.panel}
 
-          {selectedQuestion && !hasActiveRedoRequest && !finish && (
+          {selectedQuestion && showGradePanel && (
             <GradePanel
               testId={testId}
               testTitle={test.title}

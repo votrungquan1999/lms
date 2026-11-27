@@ -64,6 +64,8 @@ interface QuestionRowProps {
   /** Students without a box because they have not started, or null when the row has none to count. */
   notStarted?: number;
   testTitle?: string;
+  /** A practice test has no grading, so the row offers no "Needs grading only" filter. */
+  isPractice?: boolean;
 }
 
 const BOX_CLASS =
@@ -78,6 +80,7 @@ export function QuestionRowUi({
   nothingNeedsGrading,
   notStarted,
   testTitle = "",
+  isPractice = false,
 }: QuestionRowProps) {
   const router = useRouter();
   const { requestLeave } = useLeaveGuard();
@@ -152,17 +155,19 @@ export function QuestionRowUi({
         })}
       </div>
       <div className="flex items-center gap-3 text-xs">
-        <GuardedLink
-          href={toggleHref}
-          scroll={false}
-          aria-pressed={needsOnly}
-          className={cn(
-            "rounded border px-2 py-0.5",
-            needsOnly && "border-teal-600 bg-teal-50 text-teal-800",
-          )}
-        >
-          Needs grading only
-        </GuardedLink>
+        {!isPractice && (
+          <GuardedLink
+            href={toggleHref}
+            scroll={false}
+            aria-pressed={needsOnly}
+            className={cn(
+              "rounded border px-2 py-0.5",
+              needsOnly && "border-teal-600 bg-teal-50 text-teal-800",
+            )}
+          >
+            Needs grading only
+          </GuardedLink>
+        )}
         {needsOnly && nothingNeedsGrading && (
           <span className="text-muted-foreground">Nothing needs grading</span>
         )}

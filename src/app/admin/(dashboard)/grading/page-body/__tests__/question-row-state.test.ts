@@ -1,9 +1,12 @@
+import type { StudentAnswer } from "src/lib/answer-service";
 import { describe, expect, it } from "vitest";
 import { QuestionBoxState, questionBoxState } from "../question-row-state";
 
 const written = { type: "free_text" } as const;
 const choice = { type: "single_select" } as const;
 const grade = (score: number) => ({ score, gradedAt: new Date() });
+const answerOf = (answered: boolean): StudentAnswer | undefined =>
+  answered ? { type: "free_text", text: "My answer" } : undefined;
 
 describe("Feature: the state a question's box shows", () => {
   it.each([
@@ -60,7 +63,7 @@ describe("Feature: the state a question's box shows", () => {
     expect(
       questionBoxState({
         question,
-        answered,
+        answer: answerOf(answered),
         grade: saved,
         handedIn: true,
         isPractice: false,
@@ -75,7 +78,7 @@ describe("Feature: the state a question's box shows", () => {
     expect(
       questionBoxState({
         question,
-        answered,
+        answer: answerOf(answered),
         grade: undefined,
         handedIn: false,
         isPractice: false,
@@ -88,7 +91,7 @@ describe("Feature: the state a question's box shows", () => {
     expect(
       questionBoxState({
         question: written,
-        answered: true,
+        answer: answerOf(true),
         latestAnswerAt: new Date("2026-01-02T10:00:00Z"),
         grade: { score: 80, gradedAt },
         handedIn: true,
@@ -101,7 +104,7 @@ describe("Feature: the state a question's box shows", () => {
     expect(
       questionBoxState({
         question: written,
-        answered: true,
+        answer: answerOf(true),
         latestAnswerAt: new Date("2026-01-02T10:00:00Z"),
         grade: { score: 80, gradedAt: new Date("2026-01-01T10:00:00Z") },
         handedIn: true,
@@ -111,11 +114,23 @@ describe("Feature: the state a question's box shows", () => {
     ).toBe(QuestionBoxState.Graded);
   });
 
+  it("does not show a photo answer with no photos as needing a grade", () => {
+    expect(
+      questionBoxState({
+        question: { type: "image_answer" },
+        answer: { type: "image", mediaKeys: [] },
+        grade: undefined,
+        handedIn: true,
+        isPractice: false,
+      }),
+    ).not.toBe(QuestionBoxState.NeedsGrade);
+  });
+
   it("shows a written answer that is still being written as needing a grade", () => {
     expect(
       questionBoxState({
         question: written,
-        answered: true,
+        answer: answerOf(true),
         grade: undefined,
         handedIn: false,
         isPractice: false,
@@ -133,7 +148,7 @@ describe("Feature: the state a question's box shows", () => {
       expect(
         questionBoxState({
           question: written,
-          answered,
+          answer: answerOf(answered),
           grade: undefined,
           handedIn,
           isPractice: true,

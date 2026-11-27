@@ -128,10 +128,11 @@ describe("release roster route", () => {
     // Then it carries the counts, the correct-answers offer and the choice question count
     expect(res.status).toBe(200);
     const body = await res.json();
+    // in the grading screen's picker order: waiting first, then graded, then not started
     expect(body.students).toEqual([
+      expect.objectContaining({ id: waiting, status: "waiting" }),
       expect.objectContaining({ id: graded, status: "graded" }),
       expect.objectContaining({ id: idle, status: "not-started" }),
-      expect.objectContaining({ id: waiting, status: "waiting" }),
     ]);
     expect(body).toEqual({
       students: expect.any(Array),
@@ -145,6 +146,84 @@ describe("release roster route", () => {
       offerCorrectAnswers: false,
       choiceQuestionCount: 2,
     });
+  });
+
+  it("hands in nothing for a student whose timed attempt has run out, and is never cached", async () => {
+    // Given a timed test where one student started two hours ago and never handed in
+    const { courseId, testId, freeTextId } = await seedTest();
+    await db
+      .collection("test")
+      .updateOne({ id: testId }, { $set: { timeLimitMinutes: 30 } });
+    const lapsed = await enrolledStudent(courseId, "Lapsed");
+    await db.collection("answer").insertOne({
+      id: randomUUID(),
+      testId,
+      questionId: freeTextId,
+      studentId: lapsed,
+      answer: { type: "free_text", text: "x" },
+      submittedAt: new Date(),
+    });
+    await getTestServices().testStartService.recordStart(
+      testId,
+      lapsed,
+      new Date(Date.now() - 2 * 60 * 60_000),
+    );
+
+    // When the roster is asked for
+    const res = await GET(new Request("http://x"), {
+      params: Promise.resolve({ testId }),
+    });
+
+    // Then she is listed as waiting for a grade, no hand-in was written for her, and the browser may not cache the answer
+    const body = await res.json();
+    expect(body.students).toEqual([
+      expect.objectContaining({ id: lapsed, status: "waiting" }),
+    ]);
+    expect(
+      await db.collection("test_submission").countDocuments({ testId }),
+    ).toBe(0);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("lists a student with an open redo as redo requested", async () => {
+    // Given a handed-in student whose teacher asked for a redo
+    const { courseId, testId, freeTextId } = await seedTest();
+    const redoing = await enrolledStudent(courseId, "Redoing");
+    await db.collection("answer").insertOne({
+      id: randomUUID(),
+      testId,
+      questionId: freeTextId,
+      studentId: redoing,
+      answer: { type: "free_text", text: "x" },
+      submittedAt: new Date(),
+    });
+    await db.collection("test_submission").insertOne({
+      id: randomUUID(),
+      testId,
+      studentId: redoing,
+      submittedAt: new Date(),
+      deletedAt: null,
+      releasedAt: null,
+      releasedBy: null,
+    });
+    await getTestServices().redoRequestService.requestRedo(
+      testId,
+      redoing,
+      ADMIN,
+    );
+
+    // When the roster is asked for
+    const res = await GET(new Request("http://x"), {
+      params: Promise.resolve({ testId }),
+    });
+
+    // Then she is counted as redo requested only
+    const body = await res.json();
+    expect(body.students).toEqual([
+      expect.objectContaining({ id: redoing, status: "redo-requested" }),
+    ]);
+    expect(body.counts.redoRequested).toBe(1);
+    expect(body.counts.graded).toBe(0);
   });
 
   it("answers 401 without an admin session", async () => {

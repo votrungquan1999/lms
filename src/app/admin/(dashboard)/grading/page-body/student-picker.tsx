@@ -14,6 +14,7 @@ interface StudentPickerProps {
   testTitle: string;
   basePath: string;
   needsOnly?: boolean;
+  isPractice: boolean;
 }
 
 /** The student picker for the top bar: builds each row's link, keeping the "Needs grading only" filter. */
@@ -25,6 +26,7 @@ export function StudentPicker({
   testTitle,
   basePath,
   needsOnly,
+  isPractice,
 }: StudentPickerProps) {
   const hrefFor = Object.fromEntries(
     rows.map((row) => [
@@ -44,6 +46,7 @@ export function StudentPicker({
   );
   return (
     <StudentPickerUi
+      isPractice={isPractice}
       nextWaitingHref={nextWaiting ? hrefFor[nextWaiting.id] : null}
       currentName={currentName}
       currentUsername={currentUsername}

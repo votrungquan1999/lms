@@ -1,4 +1,5 @@
-import { needsGrade } from "src/lib/needs-grade";
+import type { Answer, StudentAnswer } from "src/lib/answer-service";
+import { answerNeedsGrade } from "src/lib/next-answer-to-grade";
 import { isMcQuestionType, type Question } from "src/lib/question-service";
 import {
   StudentPickerGroup,
@@ -16,7 +17,7 @@ interface StudentBoxesInput {
   rows: StudentPickerRow[];
   question: Pick<Question, "id" | "type">;
   /** Latest answers: student id, then question id. */
-  answers: Map<string, Map<string, { submittedAt: Date }>>;
+  answers: Map<string, Map<string, Answer>>;
   /** Grades: student id, then question id. */
   grades: Map<
     string,
@@ -56,8 +57,8 @@ export enum QuestionBoxState {
 
 interface QuestionBoxInput {
   question: Pick<Question, "type">;
-  /** The student has an answer to this question. */
-  answered: boolean;
+  /** The student's latest answer to this question, or undefined when there is none. */
+  answer: StudentAnswer | undefined;
   /** When the student's latest answer was saved; omitted when not known. */
   latestAnswerAt?: Date | null;
   /** The student has an open redo, so her edits wait for the hand-in. */
@@ -82,7 +83,8 @@ interface QuestionBoxInput {
  * @returns The box state.
  */
 export function questionBoxState(input: QuestionBoxInput): QuestionBoxState {
-  const { question, answered, grade, handedIn, isPractice } = input;
+  const { question, answer, grade, handedIn, isPractice } = input;
+  const answered = answer !== undefined;
   const latestAnswerAt = input.latestAnswerAt ?? null;
   if (isPractice) {
     if (answered) return QuestionBoxState.Answered;
@@ -107,9 +109,10 @@ export function questionBoxState(input: QuestionBoxInput): QuestionBoxState {
       : QuestionBoxState.Wrong;
   }
 
-  const waiting = needsGrade({
-    answered,
-    latestAnswerAt,
+  const waiting = answerNeedsGrade({
+    question,
+    answer,
+    answeredAt: latestAnswerAt,
     grade: grade ?? null,
     redoOpen: input.redoOpen ?? false,
   });
@@ -151,8 +154,7 @@ export function buildStudentBoxes(input: StudentBoxesInput): {
           ? QuestionBoxState.RedoRequested
           : questionBoxState({
               question: input.question,
-              answered:
-                input.answers.get(row.id)?.has(input.question.id) ?? false,
+              answer: input.answers.get(row.id)?.get(input.question.id)?.answer,
               latestAnswerAt: input.answers.get(row.id)?.get(input.question.id)
                 ?.submittedAt,
               grade: input.grades.get(row.id)?.get(input.question.id),

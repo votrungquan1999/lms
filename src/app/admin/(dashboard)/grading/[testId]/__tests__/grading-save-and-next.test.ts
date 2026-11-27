@@ -397,6 +397,49 @@ describe("Feature: Save & next moves to the next answer that needs a grade", () 
   });
 });
 
+describe("Feature: By question's Save & next keeps the saved student's place among the waiting boxes", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+    vi.clearAllMocks();
+  });
+
+  it("opens the box after hers when her waiting answer was one she changed after its grade", async () => {
+    // Given Ann, Ben and Cara handed in in that order and all wait on Q2; Ben's Q2 was graded and he then changed it
+    const seed = await seedTest(["written", "written"]);
+    await seedHandedInStudent(seed, "Ann", { graded: [0] });
+    const ben = await seedHandedInStudent(seed, "Ben", { graded: [0, 1] });
+    const cara = await seedHandedInStudent(seed, "Cara", { graded: [0] });
+    const [, q2] = seed.questions;
+    // The changed answer must be saved strictly after its grade.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await seed.services.answerService.submitAnswer({
+      testId: seed.test.id,
+      questionId: q2.id,
+      studentId: ben.id,
+      answer: { type: "free_text", text: "Ben's better answer" },
+    });
+    const benLatest = (
+      await seed.services.answerService.getLatestAnswers(seed.test.id, ben.id)
+    ).find((a) => a.questionId === q2.id);
+
+    // When the teacher saves Ben's Q2 with Save & next, which the button labelled Cara
+    const url = await redirectedTo(
+      saveForm(seed, ben.id, q2.id, {
+        mode: "question",
+        gradedAnswerAt: (benLatest?.submittedAt ?? new Date()).toISOString(),
+      }),
+    );
+
+    // Then Cara's Q2 opens, not Ann's
+    expect(url.searchParams.get("studentId")).toBe(cara.id);
+    expect(url.searchParams.get("questionId")).toBe(q2.id);
+  });
+});
+
 describe("Feature: Save & next reads only the graded test's counts", () => {
   beforeEach(async () => {
     await setupTestDb();

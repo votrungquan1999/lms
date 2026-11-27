@@ -15,7 +15,10 @@ import {
 import { getAuthService } from "src/lib/auth-singleton";
 import { GradingMode } from "src/lib/grading-mode";
 import { readGradingScreen } from "src/lib/grading-screen-read";
-import { findNextAnswerToGrade } from "src/lib/next-answer-to-grade";
+import {
+  answerNeedsGrade,
+  findNextAnswerToGrade,
+} from "src/lib/next-answer-to-grade";
 import { withSpan } from "src/lib/observability/with-span";
 import {
   getAiGradeService,
@@ -599,16 +602,31 @@ export async function saveAndNextAction(formData: FormData) {
     ownCountsOnly: true,
   });
   const pair = screen.pairs.get(input.studentId);
+  const gradedQuestion = screen.questions.find(
+    (q) => q.id === input.questionId,
+  );
+  const gradedAnswer = screen.answers
+    .get(input.studentId)
+    ?.get(input.questionId);
+  const gradedAnswerWasWaiting =
+    gradedQuestion !== undefined &&
+    answerNeedsGrade({
+      question: gradedQuestion,
+      answer: gradedAnswer?.answer,
+      answeredAt: gradedAnswer?.submittedAt ?? null,
+      grade: previousGrade,
+      redoOpen: false,
+    });
   const next = findNextAnswerToGrade({
     mode: input.mode,
     students: screen.students,
     current: { studentId: input.studentId, questionId: input.questionId },
-    // The walk starts after her box as the teacher saw it: she was waiting if she still is, or if this save graded her last ungraded answer.
+    // The walk starts after her box as the teacher saw it: she was waiting if she still is, or if the answer just graded still needed a grade before this save.
     currentWasWaiting:
       pair !== undefined &&
       !pair.redoRequested &&
       (pair.status === TestStatus.Submitted ||
-        (pair.status === TestStatus.Graded && previousGrade === null)),
+        (pair.status === TestStatus.Graded && gradedAnswerWasWaiting)),
     questions: screen.questions,
     pairs: screen.pairs,
     answers: screen.answers,

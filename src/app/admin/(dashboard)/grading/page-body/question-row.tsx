@@ -11,6 +11,20 @@ import {
   type StudentBoxData,
 } from "./question-row-state";
 
+interface StudentRowProps {
+  boxes: StudentBoxData[];
+  currentStudentId: string | null;
+  questionId: string;
+  testTitle: string;
+  /** Students without a box because they have not started. */
+  notStarted: number;
+  basePath: string;
+  needsOnly: boolean;
+  isPractice: boolean;
+  /** The question is single or multiple choice, so the system grades it and the boxes show correct, partly right or wrong. */
+  isChoice: boolean;
+}
+
 interface QuestionRowProps {
   /** The test's live questions in order. */
   questions: Question[];
@@ -41,15 +55,17 @@ export function QuestionRow({
   redoOpen,
   isPractice,
   basePath,
-  needsOnly,
+  needsOnly: needsOnlyRequested,
 }: QuestionRowProps) {
+  // A practice test has nothing to filter.
+  const needsOnly = needsOnlyRequested && !isPractice;
   const boxes = questions.map((question) => ({
     id: question.id,
     text: String(question.order),
     label: `Q${question.order}`,
     state: questionBoxState({
       question,
-      answered: answers.has(question.id),
+      answer: answers.get(question.id),
       latestAnswerAt: answerSavedAt.get(question.id),
       grade: grades.get(question.id),
       handedIn,
@@ -75,7 +91,11 @@ export function QuestionRow({
           : boxes
       }
       // Counts stay over every question so the legend does not shift with the filter.
-      legend={legendOf(countBoxStates(boxes.map((box) => box.state)))}
+      legend={legendOf(
+        countBoxStates(boxes.map((box) => box.state)),
+        isPractice,
+      )}
+      isPractice={isPractice}
       needsOnly={needsOnly}
       toggleHref={gradingHref({
         basePath,
@@ -91,19 +111,31 @@ export function QuestionRow({
   );
 }
 
-function legendOf(counts: Record<QuestionBoxState, number>): string {
+/** The legend line under the By student number row: how many questions are in each state. */
+function legendOf(
+  counts: Record<QuestionBoxState, number>,
+  isPractice: boolean,
+): string {
+  if (isPractice) {
+    return `Answered ${counts[QuestionBoxState.Answered]} · Blank ${counts[QuestionBoxState.Blank]}`;
+  }
   return `Correct ${counts[QuestionBoxState.Correct]} · Wrong ${counts[QuestionBoxState.Wrong]} · Partly right ${counts[QuestionBoxState.PartlyRight]} · Graded by you ${counts[QuestionBoxState.Graded]} · Needs grade ${counts[QuestionBoxState.NeedsGrade]} · Blank ${counts[QuestionBoxState.Blank]}`;
 }
 
-interface StudentRowProps {
-  boxes: StudentBoxData[];
-  currentStudentId: string | null;
-  questionId: string;
-  testTitle: string;
-  /** Students without a box because they have not started. */
-  notStarted: number;
-  basePath: string;
-  needsOnly: boolean;
+/** The legend line under the By question row: how many students' boxes are in each state. */
+function studentLegendOf(
+  counts: Record<QuestionBoxState, number>,
+  isPractice: boolean,
+  isChoice: boolean,
+): string {
+  if (isPractice) {
+    return `Answered ${counts[QuestionBoxState.Answered]} · Still writing ${counts[QuestionBoxState.StillWriting]} · Blank ${counts[QuestionBoxState.Blank]}`;
+  }
+  if (isChoice) {
+    // The two blues sit close together, so the legend names which is which.
+    return `Correct ${counts[QuestionBoxState.Correct]} · Partly right (light blue) ${counts[QuestionBoxState.PartlyRight]} · Wrong ${counts[QuestionBoxState.Wrong]} · Still writing (dark blue) ${counts[QuestionBoxState.StillWriting]} · Redo requested ${counts[QuestionBoxState.RedoRequested]} · Blank ${counts[QuestionBoxState.Blank]}`;
+  }
+  return `Graded by you ${counts[QuestionBoxState.Graded]} · Needs grade ${counts[QuestionBoxState.NeedsGrade]} · Still writing ${counts[QuestionBoxState.StillWriting]} · Redo requested ${counts[QuestionBoxState.RedoRequested]} · Blank ${counts[QuestionBoxState.Blank]}`;
 }
 
 /** The student row of By question: one box per student for the question on screen. */
@@ -114,8 +146,12 @@ export function StudentRow({
   testTitle,
   notStarted,
   basePath,
-  needsOnly,
+  needsOnly: needsOnlyRequested,
+  isPractice,
+  isChoice,
 }: StudentRowProps) {
+  // A practice test has nothing to filter.
+  const needsOnly = needsOnlyRequested && !isPractice;
   const models = boxes.map(({ row, state }) => ({
     id: row.id,
     text: initialsOf(row.name),
@@ -133,7 +169,9 @@ export function StudentRow({
             needsOnly,
           }),
     current: row.id === currentStudentId,
-    askStudent: state === QuestionBoxState.StillWriting ? row : undefined,
+    // A practice test never asks before opening a student still writing.
+    askStudent:
+      state === QuestionBoxState.StillWriting && !isPractice ? row : undefined,
   }));
   const counts = countBoxStates(boxes.map((box) => box.state));
   return (
@@ -145,7 +183,8 @@ export function StudentRow({
             )
           : models
       }
-      legend={`Graded by you ${counts[QuestionBoxState.Graded]} · Needs grade ${counts[QuestionBoxState.NeedsGrade]} · Still writing ${counts[QuestionBoxState.StillWriting]} · Redo requested ${counts[QuestionBoxState.RedoRequested]} · Blank ${counts[QuestionBoxState.Blank]}`}
+      isPractice={isPractice}
+      legend={studentLegendOf(counts, isPractice, isChoice)}
       needsOnly={needsOnly}
       toggleHref={gradingHref({
         basePath,

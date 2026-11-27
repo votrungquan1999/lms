@@ -26,6 +26,7 @@ import {
 const GROUP_TITLES: Record<StudentPickerGroup, string> = {
   [StudentPickerGroup.NeedsGrading]: "Needs grading",
   [StudentPickerGroup.Graded]: "Graded",
+  [StudentPickerGroup.Submitted]: "Submitted",
   [StudentPickerGroup.StillWriting]: "Still writing",
   [StudentPickerGroup.RedoRequested]: "Redo requested",
   [StudentPickerGroup.NotStarted]: "Not started",
@@ -42,6 +43,8 @@ interface StudentPickerUiProps {
   hrefFor: Record<string, string>;
   /** Where "Next waiting student" goes, or null when no other student waits. */
   nextWaitingHref: string | null;
+  /** A practice test has no waiting students and never asks before opening one still writing. */
+  isPractice: boolean;
 }
 
 /** The student picker: a dropdown naming the open student, listing every student under her status. */
@@ -53,6 +56,7 @@ export function StudentPickerUi({
   currentId,
   hrefFor,
   nextWaitingHref,
+  isPractice,
 }: StudentPickerUiProps) {
   const router = useRouter();
   const { requestLeave } = useLeaveGuard();
@@ -99,7 +103,8 @@ export function StudentPickerUi({
               onKeyDown={(event) => event.stopPropagation()}
             />
           </div>
-          {query.trim() !== "" ? null : nextWaitingHref === null ? (
+          {query.trim() !== "" || isPractice ? null : nextWaitingHref ===
+            null ? (
             <DropdownMenuItem disabled>
               <NextWaitingLabel />
             </DropdownMenuItem>
@@ -128,7 +133,7 @@ export function StudentPickerUi({
                     oldest submission first
                   </p>
                 )}
-                {group === StudentPickerGroup.StillWriting && (
+                {group === StudentPickerGroup.StillWriting && !isPractice && (
                   <p className="px-2 pb-1 text-xs text-muted-foreground">
                     asks first
                   </p>
@@ -139,6 +144,7 @@ export function StudentPickerUi({
                     row={row}
                     current={row.id === currentId}
                     href={hrefFor[row.id]}
+                    ask={!isPractice}
                     onAsk={() => setAsking(row)}
                   />
                 ))}
@@ -177,11 +183,14 @@ function PickerItem({
   row,
   current,
   href,
+  ask,
   onAsk,
 }: {
   row: StudentPickerRow;
   current: boolean;
   href: string | undefined;
+  /** Opening a student still writing asks first. */
+  ask: boolean;
   onAsk: () => void;
 }) {
   const label = (
@@ -203,7 +212,7 @@ function PickerItem({
   if (!row.openable || href === undefined) {
     return <DropdownMenuItem disabled>{label}</DropdownMenuItem>;
   }
-  if (row.group === StudentPickerGroup.StillWriting) {
+  if (ask && row.group === StudentPickerGroup.StillWriting) {
     return (
       <DropdownMenuItem
         aria-current={current ? "true" : undefined}

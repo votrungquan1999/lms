@@ -56,7 +56,7 @@ import {
   type VerifiedSuggestionTarget,
 } from "src/lib/apply-suggestion";
 import type { GradeDocument, GradeService } from "src/lib/grade-service";
-import { needsGrade } from "src/lib/needs-grade";
+import { answerNeedsGrade } from "src/lib/next-answer-to-grade";
 import type { QuestionService } from "src/lib/question-service";
 import type { TestService } from "src/lib/test-service";
 import { normalizeText } from "src/lib/text-normalization";
@@ -746,9 +746,10 @@ export class AiGradeService {
       if (!studentAnswer || studentAnswer.answer.type !== "free_text") continue;
       if (
         !includeGraded &&
-        !needsGrade({
-          answered: true,
-          latestAnswerAt: studentAnswer.submittedAt,
+        !answerNeedsGrade({
+          question,
+          answer: studentAnswer.answer,
+          answeredAt: studentAnswer.submittedAt,
           grade: gradeByQuestion.get(question.id) ?? null,
           redoOpen: false,
         })
