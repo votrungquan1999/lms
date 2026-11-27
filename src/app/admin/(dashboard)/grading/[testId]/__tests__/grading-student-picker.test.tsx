@@ -389,3 +389,85 @@ describe("Feature: Next waiting student in the student picker", () => {
     ).toHaveAttribute("aria-disabled", "true");
   });
 });
+
+describe("Feature: ‹ › step through the students who handed in, in picker order", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  async function openAt(testId: string, studentId: string) {
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId }),
+        searchParams: Promise.resolve({ studentId }),
+      }),
+    );
+    return screen.getByTestId("grading-student-position");
+  }
+
+  it("goes through Needs grading (oldest first) then Graded, never landing on a student with an open redo", async () => {
+    // Given Bea, enrolled first, is graded; Zed and Amy wait (Zed handed in first); and Dot, enrolled last, has an open redo
+    const { test, addStudent } = await seedTest();
+    const bea = await addStudent("Bea", "graded");
+    const zed = await addStudent("Zed", "waiting");
+    const amy = await addStudent("Amy", "waiting");
+    await addStudent("Dot", "redo");
+
+    // When the teacher opens Amy
+    const position = await openAt(test.id, amy.id);
+
+    // Then she is 2 of 3, ‹ opens Zed and › opens Bea
+    expect(position).toHaveTextContent(/2 of 3 submitted/);
+    expect(
+      within(position).getByRole("link", {
+        name: "Previous submitted student",
+      }),
+    ).toHaveAttribute("href", expect.stringContaining(`studentId=${zed.id}`));
+    expect(
+      within(position).getByRole("link", { name: "Next submitted student" }),
+    ).toHaveAttribute("href", expect.stringContaining(`studentId=${bea.id}`));
+  });
+
+  it("stops after the last graded student instead of stepping on to a student with an open redo", async () => {
+    // Given Bea is the last of the students who handed in, and Dot has an open redo
+    const { test, addStudent } = await seedTest();
+    await addStudent("Zed", "waiting");
+    const bea = await addStudent("Bea", "graded");
+    await addStudent("Dot", "redo");
+
+    // When the teacher opens Bea
+    const position = await openAt(test.id, bea.id);
+
+    // Then there is no next student
+    expect(position).toHaveTextContent(/2 of 2 submitted/);
+    expect(
+      within(position).queryByRole("link", { name: "Next submitted student" }),
+    ).toBeNull();
+  });
+
+  it("from a student outside the list, › opens the first student and ‹ the last, and the place reads – of N", async () => {
+    // Given Zed waits, Bea is graded, and Dot has an open redo
+    const { test, addStudent } = await seedTest();
+    const zed = await addStudent("Zed", "waiting");
+    const bea = await addStudent("Bea", "graded");
+    const dot = await addStudent("Dot", "redo");
+
+    // When the teacher opens Dot
+    const position = await openAt(test.id, dot.id);
+
+    // Then the place has no number, › goes to Zed and ‹ to Bea
+    expect(position).toHaveTextContent(/–\s*of 2 submitted/);
+    expect(
+      within(position).getByRole("link", { name: "Next submitted student" }),
+    ).toHaveAttribute("href", expect.stringContaining(`studentId=${zed.id}`));
+    expect(
+      within(position).getByRole("link", {
+        name: "Previous submitted student",
+      }),
+    ).toHaveAttribute("href", expect.stringContaining(`studentId=${bea.id}`));
+  });
+});
