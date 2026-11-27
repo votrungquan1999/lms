@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   getTestServices,
   servicesSingletonMockFactory,
@@ -149,5 +150,67 @@ describe("Feature: the Release ▾ chip in the grading top bar", () => {
     expect(screen.getByTestId("release-state")).toHaveTextContent(
       "Shown on submit",
     );
+  });
+
+  it("offers only Release correct answers, under a note that grades are out for the whole test, once the whole test's grades were released", async () => {
+    const { test } = await seedTest({ graded: 2 });
+    await getTestServices().testService.releaseGrades(test.id, "admin");
+    await renderPage(test.id);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Release .+▾$/ }),
+    );
+
+    const menu = await screen.findByRole("menu");
+    expect(
+      within(menu).getByText("Grades released for the whole test"),
+    ).toBeInTheDocument();
+    expect(
+      within(menu).getByText("Students graded later see theirs right away."),
+    ).toBeInTheDocument();
+    expect(
+      within(menu).getByRole("menuitem", { name: /release correct answers/i }),
+    ).toHaveTextContent("Students see the right answer to each question");
+    expect(
+      within(menu).queryByRole("menuitem", { name: /release grades/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers only Release correct answers on a Shown on submit test while they are hidden", async () => {
+    const { test } = await seedTest({ graded: 2, showGradeAfterSubmit: true });
+    await renderPage(test.id);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Release .+▾$/ }),
+    );
+
+    const menu = await screen.findByRole("menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual([expect.stringContaining("Release correct answers")]);
+  });
+
+  it("still offers Release grades… and Release correct answers after a release to chosen students", async () => {
+    const { test, students } = await seedTest({ graded: 2 });
+    await getTestServices().testSubmissionService.releaseGradeToStudent(
+      test.id,
+      students[0].id,
+      "admin",
+    );
+    await renderPage(test.id);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Release .+▾$/ }),
+    );
+
+    const menu = await screen.findByRole("menu");
+    expect(
+      within(menu).getByRole("menuitem", { name: /release grades/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(menu).getByRole("menuitem", { name: /release correct answers/i }),
+    ).toBeInTheDocument();
   });
 });

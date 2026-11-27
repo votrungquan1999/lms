@@ -62,15 +62,25 @@ export function ReleaseMenu({
   if (offerGrades) {
     entries.push({
       label: "Release grades…",
+      description: "Students see their grades",
       onSelect: () => post(releaseGrades),
     });
   }
   if (offerCorrectAnswers) {
     entries.push({
       label: "Release correct answers",
+      description: "Students see the right answer to each question",
       onSelect: () => post(releaseAnswers),
     });
   }
+
+  const note =
+    state.kind === GradeReleaseKind.Released
+      ? {
+          title: "Grades released for the whole test",
+          description: "Students graded later see theirs right away.",
+        }
+      : null;
 
   const failed = [gradesState, answersState].find((s) => s && !s.success);
   return (
@@ -78,6 +88,7 @@ export function ReleaseMenu({
       stateText={gradeReleaseText(state)}
       tone={CHIP_TONES[state.kind]}
       entries={entries}
+      note={note}
       error={failed?.message ?? null}
     />
   );

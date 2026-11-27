@@ -13,6 +13,8 @@ export type ReleaseChipTone = "secondary" | "warning" | "success" | "info";
 
 export interface ReleaseMenuEntry {
   label: string;
+  /** What the entry does, under its label. */
+  description: string;
   onSelect: () => void;
 }
 
@@ -21,6 +23,8 @@ interface ReleaseMenuViewProps {
   tone: ReleaseChipTone;
   /** Empty when nothing is left to release: the chip stands alone. */
   entries: ReleaseMenuEntry[];
+  /** What is already released, shown above the entries. */
+  note: { title: string; description: string } | null;
   /** The failure text of the last release, if any. */
   error: string | null;
 }
@@ -30,6 +34,7 @@ export function ReleaseMenuView({
   stateText,
   tone,
   entries,
+  note,
   error,
 }: ReleaseMenuViewProps) {
   const chip = (
@@ -49,9 +54,24 @@ export function ReleaseMenuView({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-auto">
+            {note && (
+              <div className="px-2 py-1.5 text-sm">
+                <div className="font-medium">{note.title}</div>
+                <div className="text-xs text-muted-foreground">
+                  {note.description}
+                </div>
+              </div>
+            )}
             {entries.map((entry) => (
-              <DropdownMenuItem key={entry.label} onSelect={entry.onSelect}>
-                {entry.label}
+              <DropdownMenuItem
+                key={entry.label}
+                onSelect={entry.onSelect}
+                className="flex-col items-start gap-0"
+              >
+                <span>{entry.label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {entry.description}
+                </span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
