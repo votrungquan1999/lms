@@ -1,17 +1,18 @@
 import type { SaveAndNextNavigation } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { CompactGradeForm } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { GradePanelShell } from "src/app/admin/(dashboard)/grading/page-body/grade-panel.ui";
+import { StillWritingGate } from "src/app/admin/(dashboard)/grading/page-body/still-writing-confirm";
 import { UnsavedGradeProvider } from "src/app/admin/(dashboard)/grading/page-body/unsaved-grade.state";
 import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
 import type { StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
 import { isMcQuestion, type Question } from "src/lib/question-service";
-import type { TestStatus } from "src/lib/test-status-service";
-import { hasSubmitted } from "src/lib/test-status-service";
+import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 
 interface GradePanelProps {
   testId: string;
+  testTitle: string;
   courseId: string;
   student: { id: string; name: string; username: string };
   question: Question;
@@ -39,6 +40,7 @@ interface GradePanelProps {
  */
 export function GradePanel({
   testId,
+  testTitle,
   courseId,
   student,
   question,
@@ -95,7 +97,6 @@ export function GradePanel({
           existingScore={score}
           existingFeedback={grade?.feedback ?? null}
           existingSolution={grade?.solution ?? null}
-          studentStatus={status}
           saveAndNext={saveAndNext}
           showQuickScores
         >
@@ -116,7 +117,14 @@ export function GradePanel({
         aiJobNotes={aiJobNotes}
         headerAction={moreMenu}
       >
-        {renderBody()}
+        <StillWritingGate
+          studentId={student.id}
+          studentName={student.name}
+          testTitle={testTitle}
+          stillWriting={status === TestStatus.InProgress}
+        >
+          {renderBody()}
+        </StillWritingGate>
       </GradePanelShell>
     </UnsavedGradeProvider>
   );

@@ -63,7 +63,12 @@ test.describe("Student picker search", () => {
       await page.goto(route.path(ids));
       const picker = page.getByRole("button", { name: "Student picker" });
       await hydrated(picker);
+      // The trigger and every row show the @username.
+      await expect(picker).toContainText(`@tam.${ids.tag}`);
       await picker.click();
+      await expect(
+        page.getByRole("menuitem", { name: /Bob Search/ }),
+      ).toContainText(`@bob.${ids.tag}`);
       const search = page.getByRole("searchbox", { name: "Search students" });
 
       // "tam" finds Tâm only, whatever the case and accents

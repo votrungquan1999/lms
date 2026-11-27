@@ -65,6 +65,9 @@ async function openVariantRoster(page: Page): Promise<void> {
 async function focusStudent(page: Page, name: string): Promise<void> {
   await page.getByRole("button", { name: "Student picker" }).click();
   await page.getByRole("menuitem").filter({ hasText: name }).first().click();
+  // A still-writing student asks first; the tour confirms to reach her.
+  const gradeAnyway = page.getByRole("button", { name: "Grade anyway" });
+  if (await gradeAnyway.isVisible()) await gradeAnyway.click();
   await expect(
     page
       .getByTestId("grading-main-pane")
@@ -181,19 +184,26 @@ test("grading: student still in progress", async ({ page }) => {
   await snap(page, "grading/student-in-progress", { sources: STUDENT_DETAIL });
 });
 
-test("grading: confirm dialog when grading an in-progress student", async ({
+test("grading: confirm dialog when picking an in-progress student", async ({
   page,
 }) => {
   await openVariantRoster(page);
-  await focusStudent(page, "Bob InProgress");
-  // Opens the guard dialog only — "Submit Anyway" is never clicked, so no
-  // grade is written to the shared seeded data.
-  await page.getByRole("button", { name: /^Save & next/ }).click();
+  await page.getByRole("button", { name: "Student picker" }).click();
+  await page
+    .getByRole("menuitem")
+    .filter({ hasText: "Bob InProgress" })
+    .first()
+    .click();
+  // "Grade anyway" is never clicked, so the screen stays on the open student.
   await expect(
-    page.getByRole("alertdialog").getByText("Submit grade anyway?"),
+    page.getByRole("alertdialog").getByText("is still writing. Grade anyway?"),
   ).toBeVisible();
   await snap(page, "grading/grade-in-progress-confirm", {
-    sources: [...STUDENT_DETAIL, "src/components/ui/alert-dialog.tsx"],
+    sources: [
+      ...STUDENT_DETAIL,
+      "src/app/admin/(dashboard)/grading/page-body/still-writing-confirm.tsx",
+      "src/components/ui/alert-dialog.tsx",
+    ],
   });
 });
 

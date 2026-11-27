@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "src/components/ui/dropdown-menu";
 import { Input } from "src/components/ui/input";
-import { StillWritingConfirm } from "./still-writing-confirm";
+import { StillWritingConfirm, useStillWriting } from "./still-writing-confirm";
 import {
   matchesPickerSearch,
   STUDENT_PICKER_GROUPS,
@@ -34,6 +34,7 @@ const GROUP_TITLES: Record<StudentPickerGroup, string> = {
 interface StudentPickerUiProps {
   /** The student on screen, or null when none is open. */
   currentName: string | null;
+  currentUsername: string | null;
   testTitle: string;
   rows: StudentPickerRow[];
   currentId: string | null;
@@ -46,6 +47,7 @@ interface StudentPickerUiProps {
 /** The student picker: a dropdown naming the open student, listing every student under her status. */
 export function StudentPickerUi({
   currentName,
+  currentUsername,
   testTitle,
   rows,
   currentId,
@@ -54,6 +56,7 @@ export function StudentPickerUi({
 }: StudentPickerUiProps) {
   const router = useRouter();
   const { requestLeave } = useLeaveGuard();
+  const { confirm } = useStillWriting();
   const [query, setQuery] = useState("");
   // The still-writing student the teacher picked and has not yet confirmed.
   const [asking, setAsking] = useState<StudentPickerRow | null>(null);
@@ -73,6 +76,11 @@ export function StudentPickerUi({
             <span className="truncate font-medium">
               {currentName ?? "Pick a student"}
             </span>
+            {currentName && currentUsername && (
+              <span className="truncate text-xs font-normal text-muted-foreground">
+                @{currentUsername}
+              </span>
+            )}
             <ChevronDown className="size-3 shrink-0" aria-hidden />
           </Button>
         </DropdownMenuTrigger>
@@ -145,6 +153,7 @@ export function StudentPickerUi({
         onCancel={() => setAsking(null)}
         onConfirm={() => {
           const href = asking ? hrefFor[asking.id] : undefined;
+          if (asking) confirm(asking.id);
           setAsking(null);
           if (href) requestLeave(() => router.push(href));
         }}
@@ -177,7 +186,13 @@ function PickerItem({
 }) {
   const label = (
     <span className="flex w-full min-w-0 items-baseline justify-between gap-2">
-      <span className="truncate">{row.name}</span>
+      <span className="flex min-w-0 items-baseline gap-1.5">
+        <span className="truncate">{row.name}</span>
+        {/* Two students can share a name, so the username tells them apart. */}
+        <span className="truncate text-xs text-muted-foreground">
+          @{row.username}
+        </span>
+      </span>
       {row.detail && (
         <span className="shrink-0 text-xs text-muted-foreground">
           {row.detail}

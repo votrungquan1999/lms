@@ -11,63 +11,71 @@ import {
   withDb,
 } from "./seed";
 
+const routes = [
+  {
+    name: "the grading page",
+    path: (ids: { courseId: string; testId: string }) =>
+      `/admin/grading/${ids.testId}`,
+  },
+  {
+    name: "the course Tests tab grading",
+    path: (ids: { courseId: string; testId: string }) =>
+      `/admin/courses/${ids.courseId}/tests/${ids.testId}/grading`,
+  },
+];
+
 test.describe("Grading a student who is still writing", () => {
-  test("pressing Submit Anyway in the confirm dialog saves the grade", async ({
-    page,
-  }) => {
-    const { courseId, testId, studentId } = await withDb(async (db) => {
-      const courseId = await insertCourse(db);
-      const testId = await insertTest(db, courseId);
-      const questionId = await insertQuestion(db, testId, {
-        title: "[submit-anyway] Question",
+  for (const route of routes) {
+    test(`on ${route.name} a direct link shows her answer with the grade panel locked until Grade anyway, then saving needs no further confirm`, async ({
+      page,
+    }) => {
+      const { courseId, testId, studentId } = await withDb(async (db) => {
+        const courseId = await insertCourse(db);
+        const testId = await insertTest(db, courseId);
+        const questionId = await insertQuestion(db, testId, {
+          title: "[submit-anyway] Question",
+        });
+        const studentId = await insertStudent(db);
+        await enroll(db, { courseId, studentId });
+        // An answer without a submission leaves the student In Progress.
+        await insertAnswer(db, {
+          testId,
+          questionId,
+          studentId,
+          answer: { type: "free_text", text: "half-finished thought" },
+        });
+        return { courseId, testId, studentId };
       });
-      const studentId = await insertStudent(db);
-      await enroll(db, { courseId, studentId });
-      // An answer without a submission leaves the student In Progress.
-      await insertAnswer(db, {
-        testId,
-        questionId,
-        studentId,
-        answer: { type: "free_text", text: "half-finished thought" },
-      });
-      return { courseId, testId, studentId };
+
+      await page.goto(
+        `${route.path({ courseId, testId })}?studentId=${studentId}`,
+      );
+      await expect(
+        page.getByRole("button", { name: "Student picker" }),
+      ).toBeVisible();
+
+      await expect(page.getByText("half-finished thought")).toBeVisible();
+      const gradeCard = page.getByTestId("grade-card");
+      await expect(gradeCard.getByLabel("Score (0–100):")).toBeDisabled();
+      await expect(
+        gradeCard.getByRole("button", { name: /^Save & next/ }),
+      ).toBeDisabled();
+
+      await gradeCard.getByRole("button", { name: "Grade anyway" }).click();
+      await gradeCard.getByLabel("Score (0–100):").fill("73");
+      const save = gradeCard.getByRole("button", { name: /^Save & next/ });
+      await hydrated(save);
+      await save.click();
+      await expect(
+        page.getByRole("link", { name: /^Q\d+ graded$/ }).first(),
+      ).toBeVisible({ timeout: 10000 });
+
+      await page.reload();
+      await expect(
+        page.getByTestId("grade-card").getByLabel("Score (0–100):"),
+      ).toHaveValue("73");
     });
 
-    await page.goto(
-      `/admin/courses/${courseId}/tests/${testId}/grading?studentId=${studentId}`,
-    );
-    await expect(
-      page.getByRole("button", { name: "Student picker" }),
-    ).toBeVisible();
-
-    const gradeCard = page.getByTestId("grade-card");
-    await gradeCard.getByLabel("Score (0–100):").fill("73");
-    const save = gradeCard.getByRole("button", { name: /^Save & next/ });
-    await hydrated(save);
-    await save.click();
-    await page.getByRole("button", { name: "Submit Anyway" }).click();
-    await expect(
-      page.getByRole("link", { name: /^Q\d+ graded$/ }).first(),
-    ).toBeVisible({ timeout: 10000 });
-
-    await page.reload();
-    await expect(
-      page.getByTestId("grade-card").getByLabel("Score (0–100):"),
-    ).toHaveValue("73");
-  });
-
-  for (const route of [
-    {
-      name: "the grading page",
-      path: (ids: { courseId: string; testId: string }) =>
-        `/admin/grading/${ids.testId}`,
-    },
-    {
-      name: "the course Tests tab grading",
-      path: (ids: { courseId: string; testId: string }) =>
-        `/admin/courses/${ids.courseId}/tests/${ids.testId}/grading`,
-    },
-  ]) {
     test(`on ${route.name} picking her from the picker asks first and opens her only after Grade anyway`, async ({
       page,
     }) => {
@@ -113,6 +121,10 @@ test.describe("Grading a student who is still writing", () => {
       await page.getByRole("menuitem", { name: /Vo Thanh Tamw/ }).click();
       await page.getByRole("button", { name: "Grade anyway" }).click();
       await expect(page).toHaveURL(new RegExp(`studentId=${ids.writing}`));
+      // The choice survives the navigation, so her panel opens without a second ask
+      await expect(
+        page.getByTestId("grade-card").getByLabel("Score (0–100):"),
+      ).toBeEnabled();
     });
   }
 });

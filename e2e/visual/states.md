@@ -55,7 +55,7 @@ Routes: `src/app/admin/(dashboard)/courses/page.tsx`,
 - [T1] grading/roster-all-students: /admin/grading/seed-test-visible as a grader lands on it — 16 enrolled students in the roster, long names, first student auto-focused
 - [T1] grading/student-not-started: alice focused — no answers, every question reads "No answer submitted"
 - [T1] grading/student-in-progress: bob focused — one free-text answer, grade form open, test not submitted
-- [T2] grading/grade-in-progress-confirm: "Submit grade anyway?" guard dialog after pressing Save Grade on bob (grading too early); Submit Anyway is never clicked
+- [T2] grading/grade-in-progress-confirm: "Bob InProgress is still writing. Grade anyway?" dialog after picking bob in the student picker; Grade anyway is never clicked
 - [T1] grading/student-blank-free-text: dan focused — submitted with the free-text left blank (the MC answers are auto-graded, so the roster badge reads Graded 2/2)
 - [T1] grading/student-graded: frank focused — every question scored, feedback filled in
 - [T1] grading/student-redo-requested: ivy focused — the Request Redo control replaced by "Redo requested ↩"

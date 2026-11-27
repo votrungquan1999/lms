@@ -320,6 +320,12 @@ describe("Feature: searching the student picker", () => {
     const second = await addStudent("Sam", "waiting", "sam.b");
     const menu = await openPicker(test.id);
 
+    // Then each Sam row shows her own @username before any search
+    const rows = within(menu).getAllByRole("menuitem", { name: /^Sam/ });
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("@sam.a");
+    expect(rows[1]).toHaveTextContent("@sam.b");
+
     // When the teacher searches for @sam.b
     await userEvent.type(within(menu).getByRole("searchbox"), "@SAM.b");
 

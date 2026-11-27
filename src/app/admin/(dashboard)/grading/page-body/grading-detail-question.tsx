@@ -184,7 +184,6 @@ export async function GradingDetailQuestion({
                   existingScore={grade?.score ?? null}
                   existingFeedback={grade?.feedback ?? null}
                   existingSolution={grade?.solution ?? null}
-                  studentStatus={status}
                   saveAndNext={{
                     routeKind: gradingRouteKind(basePath),
                     mode: GradingMode.Question,

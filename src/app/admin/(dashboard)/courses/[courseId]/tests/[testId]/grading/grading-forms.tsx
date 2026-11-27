@@ -3,23 +3,12 @@
 import { useActionState, useId, useState } from "react";
 import { formatReleaseLine } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/test-settings-panel";
 import type { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
+import { useGradeLocked } from "src/app/admin/(dashboard)/grading/page-body/still-writing-confirm";
 import { useReportUnsavedGrade } from "src/app/admin/(dashboard)/grading/page-body/unsaved-grade.state";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "src/components/ui/alert-dialog";
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
 import type { GradingMode } from "src/lib/grading-mode";
-import { TestStatus } from "src/lib/test-status-service";
 import {
   type ReleaseCorrectAnswersState,
   type ReleaseGradesState,
@@ -57,7 +46,6 @@ interface BaseGradeFormProps {
   existingScore: number | null;
   existingFeedback: string | null;
   existingSolution: string | null;
-  studentStatus?: TestStatus;
   saveAndNext: SaveAndNextNavigation;
   /** Offers 0 / 50 / 100 buttons that fill the score field. */
   showQuickScores?: boolean;
@@ -96,9 +84,11 @@ function GradeInputs({
     (typedFeedback !== null && typedFeedback !== (existingFeedback ?? "")) ||
     (typedSolution !== null && typedSolution !== (existingSolution ?? ""));
   useReportUnsavedGrade("grade", hasDraft);
+  const locked = useGradeLocked();
 
   return (
-    <>
+    // A disabled fieldset locks every field and quick-score button inside it.
+    <fieldset disabled={locked} className="m-0 min-w-0 space-y-3 border-0 p-0">
       <div className="flex items-center gap-3">
         <label htmlFor={`score-${questionId}`} className="text-sm font-medium">
           Score (0–100):
@@ -164,7 +154,7 @@ function GradeInputs({
           className="mt-1 resize-y"
         />
       </div>
-    </>
+    </fieldset>
   );
 }
 
@@ -181,16 +171,14 @@ function GradeFormInner({
   existingScore,
   existingFeedback,
   existingSolution,
-  studentStatus,
   saveAndNext,
   showQuickScores = false,
   formKey,
   children,
 }: BaseGradeFormProps) {
-  const requiresConfirm = studentStatus === TestStatus.InProgress;
-
-  // The confirm dialog is portalled out of the form, so its button targets it by id.
+  // The Save & next button sits outside the form, so it targets the form by id.
   const formId = useId();
+  const locked = useGradeLocked();
   // The save and its redirect run as one pending action, so the button locks until the next answer opens.
   const [, saveAction, isSaving] = useActionState(
     async (_previous: null, formData: FormData) => {
@@ -237,45 +225,15 @@ function GradeFormInner({
             {saveAndNext.leftLine}
           </p>
         )}
-        {requiresConfirm ? (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                size="sm"
-                className="w-full"
-                disabled={isSaving}
-              >
-                {saveAndNext.label}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Submit grade anyway?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This student hasn&apos;t submitted their test yet. Are you
-                  sure you want to grade their in-progress work?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction type="submit" form={formId}>
-                  Submit Anyway
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ) : (
-          <Button
-            type="submit"
-            form={formId}
-            size="sm"
-            className="w-full"
-            disabled={isSaving}
-          >
-            {saveAndNext.label}
-          </Button>
-        )}
+        <Button
+          type="submit"
+          form={formId}
+          size="sm"
+          className="w-full"
+          disabled={isSaving || locked}
+        >
+          {saveAndNext.label}
+        </Button>
       </div>
     </div>
   );
@@ -307,46 +265,55 @@ export function OverallFeedbackForm({
   const [typed, setTyped] = useState<string | null>(null);
   const hasDraft = typed !== null && typed !== (existingFeedback ?? "");
   useReportUnsavedGrade("overall-feedback", hasDraft);
+  const locked = useGradeLocked();
 
   return (
     <details className="rounded-lg border p-3">
       <summary className="cursor-pointer text-sm font-medium wrap-anywhere">
         Overall feedback for {studentName}
       </summary>
-      <form action={formAction} className="mt-3 space-y-3">
-        <input type="hidden" name="testId" value={testId} />
-        <input type="hidden" name="courseId" value={courseId} />
-        <input type="hidden" name="studentId" value={studentId} />
+      <form action={formAction} className="mt-3">
+        <fieldset
+          disabled={locked}
+          className="m-0 min-w-0 space-y-3 border-0 p-0"
+        >
+          <input type="hidden" name="testId" value={testId} />
+          <input type="hidden" name="courseId" value={courseId} />
+          <input type="hidden" name="studentId" value={studentId} />
 
-        <label htmlFor={`overall-${studentId}`} className="text-sm font-medium">
-          Overall Test Feedback:
-        </label>
-        <Textarea
-          id={`overall-${studentId}`}
-          name="feedback"
-          placeholder="Overall feedback for this student's test..."
-          defaultValue={existingFeedback ?? ""}
-          onChange={(event) => setTyped(event.target.value)}
-          rows={3}
-          className="resize-y"
-        />
+          <label
+            htmlFor={`overall-${studentId}`}
+            className="text-sm font-medium"
+          >
+            Overall Test Feedback:
+          </label>
+          <Textarea
+            id={`overall-${studentId}`}
+            name="feedback"
+            placeholder="Overall feedback for this student's test..."
+            defaultValue={existingFeedback ?? ""}
+            onChange={(event) => setTyped(event.target.value)}
+            rows={3}
+            className="resize-y"
+          />
 
-        <div className="flex items-center gap-3">
-          <Button type="submit" size="sm" disabled={isPending}>
-            {isPending
-              ? "Saving..."
-              : existingFeedback
-                ? "Update Feedback"
-                : "Save Feedback"}
-          </Button>
-          {state?.message && (
-            <p
-              className={`text-sm ${state.success ? "text-green-600" : "text-destructive"}`}
-            >
-              {state.message}
-            </p>
-          )}
-        </div>
+          <div className="flex items-center gap-3">
+            <Button type="submit" size="sm" disabled={isPending}>
+              {isPending
+                ? "Saving..."
+                : existingFeedback
+                  ? "Update Feedback"
+                  : "Save Feedback"}
+            </Button>
+            {state?.message && (
+              <p
+                className={`text-sm ${state.success ? "text-green-600" : "text-destructive"}`}
+              >
+                {state.message}
+              </p>
+            )}
+          </div>
+        </fieldset>
       </form>
     </details>
   );

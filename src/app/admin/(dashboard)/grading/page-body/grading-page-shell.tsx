@@ -13,6 +13,7 @@ import {
 import { GradingRosterQuestions } from "./grading-roster-questions";
 import { GradingTopBar, StudentPosition } from "./grading-top-bar.ui";
 import { gradingHref } from "./href";
+import { StillWritingProvider } from "./still-writing-confirm";
 import { StudentPicker } from "./student-picker";
 import {
   buildStudentPickerRows,
@@ -202,55 +203,58 @@ export async function GradingPageShell({
     focusedIndex === -1 ? submittedIds[0] : submittedIds[focusedIndex + 1];
 
   return (
-    <TwoPaneShell
-      topBar={
-        <GradingTopBar
-          backHref={`/admin/courses/${courseId}/tests/${test.id}`}
-          testTitle={test.title}
-          pivot={
-            <PivotToggle
-              mode={selection.mode}
-              basePath={basePath}
-              studentId={focused?.id}
-              questionId={focusedQuestion?.id}
-              needsOnly={selection.needsOnly}
-            />
-          }
-          position={
-            selection.mode === GradingMode.Student ? (
-              <StudentPosition
-                picker={
-                  <StudentPicker
-                    rows={pickerRows}
-                    currentId={focused?.id ?? null}
-                    currentName={focused?.name ?? null}
-                    testTitle={test.title}
-                    basePath={basePath}
-                    needsOnly={selection.needsOnly}
-                  />
-                }
-                index={focusedIndex === -1 ? null : focusedIndex + 1}
-                submittedCount={submittedIds.length}
-                previousHref={studentHref(previousId)}
-                nextHref={studentHref(nextId)}
+    <StillWritingProvider>
+      <TwoPaneShell
+        topBar={
+          <GradingTopBar
+            backHref={`/admin/courses/${courseId}/tests/${test.id}`}
+            testTitle={test.title}
+            pivot={
+              <PivotToggle
+                mode={selection.mode}
+                basePath={basePath}
+                studentId={focused?.id}
+                questionId={focusedQuestion?.id}
+                needsOnly={selection.needsOnly}
               />
-            ) : null
-          }
-          progress={<GradingProgress {...progress} />}
-          actions={barActions}
-        />
-      }
-      roster={
-        selection.mode === GradingMode.Question ? (
-          <GradingRosterQuestions
-            questions={questions}
-            basePath={basePath}
-            activeQuestionId={focusedQuestion?.id ?? null}
+            }
+            position={
+              selection.mode === GradingMode.Student ? (
+                <StudentPosition
+                  picker={
+                    <StudentPicker
+                      rows={pickerRows}
+                      currentId={focused?.id ?? null}
+                      currentName={focused?.name ?? null}
+                      currentUsername={focused?.username ?? null}
+                      testTitle={test.title}
+                      basePath={basePath}
+                      needsOnly={selection.needsOnly}
+                    />
+                  }
+                  index={focusedIndex === -1 ? null : focusedIndex + 1}
+                  submittedCount={submittedIds.length}
+                  previousHref={studentHref(previousId)}
+                  nextHref={studentHref(nextId)}
+                />
+              ) : null
+            }
+            progress={<GradingProgress {...progress} />}
+            actions={barActions}
           />
-        ) : null
-      }
-      main={main}
-      fillScreen={selection.mode === GradingMode.Student}
-    />
+        }
+        roster={
+          selection.mode === GradingMode.Question ? (
+            <GradingRosterQuestions
+              questions={questions}
+              basePath={basePath}
+              activeQuestionId={focusedQuestion?.id ?? null}
+            />
+          ) : null
+        }
+        main={main}
+        fillScreen={selection.mode === GradingMode.Student}
+      />
+    </StillWritingProvider>
   );
 }

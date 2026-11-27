@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useId, useState } from "react";
+import { useGradeLocked } from "src/app/admin/(dashboard)/grading/page-body/still-writing-confirm";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -98,6 +99,7 @@ export function AiSuggestionPanel({
   regenerateDisabled = false,
 }: AiSuggestionPanelProps) {
   const [historyOpen, setHistoryOpen] = useState(defaultHistoryOpen);
+  const locked = useGradeLocked();
 
   if (suggestions.length === 0) return null;
 
@@ -133,7 +135,7 @@ export function AiSuggestionPanel({
           studentId={studentId}
           questionId={questionId}
           currentSuggestion={latest}
-          disabled={regenerateDisabled}
+          disabled={regenerateDisabled || locked}
         />
       </div>
       <SuggestionRow
@@ -224,6 +226,7 @@ function SuggestionRow({
     ApplyAiSuggestionState | null,
     FormData
   >(applyAiSuggestionAction, null);
+  const locked = useGradeLocked();
 
   // An older suggestion's fix is not on the left, so its row can unfold it before the teacher uses it.
   const [fixOpen, setFixOpen] = useState(false);
@@ -313,7 +316,7 @@ function SuggestionRow({
           type={needsConfirm ? "button" : "submit"}
           size="sm"
           variant="outline"
-          disabled={isPending}
+          disabled={isPending || locked}
           data-testid="ai-suggestion-apply-button"
           onClick={needsConfirm ? () => setConfirmOpen(true) : undefined}
         >

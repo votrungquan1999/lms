@@ -134,7 +134,7 @@ describe("Feature: the grading top bar", () => {
       ).toBeInTheDocument();
       expect(
         within(bar).getByTestId("grading-student-position"),
-      ).toHaveTextContent(/Bob\s*‹\s*1 of 2 submitted\s*›/);
+      ).toHaveTextContent(/Bob\s*@bob\s*‹\s*1 of 2 submitted\s*›/);
       // Bob is first among the submitted, so ‹ goes nowhere and › opens Alice
       expect(
         within(bar).queryByRole("link", { name: "Previous submitted student" }),

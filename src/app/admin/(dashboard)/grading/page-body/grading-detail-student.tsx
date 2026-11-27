@@ -320,6 +320,7 @@ export async function GradingDetailStudent({
           {selectedQuestion && (
             <GradePanel
               testId={testId}
+              testTitle={test.title}
               courseId={courseId}
               student={student}
               question={selectedQuestion}
