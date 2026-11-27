@@ -159,6 +159,7 @@ describe("Feature: the student picker", () => {
       ),
     ].map((el) => el.textContent?.trim());
     expect(lines).toEqual([
+      expect.stringContaining("Next waiting student"),
       "Needs grading · 2",
       expect.stringContaining("Zed"),
       expect.stringContaining("Amy"),
@@ -328,5 +329,63 @@ describe("Feature: searching the student picker", () => {
       "href",
       expect.stringContaining(`studentId=${second.id}`),
     );
+  });
+});
+
+describe("Feature: Next waiting student in the student picker", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  async function openPicker(testId: string) {
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId }),
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /student picker/i }),
+    );
+    return screen.findByRole("menu");
+  }
+
+  it("opens the oldest waiting student other than the one shown, skipping graded students", async () => {
+    // Given Zed, Yan and Xin wait, handed in in that order (Zed is the one shown), and Ann is graded
+    const { test, addStudent } = await seedTest();
+    await addStudent("Ann", "graded");
+    await addStudent("Zed", "waiting");
+    const yan = await addStudent("Yan", "waiting");
+    await addStudent("Xin", "waiting");
+
+    // When the teacher opens the picker
+    const menu = await openPicker(test.id);
+
+    // Then "Next waiting student" links to Yan, the oldest waiting student after Zed
+    const next = within(menu).getByRole("menuitem", {
+      name: /Next waiting student/,
+    });
+    expect(next).toHaveAttribute(
+      "href",
+      expect.stringContaining(`studentId=${yan.id}`),
+    );
+  });
+
+  it("is disabled when no other student waits", async () => {
+    // Given Zed is the only waiting student and is the one shown
+    const { test, addStudent } = await seedTest();
+    await addStudent("Zed", "waiting");
+    await addStudent("Ann", "graded");
+
+    // When the teacher opens the picker
+    const menu = await openPicker(test.id);
+
+    // Then "Next waiting student" cannot be used
+    expect(
+      within(menu).getByRole("menuitem", { name: /Next waiting student/ }),
+    ).toHaveAttribute("aria-disabled", "true");
   });
 });

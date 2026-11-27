@@ -1,7 +1,10 @@
 import { GradingMode } from "src/lib/grading-mode";
 import { gradingHref } from "./href";
 import { StudentPickerUi } from "./student-picker.ui";
-import type { StudentPickerRow } from "./student-picker-rows";
+import {
+  StudentPickerGroup,
+  type StudentPickerRow,
+} from "./student-picker-rows";
 
 interface StudentPickerProps {
   rows: StudentPickerRow[];
@@ -30,8 +33,14 @@ export function StudentPicker({
       }),
     ]),
   );
+  // Needs grading lists the oldest hand-in first, so the first row that is not the open student is next.
+  const nextWaiting = rows.find(
+    (row) =>
+      row.group === StudentPickerGroup.NeedsGrading && row.id !== currentId,
+  );
   return (
     <StudentPickerUi
+      nextWaitingHref={nextWaiting ? hrefFor[nextWaiting.id] : null}
       currentName={currentName}
       rows={rows}
       currentId={currentId}

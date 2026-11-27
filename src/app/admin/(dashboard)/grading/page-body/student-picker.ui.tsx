@@ -35,6 +35,8 @@ interface StudentPickerUiProps {
   currentId: string | null;
   /** Where picking a student goes. */
   hrefFor: Record<string, string>;
+  /** Where "Next waiting student" goes, or null when no other student waits. */
+  nextWaitingHref: string | null;
 }
 
 /** The student picker: a dropdown naming the open student, listing every student under her status. */
@@ -43,6 +45,7 @@ export function StudentPickerUi({
   rows,
   currentId,
   hrefFor,
+  nextWaitingHref,
 }: StudentPickerUiProps) {
   const [query, setQuery] = useState("");
   const matching = rows.filter((row) => matchesPickerSearch(row, query));
@@ -78,6 +81,17 @@ export function StudentPickerUi({
             onKeyDown={(event) => event.stopPropagation()}
           />
         </div>
+        {query.trim() !== "" ? null : nextWaitingHref === null ? (
+          <DropdownMenuItem disabled>
+            <NextWaitingLabel />
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem asChild>
+            <GuardedLink href={nextWaitingHref} scroll={false}>
+              <NextWaitingLabel />
+            </GuardedLink>
+          </DropdownMenuItem>
+        )}
         {matching.length === 0 && (
           <p className="px-2 py-1.5 text-sm text-muted-foreground">
             No student matches
@@ -109,6 +123,17 @@ export function StudentPickerUi({
         })}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function NextWaitingLabel() {
+  return (
+    <span className="flex w-full min-w-0 items-baseline justify-between gap-2">
+      <span className="truncate">Next waiting student</span>
+      <span className="shrink-0 text-xs text-muted-foreground">
+        skips graded
+      </span>
+    </span>
   );
 }
 
