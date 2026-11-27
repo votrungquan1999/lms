@@ -28,8 +28,6 @@ vi.mock("src/lib/auth-singleton", () => ({
 
 import {
   releaseCorrectAnswersAction,
-  releaseGradeForStudentAction,
-  releaseGradesAction,
   releaseTestAction,
   requestRedoAction,
   saveAndNextAction,
@@ -297,22 +295,6 @@ describe("Feature: a school admin can never grade another school's test", () => 
     ).toBeNull();
   });
 
-  it("releaseGradesAction refuses a foreign test and leaves it un-released", async () => {
-    await signInAsOtherSchoolAdmin();
-    const foreign = await createForeignFixture();
-    const formData = new FormData();
-    formData.set("testId", foreign.testId);
-    formData.set("courseId", foreign.courseId);
-
-    const result = await releaseGradesAction(null, formData);
-
-    expect(result.success).toBe(false);
-    expect(
-      (await getTestServices().testService.getTest(foreign.testId))
-        ?.gradesReleasedAt,
-    ).toBeNull();
-  });
-
   it("releaseTestAction refuses a foreign test and releases neither grades nor correct answers", async () => {
     await signInAsOtherSchoolAdmin();
     const foreign = await createForeignFixture();
@@ -426,33 +408,6 @@ describe("Feature: a school admin can never grade another school's test", () => 
         foreign.testId,
         foreign.studentId,
       ),
-    ).toBeNull();
-  });
-
-  it("releaseGradeForStudentAction refuses a foreign test and releases nothing", async () => {
-    const foreign = await createForeignFixture();
-    // A real active submission — without the parent check this release would
-    // otherwise succeed, so the refusal genuinely comes from school scoping.
-    await getTestServices().testSubmissionService.submitTest(
-      foreign.testId,
-      foreign.studentId,
-    );
-    await signInAsOtherSchoolAdmin();
-    const formData = new FormData();
-    formData.set("testId", foreign.testId);
-    formData.set("courseId", foreign.courseId);
-    formData.set("studentId", foreign.studentId);
-
-    const result = await releaseGradeForStudentAction(null, formData);
-
-    expect(result.success).toBe(false);
-    expect(
-      (
-        await getTestServices().testSubmissionService.getActiveSubmission(
-          foreign.testId,
-          foreign.studentId,
-        )
-      )?.releasedAt,
     ).toBeNull();
   });
 

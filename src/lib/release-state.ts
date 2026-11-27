@@ -1,4 +1,5 @@
 import type { Test } from "src/lib/test-service";
+import { TestStatus } from "src/lib/test-status-service";
 
 export enum GradeReleaseKind {
   ShownOnSubmit = "shown-on-submit",
@@ -56,4 +57,29 @@ export function gradeReleaseText(state: GradeReleaseState): string {
     case GradeReleaseKind.NotReleased:
       return "Not released";
   }
+}
+
+export enum StudentReleaseOffer {
+  /** Her grade can be released to her alone. */
+  Release = "release",
+  /** Her grade was released to her alone. */
+  Released = "released",
+}
+
+/**
+ * What the grading screen offers for releasing one student's grade alone.
+ * @param test - The test with its release settings.
+ * @param pair - The student's status, open redo and whether her grade is still hidden.
+ * @returns Nothing when the test's grades are out for everyone, or she is not Graded, or her old grade is held by an open redo.
+ */
+export function studentReleaseOffer(
+  test: Pick<Test, "showGradeAfterSubmit" | "gradesReleasedAt">,
+  pair: { status: TestStatus; redoRequested: boolean; gradedHidden: boolean },
+): StudentReleaseOffer | null {
+  const state = gradeReleaseState(test, { releasedTo: 0, fullyGraded: 0 });
+  if (state.kind !== GradeReleaseKind.NotReleased) return null;
+  if (pair.status !== TestStatus.Graded || pair.redoRequested) return null;
+  return pair.gradedHidden
+    ? StudentReleaseOffer.Release
+    : StudentReleaseOffer.Released;
 }

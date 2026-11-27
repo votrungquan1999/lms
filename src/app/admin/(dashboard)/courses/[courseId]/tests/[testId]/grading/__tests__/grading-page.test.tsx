@@ -34,10 +34,8 @@ vi.mock("src/lib/auth-singleton", () => ({
 
 vi.mock("../actions", () => ({
   setTestFeedbackAction: vi.fn(),
-  releaseGradesAction: vi.fn(),
   releaseCorrectAnswersAction: vi.fn(),
   requestRedoAction: vi.fn(),
-  releaseGradeForStudentAction: vi.fn(),
   saveAndNextAction: vi.fn(),
 }));
 

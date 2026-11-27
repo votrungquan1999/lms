@@ -18,6 +18,10 @@ import {
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import type { Question } from "src/lib/question-service";
 import {
+  StudentReleaseOffer,
+  studentReleaseOffer,
+} from "src/lib/release-state";
+import {
   getAiGradeJobService,
   getAiGradeService,
   getAnnotationService,
@@ -67,7 +71,9 @@ export async function GradingDetailQuestion({
   // Mint presigned GET URLs for the question's media so the grader sees exactly what the student saw.
   const [question] = await attachQuestionMediaUrls([focused]);
 
-  const status = screen.pairs.get(student.id)?.status ?? TestStatus.NotStarted;
+  const pair = screen.pairs.get(student.id);
+  const status = pair?.status ?? TestStatus.NotStarted;
+  const releaseOffer = pair ? studentReleaseOffer(test, pair) : null;
   const answer = screen.answers.get(student.id)?.get(question.id);
   const grade = screen.grades.get(student.id)?.get(question.id);
   const photos =
@@ -198,16 +204,31 @@ export async function GradingDetailQuestion({
             )
           }
           moreMenu={
-            !test.isPractice && status === TestStatus.Submitted ? (
+            !test.isPractice &&
+            (status === TestStatus.Submitted || releaseOffer !== null) ? (
               // Remounts with the job, so a "started" message does not outlive its job.
               <MoreMenu
-                key={aiJob.key}
+                key={`${student.id}:${aiJob.key}`}
                 testId={testId}
                 courseId={courseId}
                 studentId={student.id}
-                offerAutoGrade={suggestionsByQuestion.size === 0}
-                offerRegenerateAll={suggestionsByQuestion.size > 0}
+                offerAutoGrade={
+                  status === TestStatus.Submitted &&
+                  suggestionsByQuestion.size === 0
+                }
+                offerRegenerateAll={
+                  status === TestStatus.Submitted &&
+                  suggestionsByQuestion.size > 0
+                }
                 aiGradingStartedAt={aiJob.startedAt}
+                releaseTo={
+                  releaseOffer === null
+                    ? undefined
+                    : {
+                        studentName: student.name,
+                        released: releaseOffer === StudentReleaseOffer.Released,
+                      }
+                }
               />
             ) : undefined
           }

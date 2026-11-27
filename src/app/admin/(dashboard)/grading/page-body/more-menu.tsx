@@ -1,6 +1,12 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
+import {
+  startTransition,
+  useActionState,
+  useState,
+  useTransition,
+} from "react";
+import { releaseTestAction } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions";
 import {
   type AutoGradeSubmissionState,
   autoGradeSubmissionAction,
@@ -24,6 +30,8 @@ interface MoreMenuProps {
   offerRegenerateAll: boolean;
   /** When the student's pending AI grading job started; null when none is pending. Locks the AI entries. */
   aiGradingStartedAt: Date | null;
+  /** The student's name and whether her grade is already released to her alone; absent when it cannot be offered. */
+  releaseTo?: { studentName: string; released: boolean };
 }
 
 /** The "More" menu of the grade panel: the student-level actions that are not the grade itself. */
@@ -34,8 +42,12 @@ export function MoreMenu({
   offerAutoGrade,
   offerRegenerateAll,
   aiGradingStartedAt,
+  releaseTo,
 }: MoreMenuProps) {
   const [regenerateOpen, setRegenerateOpen] = useState(false);
+  const [releasedNow, setReleasedNow] = useState(false);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+  const [releasing, startRelease] = useTransition();
   const [state, formAction] = useActionState<
     AutoGradeSubmissionState | null,
     FormData
@@ -48,6 +60,22 @@ export function MoreMenu({
     form.set("studentId", studentId);
     startTransition(() => formAction(form));
   }
+
+  function releaseGrade() {
+    const form = new FormData();
+    form.set("testId", testId);
+    form.set("courseId", courseId);
+    form.set("mode", "chosen");
+    form.append("studentId", studentId);
+    setReleaseError(null);
+    startRelease(async () => {
+      const result = await releaseTestAction(null, form);
+      if (result.success) setReleasedNow(true);
+      else setReleaseError(result.message);
+    });
+  }
+
+  const released = releaseTo?.released === true || releasedNow;
 
   return (
     <div className="space-y-1">
@@ -74,6 +102,21 @@ export function MoreMenu({
               Regenerate all with AI…
             </DropdownMenuItem>
           )}
+          {releaseTo &&
+            (released ? (
+              <DropdownMenuItem disabled>
+                Released to {releaseTo.studentName}
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled={releasing} onSelect={releaseGrade}>
+                <span className="flex flex-col">
+                  Release to {releaseTo.studentName}
+                  <span className="text-xs text-muted-foreground">
+                    Only {releaseTo.studentName} sees this grade now
+                  </span>
+                </span>
+              </DropdownMenuItem>
+            ))}
         </DropdownMenuContent>
       </DropdownMenu>
       {/* Beside the menu, not inside an item, so it outlives the menu closing. */}
@@ -85,6 +128,9 @@ export function MoreMenu({
         onOpenChange={setRegenerateOpen}
         disabled={aiGradingStartedAt !== null}
       />
+      {releaseError && (
+        <p className="text-xs text-destructive">{releaseError}</p>
+      )}
       {state?.message && (
         <p
           className={`text-xs ${

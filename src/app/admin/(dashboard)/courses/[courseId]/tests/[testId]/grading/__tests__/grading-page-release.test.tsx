@@ -53,7 +53,7 @@ describe("Feature: Admin per-student grade release", () => {
     await teardownTestDb();
   });
 
-  it("renders Release-Grade button for an eligible Graded student, clicks it, DB stamps releasedAt, UI swaps to indicator, and student path is revalidated", async () => {
+  it("offers Release to <student> in More for an eligible Graded student, releases her grade alone, DB stamps releasedAt, the item reads Released to <student>, and the student path is revalidated", async () => {
     const user = userEvent.setup();
     const services = getTestServices();
 
@@ -110,16 +110,17 @@ describe("Feature: Admin per-student grade release", () => {
     });
     render(ui);
 
-    const releaseButton = await screen.findByRole("button", {
-      name: /release grade to student/i,
-    });
-    expect(releaseButton).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /more/i }));
+    await user.click(
+      await screen.findByRole("menuitem", { name: /release to stu/i }),
+    );
 
-    await user.click(releaseButton);
-
-    // UI swaps to indicator.
+    // The item swaps to its released state.
+    await user.click(screen.getByRole("button", { name: /more/i }));
     await waitFor(() => {
-      expect(screen.getByText(/released to this student/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("menuitem", { name: /released to stu/i }),
+      ).toHaveAttribute("aria-disabled", "true");
     });
 
     // DB reflects the release.
@@ -141,11 +142,20 @@ describe("Feature: Admin per-student grade release", () => {
     expect(revalidated).toContain(`/admin/grading/${test.id}`);
   });
 
-  it("hides the Release-Grade button for Submitted / NotStarted / already-released students and when the global flag is on, and shows the indicator for already-released", async () => {
-    // Negative-case visibility matrix per Step 15 AC. Seeds four students,
+  it("offers no Release to item for Submitted / NotStarted / open-redo students or when the global flag is on, and shows it disabled as Released to for an already-released student", async () => {
+    // Visibility matrix of the More menu's release item. Seeds the students,
     // each isolated in their own course+test so we can independently configure
     // the test-level flag for case 3 (global flag on).
     const services = getTestServices();
+    // Opens More when the card has one and checks it offers no release.
+    const expectNoReleaseItem = async (card: HTMLElement) => {
+      const more = within(card).queryByRole("button", { name: /more/i });
+      if (more) await userEvent.click(more);
+      expect(
+        screen.queryByRole("menuitem", { name: /release to|released to/i }),
+      ).toBeNull();
+      await userEvent.keyboard("{Escape}");
+    };
 
     // --- Test A: flag OFF (per-student release scenario) -------------------
     const courseA = await services.courseService.createCourse({
@@ -243,6 +253,39 @@ describe("Feature: Admin per-student grade release", () => {
       "admin-1",
     );
 
+    // Student 3b: Graded with an open redo. Her old grade is held, so no release.
+    const redoStudent = await services.studentService.createStudentDocument({
+      authUserId: "auth-redo",
+      username: "redo-user",
+      name: "Redo Rita",
+      createdBy: "admin",
+    });
+    await services.enrollmentService.enrollStudent(
+      courseA.id,
+      redoStudent.id,
+      "admin",
+    );
+    await services.answerService.submitAnswer({
+      testId: testA.id,
+      questionId: questionA.id,
+      studentId: redoStudent.id,
+      answer: { type: "free_text", text: "answer" },
+    });
+    await services.testSubmissionService.submitTest(testA.id, redoStudent.id);
+    await services.gradeService.gradeQuestion({
+      testId: testA.id,
+      questionId: questionA.id,
+      studentId: redoStudent.id,
+      score: 60,
+      feedback: "Ok",
+      gradedBy: "admin",
+    });
+    await services.redoRequestService.requestRedo(
+      testA.id,
+      redoStudent.id,
+      "admin",
+    );
+
     // Render once per student via ?studentId= so the detail pane focuses
     // the right one each time. The redesigned shell renders only the focused
     // student in the main pane, so per-student assertions need per-student
@@ -260,40 +303,31 @@ describe("Feature: Admin per-student grade release", () => {
     const submittedCard = await screen.findByTestId(
       `student-card-${submittedStudent.id}`,
     );
-    expect(
-      within(submittedCard).queryByRole("button", {
-        name: /release grade to student/i,
-      }),
-    ).toBeNull();
-    expect(
-      within(submittedCard).queryByText(/released to this student/i),
-    ).toBeNull();
+    await expectNoReleaseItem(submittedCard);
 
     await renderTestAFor(notStartedStudent.id);
     const notStartedCard = screen.getByTestId(
       `student-card-${notStartedStudent.id}`,
     );
-    expect(
-      within(notStartedCard).queryByRole("button", {
-        name: /release grade to student/i,
-      }),
-    ).toBeNull();
-    expect(
-      within(notStartedCard).queryByText(/released to this student/i),
-    ).toBeNull();
+    await expectNoReleaseItem(notStartedCard);
+
+    await renderTestAFor(redoStudent.id);
+    await expectNoReleaseItem(
+      screen.getByTestId(`student-card-${redoStudent.id}`),
+    );
 
     await renderTestAFor(releasedStudent.id);
     const releasedCard = screen.getByTestId(
       `student-card-${releasedStudent.id}`,
     );
+    await userEvent.click(
+      within(releasedCard).getByRole("button", { name: /more/i }),
+    );
     expect(
-      within(releasedCard).queryByRole("button", {
-        name: /release grade to student/i,
+      await screen.findByRole("menuitem", {
+        name: /released to released rachel/i,
       }),
-    ).toBeNull();
-    expect(
-      within(releasedCard).getByText(/released to this student/i),
-    ).toBeInTheDocument();
+    ).toHaveAttribute("aria-disabled", "true");
 
     cleanup();
 
@@ -357,15 +391,6 @@ describe("Feature: Admin per-student grade release", () => {
     const globalFlagCard = await screen.findByTestId(
       `student-card-${globalFlagStudent.id}`,
     );
-    expect(
-      within(globalFlagCard).queryByRole("button", {
-        name: /release grade to student/i,
-      }),
-    ).toBeNull();
-    // Neither button nor indicator should render — global flag entirely
-    // suppresses the per-student control.
-    expect(
-      within(globalFlagCard).queryByText(/released to this student/i),
-    ).toBeNull();
+    await expectNoReleaseItem(globalFlagCard);
   });
 });

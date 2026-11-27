@@ -7,7 +7,6 @@ import {
   RequestRedoButton,
 } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { PendingAiGradingRefresher } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/pending-ai-grading-refresher.ui";
-import { ReleaseGradeForStudentControl } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/release-grade-for-student";
 import { AnswerPane } from "src/app/admin/(dashboard)/grading/page-body/answer-pane";
 import { GradePanel } from "src/app/admin/(dashboard)/grading/page-body/grade-panel";
 import { MoreMenu } from "src/app/admin/(dashboard)/grading/page-body/more-menu";
@@ -32,6 +31,10 @@ import {
 } from "src/lib/next-answer-to-grade";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
 import {
+  StudentReleaseOffer,
+  studentReleaseOffer,
+} from "src/lib/release-state";
+import {
   getAiGradeJobService,
   getAiGradeService,
   getAnnotationService,
@@ -41,7 +44,6 @@ import {
   getRedoRequestService,
   getTestFeedbackService,
   getTestStatusService,
-  getTestSubmissionService,
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
@@ -158,12 +160,6 @@ export async function GradingDetailStudent({
     student.id,
   );
 
-  const testSubmissionService = await getTestSubmissionService(schoolId);
-  const activeSubmission = await testSubmissionService.getActiveSubmission(
-    testId,
-    student.id,
-  );
-
   const screen = givenScreen ?? (await readGradingScreen(schoolId, test));
 
   const aiGradeService = await getAiGradeService(schoolId);
@@ -194,6 +190,8 @@ export async function GradingDetailStudent({
     ? (aiSuggestionsByQuestion.get(selectedQuestion.id) ?? [])
     : [];
 
+  const pair = screen.pairs.get(student.id);
+  const releaseOffer = pair ? studentReleaseOffer(test, pair) : null;
   const hasAnswers = latestAnswers.length > 0;
   const hasActiveRedoRequest = activeRedoRequest !== null;
 
@@ -255,13 +253,6 @@ export async function GradingDetailStudent({
                   hasActiveRedoRequest={hasActiveRedoRequest}
                 />
               )}
-              <ReleaseGradeForStudentControl
-                test={test}
-                courseId={courseId}
-                studentId={student.id}
-                submission={activeSubmission}
-                status={status}
-              />
             </div>
           </div>
         </CardHeader>
@@ -342,16 +333,32 @@ export async function GradingDetailStudent({
                 )
               }
               moreMenu={
-                !test.isPractice && status === TestStatus.Submitted ? (
+                !test.isPractice &&
+                (status === TestStatus.Submitted || releaseOffer !== null) ? (
                   // Remounts with the job, so a "started" message does not outlive its job.
                   <MoreMenu
-                    key={aiJobStateKey}
+                    key={`${student.id}:${aiJobStateKey}`}
                     testId={testId}
                     courseId={courseId}
                     studentId={student.id}
-                    offerAutoGrade={aiSuggestionsByQuestion.size === 0}
-                    offerRegenerateAll={aiSuggestionsByQuestion.size > 0}
+                    offerAutoGrade={
+                      status === TestStatus.Submitted &&
+                      aiSuggestionsByQuestion.size === 0
+                    }
+                    offerRegenerateAll={
+                      status === TestStatus.Submitted &&
+                      aiSuggestionsByQuestion.size > 0
+                    }
                     aiGradingStartedAt={aiGradingStartedAt}
+                    releaseTo={
+                      releaseOffer === null
+                        ? undefined
+                        : {
+                            studentName: student.name,
+                            released:
+                              releaseOffer === StudentReleaseOffer.Released,
+                          }
+                    }
                   />
                 ) : undefined
               }

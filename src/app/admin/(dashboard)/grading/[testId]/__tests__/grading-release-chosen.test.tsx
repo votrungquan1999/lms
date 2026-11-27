@@ -31,7 +31,6 @@ vi.mock(
     releaseTestAction,
     releaseCorrectAnswersAction: vi.fn(),
     requestRedoAction: vi.fn(),
-    releaseGradeForStudentAction: vi.fn(),
     saveAndNextAction: vi.fn(),
   }),
 );

@@ -26,10 +26,8 @@ vi.mock(
   "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions",
   () => ({
     setTestFeedbackAction: vi.fn(),
-    releaseGradesAction: vi.fn(),
     releaseCorrectAnswersAction: vi.fn(),
     requestRedoAction: vi.fn(),
-    releaseGradeForStudentAction: vi.fn(),
     saveAndNextAction: vi.fn(),
   }),
 );

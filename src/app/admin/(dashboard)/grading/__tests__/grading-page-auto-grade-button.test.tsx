@@ -41,7 +41,7 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
     await teardownTestDb();
   });
 
-  it("should offer Auto-grade with AI in More only on the Submitted student card, with no More menu on NotStarted, InProgress, and Graded cards", async () => {
+  it("should offer Auto-grade with AI in More only on the Submitted student card, with no More menu on NotStarted and InProgress cards and no Auto-grade entry on the Graded card", async () => {
     // Given: a single test with 4 students, one in each TestStatus
     const services = getTestServices();
 
@@ -209,7 +209,6 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
     for (const [studentId, name] of [
       [notStartedStudent.id, "not started"],
       [inProgressStudent.id, "in progress"],
-      [gradedStudent.id, "graded"],
     ] as const) {
       await renderForStudent(studentId);
       const card = screen.getByTestId(`student-card-${studentId}`);
@@ -218,5 +217,20 @@ describe("Feature: Auto-grade with AI button visibility on the admin grading pag
         `${name} student has no More menu`,
       ).toBeNull();
     }
+
+    // A Graded student's More offers her release, not Auto-grade.
+    await renderForStudent(gradedStudent.id);
+    await userEvent.click(
+      within(screen.getByTestId(`student-card-${gradedStudent.id}`)).getByRole(
+        "button",
+        { name: /more/i },
+      ),
+    );
+    expect(
+      await screen.findByRole("menuitem", { name: /release to graded greg/i }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("menuitem", { name: "Auto-grade with AI" }),
+    ).toBeNull();
   });
 });

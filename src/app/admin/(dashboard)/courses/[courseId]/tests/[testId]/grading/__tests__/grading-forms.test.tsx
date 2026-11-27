@@ -9,7 +9,6 @@ import { CompactGradeForm } from "../grading-forms";
 
 vi.mock("../actions", () => ({
   setTestFeedbackAction: vi.fn(),
-  releaseGradesAction: vi.fn(),
   releaseCorrectAnswersAction: vi.fn(),
   requestRedoAction: vi.fn(),
   saveAndNextAction: vi.fn(),

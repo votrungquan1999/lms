@@ -27,7 +27,7 @@ const STUDENT_DETAIL = [
   ...SHELL,
   "src/app/admin/(dashboard)/grading/page-body/grading-detail-student.tsx",
   "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms.tsx",
-  "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/release-grade-for-student.tsx",
+  "src/app/admin/(dashboard)/grading/page-body/more-menu.tsx",
 ];
 
 const TEST_ID = "seed-test-visible";

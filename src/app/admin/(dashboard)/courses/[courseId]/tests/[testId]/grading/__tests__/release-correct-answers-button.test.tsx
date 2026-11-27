@@ -14,7 +14,6 @@ const { releaseCorrectAnswersAction } = vi.hoisted(() => ({
 vi.mock(
   "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions",
   () => ({
-    releaseGradesAction: vi.fn(),
     releaseCorrectAnswersAction,
   }),
 );

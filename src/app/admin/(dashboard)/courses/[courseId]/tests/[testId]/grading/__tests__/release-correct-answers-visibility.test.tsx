@@ -22,10 +22,8 @@ vi.mock("next/headers", () => ({ headers: vi.fn(), cookies: vi.fn() }));
 vi.mock("src/lib/auth-singleton", () => ({ getAuthService: vi.fn() }));
 vi.mock("../actions", () => ({
   setTestFeedbackAction: vi.fn(),
-  releaseGradesAction: vi.fn(),
   releaseCorrectAnswersAction: vi.fn(),
   requestRedoAction: vi.fn(),
-  releaseGradeForStudentAction: vi.fn(),
   saveAndNextAction: vi.fn(),
 }));
 
