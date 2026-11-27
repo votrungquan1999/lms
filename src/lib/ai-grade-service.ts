@@ -56,6 +56,7 @@ import {
   type VerifiedSuggestionTarget,
 } from "src/lib/apply-suggestion";
 import type { GradeDocument, GradeService } from "src/lib/grade-service";
+import { needsGrade } from "src/lib/needs-grade";
 import type { QuestionService } from "src/lib/question-service";
 import type { TestService } from "src/lib/test-service";
 import { normalizeText } from "src/lib/text-normalization";
@@ -717,11 +718,11 @@ export class AiGradeService {
   }
 
   /**
-   * Shared filter: free_text ∩ non-blank-answer, and no existing teacher grade
-   * unless `includeGraded` is set.
+   * Shared filter: free_text ∩ non-blank-answer, and an answer that needs a
+   * grade (never graded, or changed after its grade) unless `includeGraded` is set.
    * @param testId - The test.
    * @param studentId - The student whose answers are filtered.
-   * @param includeGraded - Keep questions the teacher already graded.
+   * @param includeGraded - Keep answers the teacher already graded and the student has not changed.
    */
   private async buildCandidates(
     testId: string,
@@ -734,15 +735,25 @@ export class AiGradeService {
       studentId,
     );
     const existingGrades = await this.gradeService.getGrades(testId, studentId);
-    const gradedQuestionIds = new Set(existingGrades.map((g) => g.questionId));
+    const gradeByQuestion = new Map(
+      existingGrades.map((g) => [g.questionId, g]),
+    );
 
     const candidates: Candidate[] = [];
     for (const question of questions) {
       if (question.type !== "free_text") continue;
-      if (!includeGraded && gradedQuestionIds.has(question.id)) continue;
-
       const studentAnswer = answers.find((a) => a.questionId === question.id);
       if (!studentAnswer || studentAnswer.answer.type !== "free_text") continue;
+      if (
+        !includeGraded &&
+        !needsGrade({
+          answered: true,
+          latestAnswerAt: studentAnswer.submittedAt,
+          grade: gradeByQuestion.get(question.id) ?? null,
+          redoOpen: false,
+        })
+      )
+        continue;
 
       const text = studentAnswer.answer.text;
       if (text.trim() === "") continue;

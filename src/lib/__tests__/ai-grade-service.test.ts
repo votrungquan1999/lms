@@ -2536,6 +2536,86 @@ describe("AiGradeService.generateForStudent - picture links", () => {
   );
 });
 
+describe("AiGradeService.regenerateForStudent - answers changed after their grade", () => {
+  dbIt(
+    "drafts a suggestion for a graded answer the student changed after its grade, and skips a graded answer she left as it was, even with Also regenerate graded off",
+    async ({ db }) => {
+      await insertRawCourses(db, ["course-1"]);
+      // Given: a stub AI client that records which questions it was asked about
+      const asked: string[][] = [];
+      const stubAiClient: AiClient = {
+        async gradeFreeTextBatch(items: AiGradeBatchInput[]) {
+          asked.push(items.map((item) => item.questionId));
+          return items.map((item) => ({
+            questionId: item.questionId,
+            score: 70,
+            feedback: "Draft.",
+            solution: "",
+          }));
+        },
+      };
+      const {
+        testService,
+        questionService,
+        answerService,
+        gradeService,
+        aiGradeService,
+      } = buildCoreServices(db, { aiClient: stubAiClient });
+      const test = await testService.createTest("course-1", {
+        title: "Redo drafts",
+        description: "",
+        createdBy: "admin-1",
+      });
+      const [kept, changed] = await Promise.all(
+        ["Kept", "Changed"].map((title) =>
+          questionService.addQuestion(test.id, {
+            title,
+            content: title,
+            createdBy: "admin-1",
+            type: "free_text",
+          }),
+        ),
+      );
+      const answer = (questionId: string, text: string) =>
+        answerService.submitAnswer({
+          testId: test.id,
+          questionId,
+          studentId: "student-1",
+          answer: { type: "free_text", text },
+        });
+      const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+      await answer(kept!.id, "first try");
+      await answer(changed!.id, "first try");
+      await tick();
+      for (const q of [kept!, changed!]) {
+        await gradeService.gradeQuestion({
+          testId: test.id,
+          questionId: q.id,
+          studentId: "student-1",
+          score: 50,
+          feedback: "",
+          gradedBy: "admin-1",
+        });
+      }
+      await tick();
+      await answer(changed!.id, "second try");
+
+      // When: AI drafts without the regenerate-graded tick
+      const drafted = await aiGradeService.regenerateForStudent(
+        test.id,
+        "student-1",
+        "admin-1",
+        "redo",
+        false,
+      );
+
+      // Then: only the changed answer is drafted
+      expect(drafted.map((d) => d.questionId)).toEqual([changed!.id]);
+      expect(asked).toEqual([[changed!.id]]);
+    },
+  );
+});
+
 describe("AiGradeService.getLatestSuggestion - same-instant suggestions", () => {
   dbIt(
     "given two suggestions made at the same instant, when reading the latest, then the one with the higher id comes back, as the AI card's list puts first",

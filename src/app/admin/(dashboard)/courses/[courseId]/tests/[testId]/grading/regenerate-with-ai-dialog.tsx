@@ -92,7 +92,7 @@ export function RegenerateWithAiDialog({
           <p className="text-xs text-muted-foreground">
             {includeGraded
               ? "On: every written answer gets a new suggestion, including ones you graded."
-              : "Off: only answers you have not graded get a new suggestion."}
+              : "Off: only answers still waiting for a grade get a new suggestion, including answers changed since your grade."}
           </p>
 
           <Button

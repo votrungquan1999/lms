@@ -233,6 +233,52 @@ describe("Feature: a teacher who starts AI grading is told it has started", () =
     expect(gradeFreeTextBatch).not.toHaveBeenCalled();
   });
 
+  it("queues a regenerate-all job for an answer changed after its grade with the include-graded box unticked, instead of saying every question already has a grade", async () => {
+    // Given a graded answer the student then rewrote
+    const seed = await seedSubmittedStudent();
+    const services = getTestServices();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await services.gradeService.gradeQuestion({
+      testId: seed.testId,
+      questionId: seed.questionId,
+      studentId: seed.studentId,
+      score: 50,
+      feedback: "",
+      gradedBy: "admin-1",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const rewritten = await services.answerService.submitAnswer({
+      testId: seed.testId,
+      questionId: seed.questionId,
+      studentId: seed.studentId,
+      answer: {
+        type: "free_text",
+        text: "It calls itself on a smaller input.",
+      },
+    });
+    const form = formFor(seed);
+    form.set("reason", "Her answer changed");
+
+    // When the teacher regenerates all without ticking the box
+    const state = await regenerateSubmissionAction(null, form);
+
+    // Then grading starts on the rewritten answer
+    expect(state).toEqual({
+      success: true,
+      message:
+        "AI grading started. Suggestions will appear here when it finishes.",
+    });
+    const job = await services.aiGradeJobService.getLatestForStudent(
+      seed.testId,
+      seed.studentId,
+    );
+    expect(job).toMatchObject({
+      trigger: AiGradeJobTrigger.RegenerateAll,
+      includeGraded: false,
+      candidates: [{ questionId: seed.questionId, answerId: rewritten.id }],
+    });
+  });
+
   it("queues a single-question job that names the question", async () => {
     // Given a submitted student and a ready runner
     const seed = await seedSubmittedStudent();
