@@ -72,6 +72,8 @@ function AnnotationToolBody({
   photos: AnnotatablePhoto[];
 }): React.ReactNode {
   const { color, entriesByKey, drawing, dispatch } = useAnnotationTool();
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [fit, setFit] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -119,37 +121,66 @@ function AnnotationToolBody({
         ))}
       </div>
 
-      {photos.map((photo) => {
+      {(() => {
+        const photo = photos[photoIndex] ?? photos[0];
         const committed = entriesByKey[photo.key] ?? [];
         const live =
           drawing && drawing.mediaKey === photo.key ? [drawing.stroke] : [];
         return (
-          <div key={photo.key} className="space-y-2">
-            <AnnotationOverlay
-              src={photo.url}
-              alt="Student submitted work"
-              strokes={[...committed, ...live]}
-            >
-              <svg
-                aria-label="Drawing surface"
-                className="col-start-1 row-start-1 size-full cursor-crosshair touch-none"
-                onPointerDown={(e) => {
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  dispatch({
-                    type: "START_STROKE",
-                    mediaKey: photo.key,
-                    point: toPoint(e),
-                  });
-                }}
-                onPointerMove={(e) => {
-                  if (e.buttons !== 1) return;
-                  dispatch({ type: "ADD_POINT", point: toPoint(e) });
-                }}
-                onPointerUp={() => dispatch({ type: "END_STROKE" })}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">
+                {photos.length === 1 ? "1 photo" : `${photos.length} photos`} ·
+                showing photo {photoIndex + 1}
+              </p>
+              <div className="flex gap-1">
+                {[
+                  { label: "Fit", value: true },
+                  { label: "100%", value: false },
+                ].map((option) => (
+                  <Button
+                    key={option.label}
+                    type="button"
+                    variant={fit === option.value ? "default" : "outline"}
+                    size="sm"
+                    aria-pressed={fit === option.value}
+                    onClick={() => setFit(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className={fit ? undefined : "max-h-[70vh] overflow-auto"}>
+              <AnnotationOverlay
+                src={photo.url}
+                alt="Student submitted work"
+                strokes={[...committed, ...live]}
+                fit={fit}
               >
-                <title>Drawing surface</title>
-              </svg>
-            </AnnotationOverlay>
+                <svg
+                  aria-label="Drawing surface"
+                  className="col-start-1 row-start-1 size-full cursor-crosshair touch-none [contain:size]"
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    dispatch({
+                      type: "START_STROKE",
+                      mediaKey: photo.key,
+                      point: toPoint(e),
+                    });
+                  }}
+                  onPointerMove={(e) => {
+                    if (e.buttons !== 1) return;
+                    dispatch({ type: "ADD_POINT", point: toPoint(e) });
+                  }}
+                  onPointerUp={() => dispatch({ type: "END_STROKE" })}
+                  onPointerCancel={() => dispatch({ type: "END_STROKE" })}
+                >
+                  <title>Drawing surface</title>
+                </svg>
+              </AnnotationOverlay>
+            </div>
 
             <div className="flex items-center gap-2">
               <Button
@@ -166,12 +197,45 @@ function AnnotationToolBody({
                 size="sm"
                 onClick={() => dispatch({ type: "CLEAR", mediaKey: photo.key })}
               >
-                Erase all
+                Clear photo
               </Button>
             </div>
+
+            <fieldset
+              aria-label="Photos"
+              className="m-0 flex min-w-0 flex-wrap gap-2 border-0 p-0"
+            >
+              {photos.map((thumb, index) => {
+                const marks = (entriesByKey[thumb.key] ?? []).length;
+                const label = `Photo ${index + 1} · ${marks} ${marks === 1 ? "mark" : "marks"}`;
+                return (
+                  <button
+                    key={thumb.key}
+                    type="button"
+                    aria-label={label}
+                    aria-pressed={index === photoIndex}
+                    onClick={() => setPhotoIndex(index)}
+                    className={`w-24 space-y-1 rounded-md border p-1 text-left text-xs ${
+                      index === photoIndex ? "ring-2 ring-ring" : ""
+                    }`}
+                  >
+                    {/* biome-ignore lint/performance/noImgElement: presigned S3 url */}
+                    <img
+                      src={thumb.url}
+                      alt={`Preview ${index + 1}`}
+                      className="h-14 w-full rounded object-cover"
+                    />
+                    <span className="block">{label}</span>
+                  </button>
+                );
+              })}
+            </fieldset>
+            <p className="text-xs text-muted-foreground">
+              Marks are saved with each photo
+            </p>
           </div>
         );
-      })}
+      })()}
 
       <div className="flex items-center gap-3">
         <Button type="button" size="sm" disabled={isSaving} onClick={save}>

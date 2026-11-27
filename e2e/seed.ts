@@ -12,6 +12,7 @@ import { expect } from "@playwright/test";
 import { type Db, MongoClient } from "mongodb";
 import type { AiGradeSuggestionDocument } from "../src/lib/ai-grade-types";
 import { AI_GRADER_ID, AI_MODEL_NAME } from "../src/lib/ai-grade-types";
+import type { AnnotationDocument } from "../src/lib/annotation-service";
 import type { AnswerDocument } from "../src/lib/answer-service";
 import type { CourseJoinRequestDocument } from "../src/lib/course-join-request-service";
 import { JoinRequestStatus } from "../src/lib/course-join-request-service";
@@ -195,6 +196,25 @@ export async function insertAnswer(
     ...fields,
   };
   await db.collection<AnswerDocument>("answer").insertOne(doc);
+  return doc.id;
+}
+
+/** A teacher's marks over a student's photo answers. */
+export async function insertAnnotation(
+  db: Db,
+  fields: Pick<
+    AnnotationDocument,
+    "testId" | "questionId" | "studentId" | "entries"
+  > &
+    Partial<AnnotationDocument>,
+): Promise<string> {
+  const doc: AnnotationDocument = {
+    id: crypto.randomUUID(),
+    updatedAt: new Date(),
+    updatedBy: "seed",
+    ...fields,
+  };
+  await db.collection<AnnotationDocument>("annotation").insertOne(doc);
   return doc.id;
 }
 

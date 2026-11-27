@@ -91,7 +91,7 @@ describe("Feature: per-student grading view renders image_answer submissions", (
     // Then the student's photo renders and a score input is available to grade
     // it — the question is NOT misreported as unanswered.
     expect(screen.queryByText(/No answer submitted/i)).not.toBeInTheDocument();
-    const img = screen.getByRole("img");
+    const img = screen.getByRole("img", { name: "Student submitted work" });
     expect(img).toHaveAttribute(
       "src",
       `https://fake-s3.local/get/answers/${student.id}/p1.png`,
