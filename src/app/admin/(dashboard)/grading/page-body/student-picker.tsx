@@ -10,6 +10,7 @@ interface StudentPickerProps {
   rows: StudentPickerRow[];
   currentId: string | null;
   currentName: string | null;
+  testTitle: string;
   basePath: string;
   needsOnly?: boolean;
 }
@@ -19,6 +20,7 @@ export function StudentPicker({
   rows,
   currentId,
   currentName,
+  testTitle,
   basePath,
   needsOnly,
 }: StudentPickerProps) {
@@ -42,6 +44,7 @@ export function StudentPicker({
     <StudentPickerUi
       nextWaitingHref={nextWaiting ? hrefFor[nextWaiting.id] : null}
       currentName={currentName}
+      testTitle={testTitle}
       rows={rows}
       currentId={currentId}
       hrefFor={hrefFor}

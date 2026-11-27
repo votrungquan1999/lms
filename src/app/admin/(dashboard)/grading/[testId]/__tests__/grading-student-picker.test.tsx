@@ -11,8 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GradingVariantPage from "../page";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: pushMock }),
   notFound: vi.fn(() => {
     throw new Error("notFound called");
   }),
@@ -469,5 +470,124 @@ describe("Feature: ‹ › step through the students who handed in, in picker or
         name: "Previous submitted student",
       }),
     ).toHaveAttribute("href", expect.stringContaining(`studentId=${bea.id}`));
+  });
+});
+
+describe("Feature: opening a still-writing student from the picker", () => {
+  beforeEach(async () => {
+    pushMock.mockClear();
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+  });
+
+  async function pickStillWriting(testId: string, name: RegExp) {
+    render(await GradingVariantPage({ params: Promise.resolve({ testId }) }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /student picker/i }),
+    );
+    const menu = await screen.findByRole("menu");
+    await userEvent.click(within(menu).getByRole("menuitem", { name }));
+    return screen.findByRole("alertdialog");
+  }
+
+  it("asks first, naming the student, the test and how many answers are saved", async () => {
+    // Given Zed waits and Ana Cal is still writing with her one answer saved
+    const { test, addStudent } = await seedTest();
+    await addStudent("Zed", "waiting");
+    await addStudent("Ana Cal", "writing");
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /student picker/i }),
+    );
+    const menu = await screen.findByRole("menu");
+
+    // When the teacher picks her
+    await userEvent.click(
+      within(menu).getByRole("menuitem", { name: /Ana Cal/ }),
+    );
+
+    // Then a dialog asks before opening her
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).getByRole("heading", {
+        name: "Ana Cal is still writing. Grade anyway?",
+      }),
+    ).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(
+      "Ana Cal hasn't submitted Midterm. You'll see the 1 of 1 answers saved so far.",
+    );
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Grade anyway" }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens her only after the teacher presses Grade anyway", async () => {
+    // Given the dialog asking about Ana Cal is open
+    const { test, addStudent } = await seedTest();
+    await addStudent("Zed", "waiting");
+    const ana = await addStudent("Ana Cal", "writing");
+    const dialog = await pickStillWriting(test.id, /Ana Cal/);
+    expect(pushMock).not.toHaveBeenCalled();
+
+    // When the teacher presses Grade anyway
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Grade anyway" }),
+    );
+
+    // Then the screen goes to her
+    expect(pushMock).toHaveBeenCalledWith(
+      expect.stringContaining(`studentId=${ana.id}`),
+    );
+  });
+
+  it("stays on the open student when the teacher cancels", async () => {
+    // Given the dialog asking about Ana Cal is open
+    const { test, addStudent } = await seedTest();
+    await addStudent("Zed", "waiting");
+    await addStudent("Ana Cal", "writing");
+    const dialog = await pickStillWriting(test.id, /Ana Cal/);
+
+    // When the teacher presses Cancel
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    );
+
+    // Then the dialog closes and the screen does not move
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("tells the teacher under the Still writing heading that opening a student asks first", async () => {
+    // Given a still-writing student
+    const { test, addStudent } = await seedTest();
+    await addStudent("Zed", "waiting");
+    await addStudent("Ana Cal", "writing");
+
+    // When the teacher opens the picker
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /student picker/i }),
+    );
+    const menu = await screen.findByRole("menu");
+
+    // Then the group carries the note
+    const group = within(menu)
+      .getByText("Still writing · 1")
+      .closest("[role=group]");
+    expect(group).toHaveTextContent("asks first");
   });
 });

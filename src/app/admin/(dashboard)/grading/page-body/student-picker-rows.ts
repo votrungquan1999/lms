@@ -28,6 +28,9 @@ export interface StudentPickerRow {
   detail: string | null;
   /** False for a student there is nothing to open for. */
   openable: boolean;
+  /** How many of the test's questions have a saved answer. */
+  savedAnswers: number;
+  questionCount: number;
 }
 
 interface BuildRowsInput {
@@ -84,6 +87,8 @@ export function buildStudentPickerRows(
           group === StudentPickerGroup.StillWriting
             ? saved > 0
             : group !== StudentPickerGroup.NotStarted,
+        savedAnswers: saved,
+        questionCount: input.questionCount,
       },
       submittedAt: pair?.submittedAt?.getTime() ?? 0,
     };

@@ -224,6 +224,7 @@ export async function GradingPageShell({
                     rows={pickerRows}
                     currentId={focused?.id ?? null}
                     currentName={focused?.name ?? null}
+                    testTitle={test.title}
                     basePath={basePath}
                     needsOnly={selection.needsOnly}
                   />
