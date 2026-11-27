@@ -1,5 +1,9 @@
 import { needsGrade } from "src/lib/needs-grade";
 import { isMcQuestionType, type Question } from "src/lib/question-service";
+import {
+  StudentPickerGroup,
+  type StudentPickerRow,
+} from "./student-picker-rows";
 
 export enum QuestionBoxState {
   /** Nothing to say yet: not handed in, or a choice answer awaiting hand-in. */
@@ -14,6 +18,10 @@ export enum QuestionBoxState {
   Blank = "blank",
   /** Practice tests only show whether an answer exists. */
   Answered = "answered",
+  /** By question only: the student has not handed in. */
+  StillWriting = "still-writing",
+  /** By question only: the student has an open redo and cannot be graded. */
+  RedoRequested = "redo-requested",
 }
 
 interface QuestionBoxInput {
@@ -79,4 +87,65 @@ export function countBoxStates(
   ) as Record<QuestionBoxState, number>;
   for (const state of states) counts[state] += 1;
   return counts;
+}
+
+/** One student's box in By question. */
+export interface StudentBoxData {
+  row: StudentPickerRow;
+  state: QuestionBoxState;
+}
+
+interface StudentBoxesInput {
+  /** The picker's rows, in picker order. */
+  rows: StudentPickerRow[];
+  question: Pick<Question, "id" | "type">;
+  /** Latest answers: student id, then question id. */
+  answers: Map<string, Map<string, unknown>>;
+  /** Grades: student id, then question id. */
+  grades: Map<
+    string,
+    Map<string, { score: number; gradedAt: Date; updatedAt?: Date | null }>
+  >;
+  isPractice: boolean;
+  /** The student asked for in the URL, if any. */
+  requestedStudentId?: string;
+}
+
+/**
+ * The boxes of By question's student row and the student on screen. Students
+ * who have not started have no box.
+ * @param input - The picker rows and what each student answered and was graded on the question.
+ * @returns The boxes in picker order and the open student: the one asked for, else the first who needs a grade on this question, else the first openable box.
+ */
+export function buildStudentBoxes(input: StudentBoxesInput): {
+  boxes: StudentBoxData[];
+  currentId: string | null;
+} {
+  const boxes: StudentBoxData[] = [];
+  for (const row of input.rows) {
+    if (row.group === StudentPickerGroup.NotStarted) continue;
+    const state =
+      row.group === StudentPickerGroup.StillWriting
+        ? QuestionBoxState.StillWriting
+        : row.group === StudentPickerGroup.RedoRequested
+          ? QuestionBoxState.RedoRequested
+          : questionBoxState({
+              question: input.question,
+              answered:
+                input.answers.get(row.id)?.has(input.question.id) ?? false,
+              grade: input.grades.get(row.id)?.get(input.question.id),
+              handedIn: true,
+              isPractice: input.isPractice,
+            });
+    boxes.push({ row, state });
+  }
+  const opens = (box: StudentBoxData) =>
+    box.state !== QuestionBoxState.RedoRequested;
+  const current =
+    boxes.find(
+      (box) => box.row.id === input.requestedStudentId && opens(box),
+    ) ??
+    boxes.find((box) => box.state === QuestionBoxState.NeedsGrade) ??
+    boxes.find(opens);
+  return { boxes, currentId: current?.row.id ?? null };
 }

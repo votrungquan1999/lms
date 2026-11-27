@@ -8,6 +8,7 @@ import {
   countBoxStates,
   QuestionBoxState,
   questionBoxState,
+  type StudentBoxData,
 } from "./question-row-state";
 
 interface QuestionRowProps {
@@ -37,8 +38,9 @@ export function QuestionRow({
   needsOnly,
 }: QuestionRowProps) {
   const boxes = questions.map((question) => ({
-    questionId: question.id,
-    order: question.order,
+    id: question.id,
+    text: String(question.order),
+    label: `Q${question.order}`,
     state: questionBoxState({
       question,
       answered: answers.has(question.id),
@@ -65,7 +67,7 @@ export function QuestionRow({
           : boxes
       }
       // Counts stay over every question so the legend does not shift with the filter.
-      counts={countBoxStates(boxes.map((box) => box.state))}
+      legend={legendOf(countBoxStates(boxes.map((box) => box.state)))}
       needsOnly={needsOnly}
       toggleHref={gradingHref({
         basePath,
@@ -79,4 +81,84 @@ export function QuestionRow({
       }
     />
   );
+}
+
+function legendOf(counts: Record<QuestionBoxState, number>): string {
+  return `Correct ${counts[QuestionBoxState.Correct]} · Wrong ${counts[QuestionBoxState.Wrong]} · Partly right ${counts[QuestionBoxState.PartlyRight]} · Graded by you ${counts[QuestionBoxState.Graded]} · Needs grade ${counts[QuestionBoxState.NeedsGrade]} · Blank ${counts[QuestionBoxState.Blank]}`;
+}
+
+interface StudentRowProps {
+  boxes: StudentBoxData[];
+  currentStudentId: string | null;
+  questionId: string;
+  testTitle: string;
+  /** Students without a box because they have not started. */
+  notStarted: number;
+  basePath: string;
+  needsOnly: boolean;
+}
+
+/** The student row of By question: one box per student for the question on screen. */
+export function StudentRow({
+  boxes,
+  currentStudentId,
+  questionId,
+  testTitle,
+  notStarted,
+  basePath,
+  needsOnly,
+}: StudentRowProps) {
+  const models = boxes.map(({ row, state }) => ({
+    id: row.id,
+    text: initialsOf(row.name),
+    label: row.name,
+    state,
+    href:
+      state === QuestionBoxState.RedoRequested ||
+      (state === QuestionBoxState.StillWriting && !row.openable)
+        ? null
+        : gradingHref({
+            basePath,
+            mode: GradingMode.Question,
+            studentId: row.id,
+            questionId,
+            needsOnly,
+          }),
+    current: row.id === currentStudentId,
+    askStudent: state === QuestionBoxState.StillWriting ? row : undefined,
+  }));
+  const counts = countBoxStates(boxes.map((box) => box.state));
+  return (
+    <QuestionRowUi
+      boxes={
+        needsOnly
+          ? models.filter(
+              (box) => box.current || box.state === QuestionBoxState.NeedsGrade,
+            )
+          : models
+      }
+      legend={`Graded by you ${counts[QuestionBoxState.Graded]} · Needs grade ${counts[QuestionBoxState.NeedsGrade]} · Still writing ${counts[QuestionBoxState.StillWriting]} · Redo requested ${counts[QuestionBoxState.RedoRequested]} · Blank ${counts[QuestionBoxState.Blank]}`}
+      needsOnly={needsOnly}
+      toggleHref={gradingHref({
+        basePath,
+        mode: GradingMode.Question,
+        studentId: currentStudentId ?? undefined,
+        questionId,
+        needsOnly: !needsOnly,
+      })}
+      nothingNeedsGrading={
+        !models.some((box) => box.state === QuestionBoxState.NeedsGrade)
+      }
+      notStarted={notStarted}
+      testTitle={testTitle}
+    />
+  );
+}
+
+/** A student's initials: the first letters of her first and last name. */
+function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const first = words[0]?.[0] ?? "";
+  const last = words.length > 1 ? (words[words.length - 1]?.[0] ?? "") : "";
+  return `${first}${last}`.toUpperCase();
 }

@@ -17,6 +17,8 @@ import {
 } from "./grading-top-bar.ui";
 import { gradingHref } from "./href";
 import { QuestionPicker } from "./question-picker";
+import { StudentRow } from "./question-row";
+import { buildStudentBoxes } from "./question-row-state";
 import { StillWritingProvider } from "./still-writing-confirm";
 import { StudentPicker } from "./student-picker";
 import {
@@ -101,21 +103,47 @@ export async function GradingPageShell({
     questions[0] ||
     null;
 
+  const studentBoxes = buildStudentBoxes({
+    rows: pickerRows,
+    question: focusedQuestion ?? { id: "", type: "free_text" },
+    answers: screen.answers,
+    grades: screen.grades,
+    isPractice: test.isPractice,
+    requestedStudentId: selection.studentId,
+  });
+
   const main =
     selection.mode === GradingMode.Question ? (
       focusedQuestion ? (
-        await GradingDetailQuestion({
-          test,
-          courseId,
-          schoolId,
-          questionId: focusedQuestion.id,
-          students: orderedStudents.map((s) => ({
-            id: s.id,
-            name: s.name,
-            username: s.username,
-          })),
-          basePath,
-        })
+        <>
+          <StudentRow
+            boxes={studentBoxes.boxes}
+            currentStudentId={studentBoxes.currentId}
+            questionId={focusedQuestion.id}
+            testTitle={test.title}
+            notStarted={
+              pickerRows.filter(
+                (r) => r.group === StudentPickerGroup.NotStarted,
+              ).length
+            }
+            basePath={basePath}
+            needsOnly={selection.needsOnly ?? false}
+          />
+          {
+            await GradingDetailQuestion({
+              test,
+              courseId,
+              schoolId,
+              questionId: focusedQuestion.id,
+              students: orderedStudents.map((s) => ({
+                id: s.id,
+                name: s.name,
+                username: s.username,
+              })),
+              basePath,
+            })
+          }
+        </>
       ) : (
         <p className="text-sm text-muted-foreground">
           This test has no questions yet.

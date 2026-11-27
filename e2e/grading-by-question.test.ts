@@ -77,5 +77,53 @@ test.describe("Grading by question", () => {
         page.getByRole("button", { name: "Question picker" }),
       ).toContainText("Q3 [by-question] Question 3");
     });
+
+    test(`on ${route.name} the row has a box per student, and a still-writing student opens only after Grade anyway`, async ({
+      page,
+    }) => {
+      const ids = await withDb(async (db) => {
+        const courseId = await insertCourse(db);
+        const testId = await insertTest(db, courseId);
+        const questionId = await insertQuestion(db, testId, {
+          title: "[by-question] Row question",
+        });
+        const students: Record<string, string> = {};
+        for (const [key, name, handedIn] of [
+          ["waiting", "Wanda Waiting", true],
+          ["writing", "Wren Writing", false],
+        ] as const) {
+          const studentId = await insertStudent(db, { name });
+          await enroll(db, { courseId, studentId });
+          await insertAnswer(db, {
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "free_text", text: `${key} answer` },
+          });
+          if (handedIn) await insertSubmission(db, { testId, studentId });
+          students[key] = studentId;
+        }
+        return { courseId, testId, questionId, students };
+      });
+
+      await page.goto(
+        `${route.path(ids)}?mode=question&questionId=${ids.questionId}`,
+      );
+      const row = page.getByTestId("question-row");
+      await expect(
+        row.getByRole("link", { name: "Wanda Waiting needs grading" }),
+      ).toHaveAttribute("aria-current", "true");
+
+      await row
+        .getByRole("button", { name: "Wren Writing still writing" })
+        .click();
+      await expect(page.getByRole("alertdialog")).toContainText(
+        "Wren Writing is still writing. Grade anyway?",
+      );
+      await page.getByRole("button", { name: "Grade anyway" }).click();
+      await expect(page).toHaveURL(
+        new RegExp(`studentId=${ids.students.writing}`),
+      );
+    });
   }
 });
