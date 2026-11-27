@@ -41,15 +41,13 @@ export interface SaveAndNextNavigation {
   leftLine?: string;
 }
 
-interface BaseGradeFormProps {
+interface GradeFormProps {
   testId: string;
   courseId: string;
   questionId: string;
   studentId: string;
   /** When the answer on screen was saved; the grade records it, so a newer answer still needs grading. */
   gradedAnswerAt?: Date;
-  questionTitle: string;
-  questionOrder: number;
   existingScore: number | null;
   existingFeedback: string | null;
   existingSolution: string | null;
@@ -95,8 +93,11 @@ function GradeInputs({
 
   return (
     // A disabled fieldset locks every field and quick-score button inside it.
-    <fieldset disabled={locked} className="m-0 min-w-0 space-y-3 border-0 p-0">
-      <div className="flex items-center gap-3">
+    <fieldset
+      disabled={locked}
+      className="m-0 min-w-0 space-y-3 border-0 p-0 narrow:group-data-[collapsed]/panel:contents"
+    >
+      <div className="flex items-center gap-3 narrow:group-data-[collapsed]/panel:order-1">
         <label htmlFor={`score-${questionId}`} className="text-sm font-medium">
           Score (0–100):
         </label>
@@ -118,6 +119,7 @@ function GradeInputs({
               type="button"
               size="sm"
               variant="outline"
+              className="narrow:group-data-[collapsed]/panel:hidden"
               onClick={() => setScore(String(quick))}
             >
               {quick}
@@ -125,7 +127,7 @@ function GradeInputs({
           ))}
       </div>
 
-      <div>
+      <div className="narrow:group-data-[collapsed]/panel:hidden">
         <label
           htmlFor={`feedback-${questionId}`}
           className="text-sm font-medium"
@@ -143,7 +145,7 @@ function GradeInputs({
         />
       </div>
 
-      <div>
+      <div className="narrow:group-data-[collapsed]/panel:hidden">
         <label
           htmlFor={`solution-${questionId}`}
           className="text-sm font-medium"
@@ -166,11 +168,12 @@ function GradeInputs({
 }
 
 // ── CompactGradeForm: grade inputs only (no outer card) ─────────────────────
-// The grade panel renders it with no card and no question heading — those
-// belong to the panel.
-export { GradeFormInner as CompactGradeForm };
 
-function GradeFormInner({
+/**
+ * The grade inputs and the pinned Save & next button, with no card and no
+ * question heading: those belong to the grade panel.
+ */
+export function CompactGradeForm({
   testId,
   courseId,
   questionId,
@@ -183,7 +186,7 @@ function GradeFormInner({
   showQuickScores = false,
   formKey,
   children,
-}: BaseGradeFormProps) {
+}: GradeFormProps) {
   // The Save & next button sits outside the form, so it targets the form by id.
   const formId = useId();
   const formRef = useRef<HTMLFormElement>(null);
@@ -201,8 +204,8 @@ function GradeFormInner({
   >((_previous, formData) => saveAndNextAction(formData), null);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 narrow:group-data-[collapsed]/panel:contents">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto narrow:group-data-[collapsed]/panel:contents">
         <form
           key={formKey}
           id={formId}
@@ -213,7 +216,7 @@ function GradeFormInner({
             const formData = new FormData(event.currentTarget);
             startTransition(() => saveAction(formData));
           }}
-          className="space-y-3"
+          className="space-y-3 narrow:group-data-[collapsed]/panel:contents"
         >
           <input type="hidden" name="testId" value={testId} />
           <input type="hidden" name="courseId" value={courseId} />
@@ -247,13 +250,15 @@ function GradeFormInner({
             showQuickScores={showQuickScores}
           />
         </form>
-        {children}
+        <div className="space-y-3 empty:hidden narrow:group-data-[collapsed]/panel:hidden">
+          {children}
+        </div>
       </div>
 
       {/* Outside the form's scroll area so the button stays in view; `form` ties it to it. */}
-      <div className="shrink-0 space-y-2">
+      <div className="shrink-0 space-y-2 narrow:group-data-[collapsed]/panel:order-3">
         {saveAndNext.leftLine && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground narrow:group-data-[collapsed]/panel:hidden">
             {saveAndNext.leftLine}
           </p>
         )}
@@ -266,7 +271,7 @@ function GradeFormInner({
           type="submit"
           form={formId}
           size="sm"
-          className="w-full"
+          className="w-full narrow:group-data-[collapsed]/panel:w-auto"
           disabled={isSaving || locked}
           onClick={(event) => {
             if (!hasOverallDraft) return;

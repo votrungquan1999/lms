@@ -12,6 +12,7 @@ import {
   autoGradeSubmissionAction,
 } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grade-actions";
 import { RegenerateWithAiDialog } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/regenerate-with-ai-dialog";
+import { ReleaseMode } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { RequestRedoDialog } from "src/app/admin/(dashboard)/grading/page-body/request-redo-dialog";
 import { Button } from "src/components/ui/button";
 import {
@@ -74,7 +75,7 @@ export function MoreMenu({
     const form = new FormData();
     form.set("testId", testId);
     form.set("courseId", courseId);
-    form.set("mode", "chosen");
+    form.set("mode", ReleaseMode.Chosen);
     form.append("studentId", studentId);
     setReleaseError(null);
     startRelease(async () => {

@@ -72,7 +72,7 @@ export async function insertCourse(
     updatedBy: null,
     materials: [],
     inviteToken: null,
-    schoolId: await e2eSchoolId(db),
+    schoolId: overrides.schoolId ?? (await e2eSchoolId(db)),
     ...overrides,
   };
   await db.collection<CourseDocument>("course").insertOne(doc);
@@ -105,7 +105,7 @@ export async function insertTest(
     updatedBy: null,
     deletedAt: null,
     deletedBy: null,
-    schoolId: await e2eSchoolId(db),
+    schoolId: overrides.schoolId ?? (await e2eSchoolId(db)),
     ...overrides,
   };
   await db.collection<TestDocument>("test").insertOne(doc);
@@ -158,7 +158,7 @@ export async function insertStudent(
     createdBy: "seed",
     updatedAt: null,
     updatedBy: null,
-    schoolIds: [await e2eSchoolId(db)],
+    schoolIds: overrides.schoolIds ?? [await e2eSchoolId(db)],
     ...overrides,
   };
   await db.collection<StudentDocument>("student").insertOne(doc);

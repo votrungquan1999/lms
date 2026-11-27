@@ -16,11 +16,9 @@ import {
 } from "src/components/ui/card";
 import type { AiGradeSuggestion } from "src/lib/ai-grade-types";
 import { attachAnswerImageUrls } from "src/lib/answer-image-urls";
+import type { Grade } from "src/lib/grade-service";
 import { GradingMode } from "src/lib/grading-mode";
-import {
-  type GradingScreenRead,
-  readGradingScreen,
-} from "src/lib/grading-screen-read";
+import type { GradingScreenRead } from "src/lib/grading-screen-read";
 import {
   countOtherStudentsToGrade,
   findNextAnswerToGrade,
@@ -36,19 +34,14 @@ import {
   getAiGradeJobService,
   getAiGradeService,
   getAnnotationService,
-  getAnswerService,
-  getGradeService,
-  getQuestionService,
-  getRedoRequestService,
   getTestFeedbackService,
-  getTestStatusService,
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { cn } from "src/lib/utils";
 import { aiJobState } from "./ai-job-state";
 import type { FinishView } from "./finish-panel.ui";
-import { gradingRouteKind } from "./href";
+import type { GradingRouteKind } from "./grading-page-body.type";
 import { QuestionRow } from "./question-row";
 
 interface GradingDetailStudentProps {
@@ -61,10 +54,12 @@ interface GradingDetailStudentProps {
   questionId?: string;
   /** Base path the page is rendered at (no query string). */
   basePath: string;
+  /** Which grading route that path is. */
+  routeKind: GradingRouteKind;
   /** Show only the answers that need a grade in the question row. */
   needsOnly?: boolean;
-  /** The screen's read of the test; read here when the caller has none. */
-  screen?: GradingScreenRead;
+  /** The screen's read of the test: her status, answers, grades and redo come from it. */
+  screen: GradingScreenRead;
   /** The finish panel that stands in for the grade panel, and the line under the answer. */
   finish?: FinishView;
 }
@@ -82,30 +77,24 @@ export async function GradingDetailStudent({
   student,
   questionId,
   basePath,
+  routeKind,
   needsOnly = false,
-  screen: givenScreen,
+  screen,
   finish,
 }: GradingDetailStudentProps) {
   const testId = test.id;
 
-  const questionService = await getQuestionService(schoolId);
-  const questions = await questionService.listQuestions(testId);
-  const liveQuestionIds = new Set(questions.map((q) => q.id));
-
-  // Status first: it hands in an expired attempt, so the grades and redo read below see it.
-  const testStatusService = await getTestStatusService(schoolId);
-  const status = await testStatusService.getStatus(
-    testId,
-    student.id,
-    questions.length,
+  const questions = screen.questions;
+  const pair = screen.pairs.get(student.id);
+  // An expired attempt's redo is replaced by the hand-in the screen's read already made.
+  const hasActiveRedoRequest = Boolean(
+    pair?.redoRequested && !pair.assumedHandIn,
   );
+  // During a redo her earlier hand-in still stands for the question row.
+  const status = pair?.status ?? TestStatus.NotStarted;
+  const handedIn = hasSubmitted(status) || hasActiveRedoRequest;
 
-  const answerService = await getAnswerService(schoolId);
-  // A question can be deleted after a student answers it — that answer must
-  // not keep counting toward progress/status once the question is gone.
-  const latestAnswers = (
-    await answerService.getLatestAnswers(testId, student.id)
-  ).filter((a) => liveQuestionIds.has(a.questionId));
+  const latestAnswers = [...(screen.answers.get(student.id)?.values() ?? [])];
   const rawAnswerMap = new Map(
     latestAnswers.map((a) => [a.questionId, a.answer]),
   );
@@ -115,12 +104,7 @@ export async function GradingDetailStudent({
   const latestAnswerIdByQuestion = new Map(
     latestAnswers.map((a) => [a.questionId, a.id]),
   );
-
-  const gradeService = await getGradeService(schoolId);
-  const grades = (await gradeService.getGrades(testId, student.id)).filter(
-    (g) => liveQuestionIds.has(g.questionId),
-  );
-  const gradeMap = new Map(grades.map((g) => [g.questionId, g]));
+  const gradeMap = screen.grades.get(student.id) ?? new Map<string, Grade>();
 
   // The selected question, with its pictures and (for a photo answer) the
   // answer photos and the marks drawn on them.
@@ -153,14 +137,6 @@ export async function GradingDetailStudent({
     student.id,
   );
 
-  const redoRequestService = await getRedoRequestService(schoolId);
-  const activeRedoRequest = await redoRequestService.getActiveRedoRequest(
-    testId,
-    student.id,
-  );
-
-  const screen = givenScreen ?? (await readGradingScreen(schoolId, test));
-
   const aiGradeService = await getAiGradeService(schoolId);
   // Before the first suggestions read, so a finished job shows up in this render.
   const collected = await aiGradeService.collectRunnerResult(
@@ -189,10 +165,8 @@ export async function GradingDetailStudent({
     ? (aiSuggestionsByQuestion.get(selectedQuestion.id) ?? [])
     : [];
 
-  const pair = screen.pairs.get(student.id);
   const releaseOffer = pair ? studentReleaseOffer(test, pair) : null;
   const hasAnswers = latestAnswers.length > 0;
-  const hasActiveRedoRequest = activeRedoRequest !== null;
   // A practice test is not graded, so the answer fills the pane.
   const showGradePanel = !test.isPractice && !hasActiveRedoRequest && !finish;
   const redoOffer =
@@ -200,7 +174,7 @@ export async function GradingDetailStudent({
 
   // The label comes from the same search the Save & next action runs.
   const nextInput: NextAnswerInput = {
-    mode: "student",
+    mode: GradingMode.Student,
     students: screen.students,
     current: { studentId: student.id, questionId: selectedQuestion?.id ?? "" },
     questions: screen.questions,
@@ -213,7 +187,7 @@ export async function GradingDetailStudent({
   const otherStudentsWaiting = countOtherStudentsToGrade(nextInput, student.id);
   const answersLeftHere = questionsToGrade(nextInput, student.id).length;
   const saveAndNext: SaveAndNextNavigation = {
-    routeKind: gradingRouteKind(basePath),
+    routeKind,
     mode: GradingMode.Student,
     needsOnly,
     ...(next && nextQuestion && next.studentId === student.id
@@ -258,7 +232,7 @@ export async function GradingDetailStudent({
               answers={rawAnswerMap}
               answerSavedAt={answerSavedAt}
               grades={gradeMap}
-              handedIn={hasSubmitted(status)}
+              handedIn={handedIn}
               redoOpen={hasActiveRedoRequest}
               isPractice={test.isPractice}
               basePath={basePath}
@@ -273,7 +247,7 @@ export async function GradingDetailStudent({
         >
           <CardContent
             className={cn(
-              "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4",
+              "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4 narrow:grid-cols-[minmax(0,1fr)] narrow:grid-rows-[minmax(0,1fr)_auto]",
               test.isPractice
                 ? "grid-cols-[minmax(0,1fr)]"
                 : "grid-cols-[minmax(0,1fr)_24rem]",

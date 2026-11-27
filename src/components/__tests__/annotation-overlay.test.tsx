@@ -74,4 +74,21 @@ describe("AnnotationOverlay", () => {
     const mark = screen.getByText("i never changes");
     expect(mark).toHaveStyle({ left: "25%", top: "50%", color: "#ef4444" });
   });
+  it("keeps a text mark placed near the right or bottom edge fully inside the photo by growing it left and up", () => {
+    // Given a text mark near the bottom-right corner
+    render(
+      <AnnotationOverlay
+        src="https://files.example/p1.png"
+        alt="work"
+        strokes={[]}
+        texts={[{ x: 0.95, y: 0.9, text: "near the corner", color: "#ef4444" }]}
+      />,
+    );
+
+    // Then it hangs from that spot toward the photo's middle, with room for most of the photo's width
+    const mark = screen.getByText("near the corner");
+    expect(mark).toHaveStyle({ right: "5%", bottom: "10%", maxWidth: "95%" });
+    expect(mark.style.left).toBe("");
+    expect(mark.style.top).toBe("");
+  });
 });

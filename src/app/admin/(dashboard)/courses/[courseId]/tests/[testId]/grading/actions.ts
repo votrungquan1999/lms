@@ -1,13 +1,16 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
+import {
+  GradingRouteKind,
+  ReleaseMode,
+} from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import {
   gradingBasePath,
   gradingHref,
 } from "src/app/admin/(dashboard)/grading/page-body/href";
+import { revalidateGradingPaths } from "src/app/admin/(dashboard)/grading/page-body/revalidate-grading-paths";
 import {
   AiGradeOutcome,
   recordAiAcceptance,
@@ -40,6 +43,16 @@ import {
 import { TestStatus } from "src/lib/test-status-service";
 import { z } from "zod";
 import { assertGradingTarget, resolveOwnedTest } from "../test-parent-check";
+
+export interface ReleaseTestState {
+  success: boolean;
+  message: string;
+}
+
+/** Why Save & next stayed on the answer; a successful save redirects instead of returning. */
+export interface SaveAndNextState {
+  message: string;
+}
 
 const testFeedbackSchema = z.object({
   testId: z.string().min(1),
@@ -125,13 +138,14 @@ export async function setTestFeedbackAction(
           gradedBy: adminUserId,
         });
 
-        revalidatePath(
-          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-        );
-        revalidatePath("/admin/grading");
-        revalidatePath(`/admin/grading/${parsed.data.testId}`);
+        revalidateGradingPaths(parsed.data.courseId, parsed.data.testId);
 
-        return { success: true, message: "Feedback saved" };
+        // An empty text removes the feedback, so the message says so.
+        return {
+          success: true,
+          message:
+            parsed.data.feedback === "" ? "Feedback cleared" : "Feedback saved",
+        };
       },
     );
   } catch (error) {
@@ -194,13 +208,13 @@ async function refuseUnlessReleasable(
 
 const releaseTestSchema = z.discriminatedUnion("mode", [
   z.object({
-    mode: z.literal("whole"),
+    mode: z.literal(ReleaseMode.Whole),
     testId: z.string().min(1),
     courseId: z.string().min(1),
     alsoCorrectAnswers: z.boolean(),
   }),
   z.object({
-    mode: z.literal("chosen"),
+    mode: z.literal(ReleaseMode.Chosen),
     testId: z.string().min(1),
     courseId: z.string().min(1),
     alsoCorrectAnswers: z.boolean(),
@@ -210,11 +224,6 @@ const releaseTestSchema = z.discriminatedUnion("mode", [
       .transform((ids) => [...new Set(ids)]),
   }),
 ]);
-
-export interface ReleaseTestState {
-  success: boolean;
-  message: string;
-}
 
 /**
  * Server action: releases a test's grades to every student (one write) or to
@@ -264,7 +273,7 @@ export async function releaseTestAction(
       async () => {
         const testService = await getTestService(schoolId);
         await resolveOwnedTest(testService, testId, courseId);
-        if (parsed.data.mode === "chosen") {
+        if (parsed.data.mode === ReleaseMode.Chosen) {
           const { studentIds } = parsed.data;
           await refuseUnlessReleasable(schoolId, testId, courseId, studentIds);
           const submissions = await getTestSubmissionService(schoolId);
@@ -285,12 +294,11 @@ export async function releaseTestAction(
           );
         }
 
-        revalidatePath(`/admin/courses/${courseId}/tests/${testId}/grading`);
-        revalidatePath(`/admin/courses/${courseId}/tests/${testId}`);
-        revalidatePath(`/admin/courses/${courseId}`);
-        revalidatePath("/admin/grading");
-        revalidatePath(`/admin/grading/${testId}`);
-        revalidatePath(`/student/courses/${courseId}/tests/${testId}`);
+        revalidateGradingPaths(courseId, testId, [
+          `/admin/courses/${courseId}/tests/${testId}`,
+          `/admin/courses/${courseId}`,
+          `/student/courses/${courseId}/tests/${testId}`,
+        ]);
 
         return { success: true, message: "Released" };
       },
@@ -392,15 +400,9 @@ export async function requestRedoAction(
           adminUserId,
         );
 
-        // Revalidate admin grading paths (course-scoped + hub + variant) and student test page
-        revalidatePath(
-          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-        );
-        revalidatePath("/admin/grading");
-        revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath(
+        revalidateGradingPaths(parsed.data.courseId, parsed.data.testId, [
           `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-        );
+        ]);
 
         return { success: true, message: "Redo requested" };
       },
@@ -442,11 +444,6 @@ const saveAndNextSchema = z.object({
     .pipe(annotationEntriesSchema)
     .optional(),
 });
-
-/** Why Save & next stayed on the answer; a successful save redirects instead of returning. */
-export interface SaveAndNextState {
-  message: string;
-}
 
 /**
  * Server action: grades one answer, then stores its photo marks when sent,
@@ -567,11 +564,7 @@ async function saveAndFindNext(
         });
       }
 
-      revalidatePath(
-        `/admin/courses/${input.courseId}/tests/${input.testId}/grading`,
-      );
-      revalidatePath("/admin/grading");
-      revalidatePath(`/admin/grading/${input.testId}`);
+      revalidateGradingPaths(input.courseId, input.testId);
       return previous;
     },
   );
@@ -696,18 +689,12 @@ export async function releaseCorrectAnswersAction(
           adminUserId,
         );
 
-        revalidatePath(
-          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-        );
-        revalidatePath(
+        revalidateGradingPaths(parsed.data.courseId, parsed.data.testId, [
           `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-        );
-        revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        // The student is the audience for this release — without this they
-        // keep seeing the withheld view on their next visit.
-        revalidatePath(
+          // The student is the audience for this release — without this they
+          // keep seeing the withheld view on their next visit.
           `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-        );
+        ]);
 
         return {
           success: true,

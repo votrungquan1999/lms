@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useReducer, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useReducer,
+  useState,
+} from "react";
 import type {
   AnnotationEntry,
   AnnotationPoint,
@@ -13,11 +19,27 @@ import {
   type SurfaceSize,
 } from "./annotation-shapes";
 
+interface PhotoMarksValue {
+  /** The photo marks as the JSON the Save & next form posts. */
+  marksJson: string;
+  /** The marks differ from the ones the provider started with. */
+  hasUnsavedMarks: boolean;
+}
+
 /** The kind of mark the grader makes next, or "move" to pan the photo without marking. */
-export type MarkTool = "pen" | "circle" | "arrow" | "text" | "move";
+export enum MarkTool {
+  Pen = "pen",
+  Circle = "circle",
+  Arrow = "arrow",
+  Text = "text",
+  Move = "move",
+}
 
 /** Kinds of mark one Undo can take back, in the order they were made. */
-type MarkKind = "stroke" | "text";
+enum MarkKind {
+  Stroke = "stroke",
+  Text = "text",
+}
 
 /** A text mark being typed: where it goes and what is typed so far. */
 export interface TextDraft {
@@ -128,8 +150,8 @@ export function buildInitialAnnotationState(
     const texts = entry.texts ?? [];
     // Marks saved without an order come first (strokes, then texts); the rest follow in the order they were made
     const marks = [
-      ...strokes.map((mark) => ({ kind: "stroke" as const, mark })),
-      ...texts.map((mark) => ({ kind: "text" as const, mark })),
+      ...strokes.map((mark) => ({ kind: MarkKind.Stroke as const, mark })),
+      ...texts.map((mark) => ({ kind: MarkKind.Text as const, mark })),
     ]
       .map((item, position) => ({ ...item, position }))
       .sort(
@@ -137,16 +159,16 @@ export function buildInitialAnnotationState(
           (a.mark.seq ?? -1) - (b.mark.seq ?? -1) || a.position - b.position,
       );
     entriesByKey[entry.mediaKey] = marks.flatMap((m) =>
-      m.kind === "stroke" ? [m.mark as AnnotationStroke] : [],
+      m.kind === MarkKind.Stroke ? [m.mark as AnnotationStroke] : [],
     );
     textsByKey[entry.mediaKey] = marks.flatMap((m) =>
-      m.kind === "text" ? [m.mark as AnnotationText] : [],
+      m.kind === MarkKind.Text ? [m.mark as AnnotationText] : [],
     );
     historyByKey[entry.mediaKey] = marks.map((m) => m.kind);
   }
   return {
     color,
-    tool: "pen",
+    tool: MarkTool.Pen,
     entriesByKey,
     textsByKey,
     historyByKey,
@@ -182,7 +204,9 @@ export function collectAnnotations(
       const orderOf = new Map<AnnotationStroke | AnnotationText, number>();
       history.forEach((kind, seq) => {
         const mark =
-          kind === "stroke" ? strokes[strokeCount++] : texts[textCount++];
+          kind === MarkKind.Stroke
+            ? strokes[strokeCount++]
+            : texts[textCount++];
         if (mark) orderOf.set(mark, seq);
       });
       return {
@@ -194,6 +218,13 @@ export function collectAnnotations(
     .filter((entry) => entry.strokes.length > 0 || entry.texts.length > 0);
 }
 
+/**
+ * Adds a finished mark to a photo's history, so Undo can take it back in order.
+ * @param state - Current tool state.
+ * @param mediaKey - The photo's S3 key.
+ * @param kind - What kind of mark was made.
+ * @returns The next history map.
+ */
 function appendHistory(
   state: AnnotationToolState,
   mediaKey: string,
@@ -224,7 +255,7 @@ function commitTextDraft(state: AnnotationToolState): AnnotationToolState {
       ...state.textsByKey,
       [draft.mediaKey]: [...(state.textsByKey[draft.mediaKey] ?? []), mark],
     },
-    historyByKey: appendHistory(state, draft.mediaKey, "text"),
+    historyByKey: appendHistory(state, draft.mediaKey, MarkKind.Text),
   };
 }
 
@@ -264,8 +295,9 @@ export function annotationReducer(
       if (!state.drawing) return state;
       const { tool, origin, size, stroke } = state.drawing;
       let points: AnnotationPoint[];
-      if (tool === "circle") points = ellipsePoints(origin, action.point);
-      else if (tool === "arrow")
+      if (tool === MarkTool.Circle)
+        points = ellipsePoints(origin, action.point);
+      else if (tool === MarkTool.Arrow)
         points = arrowPoints(origin, action.point, size);
       else points = [...stroke.points, action.point];
       return {
@@ -287,7 +319,7 @@ export function annotationReducer(
           ...state.entriesByKey,
           [mediaKey]: [...(state.entriesByKey[mediaKey] ?? []), stroke],
         },
-        historyByKey: appendHistory(state, mediaKey, "stroke"),
+        historyByKey: appendHistory(state, mediaKey, MarkKind.Stroke),
       };
     }
 
@@ -326,11 +358,12 @@ export function annotationReducer(
         entriesByKey: {
           ...state.entriesByKey,
           [action.mediaKey]:
-            latest === "stroke" ? strokes.slice(0, -1) : strokes,
+            latest === MarkKind.Stroke ? strokes.slice(0, -1) : strokes,
         },
         textsByKey: {
           ...state.textsByKey,
-          [action.mediaKey]: latest === "text" ? texts.slice(0, -1) : texts,
+          [action.mediaKey]:
+            latest === MarkKind.Text ? texts.slice(0, -1) : texts,
         },
         historyByKey: {
           ...state.historyByKey,
@@ -354,15 +387,14 @@ export function annotationReducer(
 
 interface AnnotationToolContextValue extends AnnotationToolState {
   dispatch: React.Dispatch<AnnotationToolAction>;
-  /** The photo marks as the JSON the Save & next form posts. */
-  marksJson: string;
-  /** The marks differ from the ones the provider started with. */
-  hasUnsavedMarks: boolean;
 }
 
 const AnnotationToolContext = createContext<AnnotationToolContextValue | null>(
   null,
 );
+
+// Apart from the tool state so the grade form is not re-rendered while the pen moves.
+const PhotoMarksContext = createContext<PhotoMarksValue | null>(null);
 
 /**
  * Provider holding the annotation tool state for one student's grading row.
@@ -384,17 +416,19 @@ export function AnnotationToolProvider({
     JSON.stringify(collectAnnotations(initialState)),
   );
   const [state, dispatch] = useReducer(annotationReducer, initialState);
-  const marksJson = JSON.stringify(collectAnnotations(state));
+  const { entriesByKey, textsByKey, historyByKey } = state;
+  // Built only when a stroke or text is finished, undone or cleared; the stroke being drawn is not part of it.
+  const photoMarks = useMemo(() => {
+    const marksJson = JSON.stringify(
+      collectAnnotations({ entriesByKey, textsByKey, historyByKey }),
+    );
+    return { marksJson, hasUnsavedMarks: marksJson !== savedJson };
+  }, [entriesByKey, textsByKey, historyByKey, savedJson]);
   return (
-    <AnnotationToolContext.Provider
-      value={{
-        ...state,
-        dispatch,
-        marksJson,
-        hasUnsavedMarks: marksJson !== savedJson,
-      }}
-    >
-      {children}
+    <AnnotationToolContext.Provider value={{ ...state, dispatch }}>
+      <PhotoMarksContext.Provider value={photoMarks}>
+        {children}
+      </PhotoMarksContext.Provider>
     </AnnotationToolContext.Provider>
   );
 }
@@ -434,14 +468,8 @@ export function PhotoMarksScope({
  * The photo marks when a marking tool is on screen, or null when the answer has no photos to mark.
  * @returns The marks JSON and whether they are unsaved, or null.
  */
-export function usePhotoMarks(): {
-  marksJson: string;
-  hasUnsavedMarks: boolean;
-} | null {
-  const value = useContext(AnnotationToolContext);
-  return value
-    ? { marksJson: value.marksJson, hasUnsavedMarks: value.hasUnsavedMarks }
-    : null;
+export function usePhotoMarks(): PhotoMarksValue | null {
+  return useContext(PhotoMarksContext);
 }
 
 /**

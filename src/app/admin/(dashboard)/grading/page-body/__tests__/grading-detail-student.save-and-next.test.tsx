@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import type { Question } from "src/lib/question-service";
 import { TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
@@ -88,6 +89,9 @@ async function renderStudent(
 ) {
   render(
     await GradingDetailStudent({
+      screen: await (
+        await import("src/lib/grading-screen-read")
+      ).readGradingScreen(TEST_SCHOOL_ID, seed.test),
       test: seed.test,
       courseId: seed.course.id,
       schoolId: TEST_SCHOOL_ID,
@@ -98,6 +102,7 @@ async function renderStudent(
       },
       questionId,
       basePath: `/admin/grading/${seed.test.id}`,
+      routeKind: GradingRouteKind.Hub,
     }),
   );
 }

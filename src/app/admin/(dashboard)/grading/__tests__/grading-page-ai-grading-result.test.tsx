@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import type { AiGradeBatchInput } from "src/lib/ai/ai-client";
 import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
 import { RunnerCheckAction, RunnerEventKind } from "src/lib/ai/runner-event";
@@ -180,6 +181,9 @@ async function seedPendingJob() {
 async function renderPage(seed: Awaited<ReturnType<typeof seedPendingJob>>) {
   render(
     await GradingDetailStudent({
+      screen: await (
+        await import("src/lib/grading-screen-read")
+      ).readGradingScreen(TEST_SCHOOL_ID, seed.test),
       test: seed.test,
       courseId: seed.course.id,
       schoolId: TEST_SCHOOL_ID,
@@ -189,6 +193,7 @@ async function renderPage(seed: Awaited<ReturnType<typeof seedPendingJob>>) {
         username: seed.student.username,
       },
       basePath: `/admin/grading/${seed.test.id}`,
+      routeKind: GradingRouteKind.Hub,
     }),
   );
 }

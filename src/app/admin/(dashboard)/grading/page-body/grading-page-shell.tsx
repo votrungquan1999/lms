@@ -1,3 +1,4 @@
+import { courseTestHref } from "src/app/admin/(dashboard)/grading/href";
 import { GradingMode } from "src/lib/grading-mode";
 import { readGradingScreen } from "src/lib/grading-screen-read";
 import { answerNeedsGrade } from "src/lib/next-answer-to-grade";
@@ -8,10 +9,11 @@ import type { Test } from "src/lib/test-service";
 import { FinishPanel } from "./finish-panel";
 import { GradingDetailQuestion } from "./grading-detail-question";
 import { GradingDetailStudent } from "./grading-detail-student";
+import type { GradingRouteKind } from "./grading-page-body.type";
 import {
   GradingProgress,
+  GradingScreenLayout,
   PivotToggle,
-  TwoPaneShell,
 } from "./grading-page-shell.ui";
 import {
   GradingTopBar,
@@ -19,7 +21,7 @@ import {
   QuestionPosition,
   StudentPosition,
 } from "./grading-top-bar.ui";
-import { gradingHref, gradingRouteKind } from "./href";
+import { gradingBasePath, gradingHref } from "./href";
 import { QuestionPicker } from "./question-picker";
 import { StudentRow } from "./question-row";
 import { buildStudentBoxes } from "./question-row-state";
@@ -46,8 +48,8 @@ interface GradingPageShellProps {
   courseId: string;
   /** The page's school — never resolved here. */
   schoolId: string;
-  /** Base URL (no query string) every grading link on the page is built on; also tells Save & next which route it is on. */
-  basePath: string;
+  /** Which grading route the page is; every grading link and Save & next stay on it. */
+  routeKind: GradingRouteKind;
   /** URL-driven selection. An unknown student opens the oldest waiting one, else the first graded (By question: the first who needs a grade on the question); an unknown question opens the first one (By student: her first answer to grade). */
   selection: GradingSelection;
 }
@@ -63,9 +65,10 @@ export async function GradingPageShell({
   test,
   courseId,
   schoolId,
-  basePath,
+  routeKind,
   selection,
 }: GradingPageShellProps) {
+  const basePath = gradingBasePath({ routeKind, courseId, testId: test.id });
   const screen = await readGradingScreen(schoolId, test);
   const { questions, students: orderedStudents } = screen;
 
@@ -194,9 +197,9 @@ export async function GradingPageShell({
           panel: (
             <FinishPanel
               schoolId={schoolId}
-              routeKind={gradingRouteKind(basePath)}
+              routeKind={routeKind}
               testTitle={test.title}
-              backHref={`/admin/courses/${courseId}/tests/${test.id}`}
+              backHref={courseTestHref(courseId, test.id)}
               students={releaseStudents}
               testId={test.id}
               courseId={courseId}
@@ -239,7 +242,7 @@ export async function GradingPageShell({
               schoolId,
               question: focusedQuestion,
               student: currentStudent,
-              basePath,
+              routeKind,
               needsOnly: selection.needsOnly,
               screen,
               finish,
@@ -276,6 +279,7 @@ export async function GradingPageShell({
             student: focused,
             questionId: focusedQuestion?.id,
             basePath,
+            routeKind,
             needsOnly: selection.needsOnly,
             screen,
             finish,
@@ -342,10 +346,10 @@ export async function GradingPageShell({
 
   return (
     <StillWritingProvider>
-      <TwoPaneShell
+      <GradingScreenLayout
         topBar={
           <GradingTopBar
-            backHref={`/admin/courses/${courseId}/tests/${test.id}`}
+            backHref={courseTestHref(courseId, test.id)}
             testTitle={test.title}
             pivot={
               <PivotToggle
@@ -422,7 +426,6 @@ export async function GradingPageShell({
             }
           />
         }
-        roster={null}
         main={main}
       />
     </StillWritingProvider>

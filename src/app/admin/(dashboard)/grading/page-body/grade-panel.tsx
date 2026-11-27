@@ -106,8 +106,6 @@ export function GradePanel({
           questionId={question.id}
           studentId={student.id}
           gradedAnswerAt={answerSavedAt}
-          questionTitle={question.title}
-          questionOrder={question.order}
           existingScore={score}
           existingFeedback={grade?.feedback ?? null}
           existingSolution={grade?.solution ?? null}

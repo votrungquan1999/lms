@@ -1,3 +1,4 @@
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import type { GradingScreenRead } from "src/lib/grading-screen-read";
 import type { Student } from "src/lib/student-service";
 import type { Test } from "src/lib/test-service";
@@ -64,7 +65,7 @@ export async function questionDetailProps(input: {
     schoolId: TEST_SCHOOL_ID,
     question,
     student,
-    basePath: `/admin/grading/${test.id}`,
+    routeKind: GradingRouteKind.Hub,
     screen,
   };
 }

@@ -93,7 +93,7 @@ async function renderDoneLink(
       test: seed.test,
       courseId: seed.course.id,
       schoolId: TEST_SCHOOL_ID,
-      basePath: `/admin/grading/${seed.test.id}`,
+      routeKind: GradingRouteKind.Hub,
       selection: {
         mode,
         studentId,

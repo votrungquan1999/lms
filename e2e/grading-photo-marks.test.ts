@@ -3,6 +3,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { hydrated } from "./hydrated";
 import {
   enroll,
+  expectNoPageOverflow,
   insertAnnotation,
   insertAnswer,
   insertCourse,
@@ -65,12 +66,16 @@ function greyPng(width: number, height: number): Buffer {
   ]);
 }
 
+/** Natural width of the photo the current test serves, for waiting until it has loaded. */
+let servedWidth = PHOTO_WIDTH;
+
 /** The presigned photo URLs point at a bucket that does not exist; serve a real image instead. */
 async function servePhotos(
   page: Page,
   width = PHOTO_WIDTH,
   height = PHOTO_HEIGHT,
 ) {
+  servedWidth = width;
   const png = greyPng(width, height);
   await page.route(/e2e-mock-bucket/, (route) =>
     route.fulfill({ status: 200, contentType: "image/png", body: png }),
@@ -82,7 +87,7 @@ async function photoBox(page: Page) {
   const surface = page.getByLabel("Drawing surface");
   await expect(
     page.getByRole("img", { name: "Student submitted work" }),
-  ).toHaveJSProperty("naturalWidth", PHOTO_WIDTH);
+  ).toHaveJSProperty("naturalWidth", servedWidth);
   // The pane scrolls on its own: wheel until the whole photo sits inside its clip
   await expect
     .poll(async () => {
@@ -469,6 +474,63 @@ test.describe("The teacher types text marks onto a photo", () => {
   }
 });
 
+test.describe("A text mark near the photo's edge stays readable", () => {
+  for (const route of routes) {
+    test(`on ${route.name} a text typed near the bottom-right corner shows whole inside the photo, and the typing box is at least 16px so a phone does not zoom`, async ({
+      page,
+    }) => {
+      const ids = await seedPhotoTest();
+      await servePhotos(page);
+      await page.setViewportSize({ width: 500, height: 1100 });
+
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
+      const text = page.getByRole("button", { name: "Text", exact: true });
+      await hydrated(text);
+      await text.click();
+      const surface = page.getByLabel("Drawing surface");
+      await expect(
+        page.getByRole("img", { name: "Student submitted work" }),
+      ).toHaveJSProperty("naturalWidth", PHOTO_WIDTH);
+      const photo = await surface.boundingBox();
+      if (!photo) throw new Error("drawing surface has no bounding box");
+      await page.mouse.click(
+        photo.x + photo.width * 0.95,
+        photo.y + photo.height * 0.9,
+      );
+
+      // The typing box is big enough that iOS does not zoom the page when it takes focus
+      const box = page.getByRole("textbox", { name: "Text mark" });
+      await expect(box).toBeFocused();
+      const typingFont = await box.evaluate((el) =>
+        Number.parseFloat(getComputedStyle(el).fontSize),
+      );
+      expect(typingFont).toBeGreaterThanOrEqual(16);
+      await box.fill("Near the corner");
+      await box.press("Enter");
+
+      // The kept mark is on one line and sits wholly inside the photo
+      const mark = page.getByText("Near the corner");
+      await expect(mark).toBeVisible();
+      const markBox = await mark.boundingBox();
+      if (!markBox) throw new Error("text mark has no bounding box");
+      expect(markBox.x).toBeGreaterThanOrEqual(photo.x - 1);
+      expect(markBox.y).toBeGreaterThanOrEqual(photo.y - 1);
+      expect(markBox.x + markBox.width).toBeLessThanOrEqual(
+        photo.x + photo.width + 1,
+      );
+      expect(markBox.y + markBox.height).toBeLessThanOrEqual(
+        photo.y + photo.height + 1,
+      );
+      const keptFont = await mark.evaluate((el) =>
+        Number.parseFloat(getComputedStyle(el).fontSize),
+      );
+      expect(markBox.height).toBeLessThan(keptFont * 2);
+      // It keeps the photo-relative size, not the typing box's
+      expect(keptFont).toBeCloseTo(photo.width * 0.03, 0);
+    });
+  }
+});
+
 test.describe("Undo follows the order marks were made, also after a save and reopen", () => {
   for (const route of routes) {
     test(`on ${route.name} a stroke drawn after a text is the first thing Undo takes back once saved and reopened`, async ({
@@ -513,6 +575,69 @@ test.describe("Undo follows the order marks were made, also after a save and reo
       ).toBeVisible();
       await expect(page.getByText("first the text")).toBeVisible();
       await expect(page.locator("svg polyline")).toHaveCount(0);
+    });
+  }
+});
+
+test.describe("A finger can move the photo instead of drawing on it", () => {
+  test.use({ hasTouch: true });
+
+  for (const route of routes) {
+    test(`on ${route.name} with Move chosen a touch drag pans the photo at 100% and makes no mark, while with Pen the same drag draws`, async ({
+      page,
+    }) => {
+      const ids = await seedPhotoTest();
+      await servePhotos(page);
+      // The narrow layout: the grade panel is a bottom bar under the answer
+      await page.setViewportSize({ width: 834, height: 1194 });
+
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
+      const move = page.getByRole("button", { name: "Move", exact: true });
+      await hydrated(move);
+      await page.getByRole("button", { name: "100%" }).click();
+      const image = page.getByRole("img", { name: "Student submitted work" });
+      await expect(image).toHaveJSProperty("naturalWidth", PHOTO_WIDTH);
+      const strip = page.getByRole("group", { name: "Photos" });
+      const surface = page.getByLabel("Drawing surface");
+      // The 100% box around the photo is the one that scrolls sideways
+      const scroller = surface.locator(
+        "xpath=ancestor::div[contains(@class,'overflow-auto')][1]",
+      );
+      const scrolledLeft = () => scroller.evaluate((el) => el.scrollLeft);
+      await expect(scroller).toBeVisible();
+      expect(await scrolledLeft()).toBe(0);
+
+      /** One finger dragged to the left across the photo, as a touch screen sends it. */
+      async function swipeLeft() {
+        const client = await page.context().newCDPSession(page);
+        const at = await scroller.boundingBox();
+        if (!at) throw new Error("photo box has no bounding box");
+        await client.send("Input.synthesizeScrollGesture", {
+          x: Math.round(at.x + at.width / 2),
+          y: Math.round(at.y + Math.min(at.height, 400) / 2),
+          xDistance: -300,
+          yDistance: 0,
+          gestureSourceType: "touch",
+          speed: 800,
+        });
+      }
+
+      // With Pen the finger draws and the photo stays put
+      await swipeLeft();
+      await expect(
+        strip.getByRole("button", { name: /^Photo 1 · [1-9]\d* marks?$/ }),
+      ).toBeVisible();
+      expect(await scrolledLeft()).toBe(0);
+      await page.getByRole("button", { name: "Clear photo" }).click();
+
+      // With Move the same drag pans and leaves no mark
+      await move.click();
+      await expect(move).toHaveAttribute("aria-pressed", "true");
+      await swipeLeft();
+      await expect.poll(scrolledLeft).toBeGreaterThan(100);
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 0 marks" }),
+      ).toBeVisible();
     });
   }
 });
@@ -630,6 +755,211 @@ test.describe("Photo marks save with Save & next", () => {
           }),
         )
         .toEqual([1, 70]);
+    });
+  }
+});
+
+interface MarkMeasure {
+  /** The pen stroke's box as fractions of the photo's box: x, y, width, height. */
+  pen: number[];
+  /** The circle's box as fractions of the photo's box: x, y, width, height. */
+  circle: number[];
+  /** The pen's line width as a fraction of the photo's width. */
+  lineWidth: number;
+  /** The text mark's left, top and font size as fractions of the photo's box. */
+  text: number[];
+  /** The photo's shown width in pixels. */
+  photoWidth: number;
+}
+
+/** Measures the pen stroke, the circle and the "scale" text mark against the shown photo's box. */
+async function measureMarks(page: Page): Promise<MarkMeasure> {
+  return page.evaluate(() => {
+    const img = document.querySelector('img[alt="Student submitted work"]');
+    const [pen, circle] =
+      img?.parentElement?.querySelectorAll("polyline") ?? [];
+    const text = [...document.querySelectorAll("span")].find(
+      (el) => el.textContent === "scale",
+    );
+    if (!img || !pen || !circle || !text)
+      throw new Error("marks or photo not on screen");
+    const photo = img.getBoundingClientRect();
+    const asFractions = (mark: Element) => {
+      const box = mark.getBoundingClientRect();
+      return [
+        (box.left - photo.left) / photo.width,
+        (box.top - photo.top) / photo.height,
+        box.width / photo.width,
+        box.height / photo.height,
+      ];
+    };
+    const textBox = text.getBoundingClientRect();
+    return {
+      pen: asFractions(pen),
+      circle: asFractions(circle),
+      lineWidth:
+        Number.parseFloat(getComputedStyle(pen).strokeWidth) / photo.width,
+      text: [
+        (textBox.left - photo.left) / photo.width,
+        (textBox.top - photo.top) / photo.height,
+        Number.parseFloat(getComputedStyle(text).fontSize) / photo.width,
+      ],
+      photoWidth: photo.width,
+    };
+  });
+}
+
+/** Both measures describe the same marks at the same fractions of the photo. */
+function expectSameFractions(actual: MarkMeasure, expected: MarkMeasure) {
+  for (const key of ["pen", "circle", "text"] as const) {
+    expect(actual[key]).toHaveLength(expected[key].length);
+    actual[key].forEach((value, index) => {
+      expect(Math.abs(value - (expected[key][index] as number))).toBeLessThan(
+        0.01,
+      );
+    });
+  }
+  expect(actual.lineWidth / expected.lineWidth).toBeGreaterThan(0.9);
+  expect(actual.lineWidth / expected.lineWidth).toBeLessThan(1.1);
+}
+
+/** The marks sit where drawReferenceMarks put them, with a line 0.3% and text 3% of the photo width. */
+function expectReferenceSpots(measured: MarkMeasure) {
+  expect(measured.pen[0]).toBeCloseTo(0.2, 1);
+  expect(measured.pen[2]).toBeCloseTo(0.4, 1);
+  expect(measured.circle[0]).toBeCloseTo(0.65, 1);
+  expect(measured.circle[1]).toBeCloseTo(0.1, 1);
+  expect(measured.circle[2]).toBeCloseTo(0.25, 1);
+  expect(measured.circle[3]).toBeCloseTo(0.3, 1);
+  expect(measured.text[0]).toBeCloseTo(0.3, 1);
+  expect(measured.text[1]).toBeCloseTo(0.8, 1);
+  expect(measured.text[2]).toBeCloseTo(0.03, 2);
+  expect(measured.lineWidth).toBeCloseTo(0.003, 3);
+}
+
+/** Draws a pen stroke, a circle and a text mark on the photo, at known fractions of it. */
+async function drawReferenceMarks(page: Page) {
+  const pen = page.getByRole("button", { name: "Pen", exact: true });
+  await hydrated(pen);
+  await dragOnPhoto(page, [0.2, 0.2], [0.6, 0.6]);
+  await page.getByRole("button", { name: "Circle", exact: true }).click();
+  await dragOnPhoto(page, [0.65, 0.1], [0.9, 0.4]);
+  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await clickOnPhoto(page, [0.3, 0.8]);
+  const box = page.getByRole("textbox", { name: "Text mark" });
+  await box.fill("scale");
+  await box.press("Enter");
+  await expect(page.getByText("scale")).toBeVisible();
+}
+
+/** Switches to 100% and waits until the photo is shown at its natural width (its 1px frame adds 2px). */
+async function showAtFullSize(page: Page, naturalWidth: number) {
+  await page.getByRole("button", { name: "100%" }).click();
+  await expect
+    .poll(
+      async () =>
+        (
+          await page
+            .getByRole("img", { name: "Student submitted work" })
+            .boundingBox()
+        )?.width ?? 0,
+    )
+    .toBe(naturalWidth + 2);
+}
+
+test.describe("Photo marks keep their spot and size on the photo at every display size", () => {
+  for (const route of routes) {
+    test(`on ${route.name} a stroke, a circle and a text mark sit at the same fractions of the photo, with the same line width and text size, at Fit, 100% and the tablet layout`, async ({
+      page,
+    }) => {
+      const ids = await seedPhotoTest();
+      await servePhotos(page);
+
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
+      await drawReferenceMarks(page);
+
+      // Where she drew them, at Fit
+      const atFit = await measureMarks(page);
+      expectReferenceSpots(atFit);
+
+      // 100% shows the 1600 px photo far larger; the marks keep their fractions, line width and text size
+      await showAtFullSize(page, PHOTO_WIDTH);
+      expectSameFractions(await measureMarks(page), atFit);
+      await page.getByRole("button", { name: "Fit" }).click();
+
+      // The tablet layout shows the photo at another width; the marks still follow it
+      await page.setViewportSize({ width: 834, height: 1194 });
+      expectSameFractions(await measureMarks(page), atFit);
+      await expectNoPageOverflow(page);
+    });
+
+    test(`on ${route.name} a smaller photo of another shape gets the marks at the same fractions, line width and text size at Fit and at its own 100% size`, async ({
+      page,
+    }) => {
+      const ids = await seedPhotoTest();
+      await servePhotos(page, 400, 300);
+
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
+      await drawReferenceMarks(page);
+
+      const atFit = await measureMarks(page);
+      expectReferenceSpots(atFit);
+      // Fit stretches the 400 px photo to the pane, so 100% shows it clearly smaller
+      expect(atFit.photoWidth).toBeGreaterThan(500);
+
+      await showAtFullSize(page, 400);
+      const atFullSize = await measureMarks(page);
+      expectSameFractions(atFullSize, atFit);
+      expectReferenceSpots(atFullSize);
+    });
+
+    test(`on ${route.name} an arrow drawn with the photo shown smaller has the same head, as a fraction of the photo, as one drawn at full width`, async ({
+      page,
+    }) => {
+      const ids = await seedPhotoTest();
+      await servePhotos(page);
+
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
+      const arrow = page.getByRole("button", { name: "Arrow", exact: true });
+      await hydrated(arrow);
+      await arrow.click();
+      await dragOnPhoto(page, [0.6, 0.3], [0.9, 0.7]);
+
+      // A narrow window shows the same photo about 40% smaller; the arrow is drawn between the same fractions
+      await page.setViewportSize({ width: 500, height: 1100 });
+      const surface = page.getByLabel("Drawing surface");
+      await expect
+        .poll(async () => (await surface.boundingBox())?.width ?? 0)
+        .toBeLessThan(480);
+      const box = await surface.boundingBox();
+      if (!box) throw new Error("drawing surface has no bounding box");
+      await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.3);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * 0.9, box.y + box.height * 0.7);
+      await page.mouse.up();
+      await gradeAndSaveNext(page, "70");
+
+      await expect
+        .poll(() =>
+          withDb(async (db) => {
+            const doc = await db
+              .collection("annotation")
+              .findOne({ studentId: ids.ben, questionId: ids.questionId });
+            const [wide, narrow] = (doc?.entries?.[0]?.strokes ?? []) as {
+              points: { x: number; y: number }[];
+            }[];
+            const wing = (stroke?: { points: { x: number; y: number }[] }) => {
+              const [, tip, end] = stroke?.points ?? [];
+              return tip && end ? Math.hypot(end.x - tip.x, end.y - tip.y) : 0;
+            };
+            // Two head sizes within 5% of each other, as fractions of the photo
+            return (
+              wing(wide) > 0 &&
+              Math.abs(wing(wide) - wing(narrow)) / wing(wide) < 0.05
+            );
+          }),
+        )
+        .toBe(true);
     });
   }
 });

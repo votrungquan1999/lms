@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import type { Db } from "mongodb";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import type { SingleSelectQuestion } from "src/lib/question-service";
 import type { TestStartDocument } from "src/lib/test-start-service";
 import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
@@ -98,6 +99,9 @@ describe("Feature: the grading view hands in an attempt whose time ran out", () 
 
     // When the teacher opens the student's grading view
     const ui = await GradingDetailStudent({
+      screen: await (
+        await import("src/lib/grading-screen-read")
+      ).readGradingScreen(TEST_SCHOOL_ID, test),
       test,
       courseId: course.id,
       schoolId: TEST_SCHOOL_ID,
@@ -107,6 +111,7 @@ describe("Feature: the grading view hands in an attempt whose time ran out", () 
         username: student.username,
       },
       basePath: `/admin/grading/${test.id}`,
+      routeKind: GradingRouteKind.Hub,
     });
     render(ui);
 

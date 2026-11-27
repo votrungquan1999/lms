@@ -10,6 +10,21 @@ import { QuestionBoxState } from "./question-row-state";
 import { StillWritingConfirm, useStillWriting } from "./still-writing-confirm";
 import type { StudentPickerRow } from "./student-picker-rows";
 
+interface QuestionRowProps {
+  boxes: QuestionBoxModel[];
+  /** The state counts in words, e.g. "Needs grade 2 · Blank 0". */
+  legend: string;
+  needsOnly: boolean;
+  /** The row's own address with the filter flipped. */
+  toggleHref: string;
+  nothingNeedsGrading: boolean;
+  /** Students without a box because they have not started, or null when the row has none to count. */
+  notStarted?: number;
+  testTitle?: string;
+  /** A practice test has no grading, so the row offers no "Needs grading only" filter. */
+  isPractice?: boolean;
+}
+
 export interface QuestionBoxModel {
   /** Identifies the box: a question id, or a student id in By question. */
   id: string;
@@ -53,21 +68,6 @@ const BOX_WORDS: Record<QuestionBoxState, string> = {
   [QuestionBoxState.RedoRequested]: " redo requested",
 };
 
-interface QuestionRowProps {
-  boxes: QuestionBoxModel[];
-  /** The state counts in words, e.g. "Needs grade 2 · Blank 0". */
-  legend: string;
-  needsOnly: boolean;
-  /** The row's own address with the filter flipped. */
-  toggleHref: string;
-  nothingNeedsGrading: boolean;
-  /** Students without a box because they have not started, or null when the row has none to count. */
-  notStarted?: number;
-  testTitle?: string;
-  /** A practice test has no grading, so the row offers no "Needs grading only" filter. */
-  isPractice?: boolean;
-}
-
 const BOX_CLASS =
   "relative inline-flex size-7 items-center justify-center rounded text-xs font-medium";
 
@@ -84,7 +84,7 @@ export function QuestionRowUi({
 }: QuestionRowProps) {
   const router = useRouter();
   const { requestLeave } = useLeaveGuard();
-  const { confirm } = useStillWriting();
+  const { confirm, isConfirmed } = useStillWriting();
   // The still-writing student whose box the teacher pressed and has not confirmed.
   const [asking, setAsking] = useState<StudentPickerRow | null>(null);
   const askingHref = boxes.find(
@@ -119,7 +119,8 @@ export function QuestionRowUi({
               </button>
             );
           }
-          if (box.askStudent) {
+          // A student the teacher already confirmed opens like any other box.
+          if (box.askStudent && !isConfirmed(box.askStudent.id)) {
             const student = box.askStudent;
             return (
               <button

@@ -223,6 +223,47 @@ test.describe("Image-answer + annotation flow", () => {
     });
     await expect(page.getByText("check this step")).toBeVisible();
 
+    // The marks sit at the fractions of the photo where the grader put them, whatever size it is shown at
+    const measure = () =>
+      page.evaluate(() => {
+        const img = document.querySelector("img[alt='Your submitted work']");
+        const stroke = img?.parentElement?.querySelector("polyline");
+        const text = [...document.querySelectorAll("span")].find(
+          (el) => el.textContent === "check this step",
+        );
+        if (!img || !stroke || !text) throw new Error("marks or photo missing");
+        const photo = img.getBoundingClientRect();
+        const strokeBox = stroke.getBoundingClientRect();
+        const textBox = text.getBoundingClientRect();
+        return {
+          photoWidth: photo.width,
+          strokeLeft: (strokeBox.left - photo.left) / photo.width,
+          strokeWidth: strokeBox.width / photo.width,
+          lineWidth:
+            Number.parseFloat(getComputedStyle(stroke).strokeWidth) /
+            photo.width,
+          textLeft: (textBox.left - photo.left) / photo.width,
+          textTop: (textBox.top - photo.top) / photo.height,
+          textSize:
+            Number.parseFloat(getComputedStyle(text).fontSize) / photo.width,
+        };
+      });
+    const onDesktop = await measure();
+    // On a phone the same photo shows much smaller, so a fixed-pixel line or text would change its share
+    await page.setViewportSize({ width: 390, height: 844 });
+    const onPhone = await measure();
+    expect(onPhone.photoWidth).toBeLessThan(onDesktop.photoWidth * 0.8);
+    for (const measured of [onDesktop, onPhone]) {
+      expect(measured.strokeLeft).toBeCloseTo(0.2, 1);
+      expect(measured.strokeWidth).toBeCloseTo(0.4, 1);
+      expect(measured.lineWidth).toBeCloseTo(0.003, 3);
+      expect(measured.textLeft).toBeCloseTo(0.3, 1);
+      expect(measured.textTop).toBeCloseTo(0.7, 1);
+      expect(measured.textSize).toBeCloseTo(0.03, 2);
+    }
+    expect(onPhone.lineWidth / onDesktop.lineWidth).toBeGreaterThan(0.9);
+    expect(onPhone.lineWidth / onDesktop.lineWidth).toBeLessThan(1.1);
+
     await context.close();
   });
 });

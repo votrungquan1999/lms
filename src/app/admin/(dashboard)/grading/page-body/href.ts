@@ -45,16 +45,3 @@ export function gradingBasePath(input: {
     ? `/admin/courses/${input.courseId}/tests/${input.testId}/grading`
     : `/admin/grading/${input.testId}`;
 }
-
-/**
- * Which grading route a base path is. The page passes its own server-built
- * path, so a path under the course route is the course route and any other
- * is the hub.
- * @param basePath - The route's path, with no query string.
- * @returns The route kind.
- */
-export function gradingRouteKind(basePath: string): GradingRouteKind {
-  return basePath.startsWith("/admin/courses/")
-    ? GradingRouteKind.Course
-    : GradingRouteKind.Hub;
-}

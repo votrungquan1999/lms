@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { GradingPageShell } from "src/app/admin/(dashboard)/grading/page-body/grading-page-shell";
 import { GradingMode } from "src/lib/grading-mode";
 import { getPageGuard, getTestService } from "src/lib/services-singleton";
@@ -12,9 +13,9 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 /**
- * Variant grading page reachable from the grading hub. Renders the redesigned
- * roster + detail shell. Forwards selection state (`studentId`, etc.) from
- * the URL into the shell.
+ * Grading page reachable from the grading hub. Renders the grading shell:
+ * a top bar over the focused student's or question's pane. Forwards selection
+ * state (`studentId`, etc.) from the URL into the shell.
  */
 export default async function GradingVariantPage({
   params,
@@ -56,7 +57,7 @@ export default async function GradingVariantPage({
           test,
           courseId,
           schoolId: session.school.id,
-          basePath: `/admin/grading/${testId}`,
+          routeKind: GradingRouteKind.Hub,
           selection: { mode, studentId, questionId, needsOnly, done },
         })
       }

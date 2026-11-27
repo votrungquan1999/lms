@@ -4,13 +4,14 @@ import { useState } from "react";
 import {
   AnnotationOverlay,
   TEXT_MARK_FONT_SIZE,
+  textMarkPlacement,
 } from "src/components/annotation-overlay";
 import { Button } from "src/components/ui/button";
 import {
   ANNOTATION_PALETTE,
   ANNOTATION_TEXT_MAX_LENGTH,
 } from "src/lib/annotation-service";
-import { type MarkTool, useAnnotationTool } from "./annotation-tool.state";
+import { MarkTool, useAnnotationTool } from "./annotation-tool.state";
 
 /** Photo (key + presigned url) a grader can annotate. */
 export interface AnnotatablePhoto {
@@ -19,10 +20,11 @@ export interface AnnotatablePhoto {
 }
 
 const TOOLS: { tool: MarkTool; label: string }[] = [
-  { tool: "pen", label: "Pen" },
-  { tool: "circle", label: "Circle" },
-  { tool: "arrow", label: "Arrow" },
-  { tool: "text", label: "Text" },
+  { tool: MarkTool.Pen, label: "Pen" },
+  { tool: MarkTool.Circle, label: "Circle" },
+  { tool: MarkTool.Arrow, label: "Arrow" },
+  { tool: MarkTool.Text, label: "Text" },
+  { tool: MarkTool.Move, label: "Move" },
 ];
 
 /**
@@ -136,9 +138,15 @@ export function AnnotationTool({
               >
                 <svg
                   aria-label="Drawing surface"
-                  className="col-start-1 row-start-1 size-full cursor-crosshair touch-none [contain:size]"
+                  className={`col-start-1 row-start-1 size-full [contain:size] ${
+                    tool === MarkTool.Move
+                      ? "cursor-grab touch-pan-x touch-pan-y"
+                      : "cursor-crosshair touch-none"
+                  }`}
                   onPointerDown={(e) => {
-                    if (tool === "text") return;
+                    // Move leaves the drag to the browser, which pans or scrolls on touch
+                    if (tool === MarkTool.Text || tool === MarkTool.Move)
+                      return;
                     e.currentTarget.setPointerCapture(e.pointerId);
                     dispatch({
                       type: "START_STROKE",
@@ -153,7 +161,8 @@ export function AnnotationTool({
                   }}
                   onPointerUp={(e) => {
                     // Opened on pointer up: an input opened on pointer down loses focus to the same click
-                    if (tool === "text") {
+                    if (tool === MarkTool.Move) return;
+                    if (tool === MarkTool.Text) {
                       dispatch({
                         type: "START_TEXT",
                         mediaKey: photo.key,
@@ -187,11 +196,11 @@ export function AnnotationTool({
                       }}
                       className="pointer-events-auto absolute rounded border border-border bg-background/90 px-1 font-semibold leading-tight outline-none"
                       style={{
-                        left: `${textDraft.point.x * 100}%`,
-                        top: `${textDraft.point.y * 100}%`,
-                        width: `${Math.max(0.25, 1 - textDraft.point.x) * 100}%`,
+                        ...textMarkPlacement(textDraft.point),
+                        width: textMarkPlacement(textDraft.point).maxWidth,
                         color: textDraft.color,
-                        fontSize: TEXT_MARK_FONT_SIZE,
+                        // iOS zooms the page when a focused field is under 16px
+                        fontSize: `max(16px, ${TEXT_MARK_FONT_SIZE})`,
                       }}
                     />
                   </div>

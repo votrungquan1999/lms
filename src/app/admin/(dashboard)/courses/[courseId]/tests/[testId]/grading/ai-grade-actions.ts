@@ -1,8 +1,8 @@
 "use server";
 
 import type { Span } from "@opentelemetry/api";
-import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { revalidateGradingPaths } from "src/app/admin/(dashboard)/grading/page-body/revalidate-grading-paths";
 import {
   AiGradeOutcome,
   recordAiAcceptance,
@@ -42,17 +42,6 @@ function annotateRound(span: Span, outcome: StartRoundOutcome): void {
       outcome.fallbackCause ? "gemini_fallback" : "gemini",
     );
   }
-}
-
-/**
- * Revalidates the admin pages that show a student's AI suggestions.
- * @param courseId - The course the grading page sits under.
- * @param testId - The graded test.
- */
-function revalidateGradingPaths(courseId: string, testId: string): void {
-  revalidatePath(`/admin/courses/${courseId}/tests/${testId}/grading`);
-  revalidatePath("/admin/grading");
-  revalidatePath(`/admin/grading/${testId}`);
 }
 
 const autoGradeSchema = z.object({
@@ -503,14 +492,9 @@ export async function applyAiSuggestionAction(
           solution: parsed.data.solutionOverride ?? suggestion.solution,
         });
 
-        revalidatePath(
-          `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-        );
-        revalidatePath("/admin/grading");
-        revalidatePath(`/admin/grading/${parsed.data.testId}`);
-        revalidatePath(
+        revalidateGradingPaths(parsed.data.courseId, parsed.data.testId, [
           `/student/courses/${parsed.data.courseId}/tests/${parsed.data.testId}`,
-        );
+        ]);
 
         return {
           success: true,

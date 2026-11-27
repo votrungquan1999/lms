@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { GradingPageShell } from "src/app/admin/(dashboard)/grading/page-body/grading-page-shell";
 import { GradingMode } from "src/lib/grading-mode";
 import { getPageGuard, getTestService } from "src/lib/services-singleton";
@@ -46,7 +47,7 @@ export default async function GradingPage({
           test,
           courseId,
           schoolId: session.school.id,
-          basePath: `/admin/courses/${courseId}/tests/${testId}/grading`,
+          routeKind: GradingRouteKind.Course,
           selection: { mode, studentId, questionId, needsOnly, done },
         })
       }

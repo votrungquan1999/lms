@@ -5,6 +5,25 @@ import type { ReactNode } from "react";
 import { GuardedLink } from "src/app/admin/(dashboard)/guarded-link";
 import { Badge } from "src/components/ui/badge";
 
+interface StudentPositionProps {
+  /** The student picker, naming the student on screen. */
+  picker: ReactNode;
+  /** 1-based place among the submitted students; null when the student is not one of them. */
+  index: number | null;
+  submittedCount: number;
+  /** Null at the first / last submitted student. */
+  previousHref: string | null;
+  nextHref: string | null;
+}
+
+interface QuestionPositionProps {
+  /** The question picker, naming the question on screen. */
+  picker: ReactNode;
+  /** Null at the first / last question. */
+  previousHref: string | null;
+  nextHref: string | null;
+}
+
 interface GradingTopBarProps {
   /** The test page the back link returns to. */
   backHref: string;
@@ -43,6 +62,8 @@ export function GradingTopBar({
         <span className="truncate">{testTitle}</span>
       </GuardedLink>
       {pivot}
+      {/* Below 900px this empty full-width item pushes the position onto a second row. */}
+      <div aria-hidden className="hidden h-0 basis-full narrow:block" />
       {position}
       <div className="ml-auto flex flex-wrap items-center gap-3">
         {progress}
@@ -50,17 +71,6 @@ export function GradingTopBar({
       </div>
     </div>
   );
-}
-
-interface StudentPositionProps {
-  /** The student picker, naming the student on screen. */
-  picker: ReactNode;
-  /** 1-based place among the submitted students; null when the student is not one of them. */
-  index: number | null;
-  submittedCount: number;
-  /** Null at the first / last submitted student. */
-  previousHref: string | null;
-  nextHref: string | null;
 }
 
 /** The student picker with ‹ k of N submitted › to step through the students who handed in. */
@@ -73,7 +83,7 @@ export function StudentPosition({
 }: StudentPositionProps) {
   return (
     <span
-      className="flex min-w-0 items-center gap-2 text-sm"
+      className="flex min-w-0 items-center gap-2 text-sm narrow:flex-wrap"
       data-testid="grading-student-position"
     >
       {picker}
@@ -118,14 +128,6 @@ function StepControl({
   );
 }
 
-interface QuestionPositionProps {
-  /** The question picker, naming the question on screen. */
-  picker: ReactNode;
-  /** Null at the first / last question. */
-  previousHref: string | null;
-  nextHref: string | null;
-}
-
 /** The question picker with ‹ › to step through the questions. */
 export function QuestionPosition({
   picker,
@@ -134,7 +136,7 @@ export function QuestionPosition({
 }: QuestionPositionProps) {
   return (
     <span
-      className="flex min-w-0 items-center gap-2 text-sm"
+      className="flex min-w-0 items-center gap-2 text-sm narrow:flex-wrap"
       data-testid="grading-question-position"
     >
       {picker}

@@ -23,15 +23,6 @@ import {
   type StudentPickerRow,
 } from "./student-picker-rows";
 
-const GROUP_TITLES: Record<StudentPickerGroup, string> = {
-  [StudentPickerGroup.NeedsGrading]: "Needs grading",
-  [StudentPickerGroup.Graded]: "Graded",
-  [StudentPickerGroup.Submitted]: "Submitted",
-  [StudentPickerGroup.StillWriting]: "Still writing",
-  [StudentPickerGroup.RedoRequested]: "Redo requested",
-  [StudentPickerGroup.NotStarted]: "Not started",
-};
-
 interface StudentPickerUiProps {
   /** The student on screen, or null when none is open. */
   currentName: string | null;
@@ -47,6 +38,15 @@ interface StudentPickerUiProps {
   isPractice: boolean;
 }
 
+const GROUP_TITLES: Record<StudentPickerGroup, string> = {
+  [StudentPickerGroup.NeedsGrading]: "Needs grading",
+  [StudentPickerGroup.Graded]: "Graded",
+  [StudentPickerGroup.Submitted]: "Submitted",
+  [StudentPickerGroup.StillWriting]: "Still writing",
+  [StudentPickerGroup.RedoRequested]: "Redo requested",
+  [StudentPickerGroup.NotStarted]: "Not started",
+};
+
 /** The student picker: a dropdown naming the open student, listing every student under her status. */
 export function StudentPickerUi({
   currentName,
@@ -60,7 +60,7 @@ export function StudentPickerUi({
 }: StudentPickerUiProps) {
   const router = useRouter();
   const { requestLeave } = useLeaveGuard();
-  const { confirm } = useStillWriting();
+  const { confirm, isConfirmed } = useStillWriting();
   const [query, setQuery] = useState("");
   // The still-writing student the teacher picked and has not yet confirmed.
   const [asking, setAsking] = useState<StudentPickerRow | null>(null);
@@ -144,7 +144,7 @@ export function StudentPickerUi({
                     row={row}
                     current={row.id === currentId}
                     href={hrefFor[row.id]}
-                    ask={!isPractice}
+                    ask={!isPractice && !isConfirmed(row.id)}
                     onAsk={() => setAsking(row)}
                   />
                 ))}
@@ -168,6 +168,7 @@ export function StudentPickerUi({
   );
 }
 
+/** The picker's "Next waiting student" entry text. */
 function NextWaitingLabel() {
   return (
     <span className="flex w-full min-w-0 items-baseline justify-between gap-2">
@@ -179,6 +180,7 @@ function NextWaitingLabel() {
   );
 }
 
+/** One student's entry in the picker: a link to her, or a request to confirm first when she is still writing. */
 function PickerItem({
   row,
   current,

@@ -1,5 +1,5 @@
 /**
- * Shared types for the two-pane grading shell. Selection state lives in the
+ * Shared types for the grading shell. Selection state lives in the
  * URL — this file holds the enums for the URL values.
  */
 
@@ -9,4 +9,10 @@ export enum GradingRouteKind {
   Hub = "hub",
   /** `/admin/courses/<courseId>/tests/<testId>/grading` */
   Course = "course",
+}
+
+/** Who a release reaches: every student, or the ticked ones. */
+export enum ReleaseMode {
+  Whole = "whole",
+  Chosen = "chosen",
 }

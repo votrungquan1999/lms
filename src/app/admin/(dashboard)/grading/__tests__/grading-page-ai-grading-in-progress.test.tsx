@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import type { AiClient, AiGradeBatchInput } from "src/lib/ai/ai-client";
 import { BackgroundClaudeRunnerClient } from "src/lib/ai/background-claude-runner-client";
 import { ready } from "src/lib/ai/runner-settings";
@@ -138,6 +139,9 @@ async function seedSubmission(options: {
 
   const buildPage = async () =>
     GradingDetailStudent({
+      screen: await (
+        await import("src/lib/grading-screen-read")
+      ).readGradingScreen(TEST_SCHOOL_ID, test),
       test,
       courseId: course.id,
       schoolId: TEST_SCHOOL_ID,
@@ -147,6 +151,7 @@ async function seedSubmission(options: {
         username: student.username,
       },
       basePath: `/admin/grading/${test.id}`,
+      routeKind: GradingRouteKind.Hub,
     });
 
   return {

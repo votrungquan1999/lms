@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
+
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
@@ -81,7 +83,7 @@ async function renderGradedHiddenStudent() {
     schoolId: TEST_SCHOOL_ID,
     question: q1,
     student: { id: student.id, name: student.name, username: student.username },
-    basePath: `/admin/grading/${test.id}`,
+    routeKind: GradingRouteKind.Hub,
     screen: await readGradingScreen(TEST_SCHOOL_ID, test),
   });
   render(ui);

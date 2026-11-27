@@ -13,33 +13,9 @@ import {
 } from "src/components/ui/dialog";
 import { Label } from "src/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "src/components/ui/radio-group";
+import { ReleaseMode } from "./grading-page-body.type";
 import { ReleaseChecklist } from "./release-checklist.ui";
 import type { ReleaseStudent } from "./release-students";
-
-/** Who a release reaches: every student, or the ticked ones. */
-export type ReleaseMode = "whole" | "chosen";
-
-/** How the test's students stand, for the dialog's summary line. */
-export interface ReleaseStudentCounts {
-  graded: number;
-  waiting: number;
-  stillWriting: number;
-  redoRequested: number;
-  notStarted: number;
-}
-
-/** "2 graded · 1 waiting · 0 still writing · 2 not started", with the redo part only when there is one. */
-export function releaseSummary(counts: ReleaseStudentCounts): string {
-  return [
-    `${counts.graded} graded`,
-    `${counts.waiting} waiting`,
-    `${counts.stillWriting} still writing`,
-    ...(counts.redoRequested > 0
-      ? [`${counts.redoRequested} redo requested`]
-      : []),
-    `${counts.notStarted} not started`,
-  ].join(" · ");
-}
 
 interface ReleaseDialogViewProps {
   open: boolean;
@@ -62,6 +38,28 @@ interface ReleaseDialogViewProps {
   pending: boolean;
   error: string | null;
   onSubmit: () => void;
+}
+
+/** How the test's students stand, for the dialog's summary line. */
+export interface ReleaseStudentCounts {
+  graded: number;
+  waiting: number;
+  stillWriting: number;
+  redoRequested: number;
+  notStarted: number;
+}
+
+/** "2 graded · 1 waiting · 0 still writing · 2 not started", with the redo part only when there is one. */
+export function releaseSummary(counts: ReleaseStudentCounts): string {
+  return [
+    `${counts.graded} graded`,
+    `${counts.waiting} waiting`,
+    `${counts.stillWriting} still writing`,
+    ...(counts.redoRequested > 0
+      ? [`${counts.redoRequested} redo requested`]
+      : []),
+    `${counts.notStarted} not started`,
+  ].join(" · ");
 }
 
 /** Who sees their grades, and whether the correct answers come with them. */
@@ -89,7 +87,7 @@ export function ReleaseDialogView({
     onSubmit();
   }
   const releaseLabel =
-    mode === "chosen"
+    mode === ReleaseMode.Chosen
       ? `Release to ${chosenIds.size} ${chosenIds.size === 1 ? "student" : "students"}`
       : "Release";
   return (
@@ -109,7 +107,7 @@ export function ReleaseDialogView({
               aria-label="Who sees their grade"
             >
               <div className="flex items-start gap-2">
-                <RadioGroupItem value="whole" id="release-whole" />
+                <RadioGroupItem value={ReleaseMode.Whole} id="release-whole" />
                 <Label htmlFor="release-whole" className="grid gap-0.5">
                   <span>Whole test</span>
                   <span className="text-xs font-normal text-muted-foreground">
@@ -119,7 +117,10 @@ export function ReleaseDialogView({
                 </Label>
               </div>
               <div className="flex items-start gap-2">
-                <RadioGroupItem value="chosen" id="release-chosen" />
+                <RadioGroupItem
+                  value={ReleaseMode.Chosen}
+                  id="release-chosen"
+                />
                 <Label htmlFor="release-chosen" className="grid gap-0.5">
                   <span>Only chosen students</span>
                   <span className="text-xs font-normal text-muted-foreground">
@@ -130,7 +131,7 @@ export function ReleaseDialogView({
             </RadioGroup>
           </div>
 
-          {mode === "chosen" && (
+          {mode === ReleaseMode.Chosen && (
             <ReleaseChecklist
               students={students}
               chosenIds={chosenIds}
@@ -175,7 +176,9 @@ export function ReleaseDialogView({
             </Button>
             <Button
               type="submit"
-              disabled={pending || (mode === "chosen" && chosenIds.size === 0)}
+              disabled={
+                pending || (mode === ReleaseMode.Chosen && chosenIds.size === 0)
+              }
             >
               {pending ? "Releasing…" : releaseLabel}
             </Button>

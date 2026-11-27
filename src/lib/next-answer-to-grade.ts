@@ -1,9 +1,23 @@
 import type { Answer, StudentAnswer } from "src/lib/answer-service";
 import type { Grade } from "src/lib/grade-service";
 import type { PairGradingResult } from "src/lib/grading-count-service";
+import { GradingMode } from "src/lib/grading-mode";
 import { type NeedsGradeInput, needsGrade } from "src/lib/needs-grade";
 import { isMcQuestionType, type Question } from "src/lib/question-service";
 import { TestStatus } from "src/lib/test-status-service";
+
+/** One student's answer to one question and the grade it has. */
+export interface AnswerNeedsGradeInput {
+  question: Pick<Question, "type">;
+  /** The student's latest answer, or undefined when there is none. */
+  answer: StudentAnswer | undefined;
+  /** When that answer was saved. */
+  answeredAt: Date | null;
+  /** The saved grade, or null when there is none. */
+  grade: NeedsGradeInput["grade"];
+  /** The student has an open redo request. */
+  redoOpen: boolean;
+}
 
 /** One answer on the grading screen: a student's answer to a question. */
 export interface AnswerRef {
@@ -13,7 +27,7 @@ export interface AnswerRef {
 
 export interface NextAnswerInput {
   /** By student walks one student's answers first; By question walks one question's. */
-  mode: "student" | "question";
+  mode: GradingMode;
   /** The course's enrolled students; their order does not matter. */
   students: { id: string }[];
   /** The answer the teacher just graded. */
@@ -49,19 +63,6 @@ export function isGradableAnswer(
     : answer.type === "image" && answer.mediaKeys.length > 0;
 }
 
-/** One student's answer to one question and the grade it has. */
-export interface AnswerNeedsGradeInput {
-  question: Pick<Question, "type">;
-  /** The student's latest answer, or undefined when there is none. */
-  answer: StudentAnswer | undefined;
-  /** When that answer was saved. */
-  answeredAt: Date | null;
-  /** The saved grade, or null when there is none. */
-  grade: NeedsGradeInput["grade"];
-  /** The student has an open redo request. */
-  redoOpen: boolean;
-}
-
 /**
  * Whether an answer the teacher can grade still waits for a grade. The one
  * rule every grading screen part and the AI grading round use to decide.
@@ -80,6 +81,7 @@ export function answerNeedsGrade(input: AnswerNeedsGradeInput): boolean {
   );
 }
 
+/** Whether this student's answer to the question waits for the teacher. */
 function answerOfStudentNeedsGrade(
   input: NextAnswerInput,
   studentId: string,
@@ -107,7 +109,7 @@ function answerOfStudentNeedsGrade(
 export function findNextAnswerToGrade(
   input: NextAnswerInput,
 ): AnswerRef | null {
-  return input.mode === "question"
+  return input.mode === GradingMode.Question
     ? findNextByQuestion(input)
     : findNextByStudent(input);
 }
@@ -227,6 +229,7 @@ export function countOtherStudentsToGrade(
   ).length;
 }
 
+/** By student: this student's next waiting answer, then the next waiting student's first. */
 function findNextByStudent(input: NextAnswerInput): AnswerRef | null {
   const { current, questions } = input;
   const at = questions.findIndex((q) => q.id === current.questionId);

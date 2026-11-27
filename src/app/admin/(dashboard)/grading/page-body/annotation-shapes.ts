@@ -1,16 +1,17 @@
 import type { AnnotationPoint } from "src/lib/annotation-service";
 
-const ELLIPSE_SEGMENTS = 32;
-const ARROW_HEAD_MIN_PX = 10;
-const ARROW_HEAD_MAX_PX = 28;
-const ARROW_HEAD_RATIO = 0.3;
-const ARROW_HEAD_ANGLE = Math.PI / 6;
-
 /** Rendered size of the drawing surface in pixels. */
 export interface SurfaceSize {
   width: number;
   height: number;
 }
+
+const ELLIPSE_SEGMENTS = 32;
+// Head limits as shares of the photo width, so a head looks the same however large the photo is shown.
+const ARROW_HEAD_MIN_SHARE = 0.015;
+const ARROW_HEAD_MAX_SHARE = 0.042;
+const ARROW_HEAD_RATIO = 0.3;
+const ARROW_HEAD_ANGLE = Math.PI / 6;
 
 /**
  * Points of an ellipse inscribed in the box dragged from `from` to `to`.
@@ -54,8 +55,8 @@ export function arrowPoints(
   const length = Math.hypot(dx, dy);
   if (length === 0) return [from, to];
   const headLength = Math.min(
-    ARROW_HEAD_MAX_PX,
-    Math.max(ARROW_HEAD_MIN_PX, length * ARROW_HEAD_RATIO),
+    size.width * ARROW_HEAD_MAX_SHARE,
+    Math.max(size.width * ARROW_HEAD_MIN_SHARE, length * ARROW_HEAD_RATIO),
   );
   const backAngle = Math.atan2(dy, dx) + Math.PI;
   const wing = (offset: number): AnnotationPoint => ({

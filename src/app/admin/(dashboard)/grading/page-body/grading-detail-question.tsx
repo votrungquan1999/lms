@@ -33,7 +33,7 @@ import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { cn } from "src/lib/utils";
 import { aiJobState } from "./ai-job-state";
 import type { FinishView } from "./finish-panel.ui";
-import { gradingRouteKind } from "./href";
+import type { GradingRouteKind } from "./grading-page-body.type";
 
 interface GradingDetailQuestionProps {
   test: Test;
@@ -44,8 +44,8 @@ interface GradingDetailQuestionProps {
   question: Question;
   /** The student whose answer is on screen. */
   student: { id: string; name: string; username: string };
-  /** Base path the page is rendered at (no query string). */
-  basePath: string;
+  /** Which grading route the page is. */
+  routeKind: GradingRouteKind;
   /** Keep "Needs grading only" on after Save & next. */
   needsOnly?: boolean;
   /** The screen's read of the test. */
@@ -64,7 +64,7 @@ export async function GradingDetailQuestion({
   schoolId,
   question: focused,
   student,
-  basePath,
+  routeKind,
   needsOnly = false,
   screen,
   finish,
@@ -119,7 +119,7 @@ export async function GradingDetailQuestion({
 
   // The label comes from the same search the Save & next action runs.
   const nextInput: NextAnswerInput = {
-    mode: "question",
+    mode: GradingMode.Question,
     students: screen.students,
     current: { studentId: student.id, questionId: question.id },
     questions: screen.questions,
@@ -132,7 +132,7 @@ export async function GradingDetailQuestion({
   const nextQuestion = screen.questions.find((q) => q.id === next?.questionId);
   const answersLeft = countStudentsToGradeOnQuestion(nextInput, question.id);
   const saveAndNext: SaveAndNextNavigation = {
-    routeKind: gradingRouteKind(basePath),
+    routeKind,
     mode: GradingMode.Question,
     needsOnly,
     ...(next && nextStudent && next.questionId === question.id
@@ -163,7 +163,7 @@ export async function GradingDetailQuestion({
         data-testid={`student-card-${student.id}`}
         data-student-name={student.name}
         className={cn(
-          "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4",
+          "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4 narrow:grid-cols-[minmax(0,1fr)] narrow:grid-rows-[minmax(0,1fr)_auto]",
           test.isPractice
             ? "grid-cols-[minmax(0,1fr)]"
             : "grid-cols-[minmax(0,1fr)_24rem]",

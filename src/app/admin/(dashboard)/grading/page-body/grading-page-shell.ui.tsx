@@ -4,41 +4,27 @@ import { GuardedLink } from "src/app/admin/(dashboard)/guarded-link";
 import { Progress } from "src/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "src/components/ui/tabs";
 import { GradingMode } from "src/lib/grading-mode";
-import { cn } from "src/lib/utils";
 import { gradingHref } from "./href";
 
-interface TwoPaneShellProps {
+interface GradingScreenLayoutProps {
   topBar: React.ReactNode;
-  /** The left pane; none leaves the main pane the full width. */
-  roster: React.ReactNode;
   main: React.ReactNode;
 }
 
 /**
- * Top bar over a two-pane grid: a fixed-width roster sidebar on the left and
- * a flexible main pane on the right. The panes fill the screen and scroll
- * inside it, instead of the page growing. Layout-only display component
- * (server-components-rules.md forbids layout inside server components).
+ * The top bar over the focused student's or question's grading pane. The pane
+ * fills the screen and scrolls inside it, instead of the page growing.
+ * Layout-only display component (server-components-rules.md forbids layout
+ * inside server components).
  */
-export function TwoPaneShell({ topBar, roster, main }: TwoPaneShellProps) {
+export function GradingScreenLayout({
+  topBar,
+  main,
+}: GradingScreenLayoutProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       {topBar}
-      <div
-        className={cn(
-          "grid gap-6",
-          roster ? "grid-cols-[18rem_minmax(0,1fr)]" : "grid-cols-1",
-          "min-h-0 flex-1",
-        )}
-      >
-        {roster && (
-          <aside
-            className="min-h-0 overflow-y-auto rounded-md border border-border bg-card p-2"
-            data-testid="grading-roster"
-          >
-            {roster}
-          </aside>
-        )}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-6">
         <section className="min-h-0" data-testid="grading-main-pane">
           {main}
         </section>

@@ -6,6 +6,7 @@ import {
   annotationReducer,
   buildInitialAnnotationState,
   collectAnnotations,
+  MarkTool,
 } from "../annotation-tool.state";
 
 const KEY = "answers/s/p1.png";
@@ -70,7 +71,7 @@ describe("annotationReducer", () => {
     // A circle keeps only the box from the drag start to where it ended
     let state = annotationReducer(buildInitialAnnotationState([], "#ff0000"), {
       type: "SET_TOOL",
-      tool: "circle",
+      tool: MarkTool.Circle,
     });
     state = drawStroke(state, [start, wander, end]);
     expect(state.entriesByKey[KEY][0].points).toEqual(
@@ -78,7 +79,10 @@ describe("annotationReducer", () => {
     );
 
     // An arrow runs from the drag start to where it ended, head included
-    state = annotationReducer(state, { type: "SET_TOOL", tool: "arrow" });
+    state = annotationReducer(state, {
+      type: "SET_TOOL",
+      tool: MarkTool.Arrow,
+    });
     state = drawStroke(state, [start, wander, end]);
     expect(state.entriesByKey[KEY][1].points).toEqual(
       arrowPoints(start, end, size),

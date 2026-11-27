@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import {
   AI_GRADER_ID,
   AI_MODEL_NAME,
@@ -130,6 +131,9 @@ async function renderWithSuggestions(
 
   render(
     await GradingDetailStudent({
+      screen: await (
+        await import("src/lib/grading-screen-read")
+      ).readGradingScreen(TEST_SCHOOL_ID, testDoc),
       test: testDoc,
       courseId: course.id,
       schoolId: TEST_SCHOOL_ID,
@@ -140,6 +144,7 @@ async function renderWithSuggestions(
       },
       questionId: question.id,
       basePath: "/admin/grading/test-1",
+      routeKind: GradingRouteKind.Hub,
     }),
   );
 }

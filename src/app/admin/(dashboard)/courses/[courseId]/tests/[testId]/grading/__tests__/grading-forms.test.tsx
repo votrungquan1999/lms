@@ -19,8 +19,6 @@ const BASE_PROPS = {
   courseId: "course-1",
   questionId: "q-1",
   studentId: "student-1",
-  questionTitle: "Capital of France?",
-  questionOrder: 1,
   existingScore: null,
   existingFeedback: null,
   existingSolution: null,

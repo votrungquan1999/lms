@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
@@ -76,6 +77,9 @@ describe("Feature: per-student grading view renders image_answer submissions", (
 
     // When the per-student grading view renders (the default grading surface).
     const ui = await GradingDetailStudent({
+      screen: await (
+        await import("src/lib/grading-screen-read")
+      ).readGradingScreen(TEST_SCHOOL_ID, testDoc),
       test: testDoc,
       courseId: course.id,
       schoolId: TEST_SCHOOL_ID,
@@ -85,6 +89,7 @@ describe("Feature: per-student grading view renders image_answer submissions", (
         username: student.username,
       },
       basePath: "/admin/grading/test-1",
+      routeKind: GradingRouteKind.Hub,
     });
     render(ui);
 
@@ -136,6 +141,9 @@ describe("Feature: per-student grading view renders image_answer submissions", (
 
     // When the per-student grading view renders.
     const ui = await GradingDetailStudent({
+      screen: await (
+        await import("src/lib/grading-screen-read")
+      ).readGradingScreen(TEST_SCHOOL_ID, testDoc),
       test: testDoc,
       courseId: course.id,
       schoolId: TEST_SCHOOL_ID,
@@ -145,6 +153,7 @@ describe("Feature: per-student grading view renders image_answer submissions", (
         username: student.username,
       },
       basePath: "/admin/grading/test-1",
+      routeKind: GradingRouteKind.Hub,
     });
     render(ui);
 
@@ -230,6 +239,9 @@ describe("Feature: per-student grading view renders image_answer submissions", (
 
     // When the per-student grading view renders.
     const ui = await GradingDetailStudent({
+      screen: await (
+        await import("src/lib/grading-screen-read")
+      ).readGradingScreen(TEST_SCHOOL_ID, testDoc),
       test: testDoc,
       courseId: course.id,
       schoolId: TEST_SCHOOL_ID,
@@ -239,6 +251,7 @@ describe("Feature: per-student grading view renders image_answer submissions", (
         username: student.username,
       },
       basePath: "/admin/grading/test-1",
+      routeKind: GradingRouteKind.Hub,
     });
     const { container } = render(ui);
 

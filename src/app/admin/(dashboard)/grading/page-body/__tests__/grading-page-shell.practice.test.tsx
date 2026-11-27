@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { GradingRouteKind } from "src/app/admin/(dashboard)/grading/page-body/grading-page-body.type";
 import { GradingMode } from "src/lib/grading-mode";
 import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
@@ -112,7 +113,7 @@ describe("Feature: a practice test's grading screen shows answers only", () => {
       test,
       courseId: course.id,
       schoolId: TEST_SCHOOL_ID,
-      basePath: `/admin/grading/${test.id}`,
+      routeKind: GradingRouteKind.Hub,
       selection: { mode: GradingMode.Student },
     });
     render(ui);
@@ -150,7 +151,7 @@ describe("Feature: a practice test's grading screen shows answers only", () => {
       test,
       courseId: course.id,
       schoolId: TEST_SCHOOL_ID,
-      basePath: `/admin/grading/${test.id}`,
+      routeKind: GradingRouteKind.Hub,
       selection: { mode: GradingMode.Student },
     });
     render(ui);

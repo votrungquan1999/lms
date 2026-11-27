@@ -3,6 +3,8 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* Tablet and phone widths, where the grading screen folds its panels. */
+@custom-variant narrow (@media (max-width: 899.98px));
 
 @theme inline {
   --color-background: var(--background);

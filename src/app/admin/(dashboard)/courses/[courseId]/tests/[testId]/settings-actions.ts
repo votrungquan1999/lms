@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { revalidateGradingPaths } from "src/app/admin/(dashboard)/grading/page-body/revalidate-grading-paths";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
 import {
@@ -94,11 +95,7 @@ export async function setTestSettingsAction(
             await getTestSubmissionService(schoolId)
           ).markChoiceAnswersForHandIns(parsed.data.testId);
           // The new grades change what every grading screen and the To grade list show.
-          revalidatePath(
-            `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
-          );
-          revalidatePath(`/admin/grading/${parsed.data.testId}`);
-          revalidatePath("/admin/grading");
+          revalidateGradingPaths(parsed.data.courseId, parsed.data.testId);
         }
 
         await testService.updateTestSettings(parsed.data.testId, {

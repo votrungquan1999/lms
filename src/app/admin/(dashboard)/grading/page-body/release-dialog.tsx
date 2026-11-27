@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { releaseTestAction } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/actions";
+import { ReleaseMode } from "./grading-page-body.type";
 import {
   ReleaseDialogView,
-  type ReleaseMode,
   type ReleaseStudentCounts,
 } from "./release-dialog.ui";
 import type { ReleaseStudent } from "./release-students";
@@ -33,7 +33,7 @@ export function ReleaseDialog({
   open,
   onOpenChange,
 }: ReleaseDialogProps) {
-  const [mode, setMode] = useState<ReleaseMode>("whole");
+  const [mode, setMode] = useState<ReleaseMode>(ReleaseMode.Whole);
   const [chosenIds, setChosenIds] = useState<ReadonlySet<string>>(new Set());
   const [alsoCorrectAnswers, setAlsoCorrectAnswers] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export function ReleaseDialog({
   // The dialog stays mounted, so closing clears the tick and the last failure for the next opening.
   function changeOpen(next: boolean) {
     if (!next) {
-      setMode("whole");
+      setMode(ReleaseMode.Whole);
       setChosenIds(new Set());
       setAlsoCorrectAnswers(false);
       setError(null);
@@ -64,7 +64,7 @@ export function ReleaseDialog({
     form.set("testId", testId);
     form.set("courseId", courseId);
     form.set("mode", mode);
-    if (mode === "chosen") {
+    if (mode === ReleaseMode.Chosen) {
       for (const id of chosenIds) form.append("studentId", id);
     }
     if (offerCorrectAnswers && alsoCorrectAnswers) {
