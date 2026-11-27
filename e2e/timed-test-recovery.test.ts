@@ -92,12 +92,16 @@ test.describe("Timed test redo", () => {
     await adminPage.goto(
       `/admin/courses/${courseId}/tests/${testId}/grading?studentId=${studentId}`,
     );
-    const requestRedo = adminPage.getByRole("button", {
-      name: "Request Redo",
-    });
-    await hydrated(requestRedo);
-    await requestRedo.click();
-    await expect(adminPage.getByText("Redo requested")).toBeVisible({
+    const more = adminPage.getByRole("button", { name: /^More/ });
+    await hydrated(more);
+    await more.click();
+    await adminPage.getByRole("menuitem", { name: "Request redo…" }).click();
+    await adminPage
+      .getByRole("dialog")
+      .getByRole("button", { name: "Request redo" })
+      .click();
+    await adminPage.getByRole("button", { name: "Student picker" }).click();
+    await expect(adminPage.getByText("Redo requested · 1")).toBeVisible({
       timeout: 10000,
     });
 

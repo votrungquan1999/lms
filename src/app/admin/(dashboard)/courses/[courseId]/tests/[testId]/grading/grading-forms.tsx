@@ -9,8 +9,6 @@ import { Input } from "src/components/ui/input";
 import { Textarea } from "src/components/ui/textarea";
 import type { GradingMode } from "src/lib/grading-mode";
 import {
-  type RequestRedoState,
-  requestRedoAction,
   saveAndNextAction,
   setTestFeedbackAction,
   type TestFeedbackState,
@@ -321,55 +319,5 @@ export function OverallFeedbackForm({
         </fieldset>
       </form>
     </details>
-  );
-}
-
-// ── RequestRedoButton ────────────────────────────────────────────────────────
-
-interface RequestRedoButtonProps {
-  testId: string;
-  courseId: string;
-  studentId: string;
-  /** Whether there is already an active redo request for this student. */
-  hasActiveRedoRequest: boolean;
-}
-
-export function RequestRedoButton({
-  testId,
-  courseId,
-  studentId,
-  hasActiveRedoRequest,
-}: RequestRedoButtonProps) {
-  const [state, formAction, isPending] = useActionState<
-    RequestRedoState | null,
-    FormData
-  >(requestRedoAction, null);
-
-  if (state?.success || hasActiveRedoRequest) {
-    return (
-      <p className="shrink-0 whitespace-nowrap text-sm font-medium text-orange-600">
-        Redo requested ↩
-      </p>
-    );
-  }
-
-  return (
-    <form action={formAction} className="flex items-center gap-3">
-      <input type="hidden" name="testId" value={testId} />
-      <input type="hidden" name="courseId" value={courseId} />
-      <input type="hidden" name="studentId" value={studentId} />
-      <Button
-        type="submit"
-        variant="outline"
-        size="sm"
-        disabled={isPending}
-        className="border-orange-400 text-orange-700 hover:bg-orange-50"
-      >
-        {isPending ? "Requesting…" : "Request Redo"}
-      </Button>
-      {state?.message && !state.success && (
-        <p className="text-sm text-destructive">{state.message}</p>
-      )}
-    </form>
   );
 }

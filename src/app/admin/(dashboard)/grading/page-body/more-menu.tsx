@@ -12,6 +12,7 @@ import {
   autoGradeSubmissionAction,
 } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grade-actions";
 import { RegenerateWithAiDialog } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/regenerate-with-ai-dialog";
+import { RequestRedoDialog } from "src/app/admin/(dashboard)/grading/page-body/request-redo-dialog";
 import { Button } from "src/components/ui/button";
 import {
   DropdownMenu,
@@ -32,6 +33,12 @@ interface MoreMenuProps {
   aiGradingStartedAt: Date | null;
   /** The student's name and whether her grade is already released to her alone; absent when it cannot be offered. */
   releaseTo?: { studentName: string; released: boolean };
+  /** The test and student the redo dialog names; absent when a redo cannot be requested. */
+  requestRedo?: {
+    testTitle: string;
+    student: { name: string; username: string };
+    submittedAt: Date | null;
+  };
 }
 
 /** The "More" menu of the grade panel: the student-level actions that are not the grade itself. */
@@ -43,7 +50,9 @@ export function MoreMenu({
   offerRegenerateAll,
   aiGradingStartedAt,
   releaseTo,
+  requestRedo,
 }: MoreMenuProps) {
+  const [redoOpen, setRedoOpen] = useState(false);
   const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [releasedNow, setReleasedNow] = useState(false);
   const [releaseError, setReleaseError] = useState<string | null>(null);
@@ -117,6 +126,11 @@ export function MoreMenu({
                 </span>
               </DropdownMenuItem>
             ))}
+          {requestRedo && (
+            <DropdownMenuItem onSelect={() => setRedoOpen(true)}>
+              Request redo…
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       {/* Beside the menu, not inside an item, so it outlives the menu closing. */}
@@ -128,6 +142,17 @@ export function MoreMenu({
         onOpenChange={setRegenerateOpen}
         disabled={aiGradingStartedAt !== null}
       />
+      {requestRedo && (
+        <RequestRedoDialog
+          testId={testId}
+          courseId={courseId}
+          testTitle={requestRedo.testTitle}
+          student={{ id: studentId, ...requestRedo.student }}
+          submittedAt={requestRedo.submittedAt}
+          open={redoOpen}
+          onOpenChange={setRedoOpen}
+        />
+      )}
       {releaseError && (
         <p className="text-xs text-destructive">{releaseError}</p>
       )}

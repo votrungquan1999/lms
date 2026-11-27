@@ -304,10 +304,9 @@ describe("Feature: GradingVariantPage", () => {
       }),
     );
 
-    // Then: the picker names the open question and the question roster is gone
+    // Then: the picker names the open question
     const picker = screen.getByRole("button", { name: /question picker/i });
     expect(picker).toHaveTextContent("Q2 Second question");
-    expect(screen.queryByTestId("grading-roster")).not.toBeInTheDocument();
 
     // And: it lists every question in order, each linking to it with the filter kept
     await userEvent.click(picker);
@@ -624,7 +623,7 @@ describe("Feature: GradingVariantPage", () => {
     );
   });
 
-  it("when I've already asked a student to redo, opening their card shows me a 'Redo requested' marker instead of the Request-Redo button", async () => {
+  it("when I've already asked a student to redo, opening their card shows me the read-only note and no Request redo in More", async () => {
     const services = getTestServices();
 
     const course = await services.courseService.createCourse({
@@ -673,18 +672,17 @@ describe("Feature: GradingVariantPage", () => {
     });
     render(ui);
 
-    // Then: the "Redo requested" marker appears in place of the request
-    // button — the user can see the redo state at a glance.
+    // Then: the card says her answers are read-only while the redo is open.
     const detail = screen.getByTestId(`student-card-${student.id}`);
-    expect(within(detail).getByText(/Redo requested/i)).toBeInTheDocument();
+    expect(
+      within(detail).getByText(/read-only while the redo is open/i),
+    ).toBeInTheDocument();
     // And the picker lists her under Redo requested
     await userEvent.click(
       screen.getByRole("button", { name: /student picker/i }),
     );
     expect(await screen.findByText("Redo requested · 1")).toBeInTheDocument();
-    expect(
-      within(detail).queryByRole("button", { name: /request redo/i }),
-    ).toBeNull();
+    expect(within(detail).queryByRole("button", { name: /more/i })).toBeNull();
   });
 
   it("when I'm grading a student, Save & next is the only button that saves the grade", async () => {

@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
+
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { TEST_SCHOOL, TEST_SCHOOL_ID } from "src/tests/create-test-db";
 import {
   getTestServices,
@@ -91,24 +93,21 @@ describe("Feature: practice tests suppress the grading footguns (AI-grade + redo
     vi.clearAllMocks();
   });
 
-  it("hides the More menu with Auto-grade with AI for a submitted practice test (a click would create Grade docs on a test required to have none)", async () => {
+  it("hides the More menu, with Auto-grade with AI and Request redo, for a submitted practice test (an AI grade would create Grade docs on a test required to have none, and practice has no grades to redo against)", async () => {
     await renderGradingDetail(true);
 
     expect(screen.queryByRole("button", { name: /more/i })).toBeNull();
   });
 
-  it("hides the Request Redo button for a practice test (redo reopens a graded test — practice has no grades to redo against)", async () => {
-    await renderGradingDetail(true);
-
-    expect(screen.queryByRole("button", { name: /request redo/i })).toBeNull();
-  });
-
   it("shows both grading controls for a non-practice submitted test (proves the practice gate is conditional, not an unconditional hide)", async () => {
     await renderGradingDetail(false);
 
-    expect(screen.getByRole("button", { name: /more/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /more/i }));
     expect(
-      screen.getByRole("button", { name: /request redo/i }),
+      await screen.findByRole("menuitem", { name: /auto-grade with ai/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /request redo/i }),
     ).toBeInTheDocument();
   });
 });

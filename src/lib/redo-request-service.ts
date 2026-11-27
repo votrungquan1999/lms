@@ -51,8 +51,8 @@ export class RedoRequestService {
 
   /**
    * Creates a new active redo request for the given (testId, studentId) pair.
-   * If an active request already exists it is left in place (idempotent insert).
-   * Rejects for a practice test (R11) — redo reopens a graded test for
+   * Every call inserts a new request, so a student can hold several active ones; resolving clears them all.
+   * Rejects for a practice test: redo reopens a graded test for
    * revision, and a practice test has no grades to redo against.
    * @throws "Test not found" when the test isn't this school's.
    */

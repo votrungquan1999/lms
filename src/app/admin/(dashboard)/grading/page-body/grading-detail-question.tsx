@@ -28,7 +28,7 @@ import {
   getTestFeedbackService,
 } from "src/lib/services-singleton";
 import type { Test } from "src/lib/test-service";
-import { TestStatus } from "src/lib/test-status-service";
+import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { aiJobState } from "./ai-job-state";
 import type { FinishView } from "./finish-panel.ui";
 import { gradingRouteKind } from "./href";
@@ -74,6 +74,8 @@ export async function GradingDetailQuestion({
   const pair = screen.pairs.get(student.id);
   const status = pair?.status ?? TestStatus.NotStarted;
   const releaseOffer = pair ? studentReleaseOffer(test, pair) : null;
+  // An open redo puts her pair back to In progress, so a handed-in pair has none open.
+  const redoOffer = !test.isPractice && hasSubmitted(status);
   const answer = screen.answers.get(student.id)?.get(question.id);
   const grade = screen.grades.get(student.id)?.get(question.id);
   const photos =
@@ -205,8 +207,10 @@ export async function GradingDetailQuestion({
           }
           moreMenu={
             !test.isPractice &&
-            (status === TestStatus.Submitted || releaseOffer !== null) ? (
-              // Remounts with the job, so a "started" message does not outlive its job.
+            (status === TestStatus.Submitted ||
+              releaseOffer !== null ||
+              redoOffer) ? (
+              // Remounts per student and job, so a release or "started" message never carries over.
               <MoreMenu
                 key={`${student.id}:${aiJob.key}`}
                 testId={testId}
@@ -221,6 +225,15 @@ export async function GradingDetailQuestion({
                   suggestionsByQuestion.size > 0
                 }
                 aiGradingStartedAt={aiJob.startedAt}
+                requestRedo={
+                  redoOffer
+                    ? {
+                        testTitle: test.title,
+                        student,
+                        submittedAt: pair?.submittedAt ?? null,
+                      }
+                    : undefined
+                }
                 releaseTo={
                   releaseOffer === null
                     ? undefined

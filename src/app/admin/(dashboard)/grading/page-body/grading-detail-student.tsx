@@ -2,10 +2,7 @@ import { AiGradingFailedNote } from "src/app/admin/(dashboard)/courses/[courseId
 import { AiGradingInProgressNote } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-grading-in-progress-note.ui";
 import { AiSuggestionPanel } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/ai-suggestion-panel";
 import type { SaveAndNextNavigation } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
-import {
-  OverallFeedbackForm,
-  RequestRedoButton,
-} from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
+import { OverallFeedbackForm } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { PendingAiGradingRefresher } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/pending-ai-grading-refresher.ui";
 import { AnswerPane } from "src/app/admin/(dashboard)/grading/page-body/answer-pane";
 import { GradePanel } from "src/app/admin/(dashboard)/grading/page-body/grade-panel";
@@ -194,6 +191,8 @@ export async function GradingDetailStudent({
   const releaseOffer = pair ? studentReleaseOffer(test, pair) : null;
   const hasAnswers = latestAnswers.length > 0;
   const hasActiveRedoRequest = activeRedoRequest !== null;
+  const redoOffer =
+    !test.isPractice && hasSubmitted(status) && !hasActiveRedoRequest;
 
   // The label comes from the same search the Save & next action runs.
   const nextInput: NextAnswerInput = {
@@ -244,16 +243,6 @@ export async function GradingDetailStudent({
                 @{student.username}
               </span>
             </CardTitle>
-            <div className="flex items-center gap-3">
-              {!test.isPractice && (
-                <RequestRedoButton
-                  testId={testId}
-                  courseId={courseId}
-                  studentId={student.id}
-                  hasActiveRedoRequest={hasActiveRedoRequest}
-                />
-              )}
-            </div>
           </div>
         </CardHeader>
         {selectedQuestion && (
@@ -334,8 +323,10 @@ export async function GradingDetailStudent({
               }
               moreMenu={
                 !test.isPractice &&
-                (status === TestStatus.Submitted || releaseOffer !== null) ? (
-                  // Remounts with the job, so a "started" message does not outlive its job.
+                (status === TestStatus.Submitted ||
+                  releaseOffer !== null ||
+                  redoOffer) ? (
+                  // Remounts per student and job, so a release or "started" message never carries over.
                   <MoreMenu
                     key={`${student.id}:${aiJobStateKey}`}
                     testId={testId}
@@ -350,6 +341,15 @@ export async function GradingDetailStudent({
                       aiSuggestionsByQuestion.size > 0
                     }
                     aiGradingStartedAt={aiGradingStartedAt}
+                    requestRedo={
+                      redoOffer
+                        ? {
+                            testTitle: test.title,
+                            student,
+                            submittedAt: pair?.submittedAt ?? null,
+                          }
+                        : undefined
+                    }
                     releaseTo={
                       releaseOffer === null
                         ? undefined

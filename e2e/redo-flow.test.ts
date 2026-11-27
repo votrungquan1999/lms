@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { hydrated } from "./hydrated";
 
 const STUDENT_USERNAME = "redo-student";
 const STUDENT_PASSWORD = "redo-student-password";
@@ -169,9 +170,9 @@ test.describe("Redo Flow", () => {
     await context.close();
   });
 
-  // ─── Scenario 1: Admin sees Request Redo button ────────────────────────────
+  // ─── Scenario 1: Admin sees Request redo in More ───────────────────────────
 
-  test("admin sees a 'Request Redo' button for the student on the grading page", async ({
+  test("admin sees a 'Request redo…' item in More for the student on the grading page", async ({
     page,
   }) => {
     await page.goto("/admin/courses");
@@ -185,14 +186,17 @@ test.describe("Redo Flow", () => {
       page.getByRole("heading", { name: `Grade: ${TEST_TITLE}` }),
     ).toBeVisible({ timeout: 10000 });
 
+    const more = page.getByRole("button", { name: /^More/ });
+    await hydrated(more);
+    await more.click();
     await expect(
-      page.getByRole("button", { name: "Request Redo" }),
+      page.getByRole("menuitem", { name: "Request redo…" }),
     ).toBeVisible();
   });
 
-  // ─── Scenario 2: Admin clicks Request Redo ────────────────────────────────
+  // ─── Scenario 2: Admin confirms a redo request ────────────────────────────
 
-  test("admin can request a redo — button is replaced by confirmation text", async ({
+  test("admin can request a redo after the confirm dialog — she is listed under Redo requested", async ({
     page,
   }) => {
     await page.goto("/admin/courses");
@@ -206,14 +210,19 @@ test.describe("Redo Flow", () => {
       page.getByRole("heading", { name: `Grade: ${TEST_TITLE}` }),
     ).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole("button", { name: "Request Redo" }).click();
+    const more = page.getByRole("button", { name: /^More/ });
+    await hydrated(more);
+    await more.click();
+    await page.getByRole("menuitem", { name: "Request redo…" }).click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Request redo" })
+      .click();
 
-    await expect(page.getByText("Redo requested")).toBeVisible({
+    await page.getByRole("button", { name: "Student picker" }).click();
+    await expect(page.getByText("Redo requested · 1")).toBeVisible({
       timeout: 10000,
     });
-    await expect(
-      page.getByRole("button", { name: "Request Redo" }),
-    ).not.toBeVisible();
   });
 
   // ─── Scenario 3: Student sees Redo Required banner ────────────────────────
@@ -250,7 +259,7 @@ test.describe("Redo Flow", () => {
 
   // ─── Scenario 4: Request persists after page reload ───────────────────────
 
-  test("grading page still shows 'Redo requested' after a page reload", async ({
+  test("grading page still shows the redo as open after a page reload", async ({
     page,
   }) => {
     await page.goto("/admin/courses");
@@ -264,12 +273,10 @@ test.describe("Redo Flow", () => {
       page.getByRole("heading", { name: `Grade: ${TEST_TITLE}` }),
     ).toBeVisible({ timeout: 10000 });
 
-    await expect(page.getByText("Redo requested")).toBeVisible({
+    await page.getByRole("button", { name: "Student picker" }).click();
+    await expect(page.getByText("Redo requested · 1")).toBeVisible({
       timeout: 10000,
     });
-    await expect(
-      page.getByRole("button", { name: "Request Redo" }),
-    ).not.toBeVisible();
   });
 
   // ─── Scenario 5: Student can re-answer and resubmit after redo ─────────────

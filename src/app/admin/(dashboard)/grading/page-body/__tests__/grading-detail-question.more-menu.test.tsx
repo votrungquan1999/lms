@@ -112,4 +112,19 @@ describe("Feature: By question's More menu for a graded student", () => {
       screen.queryByRole("menuitem", { name: /regenerate all/i }),
     ).toBeNull();
   });
+
+  it("offers Request redo…, which opens the confirm dialog for her", async () => {
+    await renderGradedHiddenStudent();
+
+    await userEvent.click(screen.getByRole("button", { name: /more/i }));
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /request redo…/i }),
+    );
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Ask Stu to redo Fractions Test?",
+      }),
+    ).toBeInTheDocument();
+  });
 });
