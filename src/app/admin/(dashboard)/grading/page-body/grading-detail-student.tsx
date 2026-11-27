@@ -307,9 +307,16 @@ export async function GradingDetailStudent({
             </div>
           )}
 
-          {selectedQuestion && finish?.panel}
+          {selectedQuestion && hasActiveRedoRequest && (
+            <p className="text-sm text-muted-foreground">
+              {student.name}'s answers are read-only while the redo is open.
+              Grading opens again when {student.name} hands in.
+            </p>
+          )}
 
-          {selectedQuestion && !finish && (
+          {selectedQuestion && !hasActiveRedoRequest && finish?.panel}
+
+          {selectedQuestion && !hasActiveRedoRequest && !finish && (
             <GradePanel
               testId={testId}
               testTitle={test.title}

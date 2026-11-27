@@ -154,4 +154,73 @@ describe("Feature: the grading top bar", () => {
       ).not.toBeInTheDocument();
     },
   );
+
+  it("leaves a student with an open redo out of both numbers of the fully graded count", async () => {
+    const services = getTestServices();
+    const course = await services.courseService.createCourse({
+      title: "Algebra 101",
+      description: "",
+      createdBy: "admin",
+    });
+    const test = await services.testService.createTest(course.id, {
+      title: "Midterm",
+      description: "",
+      createdBy: "admin",
+    });
+    const q1 = await services.questionService.addQuestion(test.id, {
+      type: "free_text",
+      title: "Q1",
+      content: "Q1",
+      createdBy: "admin",
+    });
+
+    // Given: Alice graded, Bob graded with an open redo, Carol waiting
+    const ids: Record<string, string> = {};
+    for (const user of ["alice", "bob", "carol"]) {
+      const s = await services.studentService.createStudentDocument({
+        authUserId: `auth-${user}`,
+        username: user,
+        name: user,
+        createdBy: "admin",
+      });
+      await services.enrollmentService.enrollStudent(course.id, s.id, "admin");
+      ids[user] = s.id;
+      await services.answerService.submitAnswer({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: s.id,
+        answer: { type: "free_text", text: user },
+      });
+      await services.testSubmissionService.submitTest(test.id, s.id);
+    }
+    await new Promise((r) => setTimeout(r, 5));
+    for (const user of ["alice", "bob"]) {
+      await services.gradeService.gradeQuestion({
+        testId: test.id,
+        questionId: q1.id,
+        studentId: ids[user] as string,
+        score: 90,
+        feedback: "ok",
+        gradedBy: "admin",
+      });
+    }
+    await services.redoRequestService.requestRedo(
+      test.id,
+      ids.bob as string,
+      "admin",
+    );
+
+    // When: the teacher opens Alice
+    render(
+      await GradingVariantPage({
+        params: Promise.resolve({ testId: test.id }),
+        searchParams: Promise.resolve({ studentId: ids.alice as string }),
+      }),
+    );
+
+    // Then: Bob is in neither the x nor the N
+    expect(screen.getByTestId("grading-progress-fraction")).toHaveTextContent(
+      "1 of 2 fully graded",
+    );
+  });
 });

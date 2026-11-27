@@ -865,4 +865,50 @@ describe("GradingCountService", () => {
       });
     },
   );
+
+  dbIt(
+    "leaves a student with an open redo out of every count until she hands in again, whether her old work was graded or not",
+    async ({ db }) => {
+      // Given: one graded student, one graded student and one waiting student who each have an open redo
+      const seed = seeds(db);
+      const course = await seed.course("Course");
+      const test = await seed.test(course);
+      const q1 = await seed.question(test);
+      const ids: Record<string, string> = {};
+      for (const name of ["graded", "redoGraded", "redoWaiting"]) {
+        ids[name] = await seed.student(name);
+        await seed.enroll(course, ids[name]);
+        await seed.answer(test, q1, ids[name]);
+        await seed.handIn(test, ids[name]);
+      }
+      await seed.grade(test, q1, ids.graded);
+      await seed.grade(test, q1, ids.redoGraded);
+      await seed.redo(test, ids.redoGraded);
+      await seed.redo(test, ids.redoWaiting);
+
+      // When: the school is counted
+      const counts = await new GradingCountService(
+        db,
+        TEST_SCHOOL_ID,
+      ).getCounts();
+
+      // Then: only the student without a redo counts, and the school badge agrees
+      expect(counts.tests[0]).toMatchObject({
+        submitted: 1,
+        fullyGraded: 1,
+        waiting: 0,
+        answersLeft: 0,
+        oldestWaitingStudentId: null,
+        gradedHidden: 1,
+        readyToRelease: true,
+      });
+      expect(counts.waiting).toBe(0);
+      expect(
+        counts.pairs
+          .filter((p) => p.redoRequested)
+          .map((p) => p.studentId)
+          .sort(),
+      ).toEqual([ids.redoGraded, ids.redoWaiting].sort());
+    },
+  );
 });

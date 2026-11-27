@@ -5,6 +5,7 @@ import {
   insertCourse,
   insertGrade,
   insertQuestion,
+  insertRedoRequest,
   insertStudent,
   insertSubmission,
   insertTest,
@@ -80,6 +81,67 @@ test.describe("Grading a student after a redo", () => {
       ).toBeEnabled();
       await expect(page.getByTestId("grading-progress-fraction")).toHaveText(
         "0 of 1 fully graded",
+      );
+    });
+
+    test(`on ${route.name} a student whose redo is open is read-only and left out of the fully graded count`, async ({
+      page,
+    }) => {
+      const ids = await withDb(async (db) => {
+        const courseId = await insertCourse(db);
+        const testId = await insertTest(db, courseId);
+        const questionId = await insertQuestion(db, testId, {
+          title: "[redo-locked] Question",
+        });
+        // Graded Gita, graded Omar with an open redo, waiting Wes
+        const students: Record<string, string> = {};
+        for (const name of ["Gita Graded", "Omar Open", "Wes Waiting"]) {
+          const studentId = await insertStudent(db, { name });
+          students[name] = studentId;
+          await enroll(db, { courseId, studentId });
+          await insertAnswer(db, {
+            testId,
+            questionId,
+            studentId,
+            answer: { type: "free_text", text: `${name}'s answer` },
+            submittedAt: new Date(Date.now() - 10 * MINUTE),
+          });
+          await insertSubmission(db, {
+            testId,
+            studentId,
+            submittedAt: new Date(Date.now() - 9 * MINUTE),
+          });
+        }
+        for (const name of ["Gita Graded", "Omar Open"]) {
+          await insertGrade(db, {
+            testId,
+            questionId,
+            studentId: students[name] as string,
+          });
+        }
+        await insertRedoRequest(db, {
+          testId,
+          studentId: students["Omar Open"] as string,
+        });
+        return { courseId, testId, omar: students["Omar Open"] as string };
+      });
+
+      await page.goto(`${route.path(ids)}?studentId=${ids.omar}`);
+
+      await expect(
+        page.getByText("Omar Open's answer", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText(
+          "Omar Open's answers are read-only while the redo is open. Grading opens again when Omar Open hands in.",
+        ),
+      ).toBeVisible();
+      await expect(page.getByTestId("grade-card")).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: /^Save & next/ }),
+      ).toHaveCount(0);
+      await expect(page.getByTestId("grading-progress-fraction")).toHaveText(
+        "1 of 2 fully graded",
       );
     });
   }

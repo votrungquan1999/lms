@@ -13,7 +13,7 @@ import type { TestStartDocument } from "src/lib/test-start-service";
 import { TestStatus } from "src/lib/test-status-service";
 import type { TestSubmissionDocument } from "src/lib/test-submission-service";
 
-/** One enrolled (test, student) pair, with the status `TestStatusService.getStatus` would give it. */
+/** One enrolled (test, student) pair, with the status `TestStatusService.getStatus` would give it, except that an open redo puts her back to In progress. */
 export interface PairGradingResult {
   testId: string;
   studentId: string;
@@ -427,6 +427,14 @@ export class GradingCountService {
             answeredLive.length > 0 || startByPair.has(key)
               ? TestStatus.InProgress
               : TestStatus.NotStarted;
+        }
+
+        // Her old hand-in is on hold while a redo is open: she counts as not handed in.
+        if (redoPairs.has(key) && !inferred && submittedAt) {
+          if (status === TestStatus.Submitted || status === TestStatus.Graded) {
+            status = TestStatus.InProgress;
+            answersLeft = 0;
+          }
         }
 
         const gradedHidden =

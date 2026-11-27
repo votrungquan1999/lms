@@ -21,6 +21,7 @@ import type { GradeDocument } from "../src/lib/grade-service";
 import type { PoolQuestionDocument } from "../src/lib/pool-question-service";
 import type { QuestionPoolDocument } from "../src/lib/question-pool-service";
 import type { QuestionDocument } from "../src/lib/question-service";
+import type { RedoRequestDocument } from "../src/lib/redo-request-service";
 import type { SchoolDocument } from "../src/lib/school-service";
 import type { StudentDocument } from "../src/lib/student-service";
 import type { TestDocument } from "../src/lib/test-service";
@@ -256,6 +257,23 @@ export async function insertGrade(
     ...fields,
   };
   await db.collection<GradeDocument>("grade").insertOne(doc);
+  return doc.id;
+}
+
+/** An open redo request on one student's test, as the teacher's Request redo leaves it. */
+export async function insertRedoRequest(
+  db: Db,
+  fields: Pick<RedoRequestDocument, "testId" | "studentId"> &
+    Partial<RedoRequestDocument>,
+): Promise<string> {
+  const doc: RedoRequestDocument = {
+    id: crypto.randomUUID(),
+    requestedBy: "seed",
+    requestedAt: new Date(),
+    resolvedAt: null,
+    ...fields,
+  };
+  await db.collection<RedoRequestDocument>("redo_request").insertOne(doc);
   return doc.id;
 }
 
