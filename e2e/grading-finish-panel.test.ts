@@ -4,6 +4,7 @@ import {
   enroll,
   insertAnswer,
   insertCourse,
+  insertGrade,
   insertQuestion,
   insertStudent,
   insertSubmission,
@@ -172,6 +173,55 @@ test.describe("Finish panel", () => {
       await page.reload();
       await expect(page.getByTestId("grade-card")).toBeVisible();
       await expect(page.getByTestId("finish-panel")).toHaveCount(0);
+    });
+  }
+
+  for (const route of routes) {
+    test(`on ${route.name} the pinned button offers Release… while grades are hidden, then Release correct answers, then nothing`, async ({
+      page,
+    }) => {
+      const ids = await seedFinishedTest();
+      await withDb(async (db) => {
+        for (const studentId of [ids.ann, ids.bob]) {
+          await insertGrade(db, {
+            testId: ids.testId,
+            questionId: ids.q1,
+            studentId,
+            score: 90,
+          });
+        }
+      });
+
+      await page.goto(
+        `${route.path(ids)}?studentId=${ids.ann}&questionId=${ids.q1}&done=1`,
+      );
+      const pinned = page.getByTestId("finish-release");
+      await expect(pinned).toContainText(
+        "2 graded students can't see their grades",
+      );
+      const release = pinned.getByRole("button", { name: "Release…" });
+      await hydrated(release);
+      await release.click();
+      const dialog = page.getByRole("dialog", {
+        name: "Release grades · [finish] Oct test",
+      });
+      await dialog
+        .getByRole("button", { name: "Release", exact: true })
+        .click();
+
+      // Grades are out, the correct answers are still hidden
+      const answers = pinned.getByRole("button", {
+        name: "Release correct answers",
+      });
+      await expect(pinned).toContainText("Correct answers are still hidden");
+      await hydrated(answers);
+      await answers.click();
+
+      await expect(pinned).toHaveCount(0);
+      const released = await withDb((db) =>
+        db.collection("test").findOne({ id: ids.testId }),
+      );
+      expect(released?.correctAnswersReleasedAt).toBeTruthy();
     });
   }
 });

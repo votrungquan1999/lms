@@ -128,6 +128,22 @@ export async function GradingPageShell({
     status: releaseStatusOfPair(screen.pairs.get(row.id)),
   }));
 
+  const inGroup = (group: StudentPickerGroup) =>
+    pickerRows.filter((r) => r.group === group).length;
+  const releaseCounts = {
+    graded: inGroup(StudentPickerGroup.Graded),
+    waiting: inGroup(StudentPickerGroup.NeedsGrading),
+    stillWriting: inGroup(StudentPickerGroup.StillWriting),
+    redoRequested: inGroup(StudentPickerGroup.RedoRequested),
+    notStarted: inGroup(StudentPickerGroup.NotStarted),
+  };
+
+  const choiceQuestionCount = questions.filter(
+    (q) => q.type === "single_select" || q.type === "multi_select",
+  ).length;
+  const offerCorrectAnswers =
+    !test.showCorrectAnswerAfterSubmit && !test.correctAnswersReleasedAt;
+
   // The finish panel shows only while nothing waits, so a link kept from an earlier save falls back to the grade panel.
   const shownStudent =
     selection.mode === GradingMode.Question ? currentStudent : focused;
@@ -154,6 +170,11 @@ export async function GradingPageShell({
               testTitle={test.title}
               backHref={`/admin/courses/${courseId}/tests/${test.id}`}
               students={releaseStudents}
+              testId={test.id}
+              courseId={courseId}
+              offerCorrectAnswers={offerCorrectAnswers}
+              counts={releaseCounts}
+              choiceQuestionCount={choiceQuestionCount}
               savedLine={
                 shownGrade
                   ? `${shownStudent.name}'s Q${focusedQuestion.order} saved ${savedAgo}`
@@ -288,16 +309,6 @@ export async function GradingPageShell({
           needsOnly: selection.needsOnly,
         });
 
-  const inGroup = (group: StudentPickerGroup) =>
-    pickerRows.filter((r) => r.group === group).length;
-  const releaseCounts = {
-    graded: inGroup(StudentPickerGroup.Graded),
-    waiting: inGroup(StudentPickerGroup.NeedsGrading),
-    stillWriting: inGroup(StudentPickerGroup.StillWriting),
-    redoRequested: inGroup(StudentPickerGroup.RedoRequested),
-    notStarted: inGroup(StudentPickerGroup.NotStarted),
-  };
-
   return (
     <StillWritingProvider>
       <TwoPaneShell
@@ -360,12 +371,7 @@ export async function GradingPageShell({
                 testTitle={test.title}
                 counts={releaseCounts}
                 students={releaseStudents}
-                choiceQuestionCount={
-                  questions.filter(
-                    (q) =>
-                      q.type === "single_select" || q.type === "multi_select",
-                  ).length
-                }
+                choiceQuestionCount={choiceQuestionCount}
                 state={gradeReleaseState(test, {
                   releasedTo: screen.counts?.releasedTo ?? 0,
                   fullyGraded: screen.counts?.fullyGraded ?? 0,
@@ -373,10 +379,7 @@ export async function GradingPageShell({
                 offerGrades={
                   !test.showGradeAfterSubmit && !test.gradesReleasedAt
                 }
-                offerCorrectAnswers={
-                  !test.showCorrectAnswerAfterSubmit &&
-                  !test.correctAnswersReleasedAt
-                }
+                offerCorrectAnswers={offerCorrectAnswers}
               />
             }
           />

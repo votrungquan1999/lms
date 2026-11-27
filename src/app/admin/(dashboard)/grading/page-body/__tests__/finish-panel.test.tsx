@@ -195,6 +195,17 @@ describe("Feature: the finish panel names three graded students, then the rest a
         backHref: "/admin/courses/c/tests/t",
         students,
         savedLine: "Eve's Q1 saved just now",
+        testId: "t",
+        courseId: "c",
+        offerCorrectAnswers: false,
+        counts: {
+          graded: 5,
+          waiting: 0,
+          stillWriting: 0,
+          redoRequested: 0,
+          notStarted: 0,
+        },
+        choiceQuestionCount: 0,
       }),
     );
 

@@ -1,4 +1,6 @@
 import { FinishPanelView } from "./finish-panel.ui";
+import { FinishRelease } from "./finish-release";
+import type { ReleaseStudentCounts } from "./release-dialog.ui";
 import { type ReleaseStudent, ReleaseStudentStatus } from "./release-students";
 
 /** Names listed in full before the rest read "and n more". */
@@ -29,6 +31,12 @@ interface FinishPanelProps {
   students: ReleaseStudent[];
   /** The answer just graded, as "<name>'s Q<n> saved <when>". */
   savedLine: string;
+  testId: string;
+  courseId: string;
+  /** Students cannot see the correct answers yet. */
+  offerCorrectAnswers: boolean;
+  counts: ReleaseStudentCounts;
+  choiceQuestionCount: number;
 }
 
 /** What the teacher gets after the last answer is graded: who is graded, who can see it, and who is not in yet. */
@@ -37,6 +45,11 @@ export function FinishPanel({
   backHref,
   students,
   savedLine,
+  testId,
+  courseId,
+  offerCorrectAnswers,
+  counts,
+  choiceQuestionCount,
 }: FinishPanelProps) {
   const named = (status: ReleaseStudentStatus) =>
     students.filter((s) => s.status === status);
@@ -76,6 +89,18 @@ export function FinishPanel({
       releaseLine={releaseLine}
       notInLine={notInLines.join(" ")}
       backHref={backHref}
+      release={
+        <FinishRelease
+          testId={testId}
+          courseId={courseId}
+          testTitle={testTitle}
+          hiddenGradeCount={hidden.length}
+          offerCorrectAnswers={offerCorrectAnswers}
+          counts={counts}
+          students={students}
+          choiceQuestionCount={choiceQuestionCount}
+        />
+      }
     />
   );
 }

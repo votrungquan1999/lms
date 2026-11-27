@@ -23,6 +23,8 @@ interface FinishPanelViewProps {
   /** Who is still writing or has not started; empty when everyone has handed in. */
   notInLine: string;
   backHref: string;
+  /** The pinned release control under the content. */
+  release: React.ReactNode;
 }
 
 /** The finish panel's content. The heading takes focus so a keyboard user lands on the news. */
@@ -35,6 +37,7 @@ export function FinishPanelView({
   releaseLine,
   notInLine,
   backHref,
+  release,
 }: FinishPanelViewProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus(), []);
@@ -94,6 +97,7 @@ export function FinishPanelView({
           Back to test
         </GuardedLink>
       </div>
+      {release}
     </section>
   );
 }
