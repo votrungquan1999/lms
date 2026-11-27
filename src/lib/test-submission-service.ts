@@ -245,6 +245,26 @@ export class TestSubmissionService {
   }
 
   /**
+   * Marks the choice answers of every active hand-in from the answer key.
+   * A practice test writes no grades, so this brings its existing hand-ins
+   * up to date when it becomes a normal test; written answers stay ungraded,
+   * and a choice answer that already has a grade (the teacher's, or one from
+   * before the test was practice) keeps it unless she changed the answer since.
+   * @throws "Test not found" when the test isn't this school's.
+   */
+  async markChoiceAnswersForHandIns(testId: string): Promise<void> {
+    await this.testService.requireTest(testId);
+    const handIns = await this.testSubmissions
+      .find({ testId, deletedAt: null })
+      .toArray();
+    for (const handIn of handIns) {
+      await this.gradeService.autoGradeTest(testId, handIn.studentId, {
+        keepExistingGrades: true,
+      });
+    }
+  }
+
+  /**
    * Whether the student has an open (unresolved) redo request on the test.
    */
   async hasOpenRedo(testId: string, studentId: string): Promise<boolean> {

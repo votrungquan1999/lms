@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAuthService } from "src/lib/auth-singleton";
 import { withSpan } from "src/lib/observability/with-span";
-import { getTestService } from "src/lib/services-singleton";
+import {
+  getTestService,
+  getTestSubmissionService,
+} from "src/lib/services-singleton";
 import { z } from "zod";
 import { resolveOwnedTest } from "./test-parent-check";
 
@@ -79,11 +82,25 @@ export async function setTestSettingsAction(
       },
       async () => {
         const testService = await getTestService(schoolId);
-        await resolveOwnedTest(
+        const ownedTest = await resolveOwnedTest(
           testService,
           parsed.data.testId,
           parsed.data.courseId,
         );
+        // Hand-ins made while it was practice have no marks yet. The marking runs before the test
+        // stops being practice, so a failure leaves it practice and saving again retries it.
+        if (ownedTest.isPractice && !parsed.data.isPractice) {
+          await (
+            await getTestSubmissionService(schoolId)
+          ).markChoiceAnswersForHandIns(parsed.data.testId);
+          // The new grades change what every grading screen and the To grade list show.
+          revalidatePath(
+            `/admin/courses/${parsed.data.courseId}/tests/${parsed.data.testId}/grading`,
+          );
+          revalidatePath(`/admin/grading/${parsed.data.testId}`);
+          revalidatePath("/admin/grading");
+        }
+
         await testService.updateTestSettings(parsed.data.testId, {
           showGradeAfterSubmit: parsed.data.showGradeAfterSubmit,
           showCorrectAnswerAfterSubmit:

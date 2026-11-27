@@ -1,6 +1,7 @@
 import type { Collection, Db } from "mongodb";
 import type { AnswerService } from "src/lib/answer-service";
 import type { GradeVisibilityService } from "src/lib/grade-visibility-service";
+import { needsGrade } from "src/lib/needs-grade";
 import type {
   MultiSelectQuestion,
   QuestionService,
@@ -64,6 +65,14 @@ export interface GradeQuestionInput {
 }
 
 /**
+ * How `autoGradeTest` treats a choice answer that already has a grade.
+ */
+export interface AutoGradeOptions {
+  /** Leave a choice answer whose grade is newer than the answer as it is, instead of re-marking it. */
+  keepExistingGrades?: boolean;
+}
+
+/**
  * GradeService — manages the `grade` collection.
  * One grade per (testId, questionId, studentId) — upsert model.
  */
@@ -90,9 +99,14 @@ export class GradeService {
   /**
    * Auto-grades a student's answers for an entire test.
    * Only applicable to single_select and multi_select questions.
+   * @param options - With `keepExistingGrades`, only choice answers with no grade, or changed since their grade, are marked.
    * @throws "Test not found" when the test isn't this school's.
    */
-  async autoGradeTest(testId: string, studentId: string): Promise<Grade[]> {
+  async autoGradeTest(
+    testId: string,
+    studentId: string,
+    options: AutoGradeOptions = {},
+  ): Promise<Grade[]> {
     // One lookup for the whole test; every grade below is written under it.
     await this.testService.requireTest(testId);
     const grades: Grade[] = [];
@@ -101,6 +115,14 @@ export class GradeService {
       testId,
       studentId,
     );
+    const existing = options.keepExistingGrades
+      ? new Map(
+          (await this.grades.find({ testId, studentId }).toArray()).map((g) => [
+            g.questionId,
+            g,
+          ]),
+        )
+      : new Map<string, GradeDocument>();
 
     for (const question of questions) {
       if (
@@ -113,6 +135,19 @@ export class GradeService {
       const mcQuestion = question as SingleSelectQuestion | MultiSelectQuestion;
       const studentAnswer = answers.find((a) => a.questionId === question.id);
       if (!studentAnswer || studentAnswer.answer.type !== "mc") continue;
+      // A kept grade must still describe the answer; one changed since is re-marked.
+      const kept = existing.get(question.id);
+      if (
+        kept &&
+        !needsGrade({
+          answered: true,
+          latestAnswerAt: studentAnswer.submittedAt,
+          grade: kept,
+          redoOpen: false,
+        })
+      ) {
+        continue;
+      }
 
       const score = this.calculateMcScore(
         mcQuestion,
