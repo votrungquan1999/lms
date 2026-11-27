@@ -6,24 +6,47 @@ import type {
   AnnotationPoint,
   AnnotationStroke,
 } from "src/lib/annotation-service";
+import {
+  arrowPoints,
+  ellipsePoints,
+  type SurfaceSize,
+} from "./annotation-shapes";
+
+/** The mark a drag draws. */
+export type MarkTool = "pen" | "circle" | "arrow";
 
 export interface AnnotationToolState {
   /** The color new strokes are drawn in. */
   color: string;
+  /** The mark a drag draws. */
+  tool: MarkTool;
   /** Completed strokes per photo S3 key. */
   entriesByKey: Record<string, AnnotationStroke[]>;
   /** The stroke currently being drawn (between pointer down and up). */
-  drawing: { mediaKey: string; stroke: AnnotationStroke } | null;
+  drawing: {
+    mediaKey: string;
+    tool: MarkTool;
+    /** Where the drag began; shapes are rebuilt from it on every move. */
+    origin: AnnotationPoint;
+    /** Surface size in pixels, so an arrow head keeps its shape. */
+    size: SurfaceSize;
+    stroke: AnnotationStroke;
+  } | null;
 }
 
 interface SetColorAction {
   type: "SET_COLOR";
   color: string;
 }
+interface SetToolAction {
+  type: "SET_TOOL";
+  tool: MarkTool;
+}
 interface StartStrokeAction {
   type: "START_STROKE";
   mediaKey: string;
   point: AnnotationPoint;
+  size: SurfaceSize;
 }
 interface AddPointAction {
   type: "ADD_POINT";
@@ -43,6 +66,7 @@ interface ClearAction {
 
 export type AnnotationToolAction =
   | SetColorAction
+  | SetToolAction
   | StartStrokeAction
   | AddPointAction
   | EndStrokeAction
@@ -63,12 +87,12 @@ export function buildInitialAnnotationState(
   for (const entry of annotations) {
     entriesByKey[entry.mediaKey] = entry.strokes;
   }
-  return { color, entriesByKey, drawing: null };
+  return { color, tool: "pen", entriesByKey, drawing: null };
 }
 
 /**
- * Pure reducer for the annotation drawing tool: tracks the active color, the
- * in-progress stroke, and completed strokes per photo. END_STROKE commits a
+ * Pure reducer for the annotation drawing tool: tracks the active color and
+ * tool, the in-progress stroke, and completed strokes per photo. END_STROKE commits a
  * stroke only if it has at least two points (a single click is not a mark).
  * @param state - Current tool state.
  * @param action - Action to apply.
@@ -82,27 +106,34 @@ export function annotationReducer(
     case "SET_COLOR":
       return { ...state, color: action.color };
 
+    case "SET_TOOL":
+      return { ...state, tool: action.tool };
+
     case "START_STROKE":
       return {
         ...state,
         drawing: {
           mediaKey: action.mediaKey,
+          tool: state.tool,
+          origin: action.point,
+          size: action.size,
           stroke: { color: state.color, points: [action.point] },
         },
       };
 
-    case "ADD_POINT":
+    case "ADD_POINT": {
       if (!state.drawing) return state;
+      const { tool, origin, size, stroke } = state.drawing;
+      let points: AnnotationPoint[];
+      if (tool === "circle") points = ellipsePoints(origin, action.point);
+      else if (tool === "arrow")
+        points = arrowPoints(origin, action.point, size);
+      else points = [...stroke.points, action.point];
       return {
         ...state,
-        drawing: {
-          ...state.drawing,
-          stroke: {
-            ...state.drawing.stroke,
-            points: [...state.drawing.stroke.points, action.point],
-          },
-        },
+        drawing: { ...state.drawing, stroke: { ...stroke, points } },
       };
+    }
 
     case "END_STROKE": {
       if (!state.drawing) return state;

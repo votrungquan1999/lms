@@ -265,3 +265,60 @@ test.describe("Photo answers show one photo at a time", () => {
     });
   }
 });
+
+test.describe("The teacher marks a photo with a circle or an arrow", () => {
+  for (const route of routes) {
+    test(`on ${route.name} a circle and an arrow count as marks, undo removes the last, and the saved marks are plain strokes`, async ({
+      page,
+    }) => {
+      const ids = await seedPhotoTest();
+      await servePhotos(page);
+
+      await page.goto(`${route.path(ids)}?studentId=${ids.ben}`);
+      const strip = page.getByRole("group", { name: "Photos" });
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 0 marks" }),
+      ).toBeVisible();
+
+      // The tool row offers Pen (the default), Circle and Arrow
+      const pen = page.getByRole("button", { name: "Pen", exact: true });
+      await hydrated(pen);
+      await expect(pen).toHaveAttribute("aria-pressed", "true");
+
+      // A circle drawn by dragging a box
+      await page.getByRole("button", { name: "Circle", exact: true }).click();
+      await dragOnPhoto(page, [0.2, 0.2], [0.5, 0.6]);
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 1 mark" }),
+      ).toBeVisible();
+
+      // An arrow drawn by dragging from tail to tip
+      await page.getByRole("button", { name: "Arrow", exact: true }).click();
+      await dragOnPhoto(page, [0.6, 0.3], [0.9, 0.7]);
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 2 marks" }),
+      ).toBeVisible();
+
+      // Undo takes back the arrow only
+      await page.getByRole("button", { name: "Undo", exact: true }).click();
+      await expect(
+        strip.getByRole("button", { name: "Photo 1 · 1 mark" }),
+      ).toBeVisible();
+      await expect(page.locator("svg polyline")).toHaveCount(1);
+
+      // Saving stores the circle as an ordinary stroke with many points
+      await page.getByRole("button", { name: "Save annotations" }).click();
+      await expect
+        .poll(() =>
+          withDb(async (db) => {
+            const doc = await db
+              .collection("annotation")
+              .findOne({ studentId: ids.ben, questionId: ids.questionId });
+            const strokes = doc?.entries?.[0]?.strokes ?? [];
+            return [strokes.length, strokes[0]?.points?.length > 20];
+          }),
+        )
+        .toEqual([1, true]);
+    });
+  }
+});

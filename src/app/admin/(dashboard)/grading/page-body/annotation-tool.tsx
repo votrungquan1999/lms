@@ -7,6 +7,7 @@ import { Button } from "src/components/ui/button";
 import type { AnnotationEntry } from "src/lib/annotation-service";
 import {
   AnnotationToolProvider,
+  type MarkTool,
   useAnnotationTool,
 } from "./annotation-tool.state";
 
@@ -15,6 +16,12 @@ export interface AnnotatablePhoto {
   key: string;
   url: string;
 }
+
+const TOOLS: { tool: MarkTool; label: string }[] = [
+  { tool: "pen", label: "Pen" },
+  { tool: "circle", label: "Circle" },
+  { tool: "arrow", label: "Arrow" },
+];
 
 /** Palette the grader can draw with (tokenized-ish fixed marker colors). */
 const PALETTE = ["#ef4444", "#2563eb", "#16a34a", "#111827"];
@@ -71,11 +78,17 @@ function AnnotationToolBody({
   studentId: string;
   photos: AnnotatablePhoto[];
 }): React.ReactNode {
-  const { color, entriesByKey, drawing, dispatch } = useAnnotationTool();
+  const { color, tool, entriesByKey, drawing, dispatch } = useAnnotationTool();
   const [photoIndex, setPhotoIndex] = useState(0);
   const [fit, setFit] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  /** Rendered size of the drawing surface in pixels. */
+  function toSize(event: React.PointerEvent<SVGSVGElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  }
 
   /** Converts a pointer event into a normalized (0..1) point on the surface. */
   function toPoint(event: React.PointerEvent<SVGSVGElement>) {
@@ -105,7 +118,19 @@ function AnnotationToolBody({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {TOOLS.map((option) => (
+          <Button
+            key={option.tool}
+            type="button"
+            variant={tool === option.tool ? "default" : "outline"}
+            size="sm"
+            aria-pressed={tool === option.tool}
+            onClick={() => dispatch({ type: "SET_TOOL", tool: option.tool })}
+          >
+            {option.label}
+          </Button>
+        ))}
         {PALETTE.map((c) => (
           <button
             key={c}
@@ -168,6 +193,7 @@ function AnnotationToolBody({
                       type: "START_STROKE",
                       mediaKey: photo.key,
                       point: toPoint(e),
+                      size: toSize(e),
                     });
                   }}
                   onPointerMove={(e) => {
