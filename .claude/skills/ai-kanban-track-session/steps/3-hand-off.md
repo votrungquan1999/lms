@@ -35,6 +35,5 @@ If you no longer have the card's id (a compact, a new session), find it the same
 
 ## Don't
 
-- Don't move the card to a terminal/done status yourself — review is a human step.
 - Don't open a follow-up card for review feedback — reopen the existing one.
-- Don't delete or archive the card.
+- Don't delete the card.

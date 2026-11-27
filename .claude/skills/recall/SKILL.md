@@ -16,7 +16,7 @@ Trigger on "why did we do X", "what did we do about X", "recall the decision on 
 
 ### 1. Find candidate cards
 
-Call `list_cards` with `text: <topic>` (and `tags` if the topic maps to known project tags) to find candidate cards. `list_cards` returns a **lean summary only** — no `decisions[]`, no `progress[]` — so it is for *finding* cards, never for *reading* them.
+Call `list_cards` with `text: <topic>` and no `tags` to find candidate cards. `list_cards` returns a **lean summary only** — no `decisions[]`, no `progress[]` — so it is for *finding* cards, never for *reading* them.
 
 ### 2. Read each candidate
 

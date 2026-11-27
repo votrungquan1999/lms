@@ -65,6 +65,8 @@ A SURVIVED mutant is one of three things, and only the first is a defect:
 
 Re-read the test before classifying. Do not add the missing test — that is the operator's call, and a new test is a new behavior with its own commit.
 
+Survivors that need unusual data shapes (several defaults, odd history rows, window edges), or that only guard against a future change loosening a correct check, go under Not findings as accepted; a survivor is a finding only when it shows a defect on a normal user flow.
+
 ### 4. Confirm the tree is clean
 
 Run the project's test command over the mutated files one last time and confirm green, then confirm the source files are byte-identical to their pre-run state. A leaked mutant silently corrupts every later step.

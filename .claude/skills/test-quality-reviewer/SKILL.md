@@ -10,7 +10,9 @@ This Skill reviews test code using the **4 Pillars of Good Tests** framework to 
 
 ## Execution — delegate to a Sonnet 5 sub-agent
 
-You run in the **main session** as a thin coordinator — do **not** perform the review below yourself:
+**If you are already a sub-agent, do the review yourself** — skip to the framework below; only the main session delegates.
+
+From the **main session**, act as a thin coordinator — do **not** perform the review below yourself:
 
 1. Resolve **which tests / files to review** from the conversation (the one thing only you can see).
 2. Spawn **one** sub-agent — `Agent` tool, `subagent_type: general-purpose`, `model: "sonnet"` (Sonnet 5). Pass it the resolved targets, the workspace `<identifier>`, and the framework below as its instructions. The test files are on disk in the shared working directory.
@@ -109,10 +111,10 @@ For each test that passed the necessity gate, evaluate:
 
 **Question:** Would this test fail if a bug was introduced?
 
-**Judge sensitivity against the observable outcome, and nothing else** — the returned value, the persisted row, the response body, the rendered output. An assertion that a collaborator *was called* is not sensitivity, with or without its arguments: it re-states wiring the test itself set up, and it survives every defect that leaves the call site intact.
+**Judge sensitivity against the observable outcome, and nothing else** — the returned value, the persisted row, the response body, the rendered output. An assertion that a collaborator *was called* is not sensitivity, with or without its arguments: it re-states wiring the test itself set up, and it survives every defect that leaves the call site intact. The one exception: when the call to an outside system is itself the behavior (email, payment provider), assert that call with `toHaveBeenCalledWith`.
 
 **Look for:**
-- ❌ Asserting a collaborator was called — `toHaveBeenCalled`, `toHaveBeenCalledWith` — in place of asserting the outcome
+- ❌ Asserting a collaborator was called — `toHaveBeenCalled`, `toHaveBeenCalledWith` — in place of asserting the outcome (allowed only when the call to an outside system is the behavior itself, e.g. email, payment provider)
 - ❌ Assertions using implementation constants: `expect(msg).toBe(ERROR_MESSAGES.INVALID)`
 - ❌ Overly loose assertions: `expect(result).toBeTruthy()`
 - ❌ Over-mocking that bypasses real code

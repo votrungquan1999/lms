@@ -52,7 +52,7 @@ This is measured, not stylistic: fifteen entries in this shape cost a resuming s
 Each type has exactly one home. Never write the same thing to two of them — except where a bullet says **and**, which means the card gets a copy because the workspace can be deleted and the card cannot.
 
 - **Decision** → append to `<ws>/DECISIONS.md` **and** call `append_decision` on the active card.
-- **Step transition / status change** → append to `<ws>/IMPLEMENTATION_PROGRESS.md`.
+- **Step transition / status change** → append to `<ws>/IMPLEMENTATION_PROGRESS.md` **and** one `append_progress` line on the active card.
 - **Open question, finding, or reusable command** → append to `<ws>/JOURNAL.md`.
 - **A decision that is now superseded** → call `mark_decision_outdated` on the card and note the supersession in `DECISIONS.md`. Do not delete the old entry; a decision that was reversed is itself a record.
 - **Where the work stands as a whole** → the card only, via `append_progress` **and** `update_card`. See *The card state note*.
@@ -102,7 +102,7 @@ Best-effort, like every other card call here: no session id, or a failed write, 
 
 A session with no task workspace still has things worth keeping. Write them to the **card alone** — `append_decision` for decisions, then the card state note. That path needs no `<ws>` and is the more durable of the two anyway.
 
-If there is no workspace *and* no card, say so plainly and ask whether to open a card before compacting. Don't invent a folder to write into.
+If there is no workspace *and* no card, apply the `ai-kanban-track-session` card rule without asking: open a card when the work passes its test and write to it as above; otherwise report that nothing was flushed. Don't invent a folder to write into.
 
 ## Finish
 

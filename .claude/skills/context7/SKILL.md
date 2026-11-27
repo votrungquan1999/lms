@@ -88,7 +88,8 @@ Args:
 - ✅ Write specific, detailed queries
 - ✅ Check the library version matches your project's version
 - ✅ Combine multiple query results for comprehensive understanding
-- ✅ Fall back to `@web-search` if Context7 doesn't have the library
+- ✅ Fall back to `@web-search` only when the library is missing from Context7
+- ✅ If the Context7 tool itself is down or erroring, stop and tell the user — don't fall back to `@web-search`
 - ❌ Don't query without resolving the library ID first
 - ❌ Don't exceed the per-question call limits
 - ❌ Don't include sensitive information (API keys, credentials) in queries

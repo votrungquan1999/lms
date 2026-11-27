@@ -14,21 +14,15 @@ import { readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-// The three durable homes (D18). Decisions and transitions have dedicated files; the journal
-// holds the types with nowhere else to go.
-const TRACKED_FILES = [
-  "DECISIONS.md",
-  "IMPLEMENTATION_PROGRESS.md",
-  "JOURNAL.md",
-];
+// Only files the card mirrors: decisions, and one progress line per step change.
+// JOURNAL.md lives in the workspace alone, so it is never debt.
+const TRACKED_FILES = ["DECISIONS.md", "IMPLEMENTATION_PROGRESS.md"];
 
 function readStdin() {
   return new Promise((resolve) => {
     let data = "";
     process.stdin.setEncoding("utf8");
-    process.stdin.on("data", (chunk) => {
-      data += chunk;
-    });
+    process.stdin.on("data", (chunk) => { data += chunk; });
     process.stdin.on("end", () => resolve(data));
     process.stdin.on("error", () => resolve(""));
   });
@@ -38,12 +32,7 @@ function readStdin() {
 function readPointer(sessionId) {
   if (!sessionId) return null;
   try {
-    const path = join(
-      homedir(),
-      ".claude",
-      "kanban-session-state",
-      `${sessionId}.json`,
-    );
+    const path = join(homedir(), ".claude", "kanban-session-state", `${sessionId}.json`);
     return JSON.parse(readFileSync(path, "utf8"));
   } catch {
     return null;
@@ -60,28 +49,24 @@ function findDebt(workspace, lastMirroredAt) {
     try {
       return statSync(join(workspace, name)).mtimeMs > mirroredMs;
     } catch {
-      return false; // absent file is not debt — most workspaces never have all three
+      return false; // absent file is not debt — many workspaces never have both
     }
   });
 }
 
 function buildNudge(debtFiles) {
   const list = debtFiles.join(", ");
-  return (
-    `Unmirrored work in your task workspace: ${list} changed since the last mirror to the card. ` +
-    "Mirror the new entries now (append_decision / append_progress), then re-stamp lastMirroredAt in the session pointer."
-  );
+  return `Unmirrored work in your task workspace: ${list} changed since the last mirror to the card. ` +
+    "Mirror the new entries now (append_decision / append_progress), then re-stamp lastMirroredAt in the session pointer.";
 }
 
 function emit(additionalContext) {
-  process.stdout.write(
-    JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: "Stop",
-        additionalContext,
-      },
-    }),
-  );
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "Stop",
+      additionalContext,
+    },
+  }));
 }
 
 async function main() {
@@ -101,11 +86,7 @@ async function main() {
 
   const pointer = readPointer(input.session_id);
   // Never guess: without a workspace or a mirror baseline there is no debt we can compute.
-  if (
-    !pointer ||
-    typeof pointer.workspacePath !== "string" ||
-    typeof pointer.lastMirroredAt !== "string"
-  ) {
+  if (!pointer || typeof pointer.workspacePath !== "string" || typeof pointer.lastMirroredAt !== "string") {
     process.exit(0);
     return;
   }

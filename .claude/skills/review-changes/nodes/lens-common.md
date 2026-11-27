@@ -28,6 +28,7 @@ Every finding carries an **Origin** so the reviewer can tell whether this change
 - Anything a linter / typechecker / compiler would catch (missing imports, type errors, formatting) — assume CI runs these
 - Pedantic nitpicks a senior engineer wouldn't raise
 - Changes that are clearly intentional and part of the broader change
+- Polish on a screen built only so the owner can verify a feature by hand (loading flashes, rare edge states, nearly unreachable errors, cosmetic races); flag only what would stop that check or show wrong data
 
 Do NOT run the build or typecheck — that is CI's job.
 

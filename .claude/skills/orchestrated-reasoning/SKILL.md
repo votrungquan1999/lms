@@ -1,12 +1,12 @@
 ---
 name: orchestrated-reasoning
-description: Produce a deep-reasoning deliverable over a large codebase while conserving an expensive reasoning model. Cheap Sonnet scout/gatherer sub-agents read the code and condense it into structured digests; a Fable reasoner sub-agent reads the digests (pulling real files when a digest is thin) and produces the deliverable your objective asks for — a feature or refactor plan, a design-flaw critique, a modular-refactor direction, an architecture assessment, whatever you describe. The objective is free text. Stops at the reasoning deliverable — never implements. Use when reading the whole codebase with the premium model would be wasteful, or when the user says "orchestrated reasoning", "cheap gather then have the expensive model reason/plan/critique", "use Fable to plan/critique/analyze", "find design flaws", "find a modular refactor direction", or "tiered reasoning". Do NOT use for small tasks where one model can just read and reason directly.
+description: Produce a deep-reasoning deliverable over a large codebase while conserving an expensive reasoning model. Cheap Sonnet scout/gatherer sub-agents read the code and condense it into structured digests; a premium reasoner sub-agent (Fable or Opus, asked once at the start) reads the digests (pulling real files when a digest is thin) and produces the deliverable your objective asks for — a feature or refactor plan, a design-flaw critique, a modular-refactor direction, an architecture assessment, whatever you describe. The objective is free text. Stops at the reasoning deliverable — never implements. Use for planning a large refactor, migration, or feature, or any job where reading the whole codebase with the premium model would be wasteful, or when the user says "orchestrated reasoning", "scout and plan", "cheap gather then plan", "use Fable to plan", "tiered planning", "cheap gather then have the expensive model reason/plan/critique", "use Fable to plan/critique/analyze", "find design flaws", "find a modular refactor direction", or "tiered reasoning". Do NOT use for small tasks where one model can just read and reason directly.
 allowed-tools: Read, Grep, Glob, Bash, Write, Agent, TodoWrite
 ---
 
 # Orchestrated Reasoning
 
-The main session is an **orchestrator**: it does no reading or reasoning itself — it spawns sub-agents and routes between them through state files in a per-task workspace. The point is **model-tier economics**: cheap models (Sonnet) do the token-heavy code reading and condense it to files; the expensive model (Fable) spends its tokens only on the hard reasoning your objective demands, never on bulk reading.
+The main session is an **orchestrator**: it does no reading or reasoning itself — it spawns sub-agents and routes between them through state files in a per-task workspace. The point is **model-tier economics**: cheap models (Sonnet) do the token-heavy code reading and condense it to files; the expensive reasoner model (Fable or Opus, the user's pick) spends its tokens only on the hard reasoning your objective demands, never on bulk reading.
 
 The **objective is free text** — "plan feature X", "propose a modular refactor direction for this service", "find design flaws in the auth flow", "assess whether this module should be split". The pipeline is the same regardless of objective; only the reasoner's deliverable changes shape to fit it.
 
@@ -17,7 +17,7 @@ Pipeline: scope → gather (fan-out) → reason ↔ consult-loop → deliver. **
 The failure mode of "cheap model reads, premium model reasons" is a **lossy digest**: the scout writes vague prose, the reasoner reads it, misunderstands, and reasons against a wrong mental model. Two rules prevent it:
 
 - **Digests carry anchors, not summaries** — every claim is backed by a `path:line` and a real snippet (see `nodes/node-gather.md`). A digest the reasoner can't verify is worthless.
-- **The reasoner can pull the real file** — Fable gets Read/Grep, so when a digest is thin it reads the source directly instead of guessing. For anything needing *broad* re-exploration it emits a `NEEDS` request and a cheap scout handles it (the consult loop) — formalized so it can't be skipped.
+- **The reasoner can pull the real file** — the reasoner gets Read/Grep, so when a digest is thin it reads the source directly instead of guessing. For anything needing *broad* re-exploration it emits a `NEEDS` request and a cheap scout handles it (the consult loop) — formalized so it can't be skipped.
 
 ## Orchestrator Rules
 
@@ -25,8 +25,8 @@ The failure mode of "cheap model reads, premium model reasons" is a **lossy dige
 - **Thread the objective.** Pass the user's free-text objective, verbatim, into every sub-agent prompt. The scout scopes to it, the gatherers gather what it needs, and the reasoner shapes its deliverable to it.
 - **Fan out to the cap.** Spawn one gatherer per dimension, capped at **4 per message**, in a single message so they run in parallel. Group tightly-coupled areas into one gatherer; split unrelated areas apart.
 - **Route on returns.** Read state files to decide and to relay findings to the user. Do not re-analyze a sub-agent's output in your own words.
-- **Conserve Fable.** The reasoner is the only Fable call. Everything upstream (scope, gather, consult follow-ups) is Sonnet/Haiku. If you catch yourself about to spawn Fable for anything but the reasoning step, stop.
-- **Log decisions.** When any phase faces **2+ viable options and picks one** (including user-resolved ones), append to `<ws>/DECISIONS.md`: chosen option, alternative(s), one-line why. Skip forced moves.
+- **Conserve the reasoner.** The reasoner is the only premium-model sub-agent. Everything upstream (scope, gather, consult follow-ups) is Sonnet/Haiku. If you catch yourself about to spawn the premium model for anything but the reasoning step, stop.
+- **Log decisions.** When any phase faces **2+ viable options and picks one** (including user-resolved ones), append to `<ws>/DECISIONS.md`: chosen option, alternative(s), one-line why. When an AI-Kanban card is active, also record the same entry on it with `append_decision`. Skip forced moves.
 
 **Spawn pattern** — keep the prompt minimal; the node file carries the instructions:
 
@@ -43,8 +43,8 @@ Agent(
 
 **Model lever** (per-call `model`: `"haiku"|"sonnet"|"opus"|"fable"`).
 - Orchestrator (main session) → run on **Opus** — cheap-ish coordination and routing.
-- Scout, gatherers, consult follow-ups → `"sonnet"` (Sonnet 5). Drop to `"haiku"` for a purely mechanical sweep.
-- Reasoner → `"fable"` (Fable 5). This is the whole reason for the skill — nothing else gets Fable.
+- Scout, gatherers, consult follow-ups → `"sonnet"` (Sonnet 5), without asking. Drop to `"haiku"` for a purely mechanical sweep.
+- Reasoner → the model the user picked in Phase 0 (`"fable"` or `"opus"`). Never assume one. No other sub-agent gets it.
 
 ## Task Workspace & State Files
 
@@ -62,7 +62,7 @@ Every run is scoped to a **task identifier** (a ticket id, or a confirmed kebab-
 
 ## Phase 0: Establish Workspace & Objective
 
-Confirm the **objective** in one line with the user if it isn't already crisp (what deliverable do they want — a plan? a critique? a refactor direction?). Ask for a task identifier (or derive a kebab-case slug from the objective and confirm it). Create `./tmp/<identifier>/` and write the objective verbatim to `OBJECTIVE.md`. **Gate:** do not proceed until the workspace exists. **Before creating it, check whether `./tmp/<identifier>/` already holds artifacts from unrelated work — if so, STOP and ask the user** rather than overwriting another task's run.
+Confirm the **objective** in one line with the user if it isn't already crisp (what deliverable do they want — a plan? a critique? a refactor direction?). Ask once which model reasons: "Fable or Opus?" Derive the task identifier (a ticket id from the request or branch, else a kebab-case slug from the objective) and state it in one line. Create `./tmp/<identifier>/` and write the objective verbatim to `OBJECTIVE.md`. **Gate:** do not proceed until the workspace exists and the user has picked the reasoner model. **Before creating it, check whether `./tmp/<identifier>/` already holds artifacts from unrelated work — if so, STOP and ask the user** rather than overwriting another task's run.
 
 ## Phase 1: Scope
 
@@ -76,11 +76,11 @@ Present the proposed dimensions to the user.
 
 Spawn one `node-gather.md` sub-agent (`sonnet`) per dimension from `SCOPE.md`, batched to the cap (≤4/message, in one message for parallelism). Each writes `DIGEST_[dimension].md` in the structured, anchor-rich format the node defines, focused on what the objective needs.
 
-On return, do a **cheap completeness check** (not a re-analysis): does every dimension have a digest, and does each digest actually carry `path:line` anchors and snippets rather than vague prose? If a digest is empty or summary-only, re-spawn that one gatherer with a sharper assignment. Do **not** proceed to Fable with thin digests — that is the exact failure this skill exists to prevent.
+On return, do a **cheap completeness check** (not a re-analysis): does every dimension have a digest, and does each digest actually carry `path:line` anchors and snippets rather than vague prose? If a digest is empty or summary-only, re-spawn that one gatherer with a sharper assignment. Do **not** proceed to the reasoner with thin digests — that is the exact failure this skill exists to prevent.
 
 ## Phase 3: Reason (with consult loop)
 
-Spawn `node-reason.md` (**`fable`**), passing the objective. It reads every `DIGEST_*.md`, and has Read/Grep/Glob so it can pull the real source when a digest is thin. It returns one of two things:
+Spawn `node-reason.md` (the reasoner model picked in Phase 0), passing the objective. It reads every `DIGEST_*.md`, and has Read/Grep/Glob so it can pull the real source when a digest is thin. It returns one of two things:
 
 - **`REASONING.md` written** → done. Present it to the user.
 - **`NEEDS_[round].md` written** (it needs broad context a cheap scout should fetch) → service it: spawn one `node-gather.md` follow-up (`sonnet`) per NEEDS item, each writing `DIGEST_FOLLOWUP_[id].md`, then **re-spawn the same `node-reason.md`** pointing it at the new follow-up digests plus the originals.
@@ -93,7 +93,7 @@ Cap the consult loop at **2 rounds**. If the reasoner still emits `NEEDS` after 
 
 - Sub-agent fails → report and ask how to proceed.
 - User skips the scope gate → proceed with your best-guess dimensions, note it.
-- A digest comes back thin → re-spawn that gatherer once; if still thin, tell the user before spending Fable.
+- A digest comes back thin → re-spawn that gatherer once; if still thin, tell the user before spending the reasoner.
 - Workspace context too large for one gatherer → split the dimension into more gatherers.
 
 ## Related Skills

@@ -103,6 +103,7 @@ When a search result looks promising:
 - ✅ Share sources with the user for transparency
 - ❌ Don't trust a single source blindly
 - ❌ Don't spend more than 2-3 search attempts on the same question
+- ✅ After the attempt cap, report the queries and sources you searched; never claim "nothing exists"
 - ❌ Don't copy code without understanding it
 
 ## Output

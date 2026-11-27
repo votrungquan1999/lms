@@ -54,6 +54,8 @@ Write findings to `<ws>/RESEARCH_OUTPUT.md`.
 
 If you were spawned as a **targeted follow-up agent** (you were given a specific investigation item), instead write to the `<ws>/RESEARCH_FOLLOWUP_[id].md` file named in your prompt, using the same section structure below. Resolve your assigned item fully; if it uncovers further code-answerable threads, list them under "Follow-up Investigations Needed" so the orchestrator can spawn another round.
 
+Then fold a condensed version of your findings into the matching section of `<ws>/RESEARCH_OUTPUT.md`, linking `RESEARCH_FOLLOWUP_[id].md`. Append with Edit under your own subsection `### Follow-up: [id]` beneath that section and never rewrite the file — parallel follow-up agents would clobber each other. Also append ` — resolved, see RESEARCH_FOLLOWUP_[id].md` to your item's line under `## Follow-up Investigations Needed`, so the planner does not read it as still open.
+
 ```markdown
 # Research Output
 
@@ -91,5 +93,5 @@ If you were spawned as a **targeted follow-up agent** (you were given a specific
 ```
 
 **CRITICAL — pausing depends on who you are:**
-- If you are a **targeted follow-up agent**, do NOT pause for the user. Write your findings file and return a brief summary to the orchestrator (what you resolved, any new follow-up items).
+- If you are a **targeted follow-up agent**, do NOT pause for the user. Write your findings file, fold it into `RESEARCH_OUTPUT.md` as above, and return a brief summary to the orchestrator: the items you resolved and any new follow-up items, or "no new items" explicitly when there are none (empty must be distinguishable from lost).
 - If you are the **initial research agent**, write the output. The orchestrator decides whether to spawn follow-up agents or pause for the user — see the skill's Phase 1. Do not invent a user pause yourself; report back to the orchestrator with whether "Follow-up Investigations Needed" is empty.

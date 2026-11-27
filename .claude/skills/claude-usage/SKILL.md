@@ -1,6 +1,6 @@
 ---
 name: claude-usage
-description: Reports what the current Claude Code session is costing — context size, carry cost per turn, session total, per-model split, and subagent spend. Trigger on "how big is my context", "what is this session costing", "how much have I spent", "am I near compaction", or any request to check context or cost. Current session only, fully local.
+description: Reports what the current Claude Code session is costing — context size, carry cost per turn, session total, per-model split, and subagent spend. Trigger on "how big is my context", "what is this session costing", "how much have I spent", "am I near compaction", or any request to check context or cost. Current session only, fully local. Also covers installing the tool when a machine lacks it, or on "set up claude-usage on this machine".
 allowed-tools: Bash
 ---
 
@@ -18,7 +18,10 @@ node ~/.claude/claude-usage/bin/report.mjs
 
 That resolves the transcript from `CLAUDE_CODE_SESSION_ID`, reads it in full, and prints context size, carry cost, turn count, session total, per-model split, and subagent spend.
 
-If it fails with "No transcript found", the tool is not installed on this machine — see `~/.claude/claude-usage` (a symlink to the checkout). Say so rather than guessing at numbers.
+If the run fails, read the error before reporting anything:
+
+- **`Cannot find module '…/.claude/claude-usage/bin/report.mjs'`**: the tool is not installed on this machine. Install it with [setup.md](setup.md), then run the report again. Do not give numbers before that.
+- **`No transcript found under …`**: the tool is installed but found no transcript for this session. This usually means `CLAUDE_CODE_SESSION_ID` is unset because the command ran outside Claude Code. Say so, and do not guess numbers.
 
 ## Presenting the result
 

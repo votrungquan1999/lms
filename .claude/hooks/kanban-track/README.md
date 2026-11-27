@@ -2,7 +2,8 @@
 
 A `UserPromptSubmit` hook that keeps AI-Kanban tracking deterministic: every prompt is
 re-evaluated by the harness (not the model's memory), and the model is reminded where to
-record what happened. The hook itself records nothing — it only instructs.
+record what happened. The hook itself records nothing — it only instructs. It also names
+the session: see [Session naming](#session-naming).
 
 ## Install (manual drop-in)
 
@@ -36,13 +37,15 @@ active for the session:
 
 ## Behavior per prompt
 
-1. Read stdin (`session_id`, `prompt`, `cwd`).
+1. Read stdin (`session_id`, `transcript_path`, `prompt`, `cwd`).
 2. Look up the pointer for `session_id`.
    - No pointer → emit an "open a card only if you'd revisit this in a week, and check the
      repo's open cards first" reminder. Asked retrospectively, so it re-fires as work grows.
    - Pointer present → emit the active card # + summary, the recording routes below, and
      "open a new card only on genuine divergence (`forceNew`)".
-3. Exit 0. Always — exit 2 would erase the user's prompt.
+3. Read the transcript for the session's name (below): return a declared name as
+   `sessionTitle`, or append the naming ask while the session has no name.
+4. Exit 0. Always — exit 2 would erase the user's prompt.
 
 ## Recording routes the reminder carries
 
@@ -57,3 +60,19 @@ model-generated noise. Routes, all relative to the model's own task workspace:
 
 The hook never names an absolute path: it receives only `session_id` and `cwd`, never the
 workspace, and it writes nothing outside the model's own task folder.
+
+## Session naming
+
+Only Claude Code can name a session — the model cannot type `/rename`. A
+`UserPromptSubmit` hook can, by returning `hookSpecificOutput.sessionTitle`; Claude Code
+records it as a `custom-title` transcript entry, exactly like `/rename`.
+
+- **The model declares**: once it knows the task, it writes a plain line
+  `Session name: <3-6 words>` in a reply. Only assistant text blocks count.
+- **The hook applies** the latest declaration on the next prompt, card or no card.
+- **A manual `/rename` wins**: a declaration older than the last title *change* is ignored.
+  Claude Code re-appends the current `custom-title` repeatedly, so a repeat is not a change.
+- **The ask** ("This session has no name yet…") is appended to the reminder until the
+  transcript holds a title, and is skipped on the prompt that applies one.
+- **Cost**: the transcript is read on every prompt, but only lines containing the marker or
+  `"custom-title"` are JSON-parsed.

@@ -16,9 +16,7 @@ function readStdin() {
   return new Promise((resolve) => {
     let data = "";
     process.stdin.setEncoding("utf8");
-    process.stdin.on("data", (chunk) => {
-      data += chunk;
-    });
+    process.stdin.on("data", (chunk) => { data += chunk; });
     process.stdin.on("end", () => resolve(data));
     process.stdin.on("error", () => resolve(""));
   });
@@ -29,12 +27,7 @@ function readStdin() {
 function readSentinel(sessionId) {
   if (!sessionId) return null;
   try {
-    const path = join(
-      homedir(),
-      ".claude",
-      "spec-reminder-state",
-      `${sessionId}.json`,
-    );
+    const path = join(homedir(), ".claude", "spec-reminder-state", `${sessionId}.json`);
     const sentinel = JSON.parse(readFileSync(path, "utf8"));
     const hasRequiredFields =
       typeof sentinel.slug === "string" &&
@@ -53,14 +46,12 @@ function buildNudge(specPath) {
 }
 
 function emit(additionalContext) {
-  process.stdout.write(
-    JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: "Stop",
-        additionalContext,
-      },
-    }),
-  );
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "Stop",
+      additionalContext,
+    },
+  }));
 }
 
 async function main() {

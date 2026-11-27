@@ -6,7 +6,7 @@ allowed-tools: Bash, mcp__ai-kanban-dispatch__create_card, mcp__ai-kanban-dispat
 
 # AI-Kanban: Track This Session
 
-You are an operator — a coding agent, a non-coding agent, or a human — who has just taken on a piece of real work. Unlike `ai-kanban-work-card` (where a card id is handed to you), **no card exists yet** — you create one to track your own work, drive it through the board, and hand it off for review when you finish.
+You are an operator — a coding agent, a non-coding agent, or a human — who has just taken on a piece of real work. Nobody hands you a card id: **no card exists yet** — you create one to track your own work, drive it through the board, and hand it off for review when you finish.
 
 The server owns the card's integrity and persistence; you reach it through the `ai-kanban-dispatch` MCP tools. **You** own judgment: deciding the work is worth tracking, naming it, choosing its tags, and writing progress notes a human can skim later.
 
@@ -17,6 +17,8 @@ Open a card **automatically, without asking**, when you'd want to **revisit this
 A card is a **handoff device**. Work that ends the moment you deliver it, and that nobody ever returns to, produces a card no one reads — that is the noise to avoid. Note this is *not* a question of how many steps the work took: a long mechanical job can be finished and forgotten the same day, while a short open-ended one can still be live next week.
 
 **Default to not tracking.** When you can't tell, don't open a card. The per-prompt hook asks again as the work goes on, and opening one late costs nothing — a card you never opened costs nothing either, but one you opened for finished work is on the board forever.
+
+Re-check this test after about 8 prompts on one topic, and whenever a notes file gets written.
 
 You decide this silently. Do **not** ask the user "should I track this?" — either track it and announce, or skip it. Asking whether to **reuse a card that already exists** is a different question, and an expected one — see `steps/1-open-card.md`.
 

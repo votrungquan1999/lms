@@ -47,7 +47,7 @@ A session typically has all of these, and they are usually different:
 1. Read stdin (`session_id`, `stop_hook_active`).
 2. `stop_hook_active` true → silent. See *Why the re-entrancy guard*.
 3. Read the pointer. Missing, malformed, or lacking `workspacePath`/`lastMirroredAt` → silent.
-4. Stat `DECISIONS.md`, `IMPLEMENTATION_PROGRESS.md`, `JOURNAL.md` in the workspace. An absent file is not debt — most workspaces never have all three.
+4. Stat `DECISIONS.md` and `IMPLEMENTATION_PROGRESS.md` in the workspace. An absent file is not debt — many workspaces never have both. `JOURNAL.md` is never checked: journal items live in the workspace only and are not mirrored to the card.
 5. Any file with `mtime > lastMirroredAt` → emit an `additionalContext` nudge naming those files.
 6. Exit 0. Always — exit 2 on `Stop` would block the session from ending.
 

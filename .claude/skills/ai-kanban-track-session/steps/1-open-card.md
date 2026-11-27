@@ -103,9 +103,8 @@ The card exists, but it belongs to the session that opened it. In this order:
 
 `ERR_DUPLICATE` means different things depending on which call returned it:
 
-- **From `adopt_card`** — this session already holds an open card of its own, or another session adopted this one first. Resolve it with the user; don't force it and don't open a third card.
-- **From `set_status` after a successful `adopt_card`** — same thing, surfacing a step later.
-- **From `set_status` when you did NOT adopt first** — the conflict is the *previous owner's*, not yours. Adopt the card first, or take it to the user; there is nothing to fix in your own session.
+- **From `adopt_card`** — this session already holds an unfinished card of its own (in progress, in review, staled or blocked), or another session adopted this one first. Resolve it with the user; don't force it and don't open a third card.
+- **From `set_status`** — only an imported card (one carrying an import key such as `notion:page-1`) can collide: another open card holds the same import key. Take it to the user; `force` displaces that other card, so use it only with their OK.
 
 `ERR_VALIDATION` from `adopt_card` means the card isn't adoptable: a `todo` card belongs to `claim_card`, and a card carrying an external key (e.g. `notion:page-1`) must not be re-keyed at all — leave it alone and tell the user.
 
