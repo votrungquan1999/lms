@@ -1,11 +1,15 @@
 import { courseTestHref } from "src/app/admin/(dashboard)/grading/href";
 import { GradingMode } from "src/lib/grading-mode";
 import { readGradingScreen } from "src/lib/grading-screen-read";
-import { answerNeedsGrade } from "src/lib/next-answer-to-grade";
+import {
+  answerNeedsGrade,
+  isUnmarkedChoiceAnswer,
+} from "src/lib/next-answer-to-grade";
 import { isMcQuestionType, type Question } from "src/lib/question-service";
 import { relativeTimeAgo } from "src/lib/relative-time";
 import { gradeReleaseState } from "src/lib/release-state";
 import type { Test } from "src/lib/test-service";
+import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 import { FinishPanel } from "./finish-panel";
 import { GradingDetailQuestion } from "./grading-detail-question";
 import { GradingDetailStudent } from "./grading-detail-student";
@@ -97,20 +101,29 @@ export async function GradingPageShell({
     (requestedQuestionId &&
       questions.find((q) => q.id === requestedQuestionId)) ||
     null;
-  // By question opens the first written or photo question with an answer to grade, else the first written one; choice answers grade themselves, and practice has no grades to go by.
+  // By question opens the first question with an answer to grade or an unmarked choice answer, else the first written one; practice has no grades to go by.
   const studentAnswerNeedsGrade = (
     studentId: string,
     question: Question,
     redoOpen: boolean,
   ) => {
     const answer = screen.answers.get(studentId)?.get(question.id);
-    return answerNeedsGrade({
-      question,
-      answer: answer?.answer,
-      answeredAt: answer?.submittedAt ?? null,
-      grade: screen.grades.get(studentId)?.get(question.id) ?? null,
-      redoOpen,
-    });
+    const grade = screen.grades.get(studentId)?.get(question.id) ?? null;
+    return (
+      answerNeedsGrade({
+        question,
+        answer: answer?.answer,
+        answeredAt: answer?.submittedAt ?? null,
+        grade,
+        redoOpen,
+      }) ||
+      // A handed-in choice answer with no mark is where the Mark button is, so it is a stop too.
+      (!redoOpen &&
+        hasSubmitted(
+          screen.pairs.get(studentId)?.status ?? TestStatus.NotStarted,
+        ) &&
+        isUnmarkedChoiceAnswer(question, answer?.answer, grade))
+    );
   };
   const waitingIds = pickerRows
     .filter((r) => r.group === StudentPickerGroup.NeedsGrading)

@@ -4,7 +4,7 @@ import type { PairGradingResult } from "src/lib/grading-count-service";
 import { GradingMode } from "src/lib/grading-mode";
 import { type NeedsGradeInput, needsGrade } from "src/lib/needs-grade";
 import { isMcQuestionType, type Question } from "src/lib/question-service";
-import { TestStatus } from "src/lib/test-status-service";
+import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
 
 /** One student's answer to one question and the grade it has. */
 export interface AnswerNeedsGradeInput {
@@ -64,6 +64,26 @@ export function isGradableAnswer(
 }
 
 /**
+ * A choice answer with a selection and no grade: the system marks choice answers at hand-in, so this one's marking never ran.
+ * @param question - The question answered.
+ * @param answer - The student's answer, or undefined when there is none.
+ * @param grade - The saved grade, or undefined / null when there is none.
+ * @returns True when the answer is waiting for its automatic mark.
+ */
+export function isUnmarkedChoiceAnswer(
+  question: Pick<Question, "type">,
+  answer: StudentAnswer | undefined,
+  grade: object | null | undefined,
+): boolean {
+  return (
+    isMcQuestionType(question.type) &&
+    answer?.type === "mc" &&
+    answer.selectedIds.length > 0 &&
+    !grade
+  );
+}
+
+/**
  * Whether an answer the teacher can grade still waits for a grade. The one
  * rule every grading screen part and the AI grading round use to decide.
  * @param input - The question, the answer and its grade.
@@ -81,20 +101,28 @@ export function answerNeedsGrade(input: AnswerNeedsGradeInput): boolean {
   );
 }
 
-/** Whether this student's answer to the question waits for the teacher. */
+/** Whether this student's answer to the question is somewhere the teacher has to go: it waits for a grade, or it is a handed-in choice answer whose Mark button is the only way forward. */
 function answerOfStudentNeedsGrade(
   input: NextAnswerInput,
   studentId: string,
   question: Question,
 ): boolean {
   const answer = input.answers.get(studentId)?.get(question.id);
-  return answerNeedsGrade({
-    question,
-    answer: answer?.answer,
-    answeredAt: answer?.submittedAt ?? null,
-    grade: input.grades.get(studentId)?.get(question.id) ?? null,
-    redoOpen: false,
-  });
+  const grade = input.grades.get(studentId)?.get(question.id) ?? null;
+  const pair = input.pairs.get(studentId);
+  return (
+    answerNeedsGrade({
+      question,
+      answer: answer?.answer,
+      answeredAt: answer?.submittedAt ?? null,
+      grade,
+      redoOpen: false,
+    }) ||
+    // A still-writing student's choice answer has no mark until she hands in.
+    (pair !== undefined &&
+      hasSubmitted(pair.status) &&
+      isUnmarkedChoiceAnswer(question, answer?.answer, grade))
+  );
 }
 
 /**

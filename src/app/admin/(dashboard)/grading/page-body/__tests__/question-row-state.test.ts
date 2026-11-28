@@ -114,6 +114,31 @@ describe("Feature: the state a question's box shows", () => {
     ).toBe(QuestionBoxState.Graded);
   });
 
+  it("shows a handed-in choice answer that has no grade as needing a grade", () => {
+    expect(
+      questionBoxState({
+        question: choice,
+        answer: { type: "mc", selectedIds: ["option-a"] },
+        grade: undefined,
+        handedIn: true,
+        isPractice: false,
+      }),
+    ).toBe(QuestionBoxState.NeedsGrade);
+  });
+
+  it("does not show an unmarked choice answer as needing a grade while the student has an open redo", () => {
+    expect(
+      questionBoxState({
+        question: choice,
+        answer: { type: "mc", selectedIds: ["option-a"] },
+        grade: undefined,
+        handedIn: true,
+        redoOpen: true,
+        isPractice: false,
+      }),
+    ).toBe(QuestionBoxState.Plain);
+  });
+
   it("does not show a photo answer with no photos as needing a grade", () => {
     expect(
       questionBoxState({

@@ -9,6 +9,7 @@ import {
   setupTestDb,
   teardownTestDb,
 } from "src/tests/render-server-page";
+import { setTestPractice } from "src/tests/seed-unmarked-choice";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("src/lib/services-singleton", () => servicesSingletonMockFactory());
@@ -39,6 +40,7 @@ import {
   regenerateQuestionAction,
   regenerateSubmissionAction,
 } from "../courses/[courseId]/tests/[testId]/grading/ai-grade-actions";
+import { markChoiceAnswersAction } from "../courses/[courseId]/tests/[testId]/grading/mark-choice-answers-action";
 
 interface School {
   id: string;
@@ -411,6 +413,50 @@ describe("Feature: a school admin can never grade another school's test", () => 
         foreign.studentId,
       ),
     ).toBeNull();
+  });
+
+  it("markChoiceAnswersAction refuses a foreign test and marks nothing", async () => {
+    const foreign = await createForeignFixture();
+    const services = getTestServices();
+    // Handed in while practice, so the choice answer has no mark.
+    await setTestPractice(services, foreign.testId, true);
+    const choice = await services.questionService.addQuestion(foreign.testId, {
+      type: "single_select",
+      title: "Choice",
+      content: "Choice",
+      createdBy: "admin-1",
+      options: [
+        { text: "Right", isCorrect: true },
+        { text: "Wrong", isCorrect: false },
+      ],
+    });
+    const rightId = (
+      choice.type === "single_select" ? choice.options : []
+    ).find((o) => o.isCorrect)?.id as string;
+    await services.answerService.submitAnswer({
+      testId: foreign.testId,
+      questionId: choice.id,
+      studentId: foreign.studentId,
+      answer: { type: "mc", selectedIds: [rightId] },
+    });
+    await services.testSubmissionService.submitTest(
+      foreign.testId,
+      foreign.studentId,
+    );
+    await setTestPractice(services, foreign.testId, false);
+    await signInAsOtherSchoolAdmin();
+    const formData = new FormData();
+    formData.set("testId", foreign.testId);
+    formData.set("courseId", foreign.courseId);
+
+    const result = await markChoiceAnswersAction(null, formData);
+
+    expect(result.success).toBe(false);
+    expect(
+      (
+        await services.gradeService.getGrades(foreign.testId, foreign.studentId)
+      ).filter((grade) => grade.questionId === choice.id),
+    ).toEqual([]);
   });
 
   it("releaseTestAction refuses a foreign test and releases neither grades nor correct answers", async () => {

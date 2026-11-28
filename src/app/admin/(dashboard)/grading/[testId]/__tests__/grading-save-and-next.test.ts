@@ -22,6 +22,7 @@ import {
   setupTestDb,
   teardownTestDb,
 } from "src/tests/render-server-page";
+import { setTestPractice } from "src/tests/seed-unmarked-choice";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { saveAndNextAction } from "../../../courses/[courseId]/tests/[testId]/grading/actions";
 
@@ -592,5 +593,106 @@ describe("Feature: a Save & next that cannot save says why and stays on the answ
         ann.id,
       ),
     ).toBeNull();
+  });
+});
+
+describe("Feature: Save & next also opens a choice answer that never got its automatic mark", () => {
+  beforeEach(async () => {
+    await setupTestDb();
+  });
+
+  afterEach(async () => {
+    await teardownTestDb();
+    vi.clearAllMocks();
+  });
+
+  /** A normal test with a written Q1 and a choice Q2, whose students handed in while it was practice, so their choice answers have no mark. */
+  async function seedUnmarkedChoice(names: string[]) {
+    const seed = await seedTest(["written", "choice"]);
+    const { services, test } = seed;
+    await setTestPractice(services, test.id, true);
+    const students = [];
+    for (const name of names) {
+      students.push(await seedHandedInStudent(seed, name));
+    }
+    await setTestPractice(services, test.id, false);
+    return { seed, students };
+  }
+
+  it("by student: after the last written answer, opens her unmarked choice answer", async () => {
+    // Given Ann's Q2 is a choice answer with no mark and her Q1 is the only written answer to grade
+    const { seed, students } = await seedUnmarkedChoice(["Ann"]);
+    const [ann] = students;
+    const [q1, q2] = seed.questions;
+    expect(
+      await seed.services.gradeService.getGrade(seed.test.id, q2.id, ann.id),
+    ).toBeNull();
+
+    // When the teacher saves Q1 with Save & next
+    const url = await redirectedTo(saveForm(seed, ann.id, q1.id));
+
+    // Then Q2 opens on her, with no finish request
+    expect(url.searchParams.get("studentId")).toBe(ann.id);
+    expect(url.searchParams.get("questionId")).toBe(q2.id);
+    expect(url.searchParams.get("done")).toBeNull();
+  });
+
+  it("by student: when she has nothing else, opens the next student's unmarked choice answer", async () => {
+    // Given Ann's Q2 is marked, and Bob's Q1 is graded but his Q2 has no mark
+    const { seed, students } = await seedUnmarkedChoice(["Ann", "Bob"]);
+    const [ann, bob] = students;
+    const [q1, q2] = seed.questions;
+    for (const [studentId, questionId, score] of [
+      [ann.id, q2.id, 100],
+      [bob.id, q1.id, 70],
+    ] as const) {
+      await seed.services.gradeService.gradeQuestion({
+        testId: seed.test.id,
+        questionId,
+        studentId,
+        score,
+        feedback: "earlier",
+        gradedBy: "admin",
+      });
+    }
+
+    // When the teacher saves Ann's Q1
+    const url = await redirectedTo(saveForm(seed, ann.id, q1.id));
+
+    // Then Bob's Q2 opens
+    expect(url.searchParams.get("studentId")).toBe(bob.id);
+    expect(url.searchParams.get("questionId")).toBe(q2.id);
+  });
+
+  it("by question: after the last written box, opens the unmarked choice question", async () => {
+    // Given Ann's Q1 is the only written answer to grade and her Q2 has no mark
+    const { seed, students } = await seedUnmarkedChoice(["Ann"]);
+    const [ann] = students;
+    const [q1, q2] = seed.questions;
+
+    // When the teacher saves Q1 in By question
+    const url = await redirectedTo(
+      saveForm(seed, ann.id, q1.id, { mode: "question" }),
+    );
+
+    // Then Q2 opens, so the Mark button is in reach
+    expect(url.searchParams.get("mode")).toBe("question");
+    expect(url.searchParams.get("studentId")).toBe(ann.id);
+    expect(url.searchParams.get("questionId")).toBe(q2.id);
+  });
+
+  it("by student: skips the choice answer of a student still writing, which has no mark only because she has not handed in", async () => {
+    // Given Ann is still writing, with a written Q1 and a choice Q2 answered
+    const seed = await seedTest(["written", "choice"]);
+    const ann = await seedHandedInStudent(seed, "Ann", { stillWriting: true });
+    const [q1] = seed.questions;
+
+    // When the teacher grades her Q1 anyway with Save & next
+    const url = await redirectedTo(saveForm(seed, ann.id, q1.id));
+
+    // Then nothing else needs a grade, so it stays on Q1 and asks to finish
+    expect(url.searchParams.get("studentId")).toBe(ann.id);
+    expect(url.searchParams.get("questionId")).toBe(q1.id);
+    expect(url.searchParams.get("done")).toBe("1");
   });
 });

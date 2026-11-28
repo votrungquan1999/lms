@@ -26,6 +26,7 @@ import {
   questionsToGrade,
 } from "src/lib/next-answer-to-grade";
 import { attachQuestionMediaUrls } from "src/lib/question-media-urls";
+import { isMcQuestionType } from "src/lib/question-service";
 import {
   StudentReleaseOffer,
   studentReleaseOffer,
@@ -185,7 +186,14 @@ export async function GradingDetailStudent({
   const next = selectedQuestion ? findNextAnswerToGrade(nextInput) : null;
   const nextQuestion = screen.questions.find((q) => q.id === next?.questionId);
   const otherStudentsWaiting = countOtherStudentsToGrade(nextInput, student.id);
-  const answersLeftHere = questionsToGrade(nextInput, student.id).length;
+  const questionsLeftHere = questionsToGrade(nextInput, student.id);
+  const answersLeftHere = questionsLeftHere.length;
+  // A choice answer counts here only when it has no mark, and it is not a written answer.
+  const answersLeftKind = questionsLeftHere.some((q) =>
+    isMcQuestionType(q.type),
+  )
+    ? ""
+    : "written ";
   const saveAndNext: SaveAndNextNavigation = {
     routeKind,
     mode: GradingMode.Student,
@@ -193,7 +201,7 @@ export async function GradingDetailStudent({
     ...(next && nextQuestion && next.studentId === student.id
       ? {
           label: `Save & next: Q${nextQuestion.order} ›`,
-          leftLine: `${answersLeftHere} written ${answersLeftHere === 1 ? "answer" : "answers"} left for ${student.name}`,
+          leftLine: `${answersLeftHere} ${answersLeftKind}${answersLeftHere === 1 ? "answer" : "answers"} left for ${student.name}`,
         }
       : next
         ? {

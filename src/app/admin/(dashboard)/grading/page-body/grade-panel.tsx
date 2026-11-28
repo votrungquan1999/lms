@@ -2,6 +2,7 @@ import type { SaveAndNextNavigation } from "src/app/admin/(dashboard)/courses/[c
 import { CompactGradeForm } from "src/app/admin/(dashboard)/courses/[courseId]/tests/[testId]/grading/grading-forms";
 import { GradePanelShell } from "src/app/admin/(dashboard)/grading/page-body/grade-panel.ui";
 import { StillWritingGate } from "src/app/admin/(dashboard)/grading/page-body/still-writing-confirm";
+import { UnmarkedChoiceAnswer } from "src/app/admin/(dashboard)/grading/page-body/unmarked-choice-answer.ui";
 import { UnsavedGradeProvider } from "src/app/admin/(dashboard)/grading/page-body/unsaved-grade.state";
 import { BlankAnswerNote } from "src/components/blank-answer-note.ui";
 import { McReadOnlyScore } from "src/components/mc-read-only-score.ui";
@@ -10,6 +11,7 @@ import type { Grade } from "src/lib/grade-service";
 import {
   answerNeedsGrade,
   isGradableAnswer,
+  isUnmarkedChoiceAnswer,
 } from "src/lib/next-answer-to-grade";
 import { isMcQuestion, type Question } from "src/lib/question-service";
 import { hasSubmitted, TestStatus } from "src/lib/test-status-service";
@@ -77,11 +79,15 @@ export function GradePanel({
     if (isMcQuestion(question)) {
       return (
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
-          <McReadOnlyScore
-            selectedIds={answer?.type === "mc" ? answer.selectedIds : []}
-            score={score}
-            isSubmitted={isSubmitted}
-          />
+          {isSubmitted && isUnmarkedChoiceAnswer(question, answer, grade) ? (
+            <UnmarkedChoiceAnswer testId={testId} courseId={courseId} />
+          ) : (
+            <McReadOnlyScore
+              selectedIds={answer?.type === "mc" ? answer.selectedIds : []}
+              score={score}
+              isSubmitted={isSubmitted}
+            />
+          )}
           {overallFeedback}
         </div>
       );

@@ -1,5 +1,8 @@
 import type { Answer, StudentAnswer } from "src/lib/answer-service";
-import { answerNeedsGrade } from "src/lib/next-answer-to-grade";
+import {
+  answerNeedsGrade,
+  isUnmarkedChoiceAnswer,
+} from "src/lib/next-answer-to-grade";
 import { isMcQuestionType, type Question } from "src/lib/question-service";
 import {
   StudentPickerGroup,
@@ -102,7 +105,13 @@ export function questionBoxState(input: QuestionBoxInput): QuestionBoxState {
 
   if (isChoice) {
     // The system grades choice answers at hand-in, so the box shows its score.
-    if (!handedIn || !grade) return QuestionBoxState.Plain;
+    if (!handedIn) return QuestionBoxState.Plain;
+    // A choice answer whose automatic marking never ran waits for the teacher's marking button, except during a redo, when the hand-in marks it.
+    if (!grade) {
+      return !input.redoOpen && isUnmarkedChoiceAnswer(question, answer, grade)
+        ? QuestionBoxState.NeedsGrade
+        : QuestionBoxState.Plain;
+    }
     if (grade.score >= 100) return QuestionBoxState.Correct;
     return grade.score > 0
       ? QuestionBoxState.PartlyRight

@@ -9,6 +9,7 @@ import {
   setupTestDb,
   teardownTestDb,
 } from "src/tests/render-server-page";
+import { setTestPractice } from "src/tests/seed-unmarked-choice";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GradingDetailStudent } from "../grading-detail-student";
 
@@ -228,7 +229,7 @@ describe("Feature: the Save & next label matches where Save & next goes", () => 
     vi.clearAllMocks();
   });
 
-  it("says nothing else needs a grade when the only other hand-in holds a choice answer nobody can grade", async () => {
+  it("names the next student when the only other hand-in holds a choice answer with no mark", async () => {
     // Given a practice test where Ann handed in her written answer and Bob only a choice answer
     const seed = await seedTest(1, true);
     const ann = await seed.handedInStudent("Ann");
@@ -276,13 +277,71 @@ describe("Feature: the Save & next label matches where Save & next goes", () => 
       seed.questions[0].id,
     );
 
-    // Then the button does not promise a next student, because Save & next would find none
+    // Then the button names the next student, because Save & next opens Bob's unmarked choice answer
     const panel = screen.getByTestId("grade-card");
     expect(
-      within(panel).getByRole("button", { name: "Save & next" }),
+      within(panel).getByRole("button", { name: "Save & next student" }),
     ).toBeInTheDocument();
     expect(
-      within(panel).getByText("Nothing else in this test needs a grade"),
+      within(panel).getByText(
+        "Ann's last answer to grade · 1 more student waiting",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("counts her choice answer with no mark as an answer left, without calling it written", async () => {
+    // Given a practice test where Ann handed in a written Q1 and a choice Q2
+    const seed = await seedTest(1, true);
+    const choice = await seed.services.questionService.addQuestion(
+      seed.test.id,
+      {
+        type: "single_select",
+        title: "Pick",
+        content: "Pick",
+        createdBy: "admin",
+        options: [
+          { text: "Yes", isCorrect: true },
+          { text: "No", isCorrect: false },
+        ],
+      },
+    );
+    const ann = await seed.enrolledStudent("Ann");
+    await seed.services.answerService.submitAnswer({
+      testId: seed.test.id,
+      questionId: seed.questions[0].id,
+      studentId: ann.id,
+      answer: { type: "free_text", text: "Ann answer" },
+    });
+    await seed.services.answerService.submitAnswer({
+      testId: seed.test.id,
+      questionId: choice.id,
+      studentId: ann.id,
+      answer: {
+        type: "mc",
+        selectedIds: [(choice.options as { id: string }[])[0].id],
+      },
+    });
+    await seed.services.testSubmissionService.submitTest(seed.test.id, ann.id);
+    // And the test is switched to a normal one, which leaves her choice answer unmarked
+    await setTestPractice(seed.services, seed.test.id, false);
+    const normalTest = await seed.services.testService.requireTest(
+      seed.test.id,
+    );
+
+    // When the teacher opens her written answer
+    await renderStudent(
+      { ...seed, test: normalTest },
+      ann,
+      seed.questions[0].id,
+    );
+
+    // Then the button names Q2 and the line counts both answers, not as written ones
+    const panel = screen.getByTestId("grade-card");
+    expect(
+      within(panel).getByRole("button", { name: "Save & next: Q2 ›" }),
+    ).toBeInTheDocument();
+    expect(
+      within(panel).getByText("2 answers left for Ann"),
     ).toBeInTheDocument();
   });
 });
